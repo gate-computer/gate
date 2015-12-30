@@ -11,7 +11,11 @@ GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
 GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/assemble \
-	$(GOPACKAGEPREFIX)/run
+	$(GOPACKAGEPREFIX)/client \
+	$(GOPACKAGEPREFIX)/run \
+	$(GOPACKAGEPREFIX)/server \
+	$(GOPACKAGEPREFIX)/stream \
+	$(GOPACKAGEPREFIX)/stream/tlsconfig
 
 export GATE_TEST_OPT		:= $(OPT)
 export GATE_TEST_LLC		:= $(LLC)
@@ -33,6 +37,8 @@ build:
 	$(MAKE) -C llvmpass
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
+	$(GO) install $(GOPACKAGEPREFIX)/client
+	$(GO) install $(GOPACKAGEPREFIX)/server
 
 all: build
 	$(GO) install $(GOPACKAGEPREFIX)/elf2payload
@@ -42,7 +48,7 @@ all: build
 
 check: all
 	$(MAKE) -C test check
-	$(GO) test -v $(GOPACKAGES)
+	$(GO) test -race -v $(GOPACKAGES)
 
 clean:
 	rm -rf bin lib pkg
