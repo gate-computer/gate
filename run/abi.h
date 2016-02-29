@@ -1,0 +1,1 @@
+#define GATE_ABI_VERSION 0
