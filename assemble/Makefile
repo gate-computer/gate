@@ -7,7 +7,7 @@ include $(GATEDIR)/llvm.make
 
 PASS_PLUGIN	:= $(GATEDIR)/llvmpass/build/libgatepass.so
 LINK_SCRIPT	:= $(PWD)/link.ld
-TEST_BITCODE	:= $(GATEDIR)/crt/test/prog.bc
+TEST_BITCODE	:= $(GATEDIR)/test/prog.bc
 
 nothing:
 

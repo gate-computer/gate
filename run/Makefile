@@ -1,7 +1,7 @@
 GO		?= go
 
 PWD		:= $(shell pwd)
-TEST_ELF	:= $(dir $(PWD))/crt/test/prog.elf
+TEST_ELF	:= $(dir $(PWD))/test/prog.elf
 
 nothing:
 

@@ -1,13 +1,14 @@
 GDB		?= gdb
 
-GATEDIR		:= ../..
+GATEDIR		:= ..
 
-include ../variables.make
+include $(GATEDIR)/crt/variables.make
 
+CPPFLAGS	+= -isystem $(GATEDIR)/libc/arch -isystem $(GATEDIR)/libc/musl/obj/include -isystem $(GATEDIR)/libc/musl/include
 CFLAGS		+= -g -Wall -Wextra -Wno-unused-parameter
 CXXFLAGS	+= -std=c++14
 
-OBJECTS		:= test.bc
+OBJECTS		:= test.bc $(GATEDIR)/libc/libc.bc
 
 build: prog.bc prog.elf prog.payload
 
@@ -22,4 +23,4 @@ clean:
 
 .PHONY: build check clean
 
-include ../rules.make
+include $(GATEDIR)/crt/rules.make
