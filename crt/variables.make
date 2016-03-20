@@ -15,3 +15,5 @@ INCLUDEDIR	:= $(CRTDIR)/../include
 CPPFLAGS	+= -I$(INCLUDEDIR)
 CFLAGS		+= -emit-llvm -ffreestanding -fno-stack-protector
 CXXFLAGS	+= -fno-exceptions
+
+CRTOBJECTS	:= $(CRTDIR)/start.bc $(CRTDIR)/memcpy.bc $(CRTDIR)/memset.bc

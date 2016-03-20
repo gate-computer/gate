@@ -1,5 +1,5 @@
 prog.bc: $(OBJECTS)
-	$(LLVMLINK) -o $@ $(CRTDIR)/crt.bc $(OBJECTS)
+	$(LLVMLINK) -o $@ $(CRTOBJECTS) $(OBJECTS)
 
 %.bc: %.c
 	$(CLANG) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
