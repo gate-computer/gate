@@ -1,29 +1,25 @@
+GDB		?= gdb
+
 GATEDIR		:= ../..
 
 include ../variables.make
 
-CPPFLAGS	+= -DNDEBUG
-CFLAGS		+= -fomit-frame-pointer -Os -g -Wall -Wextra -Wno-unused-parameter
+CFLAGS		+= -g -Wall -Wextra -Wno-unused-parameter
 CXXFLAGS	+= -std=c++14
-LDFLAGS		+= -T$(GATEDIR)/assemble/link.ld
-
-PASS_PLUGIN	:= $(GATEDIR)/llvmpass/build/libgatepass.so
 
 OBJECTS		:= test.bc
 
-build: prog.bc prog.elf
+build: prog.bc prog.elf prog.payload
 
-prog.elf: prog.o
-	$(LD) $(LDFLAGS) -o $@ prog.o
+test.bc: test.cpp $(GATEDIR)/include/gate.h $(GATEDIR)/include/gate/args.h
 
-prog.o: prog.bc
-	$(OPT) -load=$(PASS_PLUGIN) -gate < prog.bc | $(LLC) | $(AS) -o $@
-
-test.bc: test.cpp $(INCLUDEDIR)/gate.h $(INCLUDEDIR)/gate/args.h
+check: prog.payload
+	$(GATEDIR)/run/executor/executor $(GATEDIR)/run/loader/loader < prog.payload
+	$(GDB) -q -ex "run < prog.payload" -ex "quit" $(GATEDIR)/run/loader/loader
 
 clean:
 	rm -f prog.* *.bc
 
-.PHONY: build clean
+.PHONY: build check clean
 
 include ../rules.make

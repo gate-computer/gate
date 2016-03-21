@@ -8,10 +8,9 @@
 #include <linux/seccomp.h>
 #include <asm/prctl.h>
 
-#include <gate/args.h>
-
+#include "../../include/gate/args.h"
+#include "../stack.h"
 #include "abi.h"
-#include "stack.h"
 
 #define GATE_BSS_START 0x100001000
 #define GATE_BSS_SIZE  4096

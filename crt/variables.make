@@ -1,10 +1,12 @@
 include $(GATEDIR)/llvm.make
 include $(GATEDIR)/clang.make
 
-INCLUDEDIR	:= $(GATEDIR)/include
+PASS_PLUGIN	:= $(GATEDIR)/llvmpass/build/libgatepass.so
+ELF2PAYLOAD	:= $(GATEDIR)/elf2payload/elf2payload
 
-CPPFLAGS	+= -I$(INCLUDEDIR)
+CPPFLAGS	+= -I$(GATEDIR)/include
 CFLAGS		+= -emit-llvm -ffreestanding -fno-stack-protector
 CXXFLAGS	+= -fno-exceptions
+LDFLAGS		+= -T$(GATEDIR)/assemble/link.ld
 
 CRTOBJECTS	:= $(GATEDIR)/crt/start.bc $(GATEDIR)/crt/memcpy.bc $(GATEDIR)/crt/memset.bc

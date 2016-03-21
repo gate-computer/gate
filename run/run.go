@@ -52,7 +52,12 @@ func (ds *dataSection) init(es *elf.Section) (err error) {
 	return
 }
 
-func Run(executorPath, loaderPath string, program *elf.File, memorySize int) (err error) {
+type Payload struct {
+	info  []uint64
+	parts [][]byte
+}
+
+func NewPayload(elfFile *elf.File, memorySize int) (payload *Payload, err error) {
 	var (
 		textSect   dataSection
 		rodataSect dataSection
@@ -62,7 +67,7 @@ func Run(executorPath, loaderPath string, program *elf.File, memorySize int) (er
 		gateSect   dataSection
 	)
 
-	for _, s := range program.Sections {
+	for _, s := range elfFile.Sections {
 		switch s.Name {
 		case ".text":
 			err = textSect.init(s)
@@ -89,7 +94,7 @@ func Run(executorPath, loaderPath string, program *elf.File, memorySize int) (er
 		startAddr             = uint64(0x100000000)
 	)
 
-	symbols, err := program.Symbols()
+	symbols, err := elfFile.Symbols()
 	if err != nil {
 		return
 	}
@@ -151,29 +156,29 @@ func Run(executorPath, loaderPath string, program *elf.File, memorySize int) (er
 		alignedDataAddr = alignedRodataAddr + alignedRodataSize
 	}
 
-	fmt.Printf("_start addr          0x%07x\n", startAddr)
-	fmt.Printf(".text addr           0x%07x\n", textSect.addr)
-	fmt.Printf(".text addr aligned   0x%07x\n", alignedTextAddr)
-	fmt.Printf(".text end            0x%07x\n", textSect.addr+textSect.size)
-	fmt.Printf(".text end aligned    0x%07x\n", alignedTextAddr+alignedTextSize)
-	fmt.Printf(".rodata addr         0x%07x\n", rodataSect.addr)
-	fmt.Printf(".rodata end          0x%07x\n", rodataSect.addr+rodataSect.size)
-	fmt.Printf(".rodata end aligned  0x%07x\n", alignedRodataAddr+alignedRodataSize)
-	fmt.Printf(".data addr           0x%07x\n", dataSect.addr)
-	fmt.Printf(".data end            0x%07x\n", dataSect.addr+dataSect.size)
-	fmt.Printf(".bss addr            0x%07x\n", bssSect.addr)
-	fmt.Printf(".bss end             0x%07x\n", bssSect.addr+bssSect.size)
-	fmt.Printf(".bss end aligned     0x%07x\n", dataSect.addr+alignedProgramSize)
-	fmt.Printf(".gate addr           0x%07x\n", gateSect.addr)
-	fmt.Printf(".text size           %9d\n", textSect.size)
-	fmt.Printf(".text size aligned   %9d\n", alignedTextSize)
-	fmt.Printf(".rodata size         %9d\n", rodataSect.size)
-	fmt.Printf(".rodata size aligned %9d\n", alignedRodataSize)
-	fmt.Printf(".data size           %9d\n", dataSect.size)
-	fmt.Printf(".bss size            %9d\n", bssSect.size)
-	fmt.Printf(".tbss size           %9d\n", tbssSize)
-	fmt.Printf(".gate size           %9d\n", gateSect.size)
-	fmt.Printf("program size aligned %9d\n", alignedProgramSize)
+	fmt.Fprintf(os.Stderr, "_start addr          0x%07x\n", startAddr)
+	fmt.Fprintf(os.Stderr, ".text addr           0x%07x\n", textSect.addr)
+	fmt.Fprintf(os.Stderr, ".text addr aligned   0x%07x\n", alignedTextAddr)
+	fmt.Fprintf(os.Stderr, ".text end            0x%07x\n", textSect.addr+textSect.size)
+	fmt.Fprintf(os.Stderr, ".text end aligned    0x%07x\n", alignedTextAddr+alignedTextSize)
+	fmt.Fprintf(os.Stderr, ".rodata addr         0x%07x\n", rodataSect.addr)
+	fmt.Fprintf(os.Stderr, ".rodata end          0x%07x\n", rodataSect.addr+rodataSect.size)
+	fmt.Fprintf(os.Stderr, ".rodata end aligned  0x%07x\n", alignedRodataAddr+alignedRodataSize)
+	fmt.Fprintf(os.Stderr, ".data addr           0x%07x\n", dataSect.addr)
+	fmt.Fprintf(os.Stderr, ".data end            0x%07x\n", dataSect.addr+dataSect.size)
+	fmt.Fprintf(os.Stderr, ".bss addr            0x%07x\n", bssSect.addr)
+	fmt.Fprintf(os.Stderr, ".bss end             0x%07x\n", bssSect.addr+bssSect.size)
+	fmt.Fprintf(os.Stderr, ".bss end aligned     0x%07x\n", dataSect.addr+alignedProgramSize)
+	fmt.Fprintf(os.Stderr, ".gate addr           0x%07x\n", gateSect.addr)
+	fmt.Fprintf(os.Stderr, ".text size           %9d\n", textSect.size)
+	fmt.Fprintf(os.Stderr, ".text size aligned   %9d\n", alignedTextSize)
+	fmt.Fprintf(os.Stderr, ".rodata size         %9d\n", rodataSect.size)
+	fmt.Fprintf(os.Stderr, ".rodata size aligned %9d\n", alignedRodataSize)
+	fmt.Fprintf(os.Stderr, ".data size           %9d\n", dataSect.size)
+	fmt.Fprintf(os.Stderr, ".bss size            %9d\n", bssSect.size)
+	fmt.Fprintf(os.Stderr, ".tbss size           %9d\n", tbssSize)
+	fmt.Fprintf(os.Stderr, ".gate size           %9d\n", gateSect.size)
+	fmt.Fprintf(os.Stderr, "program size aligned %9d\n", alignedProgramSize)
 
 	if !(alignedTextAddr+alignedTextSize <= alignedRodataAddr && alignedRodataAddr+alignedRodataSize <= alignedDataAddr) {
 		panic("overlapping section pages")
@@ -191,96 +196,56 @@ func Run(executorPath, loaderPath string, program *elf.File, memorySize int) (er
 
 	alignedHeapSize := alignedMemorySize - alignedProgramSize
 
-	fmt.Printf("heap size aligned    %9d\n", alignedHeapSize)
-	fmt.Printf("indirect funcs count %5d + 3\n", indirectFuncsSize / 4)
+	fmt.Fprintf(os.Stderr, "heap size aligned    %9d\n", alignedHeapSize)
+	fmt.Fprintf(os.Stderr, "indirect funcs count %5d + 3\n", indirectFuncsSize / 4)
 
-	info := []uint64{
-		pageSize,
-		textSect.addr,
-		textSect.size,
-		alignedTextAddr,
-		alignedTextSize,
-		rodataSect.addr,
-		rodataSect.size,
-		alignedRodataAddr,
-		alignedRodataSize,
-		dataSect.addr,
-		dataSect.size,
-		alignedProgramSize,
-		indirectFuncsSize,
-		roundToPage(indirectFuncsSize + 3*4),
-		alignedHeapSize,
-		tbssSize,
-		unsafeStackPtrOffset,
-		indirectCallCheckAddr,
-		argsAddr,
-		startAddr,
-	}
-
-	cmd := exec.Cmd{
-		Path: executorPath,
-		Args: []string{executorPath, loaderPath},
-		Env:  []string{},
-		Dir:  "/",
-	}
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return
-	}
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		stdin.Close()
-		return
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		stdin.Close()
-		stdout.Close()
-		return
-	}
-
-	err = writeProgram(stdin, info, textSect.data, rodataSect.data, dataSect.data, indirectFuncArray)
-	if err != nil {
-		cmd.Process.Kill()
-		cmd.Wait()
-		return
-	}
-
-	dumpOutput(stdout)
-
-	err = cmd.Wait()
-	if err != nil {
-		return
-	}
-
-	if !cmd.ProcessState.Success() {
-		err = errors.New(cmd.ProcessState.String())
+	payload = &Payload{
+		info: []uint64{
+			pageSize,
+			textSect.addr,
+			textSect.size,
+			alignedTextAddr,
+			alignedTextSize,
+			rodataSect.addr,
+			rodataSect.size,
+			alignedRodataAddr,
+			alignedRodataSize,
+			dataSect.addr,
+			dataSect.size,
+			alignedProgramSize,
+			indirectFuncsSize,
+			roundToPage(indirectFuncsSize + 3*4),
+			alignedHeapSize,
+			tbssSize,
+			unsafeStackPtrOffset,
+			indirectCallCheckAddr,
+			argsAddr,
+			startAddr,
+		},
+		parts: [][]byte{
+			textSect.data,
+			rodataSect.data,
+			dataSect.data,
+			indirectFuncArray,
+		},
 	}
 	return
 }
 
-func writeProgram(w io.Writer, info []uint64, sections ...[]byte) (err error) {
-	err = binary.Write(w, nativeEndian, info)
+func (payload *Payload) WriteTo(w io.Writer) (err error) {
+	err = binary.Write(w, nativeEndian, payload.info)
 	if err != nil {
 		return
 	}
 
-	for _, s := range sections {
-		_, err = w.Write(s)
+	for _, part := range payload.parts {
+		_, err = w.Write(part)
 		if err != nil {
 			return
 		}
 	}
 
 	return
-}
-
-func dumpOutput(r io.Reader) {
-	data, _ := ioutil.ReadAll(r)
-	fmt.Printf("%v\n", data)
 }
 
 func binaryUint64ToUint32Inplace(buf []byte) []byte {
@@ -319,4 +284,55 @@ func (b binaryUint32Order) Less(i, j int) bool {
 	l := nativeEndian.Uint32(b[i*4 : i*4+4])
 	r := nativeEndian.Uint32(b[j*4 : j*4+4])
 	return l < r
+}
+
+func Run(executorBin, loaderBin string, payload *Payload) (err error) {
+	cmd := exec.Cmd{
+		Path: executorBin,
+		Args: []string{executorBin, loaderBin},
+		Env:  []string{},
+		Dir:  "/",
+	}
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return
+	}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		stdin.Close()
+		return
+	}
+
+	err = cmd.Start()
+	if err != nil {
+		stdin.Close()
+		stdout.Close()
+		return
+	}
+
+	err = payload.WriteTo(stdin)
+	if err != nil {
+		cmd.Process.Kill()
+		cmd.Wait()
+		return
+	}
+
+	dumpOutput(stdout)
+
+	err = cmd.Wait()
+	if err != nil {
+		return
+	}
+
+	if !cmd.ProcessState.Success() {
+		err = errors.New(cmd.ProcessState.String())
+	}
+	return
+}
+
+func dumpOutput(r io.Reader) {
+	data, _ := ioutil.ReadAll(r)
+	fmt.Fprintf(os.Stderr, "%v\n", data)
 }

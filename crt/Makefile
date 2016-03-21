@@ -7,7 +7,7 @@ CFLAGS		+= -fomit-frame-pointer -Os -g -Wall -Wextra -Wno-unused-parameter
 
 build: $(CRTOBJECTS)
 
-start.bc: start.c $(INCLUDEDIR)/gate.h $(INCLUDEDIR)/gate/args.h
+start.bc: start.c $(GATEDIR)/include/gate.h $(GATEDIR)/include/gate/args.h
 memcpy.bc: memcpy.c
 memset.bc: memset.c
 

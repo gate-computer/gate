@@ -9,21 +9,23 @@ import (
 func TestRun(t *testing.T) {
 	const memorySize = 256 * 1024 * 1024
 
-	executorPath := os.Getenv("GATE_RUN_TEST_EXECUTOR")
-	loaderPath := os.Getenv("GATE_RUN_TEST_LOADER")
+	executorBin := os.Getenv("GATE_RUN_TEST_EXECUTOR")
+	loaderBin := os.Getenv("GATE_RUN_TEST_LOADER")
+	elfPath := os.Getenv("GATE_RUN_TEST_ELF")
 
-	programPath := os.Getenv("GATE_RUN_TEST_ELF")
-	if programPath == "" {
-		t.Fatal("no test program")
-	}
-
-	program, err := elf.Open(programPath)
+	elfFile, err := elf.Open(elfPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := Run(executorPath, loaderPath, program, memorySize); err != nil {
-		t.Error(err)
+	payload, err := NewPayload(elfFile, memorySize)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = Run(executorBin, loaderBin, payload)
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
