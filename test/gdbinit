@@ -1,0 +1,3 @@
+file ../run/loader/loader
+add-symbol-file prog.elf 0x400000
+run < prog.payload

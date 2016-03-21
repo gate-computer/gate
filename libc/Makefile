@@ -3,8 +3,9 @@ GATEDIR		:= ../..
 include ../clang.make
 include ../llvm.make
 
-CPPFLAGS	:= -I../include
+CPPFLAGS	:= -isystem arch -isystem musl/include -isystem musl/obj/include -I../include
 CFLAGS		:= -g -Wall -Wextra -Wno-unused-parameter -emit-llvm -Os
+CXXFLAGS	:= -std=c++14
 
 MUSL_OBJECTS := \
 	musl/obj/src/internal/libc.o \
@@ -18,13 +19,19 @@ OBJECTS := \
 	memcpy.bc \
 	memset.bc
 
-build: libc.bc
+CXXOBJECTS := \
+	new.bc
+
+build: libc.bc libc++.bc
 
 libc.bc: $(OBJECTS)
 	$(LLVMLINK) -o $@ $(OBJECTS)
 
+libc++.bc: $(CXXOBJECTS)
+	$(LLVMLINK) -o $@ $(CXXOBJECTS)
+
 $(MUSL_OBJECTS): $(wildcard arch/*.h)
-	cd musl && ./configure CC="$(CLANG)" CFLAGS="-emit-llvm -Os"
+	cd musl && ./configure CC="$(CLANG)" CFLAGS="-g -emit-llvm"
 	$(MAKE) -C musl ARCH=../../arch $(MUSL_OBJECTS:musl/%=%)
 
 clean:
