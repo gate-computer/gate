@@ -9,7 +9,7 @@ LOADER_CFLAGS	+= $(CFLAGS) -fPIE -fomit-frame-pointer -fno-stack-protector -Wno-
 LOADER_LDFLAGS	+= $(LDFLAGS) -static -nostartfiles -nostdlib -Wl,--section-start=.abi=0xfffff000 -Wl,-Ttext=0x100000000 -Wl,-Tbss=0x100001000 -Wl,--build-id=none
 
 PWD		:= $(shell pwd)
-TEST_ELF	:= $(PWD)/../crt/test/prog.elf
+TEST_ELF	:= $(dir $(PWD))/crt/test/prog.elf
 
 build: executor loader
 

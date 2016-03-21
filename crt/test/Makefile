@@ -1,13 +1,13 @@
-CRTDIR		:= ..
+GATEDIR		:= ../..
 
-include $(CRTDIR)/variables.make
+include ../variables.make
 
 CPPFLAGS	+= -DNDEBUG
 CFLAGS		+= -fomit-frame-pointer -Os -g -Wall -Wextra -Wno-unused-parameter
 CXXFLAGS	+= -std=c++14
-LDFLAGS		+= -Tlink.ld
+LDFLAGS		+= -T$(GATEDIR)/assemble/link.ld
 
-PASSPLUGIN	:= $(CRTDIR)/../llvmpass/build/libgatepass.so
+PASS_PLUGIN	:= $(GATEDIR)/llvmpass/build/libgatepass.so
 
 OBJECTS		:= test.bc
 
@@ -17,7 +17,7 @@ prog.elf: prog.o
 	$(LD) $(LDFLAGS) -o $@ prog.o
 
 prog.o: prog.bc
-	$(LLVMOPT) -load=$(PASSPLUGIN) -gate < prog.bc | $(LLC) | $(AS) -o $@
+	$(OPT) -load=$(PASS_PLUGIN) -gate < prog.bc | $(LLC) | $(AS) -o $@
 
 test.bc: test.cpp $(INCLUDEDIR)/gate.h $(INCLUDEDIR)/gate/args.h
 
@@ -26,4 +26,4 @@ clean:
 
 .PHONY: build clean
 
-include $(CRTDIR)/rules.make
+include ../rules.make

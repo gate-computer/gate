@@ -7,6 +7,7 @@ all: build
 	$(MAKE) -C crt/test
 
 check: all
+	$(MAKE) -C assemble check
 	$(MAKE) -C run check
 
 clean:

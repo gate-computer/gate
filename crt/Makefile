@@ -1,6 +1,6 @@
-CRTDIR		:= .
+GATEDIR		:= ..
 
-include $(CRTDIR)/variables.make
+include variables.make
 
 CPPFLAGS	+= -DNDEBUG
 CFLAGS		+= -fomit-frame-pointer -Os -g -Wall -Wextra -Wno-unused-parameter
@@ -16,4 +16,4 @@ clean:
 
 .PHONY: build clean
 
-include $(CRTDIR)/rules.make
+include rules.make
