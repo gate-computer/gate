@@ -37,6 +37,7 @@ static void sys_exit(int status)
 		:
 		: "a" (SYS_exit), "D" (status)
 	);
+	__builtin_unreachable();
 }
 
 static ssize_t sys_read(int fd, void *buf, size_t count)
@@ -217,6 +218,7 @@ static void enter(uint64_t page_size, void *safe_stack_ptr, void (*func)(uint32_
 		:
 		: "r" (r10), "r" (r11), "r" (rsi), "r" (r12)
 	);
+	__builtin_unreachable();
 }
 
 struct stack_top {
