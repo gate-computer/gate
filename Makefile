@@ -1,26 +1,56 @@
+PWD		:= $(shell pwd)
+
+GO		?= go
+export GOPATH	:= $(PWD)
+
+include llvm.make
+
+GOPACKAGEPREFIX	:= github.com/tsavola/gate
+
+-include config.make
+
+GOPACKAGES := \
+	$(GOPACKAGEPREFIX)/assemble \
+	$(GOPACKAGEPREFIX)/run
+
+export GATE_TEST_OPT		:= $(OPT)
+export GATE_TEST_LLC		:= $(LLC)
+export GATE_TEST_AS		:= $(AS)
+export GATE_TEST_LD		:= $(LD)
+export GATE_TEST_LINK_SCRIPT	:= $(PWD)/assemble/link.ld
+export GATE_TEST_PASS_PLUGIN	:= $(PWD)/lib/libgatepass.so
+export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
+export GATE_TEST_LOADER		:= $(PWD)/bin/loader
+export GATE_TEST_BITCODE	:= $(PWD)/test/prog.bc
+export GATE_TEST_ELF		:= $(PWD)/test/prog.elf
+
 build:
+	$(GO) get golang.org/x/net/context
+	$(GO) get golang.org/x/net/http2
+	$(GO) get golang.org/x/net/http2/hpack
+	$(GO) fmt $(GOPACKAGES)
+	$(GO) vet $(GOPACKAGES)
 	$(MAKE) -C llvmpass
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 
 all: build
+	$(GO) install $(GOPACKAGEPREFIX)/elf2payload
 	$(MAKE) -C crt
 	$(MAKE) -C libc
-	$(MAKE) -C elf2payload
 	$(MAKE) -C test
 
 check: all
 	$(MAKE) -C test check
-	$(MAKE) -C assemble check
-	$(MAKE) -C run check
+	$(GO) test -v $(GOPACKAGES)
 
 clean:
+	rm -rf bin lib pkg
 	$(MAKE) -C llvmpass clean
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C crt clean
 	$(MAKE) -C libc clean
-	$(MAKE) -C elf2payload clean
 	$(MAKE) -C test clean
 
 .PHONY: build all check clean

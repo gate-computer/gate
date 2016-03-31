@@ -197,7 +197,7 @@ func NewPayload(elfFile *elf.File, memorySize int) (payload *Payload, err error)
 	alignedHeapSize := alignedMemorySize - alignedProgramSize
 
 	fmt.Fprintf(os.Stderr, "heap size aligned    %9d\n", alignedHeapSize)
-	fmt.Fprintf(os.Stderr, "indirect funcs count %5d + 3\n", indirectFuncsSize / 4)
+	fmt.Fprintf(os.Stderr, "indirect funcs count %5d + 3\n", indirectFuncsSize/4)
 
 	payload = &Payload{
 		info: []uint64{
@@ -232,17 +232,24 @@ func NewPayload(elfFile *elf.File, memorySize int) (payload *Payload, err error)
 	return
 }
 
-func (payload *Payload) WriteTo(w io.Writer) (err error) {
+func (payload *Payload) WriteTo(w io.Writer) (n int64, err error) {
 	err = binary.Write(w, nativeEndian, payload.info)
 	if err != nil {
+		// n may be wrong
 		return
 	}
 
+	n += 8 * int64(len(payload.info))
+
 	for _, part := range payload.parts {
-		_, err = w.Write(part)
+		var m int
+
+		m, err = w.Write(part)
 		if err != nil {
 			return
 		}
+
+		n += int64(m)
 	}
 
 	return
@@ -312,7 +319,7 @@ func Run(executorBin, loaderBin string, payload *Payload) (err error) {
 		return
 	}
 
-	err = payload.WriteTo(stdin)
+	_, err = payload.WriteTo(stdin)
 	if err != nil {
 		cmd.Process.Kill()
 		cmd.Wait()

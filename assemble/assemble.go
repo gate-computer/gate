@@ -68,7 +68,7 @@ func Assemble(optBin, passPlugin, llcBin, asBin, ldBin, linkScript string, bitco
 		Path: ldBin,
 		Args: []string{ldBin, "-T", linkScript, "-o", elfName, objName},
 		Env:  []string{},
-		Dir: "/",
+		Dir:  "/",
 	}
 
 	err = elfCmd.Start()

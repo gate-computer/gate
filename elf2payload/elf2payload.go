@@ -4,7 +4,7 @@ import (
 	"debug/elf"
 	"os"
 
-	"../run"
+	"github.com/tsavola/gate/run"
 )
 
 const (
@@ -22,7 +22,7 @@ func main() {
 		panic(err)
 	}
 
-	err = payload.WriteTo(os.Stdout)
+	_, err = payload.WriteTo(os.Stdout)
 	if err != nil {
 		panic(err)
 	}

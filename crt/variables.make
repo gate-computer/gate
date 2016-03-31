@@ -1,8 +1,8 @@
 include $(GATEDIR)/llvm.make
 include $(GATEDIR)/clang.make
 
-PASS_PLUGIN	:= $(GATEDIR)/llvmpass/build/libgatepass.so
-ELF2PAYLOAD	:= $(GATEDIR)/elf2payload/elf2payload
+PASS_PLUGIN	:= $(GATEDIR)/lib/libgatepass.so
+ELF2PAYLOAD	:= $(GATEDIR)/bin/elf2payload
 
 CPPFLAGS	+= -I$(GATEDIR)/include
 CFLAGS		+= -emit-llvm -ffreestanding -fno-stack-protector

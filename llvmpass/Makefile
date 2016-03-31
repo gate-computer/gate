@@ -1,7 +1,9 @@
 CMAKE		?= cmake
 
-build: build/Makefile
+../lib/libgatepass.so: build/Makefile
 	$(MAKE) -C build
+	mkdir -p $(dir $@)
+	cp build/libgatepass.so $@
 
 build/Makefile: CMakeLists.txt
 	mkdir -p build
@@ -10,4 +12,4 @@ build/Makefile: CMakeLists.txt
 clean:
 	rm -rf build
 
-.PHONY: build clean
+.PHONY: clean

@@ -9,9 +9,9 @@ import (
 func TestRun(t *testing.T) {
 	const memorySize = 256 * 1024 * 1024
 
-	executorBin := os.Getenv("GATE_RUN_TEST_EXECUTOR")
-	loaderBin := os.Getenv("GATE_RUN_TEST_LOADER")
-	elfPath := os.Getenv("GATE_RUN_TEST_ELF")
+	executorBin := os.Getenv("GATE_TEST_EXECUTOR")
+	loaderBin := os.Getenv("GATE_TEST_LOADER")
+	elfPath := os.Getenv("GATE_TEST_ELF")
 
 	elfFile, err := elf.Open(elfPath)
 	if err != nil {

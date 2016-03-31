@@ -10,13 +10,13 @@ import (
 )
 
 func TestAssemble(t *testing.T) {
-	optBin := lookPath(t, os.Getenv("GATE_ASSEMBLE_TEST_OPT"))
-	passPlugin := os.Getenv("GATE_ASSEMBLE_TEST_PASS_PLUGIN")
-	llcBin := lookPath(t, os.Getenv("GATE_ASSEMBLE_TEST_LLC"))
-	asBin := lookPath(t, os.Getenv("GATE_ASSEMBLE_TEST_AS"))
-	ldBin := lookPath(t, os.Getenv("GATE_ASSEMBLE_TEST_LD"))
-	linkScript := os.Getenv("GATE_ASSEMBLE_TEST_LINK_SCRIPT")
-	bitcodePath := os.Getenv("GATE_ASSEMBLE_TEST_BITCODE")
+	optBin := lookPath(t, os.Getenv("GATE_TEST_OPT"))
+	passPlugin := os.Getenv("GATE_TEST_PASS_PLUGIN")
+	llcBin := lookPath(t, os.Getenv("GATE_TEST_LLC"))
+	asBin := lookPath(t, os.Getenv("GATE_TEST_AS"))
+	ldBin := lookPath(t, os.Getenv("GATE_TEST_LD"))
+	linkScript := os.Getenv("GATE_TEST_LINK_SCRIPT")
+	bitcodePath := os.Getenv("GATE_TEST_BITCODE")
 
 	bitcode, err := ioutil.ReadFile(bitcodePath)
 	if err != nil {
