@@ -29,7 +29,6 @@ export GATE_TEST_BITCODE	:= $(PWD)/test/prog.bc
 export GATE_TEST_ELF		:= $(PWD)/test/prog.elf
 
 build:
-	$(GO) get golang.org/x/net/context
 	$(GO) get golang.org/x/net/http2
 	$(GO) get golang.org/x/net/http2/hpack
 	$(GO) fmt $(GOPACKAGES)

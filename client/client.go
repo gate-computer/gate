@@ -1,15 +1,13 @@
 package main
 
 import (
-	"crypto/tls"
+	"context"
 	"io/ioutil"
 	logpkg "log"
 	"os"
 	"os/signal"
 	"runtime/pprof"
 	"syscall"
-
-	"golang.org/x/net/context"
 
 	"github.com/tsavola/gate/stream"
 	"github.com/tsavola/gate/stream/tlsconfig"
@@ -36,7 +34,7 @@ func main() {
 	tlsConfig := tlsconfig.Defaults(nil)
 	tlsConfig.InsecureSkipVerify = true
 
-	c, err := tls.Dial("tcp", addr, tlsConfig)
+	c, err := dialContextTLS(ctx, "tcp", addr, tlsConfig)
 	if err != nil {
 		log.Printf("client: error: %v", err)
 		os.Exit(1)

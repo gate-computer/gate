@@ -1,12 +1,11 @@
 package stream_test
 
 import (
+	"context"
 	"net"
 	"runtime"
 	"strings"
 	"testing"
-
-	"golang.org/x/net/context"
 
 	"github.com/tsavola/gate/stream"
 )

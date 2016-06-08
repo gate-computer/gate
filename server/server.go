@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	logpkg "log"
 	"net"
@@ -8,8 +9,6 @@ import (
 	"os/signal"
 	"runtime/pprof"
 	"syscall"
-
-	"golang.org/x/net/context"
 
 	"github.com/tsavola/gate/stream"
 	"github.com/tsavola/gate/stream/tlsconfig"

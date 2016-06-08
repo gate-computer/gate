@@ -2,12 +2,12 @@ package stream
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 
-	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 )
 
