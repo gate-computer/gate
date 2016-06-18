@@ -13,6 +13,8 @@ import (
 
 const (
 	DefaultWindowSize = 65535
+
+	maxStreamId = 0x7fffffff
 )
 
 var (
@@ -193,9 +195,10 @@ func (x *xfer) do(ctx context.Context, conn net.Conn, server bool) (err error) {
 		select {
 		case output := <-activeStreamCreator:
 			if output != nil {
-				outstandingTask, err = x.createStream(ctx, output)
-				if err != nil {
-					return
+				if x.acceptStream != nil { // no go-away from peer yet
+					outstandingTask = x.createStream(ctx, output)
+				} else {
+					close(output)
 				}
 			} else {
 				x.streamCreator = nil
@@ -245,11 +248,15 @@ func (x *xfer) do(ctx context.Context, conn net.Conn, server bool) (err error) {
 	return
 }
 
-func (x *xfer) createStream(ctx context.Context, output chan<- *Stream) (task frameSender, err error) {
+func (x *xfer) createStream(ctx context.Context, output chan<- *Stream) (task frameSender) {
 	defer close(output)
 
-	streamId, err := x.newLocalId()
-	if err != nil {
+	streamId := x.newLocalId()
+	if streamId == 0 {
+		logf("%s: out of stream ids", x)
+		x.streamCreator = nil
+		task = x.goAwayTask(http2.ErrCodeNo)
+		logf("%s: stream creator closed", x)
 		return
 	}
 
@@ -551,9 +558,8 @@ func (x *xfer) handleContinuation(f *http2.ContinuationFrame) (task frameSender,
 	return
 }
 
-func (x *xfer) newLocalId() (id uint32, err error) {
-	if x.nextLocalId >= MaxStreamId-1 {
-		err = errStreamIdOverflow
+func (x *xfer) newLocalId() (id uint32) {
+	if x.nextLocalId >= maxStreamId-1 {
 		return
 	}
 
@@ -576,6 +582,7 @@ func (x *xfer) goAwayTask(errCode http2.ErrCode) frameSender {
 
 func writeSettingsFrame(fr *http2.Framer, x fmt.Stringer) error {
 	logf("%s: send: sending SETTINGS", x)
+
 	return fr.WriteSettings(http2.Setting{
 		ID:  http2.SettingEnablePush,
 		Val: 0,

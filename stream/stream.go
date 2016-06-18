@@ -10,16 +10,11 @@ import (
 	"golang.org/x/net/http2"
 )
 
-const (
-	MaxStreamId = 0x7fffffff
-)
-
 var (
-	errClosed           = errors.New("already closed")
-	errAborted          = errors.New("streaming aborted")
-	errStreamReset      = errors.New("stream reset by peer")
-	errWindowOverflow   = errors.New("window overflow")
-	errStreamIdOverflow = errors.New("stream id overflow")
+	errClosed         = errors.New("already closed")
+	errAborted        = errors.New("streaming aborted")
+	errStreamReset    = errors.New("stream reset by peer")
+	errWindowOverflow = errors.New("window overflow")
 )
 
 // streamReceiver
@@ -457,10 +452,6 @@ func newStream(aborted <-chan struct{}, id uint32, sendScheduler chan<- frameSen
 	}
 	s.sender.setWritable()
 	return
-}
-
-func (s *Stream) Id() int {
-	return int(s.sender.id)
 }
 
 func (s *Stream) Writable() <-chan struct{} {
