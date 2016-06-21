@@ -56,6 +56,9 @@ func Test(t *testing.T) {
 	log := &testLogger{t}
 	stream.DebugLog = log
 
+	log.Printf("test: begin")
+	defer log.Printf("test: end")
+
 	serverPipe, clientPipe := net.Pipe()
 
 	clientConn := &testConn{clientPipe, testAddr{"client"}}
@@ -110,7 +113,7 @@ func Test(t *testing.T) {
 		log.Printf("test client: flushing %s", s)
 
 		if err := s.Flush(); err != nil {
-			t.Errorf("stream flsuh error: %v", err)
+			t.Errorf("stream flush error: %v", err)
 			return
 		}
 

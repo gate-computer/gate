@@ -78,11 +78,11 @@ func (sr *Streamer) Do(ctx context.Context, conn net.Conn) error {
 	if sr.Acceptor != nil {
 		x.acceptStream = func(s *Stream) {
 			defer func() {
-				if x := recover(); x != nil {
+				if v := recover(); v != nil {
 					if s != nil {
-						logf("%s: %s acceptor: %v", x, s, x)
+						logf("%s: %s acceptor: %v", x, s, v)
 					} else {
-						logf("%s: end acceptor: %v", x, x)
+						logf("%s: end acceptor: %v", x, v)
 					}
 				}
 			}()
@@ -330,7 +330,7 @@ func (x *xfer) handleData(f *http2.DataFrame) (task frameSender, err error) {
 		if f.StreamID == 0 || f.StreamID >= x.nextLocalId-1 || f.StreamID > x.lastRemoteId {
 			task = x.goAwayTask(http2.ErrCodeProtocol)
 			err = errors.New("received data for unknown stream")
-			logf("%s: %v", err, x)
+			logf("%s: error: stream %d: %v", x, f.StreamID, err)
 		}
 		return
 	}
@@ -338,14 +338,14 @@ func (x *xfer) handleData(f *http2.DataFrame) (task frameSender, err error) {
 	if !s.headersDone {
 		task = x.goAwayTask(http2.ErrCodeProtocol)
 		err = errors.New("received data before end of headers")
-		logf("%s: %v", err, x)
+		logf("%s: error: %s: %v", x, s, err)
 		return
 	}
 
 	err = s.receive(f.Data())
 	if err != nil {
 		task = x.goAwayTask(http2.ErrCodeProtocol)
-		logf("%s: received stream data: %v", x, err)
+		logf("%s: error: %s: while receiving data: %v", x, s, err)
 		return
 	}
 
@@ -364,14 +364,14 @@ func (x *xfer) handleHeaders(ctx context.Context, f *http2.HeadersFrame, fr *htt
 	if f.StreamID == 0 {
 		task = x.goAwayTask(http2.ErrCodeProtocol)
 		err = errors.New("received headers without stream id")
-		logf("%s: %v", x, err)
+		logf("%s: error: %v", x, err)
 		return
 	}
 
 	if !f.HeadersEnded() {
 		task = x.goAwayTask(http2.ErrCodeInternal)
 		err = errors.New("headers continuation not implemented")
-		logf("%s: %v", x, err)
+		logf("%s: error: stream %d: %v", x, f.StreamID, err)
 		return
 	}
 
@@ -381,7 +381,7 @@ func (x *xfer) handleHeaders(ctx context.Context, f *http2.HeadersFrame, fr *htt
 			// TODO: trailer...
 			task = x.goAwayTask(http2.ErrCodeInternal)
 			err = errors.New("received headers again")
-			logf("%s: %v", x, err)
+			logf("%s: error: %s: %v", x, s, err)
 			return
 		}
 
@@ -390,14 +390,14 @@ func (x *xfer) handleHeaders(ctx context.Context, f *http2.HeadersFrame, fr *htt
 		if x.acceptStream == nil {
 			task = x.goAwayTask(http2.ErrCodeProtocol)
 			err = errors.New("received headers after go-away")
-			logf("%s: %v", x, err)
+			logf("%s: error: stream %d: %v", x, f.StreamID, err)
 			return
 		}
 
 		if f.StreamID <= x.lastRemoteId {
 			task = x.goAwayTask(http2.ErrCodeProtocol)
 			err = errors.New("received new stream with old id")
-			logf("%s: error: %v", x, err)
+			logf("%s: error: stream %d: %v", x, f.StreamID, err)
 			return
 		}
 	}
@@ -445,7 +445,7 @@ func (x *xfer) handleRSTStream(f *http2.RSTStreamFrame) (task frameSender, err e
 	if s == nil {
 		task = x.goAwayTask(http2.ErrCodeProtocol)
 		err = errors.New("received reset of unknown stream")
-		logf("%s: %v", x, err)
+		logf("%s: error: stream %d: %v", x, f.StreamID, err)
 		return
 	}
 
@@ -493,7 +493,7 @@ func (x *xfer) handleSettings(f *http2.SettingsFrame) (task frameSender, err err
 func (x *xfer) handlePushPromise(f *http2.PushPromiseFrame) (task frameSender, err error) {
 	task = x.goAwayTask(http2.ErrCodeProtocol)
 	err = errors.New("received push promise")
-	logf("%s: %v", x, err)
+	logf("%s: error: %v", x, err)
 	return
 }
 
@@ -541,7 +541,7 @@ func (x *xfer) handleWindowUpdate(f *http2.WindowUpdateFrame) (task frameSender,
 		if s == nil {
 			task = x.goAwayTask(http2.ErrCodeProtocol)
 			err = errors.New("received window update for unknown stream")
-			logf("%s: %v", x, err)
+			logf("%s: error: %v", x, err)
 			return
 		}
 
@@ -554,7 +554,7 @@ func (x *xfer) handleWindowUpdate(f *http2.WindowUpdateFrame) (task frameSender,
 func (x *xfer) handleContinuation(f *http2.ContinuationFrame) (task frameSender, err error) {
 	task = x.goAwayTask(http2.ErrCodeProtocol)
 	err = errors.New("received spurious continuation frame")
-	logf("%s: %v", x, err)
+	logf("%s: error: %v", x, err)
 	return
 }
 
