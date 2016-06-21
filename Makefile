@@ -31,7 +31,6 @@ export GATE_TEST_ELF		:= $(PWD)/test/prog.elf
 build:
 	$(GO) get golang.org/x/net/http2
 	$(GO) get golang.org/x/net/http2/hpack
-	$(GO) fmt $(GOPACKAGES)
 	$(GO) vet $(GOPACKAGES)
 	$(MAKE) -C llvmpass
 	$(MAKE) -C run/executor
