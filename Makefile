@@ -35,11 +35,11 @@ build:
 	$(MAKE) -C llvmpass
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
-	$(GO) install $(GOPACKAGEPREFIX)/client
-	$(GO) install $(GOPACKAGEPREFIX)/server
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
 all: build
-	$(GO) install $(GOPACKAGEPREFIX)/elf2payload
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/elf2payload
 	$(MAKE) -C crt
 	$(MAKE) -C libc
 	$(MAKE) -C test
