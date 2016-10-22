@@ -4,8 +4,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <gate/args.h>
-
 #ifndef GATE_NORETURN
 # define GATE_NORETURN __attribute__ ((noreturn))
 #endif
@@ -25,6 +23,10 @@ extern "C" {
 # endif
 #endif
 
+enum gate_func_id {
+	__GATE_FUNC_RESERVED
+};
+
 enum gate_op_code {
 	GATE_OP_CODE_NONE    = 0,
 	GATE_OP_CODE_ORIGIN  = 1,
@@ -32,7 +34,7 @@ enum gate_op_code {
 
 #define GATE_OP_FLAG_POLLOUT 0x1
 
-struct gate_op {
+struct gate_op_packet {
 	uint32_t size;
 	uint16_t code;
 	uint16_t flags;
@@ -42,47 +44,53 @@ enum gate_ev_code {
 	GATE_EV_CODE_POLLOUT = 1,
 };
 
-struct gate_ev {
+struct gate_ev_packet {
 	uint32_t size;
 	uint16_t code;
-	uint16_t reserved;
+	uint16_t __reserved;
 } GATE_PACKED;
 
-extern const uint32_t __gate_args[];
+// extern const int __gate_abi_version;
+// extern const size_t __gate_max_packet_size;
 
-#define gate_heap_size  ((size_t) __gate_args[GATE_ARG_HEAP_SIZE])
-#define gate_heap_addr  ((uintptr_t) __gate_args[GATE_ARG_HEAP_ADDR])
-#define gate_op_maxsize ((size_t) __gate_args[GATE_ARG_OP_MAXSIZE])
+extern int __gate_get_abi_version(void) GATE_NOEXCEPT;
+extern size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
+
+#define gate_abi_version     (__gate_get_abi_version())
+#define gate_max_packet_size (__gate_get_max_packet_size())
+
+extern void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
+extern void __gate_exit(int status) GATE_NOEXCEPT;
+extern size_t __gate_recv_full(void *buf, size_t size) GATE_NOEXCEPT;
+extern void __gate_send_full(const void *data, size_t size) GATE_NOEXCEPT;
 
 GATE_NORETURN
 static inline void gate_exit(int status) GATE_NOEXCEPT
 {
-	GATE_NORETURN void (*func)(int) GATE_NOEXCEPT = (GATE_NORETURN void (*)(int) GATE_NOEXCEPT) (uintptr_t) __gate_args[GATE_ARG_FUNC_EXIT];
-	func(status);
+	((GATE_NORETURN void (*)(int) GATE_NOEXCEPT) __gate_exit)(status);
 }
 
-static inline size_t gate_recv(long reserved, void *buf, size_t size) GATE_NOEXCEPT
+static inline size_t gate_recv_packet(void *buf, size_t size) GATE_NOEXCEPT
 {
-	size_t (*func)(long, void *, size_t) GATE_NOEXCEPT = (size_t (*)(long, void *, size_t) GATE_NOEXCEPT) (uintptr_t) __gate_args[GATE_ARG_FUNC_RECV];
-	return func(reserved, buf, size);
+	if (size < gate_max_packet_size)
+		((GATE_NORETURN void (*)(int) GATE_NOEXCEPT) __gate_exit)(1);
+
+	size_t n = 0;
+
+	while (n < sizeof (struct gate_ev_packet))
+		n += __gate_recv_full((char *) buf + n, sizeof (struct gate_ev_packet) - n);
+
+	const struct gate_ev_packet *header = (struct gate_ev_packet *) buf;
+
+	while (n < header->size)
+		n += __gate_recv_full((char *) buf + n, header->size - n);
+
+	return n;
 }
 
-static inline size_t gate_send(long reserved, const void *data, size_t size) GATE_NOEXCEPT
+static inline void gate_send_packet(const struct gate_op_packet *packet) GATE_NOEXCEPT
 {
-	size_t (*func)(long, const void *, size_t) GATE_NOEXCEPT = (size_t (*)(long, const void *, size_t) GATE_NOEXCEPT) (uintptr_t) __gate_args[GATE_ARG_FUNC_SEND];
-	return func(reserved, data, size);
-}
-
-static inline void gate_recv_full(void *buf, size_t size) GATE_NOEXCEPT
-{
-	for (size_t pos = 0; pos < size; )
-		pos += gate_recv(0, (uint8_t *) buf + pos, size - pos);
-}
-
-static inline void gate_send_full(const void *data, size_t size) GATE_NOEXCEPT
-{
-	for (size_t pos = 0; pos < size; )
-		pos += gate_send(0, (const uint8_t *) data + pos, size - pos);
+	__gate_send_full(packet, packet->size);
 }
 
 #ifdef __cplusplus

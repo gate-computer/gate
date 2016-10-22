@@ -1,2 +1,4 @@
 *.bc
+*.s
+*.wast
 prog.*

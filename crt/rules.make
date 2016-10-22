@@ -1,20 +1,16 @@
-prog.bc: $(OBJECTS)
-	$(LLVMLINK) -o $@ $(CRTOBJECTS) $(OBJECTS)
+WAGTOOLCHAIN	?= ../../wag-toolchain
 
-prog.S: prog.bc
-	$(OPT) -load=$(PASS_PLUGIN) -gate < prog.bc | $(LLC) -o $@
+CC		:= $(WAGTOOLCHAIN)/bin/compile
+CXX		:= $(WAGTOOLCHAIN)/bin/compile
+LINKER		:= $(WAGTOOLCHAIN)/bin/link
 
-prog.o: prog.S
-	$(AS) -o $@ prog.S
+CPPFLAGS	+= -isystem $(GATEDIR)/include
 
-prog.elf: prog.o
-	$(LD) $(LDFLAGS) -o $@ prog.o
-
-prog.payload: prog.elf
-	$(ELF2PAYLOAD) > $@ < prog.elf || (rm -f $@; false)
+prog.wasm: $(OBJECTS)
+	$(LINKER) -o $@ $(GATEDIR)/crt/start.bc $(OBJECTS)
 
 %.bc: %.c
-	$(CLANG) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
 
 %.bc: %.cpp
-	$(CLANGPP) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -include $(GATEDIR)/crt/main.hpp -c -o $@ $*.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -include $(GATEDIR)/crt/main.hpp -fno-exceptions -c -o $@ $*.cpp

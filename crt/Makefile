@@ -1,13 +1,11 @@
 GATEDIR		:= ..
 
-include variables.make
-
 CPPFLAGS	+= -DNDEBUG
 CFLAGS		+= -fomit-frame-pointer -Os -g -Wall -Wextra -Wno-unused-parameter
 
-build: $(CRTOBJECTS)
+build: $(GATEDIR)/crt/start.bc
 
-start.bc: start.c $(GATEDIR)/include/gate.h $(GATEDIR)/include/gate/args.h
+start.bc: start.c $(GATEDIR)/include/gate.h
 memcpy.bc: memcpy.c
 memset.bc: memset.c
 

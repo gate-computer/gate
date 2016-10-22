@@ -6,7 +6,7 @@ LDFLAGS		+=
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ executor.o
 
-executor.o: executor.c ../stack.h
+executor.o: executor.c ../defs.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ executor.c
 
 clean:

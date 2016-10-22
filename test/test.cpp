@@ -1,52 +1,66 @@
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include <gate.h>
 
-void (*indirection)(const char *str, size_t len);
+long workaround;
+void (*indirection)(const gate_op_packet *);
 
 namespace {
 
-void implementation(const char *str, size_t len)
+void implementation(const gate_op_packet *p)
 {
-	gate_send(0, str, len);
+	gate_send_packet(p);
 }
 
-class ScopedBuf
+template <int PayloadSize>
+class Packet
 {
-	ScopedBuf(const ScopedBuf &) = delete;
-	ScopedBuf &operator=(const ScopedBuf &) = delete;
+	Packet(const Packet &) = delete;
+	Packet &operator=(const Packet &) = delete;
 
 public:
-	explicit ScopedBuf(size_t size): ptr(new char[size]) {}
-	~ScopedBuf() { delete[] ptr; }
+	enum {
+		header_size  = 8,
+		payload_size = PayloadSize,
+		size         = header_size + payload_size,
+	};
 
-	operator bool() { return ptr != nullptr; }
+	Packet()
+	{
+		for (int i = 0; i < header_size; i++)
+			buf[i] = 0;
+	}
 
-	char *const ptr;
+	char *payload()
+	{
+		return buf + header_size;
+	}
+
+	const gate_op_packet *op_data()
+	{
+		gate_op_packet *header = reinterpret_cast<gate_op_packet *> (buf);
+		header->size = size;
+		return header;
+	}
+
+private:
+	char buf[size];
 };
 
 } // namespace
 
-int main(int argc, char **argv)
+int main()
 {
 	indirection = implementation;
 
-	auto dummy = new int(42);
-	if (dummy == nullptr)
-		return EXIT_FAILURE;
-
-	delete dummy;
-
-	ScopedBuf buf(10000);
-	if (!buf)
-		return EXIT_FAILURE;
-
 	char str[] = "hello world\n";
-	memcpy(buf.ptr, str, sizeof (str));
+	Packet<sizeof (str)> p;
 
-	indirection(buf.ptr, sizeof (str) - 1);
+	for (int i = 0; i < p.payload_size; i++)
+		p.payload()[i] = str[i];
 
-	return EXIT_SUCCESS;
+	if (p.size > gate_max_packet_size)
+		return 1;
+
+	indirection(p.op_data());
+
+	return 0;
 }

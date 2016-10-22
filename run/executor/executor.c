@@ -5,7 +5,7 @@
 #include <sys/resource.h>
 #include <sys/time.h>
 
-#include "../stack.h"
+#include "../defs.h"
 
 int main(int argc, char **argv)
 {

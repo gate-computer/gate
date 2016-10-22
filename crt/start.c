@@ -2,11 +2,10 @@
 
 #include <gate.h>
 
-int main(int argc, char **argv);
+int main(void);
 
 GATE_NORETURN
-void _start(void)
+void __start(void)
 {
-	static char *argv[] = { "a.out", NULL };
-	gate_exit(main(1, argv));
+	gate_exit(main());
 }
