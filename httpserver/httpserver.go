@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net/http"
@@ -75,7 +76,6 @@ func execute(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if trap, ok := err.(traps.Id); ok {
 			w.Header().Set("X-Gate-Trap", trap.String())
-			w.WriteHeader(http.StatusOK)
 		} else {
 			log.Printf("%s error: %v", r.RemoteAddr, err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -84,7 +84,24 @@ func execute(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if _, err := w.Write(output); err != nil {
+	var data []byte
+
+	if len(output) >= 8 {
+		size := binary.LittleEndian.Uint32(output)
+		if size >= 8 && size <= uint32(len(output)) {
+			data = output[8:size]
+		}
+	}
+
+	if data == nil {
+		log.Printf("%s error: invalid output: %v", r.RemoteAddr, output)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := w.Write(data); err != nil {
 		log.Printf("%s error: %v", r.RemoteAddr, err)
 	}
 	return
