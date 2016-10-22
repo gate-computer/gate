@@ -180,12 +180,10 @@ func (payload *Payload) WriteTo(w io.Writer) (n int64, err error) {
 	return
 }
 
-func Run(env *Environment, payload *Payload) (err error) {
+func Run(env *Environment, payload *Payload) (output []byte, err error) {
 	cmd := exec.Cmd{
-		// Path: env.executorBin,
-		// Args: []string{env.executorBin, env.loaderBin},
-		Path: env.loaderBin,
-		Args: []string{env.loaderBin},
+		Path: env.executorBin,
+		Args: []string{env.executorBin, env.loaderBin},
 		Env:  []string{},
 		Dir:  "/",
 	}
@@ -215,7 +213,7 @@ func Run(env *Environment, payload *Payload) (err error) {
 		return
 	}
 
-	dumpOutput(stdout)
+	output, _ = ioutil.ReadAll(stdout)
 
 	err = cmd.Wait()
 	if err != nil {
@@ -226,24 +224,4 @@ func Run(env *Environment, payload *Payload) (err error) {
 		err = errors.New(cmd.ProcessState.String())
 	}
 	return
-}
-
-func dumpOutput(r io.Reader) {
-	data, _ := ioutil.ReadAll(r)
-
-	for len(data) > 0 {
-		if len(data) >= 8 {
-			size := binary.LittleEndian.Uint32(data)
-			if size >= 8 && size <= uint32(len(data)) {
-				fmt.Fprintf(os.Stderr, "op size:    %d\n", size)
-				fmt.Fprintf(os.Stderr, "op code:    %d\n", binary.LittleEndian.Uint16(data[4:]))
-				fmt.Fprintf(os.Stderr, "op flags:   0x%x\n", binary.LittleEndian.Uint16(data[6:]))
-				fmt.Fprintf(os.Stderr, "op payload: %#v\n", string(data[8:size]))
-				data = data[size:]
-				continue
-			}
-		}
-		fmt.Fprintf(os.Stderr, "garbage: %#v\n", string(data))
-		break
-	}
 }

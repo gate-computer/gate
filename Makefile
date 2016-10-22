@@ -9,6 +9,7 @@ GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
 GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/client \
+	$(GOPACKAGEPREFIX)/httpserver \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
 	$(GOPACKAGEPREFIX)/stream \
@@ -26,6 +27,7 @@ build:
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/httpserver
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
 all: build

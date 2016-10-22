@@ -2,6 +2,7 @@ package run_test
 
 import (
 	"bufio"
+	"encoding/binary"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -59,9 +60,28 @@ func TestRun(t *testing.T) {
 		t.Fatalf("payload error: %v", err)
 	}
 
-	err = run.Run(env, payload)
+	output, err := run.Run(env, payload)
+	dumpOutput(t, output)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
+	}
+}
+
+func dumpOutput(t *testing.T, data []byte) {
+	for len(data) > 0 {
+		if len(data) >= 8 {
+			size := binary.LittleEndian.Uint32(data)
+			if size >= 8 && size <= uint32(len(data)) {
+				t.Logf("op size:    %d\n", size)
+				t.Logf("op code:    %d\n", binary.LittleEndian.Uint16(data[4:]))
+				t.Logf("op flags:   0x%x\n", binary.LittleEndian.Uint16(data[6:]))
+				t.Logf("op payload: %#v\n", string(data[8:size]))
+				data = data[size:]
+				continue
+			}
+		}
+		t.Logf("garbage: %#v\n", string(data))
+		break
 	}
 }
 
