@@ -5,7 +5,6 @@
 #include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include <linux/prctl.h>
 #include <linux/seccomp.h>
 
 #include "../defs.h"
