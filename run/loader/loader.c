@@ -2,8 +2,10 @@
 #include <stdint.h>
 
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <linux/prctl.h>
 #include <linux/seccomp.h>
 
 #include "../defs.h"
@@ -123,26 +125,28 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        test    %%rax, %%rax                            \n"
 		"        jne     .exit                                   \n"
 		// enable seccomp
-		"        mov     $"xstr(SECCOMP_SET_MODE_STRICT)", %%edi \n"
-		"        xor     %%rsi, %%rsi                            \n"
-		"        xor     %%rdx, %%rdx                            \n"
-		"        mov     $"xstr(SYS_seccomp)", %%eax             \n"
+		"        mov     $"xstr(PR_SET_SECCOMP)", %%edi          \n"
+		"        mov     $"xstr(SECCOMP_MODE_STRICT)", %%esi     \n"
+		"        xor     %%edx, %%edx                            \n"
+		"        xor     %%r10, %%r10                            \n"
+		"        xor     %%r8, %%r8                              \n"
+		"        mov     $"xstr(SYS_prctl)", %%eax               \n"
 		"        syscall                                         \n"
 		"        mov     $42, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
 		"        jne     .exit                                   \n"
 		// clear unused registers
-		"        xor     %%rdx, %%rdx                            \n"
-		"        xor     %%rcx, %%rcx                            \n"
-		"        xor     %%rbx, %%rbx                            \n"
-		"        xor     %%rbp, %%rbp                            \n"
-		"        xor     %%rsi, %%rsi                            \n"
+		"        xor     %%edx, %%edx                            \n"
+		"        xor     %%ecx, %%ecx                            \n"
+		"        xor     %%ebx, %%ebx                            \n"
+		"        xor     %%ebp, %%ebp                            \n"
+		"        xor     %%esi, %%esi                            \n"
 		"        xor     %%r8, %%r8                              \n"
 		"        xor     %%r9, %%r9                              \n"
 		"        xor     %%r10, %%r10                            \n"
 		"        xor     %%r11, %%r11                            \n"
 		// 0 = no resume
-		"        xor     %%rax, %%rax                            \n"
+		"        xor     %%eax, %%eax                            \n"
 		// skip trap code
 		"        mov     %%r12, %%rdx                            \n"
 		"        add     $16, %%rdx                              \n"
