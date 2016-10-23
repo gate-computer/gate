@@ -5,19 +5,26 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/types"
 	"github.com/tsavola/wag/wasm"
+
+	"github.com/tsavola/gate/internal/memfd"
 )
 
 var (
 	pageSize = uint32(os.Getpagesize())
 )
+
+func roundToPage(size int) uint32 {
+	mask := pageSize - 1
+	return (uint32(size) + mask) &^ mask
+}
 
 type envFunc struct {
 	addr uint64
@@ -112,8 +119,8 @@ func (env *Environment) ImportGlobal(module, field string, t types.T) (value uin
 }
 
 type Payload struct {
-	info  []uint32
-	parts [][]byte
+	maps *os.File
+	info []uint32
 }
 
 func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (payload *Payload, err error) {
@@ -131,46 +138,60 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 	memory := data[memoryOffset:]
 	binary.LittleEndian.PutUint32(data[4:], uint32(len(memory))) // stack ptr?
 
+	fd, err := memfd.Create("payload", memfd.CLOEXEC|memfd.ALLOW_SEALING)
+	if err != nil {
+		return
+	}
+
+	f := os.NewFile(uintptr(fd), "memfd")
+
+	_, err = f.Write(roData)
+	if err != nil {
+		syscall.Close(fd)
+		return
+	}
+
+	roDataSize := roundToPage(len(roData))
+
+	_, err = f.WriteAt(text, int64(roDataSize))
+	if err != nil {
+		syscall.Close(fd)
+		return
+	}
+
+	textSize := roundToPage(len(text))
+
+	_, err = f.WriteAt(data, int64(roDataSize)+int64(textSize))
+	if err != nil {
+		syscall.Close(fd)
+		return
+	}
+
+	flags := memfd.F_SEAL_SEAL | memfd.F_SEAL_SHRINK | memfd.F_SEAL_GROW | memfd.F_SEAL_WRITE
+	_, err = memfd.Fcntl(fd, memfd.F_ADD_SEALS, flags)
+	if err != nil {
+		syscall.Close(fd)
+		return
+	}
+
 	payload = &Payload{
+		maps: f,
 		info: []uint32{
 			pageSize,
-			uint32(len(roData)),
-			uint32(len(text)),
-			uint32(len(data)),
+			roDataSize,
+			textSize,
 			uint32(memoryOffset),
 			uint32(initMemorySize),
 			uint32(growMemorySize),
 			uint32(stackSize),
 		},
-		parts: [][]byte{
-			roData,
-			text,
-			data,
-		},
 	}
 	return
 }
 
-func (payload *Payload) WriteTo(w io.Writer) (n int64, err error) {
-	err = binary.Write(w, nativeEndian, payload.info)
-	if err != nil {
-		// n may be wrong
-		return
-	}
-
-	n += 8 * int64(len(payload.info))
-
-	for _, part := range payload.parts {
-		var m int
-
-		m, err = w.Write(part)
-		if err != nil {
-			return
-		}
-
-		n += int64(m)
-	}
-
+func (payload *Payload) Close() (err error) {
+	err = payload.maps.Close()
+	payload.maps = nil
 	return
 }
 
@@ -180,6 +201,9 @@ func Run(env *Environment, payload *Payload) (output []byte, err error) {
 		Args: []string{env.executorBin, env.loaderBin},
 		Env:  []string{},
 		Dir:  "/",
+		ExtraFiles: []*os.File{
+			payload.maps,
+		},
 	}
 
 	stdin, err := cmd.StdinPipe()
@@ -200,7 +224,7 @@ func Run(env *Environment, payload *Payload) (output []byte, err error) {
 		return
 	}
 
-	_, err = payload.WriteTo(stdin)
+	err = binary.Write(stdin, nativeEndian, payload.info)
 	if err != nil {
 		cmd.Process.Kill()
 		cmd.Wait()

@@ -59,14 +59,14 @@ static void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, of
 	return retval;
 }
 
-static int sys_mprotect(void *addr, size_t len, int prot)
+static int sys_close(int fd)
 {
 	int retval;
 
 	asm volatile (
 		"syscall"
 		: "=a" (retval)
-		: "a" (SYS_mprotect), "D" (addr), "S" (len), "d" (prot)
+		: "a" (SYS_close), "D" (fd)
 		: "cc", "rcx", "r11", "memory"
 	);
 
@@ -166,7 +166,6 @@ static int main(void)
 		uint32_t page_size;
 		uint32_t rodata_size;
 		uint32_t text_size;
-		uint32_t data_size;
 		uint32_t memory_offset;
 		uint32_t init_memory_size;
 		uint32_t grow_memory_size;
@@ -177,43 +176,33 @@ static int main(void)
 		return 20;
 
 	if (info.rodata_size > 0) {
-		void *ptr = sys_mmap((void *) GATE_RODATA_ADDR, info.rodata_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, -1, 0);
+		void *ptr = sys_mmap((void *) GATE_RODATA_ADDR, info.rodata_size, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, 0);
 		if (ptr != (void *) GATE_RODATA_ADDR)
 			return 21;
-
-		if (read_full(ptr, info.rodata_size) != 0)
-			return 24;
-
-		if (sys_mprotect(ptr, info.rodata_size, PROT_READ) != 0)
-			return 25;
 	}
 
-	void *text_ptr = sys_mmap(NULL, info.text_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	void *text_ptr = sys_mmap(NULL, info.text_size, PROT_EXEC, MAP_PRIVATE|MAP_NORESERVE, GATE_MAPS_FD, info.rodata_size);
 	if (text_ptr == MAP_FAILED)
-		return 21;
-
-	if (read_full(text_ptr, info.text_size) != 0)
 		return 22;
-
-	if (sys_mprotect(text_ptr, info.text_size, PROT_EXEC) != 0)
-		return 23;
 
 	size_t globals_memory_size = info.memory_offset + info.grow_memory_size;
 	void *memory_ptr = NULL;
 
 	if (globals_memory_size > 0) {
-		void *ptr = sys_mmap(NULL, globals_memory_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE, -1, 0);
+		size_t offset = (size_t) info.rodata_size + (size_t) info.text_size;
+
+		void *ptr = sys_mmap(NULL, globals_memory_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_NORESERVE, GATE_MAPS_FD, offset);
 		if (ptr == MAP_FAILED)
 			return 21;
-
-		if (read_full(ptr, info.data_size) != 0)
-			return 26;
 
 		memory_ptr = ptr + info.memory_offset;
 	}
 
 	void *init_memory_limit = memory_ptr + info.init_memory_size;
 	void *grow_memory_limit = memory_ptr + info.grow_memory_size;
+
+	if (sys_close(GATE_MAPS_FD) != 0)
+		return 33;
 
 	void *stack_limit = sys_mmap(NULL, info.stack_size, PROT_READ|PROT_WRITE, MAP_GROWSDOWN|MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE|MAP_STACK, -1, 0);
 	if (stack_limit == MAP_FAILED)

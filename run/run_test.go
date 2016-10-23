@@ -59,6 +59,7 @@ func TestRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("payload error: %v", err)
 	}
+	defer payload.Close()
 
 	output, err := run.Run(env, payload)
 	dumpOutput(t, output)

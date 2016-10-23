@@ -71,6 +71,7 @@ func execute(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, err)
 		return
 	}
+	defer payload.Close()
 
 	output, err := run.Run(env, payload)
 	if err != nil {
