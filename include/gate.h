@@ -61,7 +61,7 @@ extern size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
 
 extern void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
 extern void __gate_exit(int status) GATE_NOEXCEPT;
-extern size_t __gate_recv_full(void *buf, size_t size) GATE_NOEXCEPT;
+extern void __gate_recv_full(void *buf, size_t size) GATE_NOEXCEPT;
 extern void __gate_send_full(const void *data, size_t size) GATE_NOEXCEPT;
 
 GATE_NORETURN
@@ -75,17 +75,13 @@ static inline size_t gate_recv_packet(void *buf, size_t size) GATE_NOEXCEPT
 	if (size < gate_max_packet_size)
 		((GATE_NORETURN void (*)(int) GATE_NOEXCEPT) __gate_exit)(1);
 
-	size_t n = 0;
-
-	while (n < sizeof (struct gate_ev_packet))
-		n += __gate_recv_full((char *) buf + n, sizeof (struct gate_ev_packet) - n);
+	__gate_recv_full(buf, sizeof (struct gate_ev_packet));
 
 	const struct gate_ev_packet *header = (struct gate_ev_packet *) buf;
 
-	while (n < header->size)
-		n += __gate_recv_full((char *) buf + n, header->size - n);
+	__gate_recv_full((char *) buf + sizeof (struct gate_ev_packet), header->size - sizeof (struct gate_ev_packet));
 
-	return n;
+	return header->size;
 }
 
 static inline void gate_send_packet(const struct gate_op_packet *packet) GATE_NOEXCEPT

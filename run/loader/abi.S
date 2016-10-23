@@ -55,7 +55,6 @@ io:
 	sub	%eax, %edx		// update size (3rd syscall arg)
 	jne	.loop
 .empty:
-	mov	%ebx, %eax		// result
 	ret
 
 .bounds:
