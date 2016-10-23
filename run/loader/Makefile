@@ -1,5 +1,5 @@
 CPPFLAGS	+= -DNDEBUG -DPIE
-CFLAGS		+= -Os -g -Wall -Wextra -Wno-unused-parameter -fPIE -fomit-frame-pointer -fno-stack-protector -Wno-main
+CFLAGS		+= -std=gnu99 -Os -g -Wall -Wextra -Wno-unused-parameter -fPIE -fomit-frame-pointer -fno-stack-protector -Wno-main
 LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext=0x100000000 -Wl,--build-id=none
 
 ../../bin/loader: loader.o abi.o

@@ -1,5 +1,5 @@
 CPPFLAGS	+= -DNDEBUG
-CFLAGS		+= -Os -g -Wall -Wextra -Wno-unused-parameter
+CFLAGS		+= -std=gnu99 -Os -g -Wall -Wextra -Wno-unused-parameter
 LDFLAGS		+=
 
 ../../bin/executor: executor.o
