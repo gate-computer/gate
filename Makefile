@@ -10,6 +10,7 @@ GOPACKAGEPREFIX	:= github.com/tsavola/gate
 GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/client \
 	$(GOPACKAGEPREFIX)/httpserver \
+	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
 	$(GOPACKAGEPREFIX)/stream \
