@@ -193,7 +193,7 @@ static int main(void)
 
 		void *ptr = sys_mmap(NULL, globals_memory_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_NORESERVE, GATE_MAPS_FD, offset);
 		if (ptr == MAP_FAILED)
-			return 21;
+			return 23;
 
 		memory_ptr = ptr + info.memory_offset;
 	}
