@@ -236,6 +236,9 @@ func Run(env *Environment, payload *Payload) (output []byte, err error) {
 			payload.maps,
 			env.loader,
 		},
+		SysProcAttr: &syscall.SysProcAttr{
+			Cloneflags: syscall.CLONE_NEWUSER,
+		},
 	}
 
 	stdin, err := cmd.StdinPipe()
