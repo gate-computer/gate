@@ -31,7 +31,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	env, err = run.NewEnvironment(path.Join(dir, "bin/executor"), path.Join(dir, "bin/loader"))
+	var (
+		executor      = path.Join(dir, "bin/executor")
+		loader        = path.Join(dir, "bin/loader")
+		loaderSymbols = loader + ".symbols"
+	)
+
+	env, err = run.NewEnvironment(executor, loader, loaderSymbols)
 	if err != nil {
 		log.Fatal(err)
 	}

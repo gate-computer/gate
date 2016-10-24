@@ -28,7 +28,7 @@ func TestRun(t *testing.T) {
 	loaderBin := os.Getenv("GATE_TEST_LOADER")
 	wasmPath := os.Getenv("GATE_TEST_WASM")
 
-	env, err := run.NewEnvironment(executorBin, loaderBin)
+	env, err := run.NewEnvironment(executorBin, loaderBin, loaderBin+".symbols")
 	if err != nil {
 		t.Fatal(err)
 	}

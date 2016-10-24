@@ -1,7 +1,6 @@
 package run
 
 import (
-	"debug/elf"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -38,60 +37,66 @@ type Environment struct {
 	funcs    map[string]envFunc
 }
 
-func NewEnvironment(executor, loader string) (env *Environment, err error) {
-	f, err := os.Open(loader)
+func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, err error) {
+	symbolFile, err := os.Open(loaderSymbols)
 	if err != nil {
 		return
 	}
-
-	elff, err := elf.NewFile(f)
-	if err != nil {
-		f.Close()
-		return
-	}
-
-	symbols, err := elff.Symbols()
-	if err != nil {
-		f.Close()
-		return
-	}
+	defer symbolFile.Close()
 
 	funcs := make(map[string]envFunc)
 
-	for _, s := range symbols {
-		switch s.Name {
+	for {
+		var (
+			name string
+			addr uint64
+			n    int
+		)
+
+		n, err = fmt.Fscanf(symbolFile, "%x T %s\n", &addr, &name)
+		if err != nil {
+			if err == io.EOF && n == 0 {
+				break
+			}
+			return
+		}
+		if n != 2 {
+			err = fmt.Errorf("%s: parse error", loaderSymbols)
+			return
+		}
+
+		switch name {
 		case "__gate_get_abi_version", "__gate_get_max_packet_size":
-			funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[name] = envFunc{addr, types.Function{
 				Result: types.I32,
 			}}
 
 		case "__gate_func_ptr":
-			funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[name] = envFunc{addr, types.Function{
 				Args:   []types.T{types.I32},
 				Result: types.I32,
 			}}
 
 		case "__gate_exit":
-			funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[name] = envFunc{addr, types.Function{
 				Args: []types.T{types.I32},
 			}}
 
 		case "__gate_recv_full", "__gate_send_full":
-			funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[name] = envFunc{addr, types.Function{
 				Args: []types.T{types.I32, types.I32},
 			}}
 		}
 	}
 
-	_, err = f.Seek(0, io.SeekStart)
+	loaderFile, err := os.Open(loader)
 	if err != nil {
-		f.Close()
 		return
 	}
 
 	env = &Environment{
 		executor: executor,
-		loader:   f,
+		loader:   loaderFile,
 		funcs:    funcs,
 	}
 	return
