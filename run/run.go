@@ -278,13 +278,14 @@ func Run(env *Environment, payload *Payload) (output []byte, err error) {
 		Dir:  "/",
 		ExtraFiles: []*os.File{
 			payload.maps,
-			env.loader,
 		},
 		SysProcAttr: &syscall.SysProcAttr{
 			Pdeathsig:  syscall.SIGKILL,
 			Cloneflags: syscall.CLONE_NEWUSER,
 		},
 	}
+
+	cmd.Stderr = env.loader
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
