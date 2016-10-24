@@ -20,8 +20,8 @@ const (
 
 func TestRun(t *testing.T) {
 	const (
-		memorySizeLimit = 4096 * wasm.Page
-		stackSize       = 8 * 1024 * 1024
+		memorySizeLimit = wasm.Page
+		stackSize       = 4096
 	)
 
 	executorBin := os.Getenv("GATE_TEST_EXECUTOR")
@@ -65,6 +65,18 @@ func TestRun(t *testing.T) {
 	dumpOutput(t, output)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
+	}
+
+	if name := os.Getenv("GATE_TEST_DUMP"); name != "" {
+		f, err := os.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+
+		if err := payload.DumpGlobalsMemoryStack(f); err != nil {
+			t.Fatalf("dump error: %v", err)
+		}
 	}
 }
 

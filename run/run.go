@@ -226,6 +226,45 @@ func (payload *Payload) Close() (err error) {
 	return
 }
 
+func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {
+	fd := int(payload.maps.Fd())
+
+	dataMapOffset := int64(payload.info.RODataSize) + int64(payload.info.TextSize)
+
+	globalsMemorySize := payload.info.MemoryOffset + payload.info.GrowMemorySize
+	dataSize := int(globalsMemorySize) + int(payload.info.StackSize)
+
+	data, err := syscall.Mmap(fd, dataMapOffset, dataSize, syscall.PROT_READ, syscall.MAP_PRIVATE)
+	if err != nil {
+		panic(err)
+	}
+	defer syscall.Munmap(data)
+
+	buf := data[:payload.info.MemoryOffset]
+	fmt.Fprintf(w, "--- GLOBALS (%d kB) ---\n", len(buf)/1024)
+	for i := 0; len(buf) > 0; i += 8 {
+		fmt.Fprintf(w, "%08x: %x\n", i, buf[0:8])
+		buf = buf[8:]
+	}
+
+	buf = data[payload.info.MemoryOffset : payload.info.MemoryOffset+globalsMemorySize]
+	fmt.Fprintf(w, "--- MEMORY (%d kB) ---\n", len(buf)/1024)
+	for i := 0; len(buf) > 0; i += 32 {
+		fmt.Fprintf(w, "%08x: %x %x %x %x\n", i, buf[0:8], buf[8:16], buf[16:24], buf[24:32])
+		buf = buf[32:]
+	}
+
+	buf = data[globalsMemorySize:]
+	fmt.Fprintf(w, "--- STACK (%d kB) ---\n", len(buf)/1024)
+	for i := 0; len(buf) > 0; i += 32 {
+		fmt.Fprintf(w, "%08x: %x %x %x %x\n", i, buf[0:8], buf[8:16], buf[16:24], buf[24:32])
+		buf = buf[32:]
+	}
+
+	fmt.Fprintf(w, "---\n")
+	return
+}
+
 func Run(env *Environment, payload *Payload) (output []byte, err error) {
 	cmd := exec.Cmd{
 		Path: env.executor,
