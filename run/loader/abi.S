@@ -9,7 +9,7 @@
 __gate_send_full:
 	mov	$1, %edi		// stdout fd (1st syscall arg)
 	mov	%edi, %ebp		// SYS_write
-	jmp	io
+	jmp	.Lio
 
 	.globl	__gate_recv_full
 	.type	__gate_recv_full,@function
@@ -20,50 +20,50 @@ __gate_send_full:
 __gate_recv_full:
 	xor	%edi, %edi		// stdout fd (1st syscall arg)
 	xor	%ebp, %ebp		// SYS_read
-	// fall through to io
+	// fall through to .Lio
 
 // ecx = relative addr
 // ebx = size
 // rdi = fd (1st syscall arg)
 // rbp = syscall
-io:
+.Lio:
 	// check lower bound of relative addr
 	and	%ecx, %ecx		// zero-extend relative addr + test
-	js	.bounds
+	js	.Lbounds
 
 	lea	(%r14,%rcx), %rsi	// absolute addr (2nd syscall arg)
 
 	// check lower bound of size
 	mov	%ebx, %edx		// zero-extend size (3rd syscall arg)
 	test	%edx, %edx
-	je	.empty
-	js	.bounds
+	je	.Lempty
+	js	.Lbounds
 
 	// check upper bound of absolute addr + size
 	lea	(%rsi,%rdx), %r11
 	cmp	%r11, %r15		// against current memory limit
-	jl	.bounds
+	jl	.Lbounds
 	cmp	%rsi, %r11		// against absolute addr (wrap-around)
-	jl	.bounds
-.loop:
+	jl	.Lbounds
+.Lloop:
 	mov	%ebp, %eax		// syscall
 	syscall
 	test	%rax, %rax
-	jle	.error
+	jle	.Lerror
 
 	add	%rax, %rsi		// update absolute addr (2nd syscall arg)
 	sub	%eax, %edx		// update size (3rd syscall arg)
-	jne	.loop
-.empty:
+	jne	.Lloop
+.Lempty:
 	ret
 
-.bounds:
+.Lbounds:
 	mov	$SYS_exit, %eax
 	mov	$13, %edi		// status (1st syscall arg)
 	syscall
 	int3
 
-.error:
+.Lerror:
 	mov	$SYS_exit, %eax
 	mov	$14, %edi		// status (1st syscall arg)
 	syscall
@@ -108,3 +108,6 @@ __gate_get_abi_version:
 __gate_get_max_packet_size:
 	mov	$GATE_MAX_PACKET_SIZE, %eax
 	ret
+
+// don't want executable stack
+.section .note.GNU-stack,"",%progbits

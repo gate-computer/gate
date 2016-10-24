@@ -122,7 +122,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        syscall                                         \n"
 		"        mov     $41, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
-		"        jne     .exit                                   \n"
+		"        jne     .Lexit                                  \n"
 		// enable seccomp
 		"        mov     $"xstr(PR_SET_SECCOMP)", %%edi          \n"
 		"        mov     $"xstr(SECCOMP_MODE_STRICT)", %%esi     \n"
@@ -133,7 +133,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        syscall                                         \n"
 		"        mov     $42, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
-		"        jne     .exit                                   \n"
+		"        jne     .Lexit                                  \n"
 		// clear unused registers
 		"        xor     %%edx, %%edx                            \n"
 		"        xor     %%ecx, %%ecx                            \n"
@@ -150,7 +150,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        mov     %%r12, %%rdx                            \n"
 		"        add     $16, %%rdx                              \n"
 		"        jmp     *%%rdx                                  \n"
-		".exit:                                                  \n"
+		".Lexit:                                                 \n"
 		"        mov     $"xstr(SYS_exit)", %%rax                \n"
 		"        syscall                                         \n"
 		"        int3                                            \n"
