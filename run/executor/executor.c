@@ -7,11 +7,10 @@
 
 #include "../defs.h"
 
+extern char **environ;
+
 int main(int argc, char **argv)
 {
-	if (argc != 2)
-		return 2;
-
 	long page_size = sysconf(_SC_PAGESIZE);
 	if (page_size < 0)
 		return 3;
@@ -23,8 +22,13 @@ int main(int argc, char **argv)
 	if (setrlimit(RLIMIT_STACK, &rl) != 0)
 		return 4;
 
-	char *envp[] = { NULL };
+	int flags = fcntl(GATE_LOADER_FD, F_GETFD);
+	if (flags < 0)
+		return 5;
 
-	execve(argv[1], argv + 1, envp);
-	return 5;
+	if (fcntl(GATE_LOADER_FD, F_SETFD, flags|FD_CLOEXEC) < 0)
+		return 6;
+
+	fexecve(GATE_LOADER_FD, argv, environ);
+	return 7;
 }

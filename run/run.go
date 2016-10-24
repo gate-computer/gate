@@ -32,55 +32,67 @@ type envFunc struct {
 }
 
 type Environment struct {
-	executorBin string
-	loaderBin   string
-
-	funcs map[string]envFunc
+	executor string
+	loader   *os.File
+	funcs    map[string]envFunc
 }
 
-func NewEnvironment(executorBin, loaderBin string) (env *Environment, err error) {
-	env = &Environment{
-		executorBin: executorBin,
-		loaderBin:   loaderBin,
-		funcs:       make(map[string]envFunc),
-	}
-
-	f, err := elf.Open(loaderBin)
+func NewEnvironment(executor, loader string) (env *Environment, err error) {
+	f, err := os.Open(loader)
 	if err != nil {
 		return
 	}
-	defer f.Close()
 
-	symbols, err := f.Symbols()
+	elff, err := elf.NewFile(f)
 	if err != nil {
+		f.Close()
 		return
 	}
+
+	symbols, err := elff.Symbols()
+	if err != nil {
+		f.Close()
+		return
+	}
+
+	funcs := make(map[string]envFunc)
 
 	for _, s := range symbols {
 		switch s.Name {
 		case "__gate_get_abi_version", "__gate_get_max_packet_size":
-			env.funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[s.Name] = envFunc{s.Value, types.Function{
 				Result: types.I32,
 			}}
 
 		case "__gate_func_ptr":
-			env.funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[s.Name] = envFunc{s.Value, types.Function{
 				Args:   []types.T{types.I32},
 				Result: types.I32,
 			}}
 
 		case "__gate_exit":
-			env.funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[s.Name] = envFunc{s.Value, types.Function{
 				Args: []types.T{types.I32},
 			}}
 
 		case "__gate_recv_full", "__gate_send_full":
-			env.funcs[s.Name] = envFunc{s.Value, types.Function{
+			funcs[s.Name] = envFunc{s.Value, types.Function{
 				Args: []types.T{types.I32, types.I32},
 			}}
 		}
 	}
 
+	_, err = f.Seek(0, io.SeekStart)
+	if err != nil {
+		f.Close()
+		return
+	}
+
+	env = &Environment{
+		executor: executor,
+		loader:   f,
+		funcs:    funcs,
+	}
 	return
 }
 
@@ -197,12 +209,13 @@ func (payload *Payload) Close() (err error) {
 
 func Run(env *Environment, payload *Payload) (output []byte, err error) {
 	cmd := exec.Cmd{
-		Path: env.executorBin,
-		Args: []string{env.executorBin, env.loaderBin},
+		Path: env.executor,
+		Args: []string{},
 		Env:  []string{},
 		Dir:  "/",
 		ExtraFiles: []*os.File{
 			payload.maps,
+			env.loader,
 		},
 	}
 
