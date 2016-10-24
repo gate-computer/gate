@@ -185,13 +185,13 @@ static int main(void)
 	if (text_ptr == MAP_FAILED)
 		return 22;
 
+	size_t globals_memory_offset = (size_t) info.rodata_size + (size_t) info.text_size;
 	size_t globals_memory_size = info.memory_offset + info.grow_memory_size;
+
 	void *memory_ptr = NULL;
 
 	if (globals_memory_size > 0) {
-		size_t offset = (size_t) info.rodata_size + (size_t) info.text_size;
-
-		void *ptr = sys_mmap(NULL, globals_memory_size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_NORESERVE, GATE_MAPS_FD, offset);
+		void *ptr = sys_mmap(NULL, globals_memory_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE, GATE_MAPS_FD, globals_memory_offset);
 		if (ptr == MAP_FAILED)
 			return 23;
 
@@ -201,14 +201,16 @@ static int main(void)
 	void *init_memory_limit = memory_ptr + info.init_memory_size;
 	void *grow_memory_limit = memory_ptr + info.grow_memory_size;
 
-	if (sys_close(GATE_MAPS_FD) != 0)
-		return 33;
+	size_t stack_offset = globals_memory_offset + globals_memory_size;
 
-	void *stack_limit = sys_mmap(NULL, info.stack_size, PROT_READ|PROT_WRITE, MAP_GROWSDOWN|MAP_PRIVATE|MAP_ANONYMOUS|MAP_NORESERVE|MAP_STACK, -1, 0);
+	void *stack_limit = sys_mmap(NULL, info.stack_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE|MAP_STACK, GATE_MAPS_FD, stack_offset);
 	if (stack_limit == MAP_FAILED)
-		return 34;
+		return 24;
 
 	void *stack_ptr = stack_limit + info.stack_size;
+
+	if (sys_close(GATE_MAPS_FD) != 0)
+		return 25;
 
 	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit);
 }

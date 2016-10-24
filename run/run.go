@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -130,9 +131,19 @@ func (env *Environment) ImportGlobal(module, field string, t types.T) (value uin
 	return
 }
 
+type payloadInfo struct {
+	PageSize       uint32
+	RODataSize     uint32
+	TextSize       uint32
+	MemoryOffset   uint32
+	InitMemorySize uint32
+	GrowMemorySize uint32
+	StackSize      uint32
+}
+
 type Payload struct {
 	maps *os.File
-	info []uint32
+	info payloadInfo
 }
 
 func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (payload *Payload, err error) {
@@ -159,7 +170,7 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 
 	_, err = f.Write(roData)
 	if err != nil {
-		syscall.Close(fd)
+		f.Close()
 		return
 	}
 
@@ -167,7 +178,7 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 
 	_, err = f.WriteAt(text, int64(roDataSize))
 	if err != nil {
-		syscall.Close(fd)
+		f.Close()
 		return
 	}
 
@@ -175,27 +186,35 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 
 	_, err = f.WriteAt(data, int64(roDataSize)+int64(textSize))
 	if err != nil {
-		syscall.Close(fd)
+		f.Close()
 		return
 	}
 
-	flags := memfd.F_SEAL_SEAL | memfd.F_SEAL_SHRINK | memfd.F_SEAL_GROW | memfd.F_SEAL_WRITE
-	_, err = memfd.Fcntl(fd, memfd.F_ADD_SEALS, flags)
+	globalsMemorySize := roundToPage(memoryOffset + int(growMemorySize))
+	totalSize := int64(roDataSize) + int64(textSize) + int64(globalsMemorySize) + int64(stackSize)
+
+	err = f.Truncate(totalSize)
 	if err != nil {
-		syscall.Close(fd)
+		f.Close()
+		return
+	}
+
+	_, err = memfd.Fcntl(fd, memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
+	if err != nil {
+		f.Close()
 		return
 	}
 
 	payload = &Payload{
 		maps: f,
-		info: []uint32{
-			pageSize,
-			roDataSize,
-			textSize,
-			uint32(memoryOffset),
-			uint32(initMemorySize),
-			uint32(growMemorySize),
-			uint32(stackSize),
+		info: payloadInfo{
+			PageSize:       pageSize,
+			RODataSize:     roDataSize,
+			TextSize:       textSize,
+			MemoryOffset:   uint32(memoryOffset),
+			InitMemorySize: uint32(initMemorySize),
+			GrowMemorySize: uint32(growMemorySize),
+			StackSize:      uint32(stackSize),
 		},
 	}
 	return
