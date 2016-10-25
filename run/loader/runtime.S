@@ -1,14 +1,78 @@
 #include <sys/syscall.h>
 
+#include "../defs.h"
+
+	.globl	trap_handler
+	.type	trap_handler,@function
+	.align	16
+
+// eax = trap id
+trap_handler:
+	cmp	$1, %eax
+	je	.Lmissing_function
+
+	mov	%eax, %edi		// zero-extend status (1st syscall arg)
+	test	%edi, %edi
+	je	.Lexit
+
+	add	$100, %edi
+
+.Lexit:
+	mov	$SYS_exit, %eax
+	syscall
+	int3
+
+.Lmissing_function:
+	// using 40 bytes of the 128-byte stack red zone
+
+	// save registers possibly used as parameters of the missing function
+	push	%rcx			// clobbered by syscall
+	push	%rsi			// used for syscall arg
+	push	%rdi			// used for syscall arg
+	push	%r11			// clobbered by syscall
+
+	mov	$1, %edi		// stdout fd (1st syscall arg)
+	lea	-8(%rsp), %rsi		// ptr (2nd syscall arg)
+	mov	$8, %edx		// size (3rd syscall arg)
+
+	mov	%edx, (%rsi)		// op packet: size
+	movl	$255, 4(%rsi)		// op packet: code, flags
+
+.Lloop_mf:
+	mov	$SYS_write, %eax
+	syscall
+	test	%rax, %rax
+	jle	.Lerror
+
+	add	%rax, %rsi		// update ptr (2nd syscall arg)
+	sub	%eax, %edx		// update size (3rd syscall arg)
+	jne	.Lloop_mf
+
+	mov	$GATE_WAKEUP_FD, %edi	// fd (1st syscall arg)
+	lea	-1(%rsp), %rsi		// ptr (2nd syscall arg)
+	mov	$1, %edx		// size (3rd syscall arg)
+	mov	$SYS_read, %eax
+	syscall
+	test	%rax, %rax
+	jl	.Lerror			// EOF is ok
+
+	pop	%r11
+	pop	%rdi
+	pop	%rsi
+	pop	%rcx
+
+	// rewind return address before the call instruction that got us here
+	sub	$5, (%rsp)
+	ret
+
 	.globl	__gate_send_full
 	.type	__gate_send_full,@function
-	.align	16
+	.align	64 // important ABI functions fit within single cache line
 
 // ecx = relative addr
 // ebx = size
 __gate_send_full:
-	mov	$1, %edi		// stdout fd (1st syscall arg)
-	mov	%edi, %ebp		// SYS_write
+	mov	$1, %edi		// SYS_write/stdout fd (1st syscall arg)
 	jmp	.Lio
 
 	.globl	__gate_recv_full
@@ -18,14 +82,12 @@ __gate_send_full:
 // ecx = relative addr
 // ebx = size
 __gate_recv_full:
-	xor	%edi, %edi		// stdout fd (1st syscall arg)
-	xor	%ebp, %ebp		// SYS_read
+	xor	%edi, %edi		// SYS_read/stdin fd (1st syscall arg)
 	// fall through to .Lio
 
 // ecx = relative addr
 // ebx = size
-// rdi = fd (1st syscall arg)
-// rbp = syscall
+// rdi = syscall/fd (1st syscall arg)
 .Lio:
 	// check lower bound of relative addr
 	and	%ecx, %ecx		// zero-extend relative addr + test
@@ -45,15 +107,15 @@ __gate_recv_full:
 	jl	.Lbounds
 	cmp	%rsi, %r11		// against absolute addr (wrap-around)
 	jl	.Lbounds
-.Lloop:
-	mov	%ebp, %eax		// syscall
+.Lloop_io:
+	mov	%edi, %eax		// syscall
 	syscall
-	test	%rax, %rax
+	test	%eax, %eax		// 32-bit test ok; size limit is less than 0x80000000
 	jle	.Lerror
 
 	add	%rax, %rsi		// update absolute addr (2nd syscall arg)
 	sub	%eax, %edx		// update size (3rd syscall arg)
-	jne	.Lloop
+	jne	.Lloop_io
 .Lempty:
 	ret
 
@@ -90,8 +152,6 @@ __gate_exit:
 __gate_func_ptr:
 	xor	%eax, %eax		// result
 	ret
-
-#include "../defs.h"
 
 	.globl	__gate_get_abi_version
 	.type	__gate_get_abi_version,@function

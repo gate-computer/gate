@@ -12,6 +12,8 @@
 #define xstr(s) str(s)
 #define str(s)  #s
 
+extern int trap_handler; // not using function prototype avoids GOT section
+
 __attribute__ ((noreturn))
 static void sys_exit(int status)
 {
@@ -85,18 +87,11 @@ static int read_full(void *buf, size_t size)
 	return 0;
 }
 
-static void trap_handler(int num)
-{
-	if (num != 0)
-		num += 100;
-	sys_exit(num);
-}
-
 __attribute__ ((noreturn))
 static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *init_memory_limit, void *grow_memory_limit, void *stack_ptr, void *stack_limit)
 {
 	register void *rax asm ("rax") = stack_ptr;
-	register void (*rdx)(int) asm ("rdx") = trap_handler;
+	register void *rdx asm ("rdx") = &trap_handler;
 	register void *rcx asm ("rcx") = grow_memory_limit;
 	register uint64_t rsi asm ("rsi") = GATE_STACK_PAGES * page_size;
 	register uint64_t r11 asm ("r11") = page_size;
