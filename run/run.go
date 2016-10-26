@@ -164,7 +164,7 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 	data, memoryOffset := m.Data()
 
 	memory := data[memoryOffset:]
-	binary.LittleEndian.PutUint32(data[4:], uint32(len(memory))) // stack ptr?
+	binary.LittleEndian.PutUint32(memory[4:], uint32(initMemorySize)) // stack ptr?
 
 	fd, err := memfd.Create("payload", memfd.CLOEXEC|memfd.ALLOW_SEALING)
 	if err != nil {
