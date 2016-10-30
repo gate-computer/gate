@@ -3,12 +3,11 @@ package run_test
 import (
 	"bufio"
 	"encoding/binary"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/dewag"
 	"github.com/tsavola/wag/wasm"
 
 	"."
@@ -48,7 +47,9 @@ func TestRun(t *testing.T) {
 		t.Fatalf("load error: %v", err)
 	}
 
-	objdump(m.Text())
+	if dumpText && testing.Verbose() {
+		dewag.PrintTo(os.Stdout, m.Text(), m.FunctionMap())
+	}
 
 	_, memorySize := m.MemoryLimits()
 	if memorySize > memorySizeLimit {
@@ -95,27 +96,5 @@ func dumpOutput(t *testing.T, data []byte) {
 		}
 		t.Logf("garbage: %#v\n", string(data))
 		break
-	}
-}
-
-func objdump(text []byte) {
-	if dumpText {
-		f, err := ioutil.TempFile("", "")
-		if err != nil {
-			panic(err)
-		}
-		_, err = f.Write(text)
-		f.Close()
-		defer os.Remove(f.Name())
-		if err != nil {
-			panic(err)
-		}
-
-		cmd := exec.Command("objdump", "-D", "-bbinary", "-mi386:x86-64", f.Name())
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			panic(err)
-		}
 	}
 }
