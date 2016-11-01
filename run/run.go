@@ -277,8 +277,7 @@ func Run(env *Environment, payload *Payload) (output []byte, err error) {
 			payload.maps,
 		},
 		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig:  syscall.SIGKILL,
-			Cloneflags: syscall.CLONE_NEWUSER,
+			Pdeathsig: syscall.SIGKILL,
 		},
 	}
 
