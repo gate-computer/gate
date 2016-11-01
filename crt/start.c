@@ -1,5 +1,3 @@
-#include <stddef.h>
-
 #include <gate.h>
 
 int main(void);
