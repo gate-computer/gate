@@ -2,12 +2,17 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path"
+	"time"
+
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
@@ -17,6 +22,8 @@ import (
 )
 
 const (
+	renewCertBefore = 30 * 24 * time.Hour
+
 	memorySizeLimit = 16 * wasm.Page
 	stackSize       = 16 * 4096
 )
@@ -24,8 +31,6 @@ const (
 var env *run.Environment
 
 func main() {
-	var err error
-
 	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatal(err)
@@ -35,7 +40,23 @@ func main() {
 		executor      = path.Join(dir, "bin/executor")
 		loader        = path.Join(dir, "bin/loader")
 		loaderSymbols = loader + ".symbols"
+		addr          = ":80"
+		letsencrypt   = false
+		email         = ""
+		acceptTOS     = false
+		certCacheDir  = "/var/lib/gate-httpserver-letsencrypt"
 	)
+
+	flag.StringVar(&executor, "executor", executor, "filename")
+	flag.StringVar(&loader, "loader", loader, "filename")
+	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
+	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
+	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
+	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
+	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
+	flag.StringVar(&certCacheDir, "cert-cache-dir", certCacheDir, "certificate storage")
+	flag.Parse()
+	domains := flag.Args()
 
 	env, err = run.NewEnvironment(executor, loader, loaderSymbols)
 	if err != nil {
@@ -44,7 +65,32 @@ func main() {
 
 	http.HandleFunc("/execute", execute)
 
-	log.Fatal(http.ListenAndServe(":8888", nil))
+	if letsencrypt {
+		if !acceptTOS {
+			log.Fatal("-accept-tos option not set")
+		}
+
+		m := autocert.Manager{
+			Prompt:      autocert.AcceptTOS,
+			Cache:       autocert.DirCache(certCacheDir),
+			HostPolicy:  autocert.HostWhitelist(domains...),
+			RenewBefore: renewCertBefore,
+			Email:       email,
+		}
+
+		s := http.Server{
+			Addr: addr,
+			TLSConfig: &tls.Config{
+				GetCertificate: m.GetCertificate,
+			},
+		}
+
+		err = s.ListenAndServeTLS("", "")
+	} else {
+		err = http.ListenAndServe(addr, nil)
+	}
+
+	log.Fatal(err)
 }
 
 func execute(w http.ResponseWriter, r *http.Request) {

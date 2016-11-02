@@ -22,6 +22,7 @@ export GATE_TEST_WASM		:= $(PWD)/test/prog.wasm
 
 build:
 	$(GO) get github.com/tsavola/wag
+	$(GO) get golang.org/x/crypto/acme/autocert
 	$(GO) get golang.org/x/net/http2
 	$(GO) get golang.org/x/net/http2/hpack
 	$(MAKE) -C run/executor
