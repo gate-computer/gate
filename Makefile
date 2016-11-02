@@ -21,7 +21,6 @@ export GATE_TEST_LOADER		:= $(PWD)/bin/loader
 export GATE_TEST_WASM		:= $(PWD)/test/prog.wasm
 
 build:
-	$(GO) get github.com/bnagy/gapstone
 	$(GO) get github.com/tsavola/wag
 	$(GO) get golang.org/x/net/http2
 	$(GO) get golang.org/x/net/http2/hpack
@@ -37,6 +36,7 @@ all: build
 	$(MAKE) -C test
 
 check: all
+	$(GO) get github.com/bnagy/gapstone
 	$(GO) test -race -v $(GOPACKAGES)
 
 clean:
