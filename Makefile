@@ -24,7 +24,6 @@ build:
 	$(GO) get github.com/tsavola/wag
 	$(GO) get golang.org/x/net/http2
 	$(GO) get golang.org/x/net/http2/hpack
-	$(GO) vet $(GOPACKAGES)
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
@@ -36,6 +35,7 @@ all: build
 	$(MAKE) -C test
 
 check: all
+	$(GO) vet $(GOPACKAGES)
 	$(GO) get github.com/bnagy/gapstone
 	$(GO) test -race -v $(GOPACKAGES)
 
