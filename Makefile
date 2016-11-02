@@ -26,13 +26,13 @@ build:
 	$(GO) get golang.org/x/net/http2/hpack
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/httpserver
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
 all: build
 	$(MAKE) -C crt
 	$(MAKE) -C test
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
 check: all
 	$(GO) vet $(GOPACKAGES)
