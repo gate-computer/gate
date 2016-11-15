@@ -2,31 +2,40 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
-	"encoding/binary"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
-	"golang.org/x/crypto/acme/autocert"
-
+	"github.com/gorilla/websocket"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/wasm"
+	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/tsavola/gate/run"
 )
 
+type readWriter struct {
+	io.Reader
+	io.Writer
+}
+
 const (
 	renewCertBefore = 30 * 24 * time.Hour
 
-	memorySizeLimit = 16 * wasm.Page
+	memorySizeLimit = 256 * wasm.Page
 	stackSize       = 16 * 4096
 )
+
+var webSocketClose = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
 
 var env *run.Environment
 
@@ -40,7 +49,7 @@ func main() {
 		executor      = path.Join(dir, "bin/executor")
 		loader        = path.Join(dir, "bin/loader")
 		loaderSymbols = loader + ".symbols"
-		addr          = ":80"
+		addr          = "localhost:8888"
 		letsencrypt   = false
 		email         = ""
 		acceptTOS     = false
@@ -63,7 +72,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	http.HandleFunc("/execute", execute)
+	http.HandleFunc("/execute", handleExecute)
 
 	if letsencrypt {
 		if !acceptTOS {
@@ -93,21 +102,99 @@ func main() {
 	log.Fatal(err)
 }
 
-func execute(w http.ResponseWriter, r *http.Request) {
+func handleExecute(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		handleExecuteWebSocket(w, r)
+
+	case http.MethodPost:
+		handleExecuteHTTP(w, r)
+
+	default:
+		r.Body.Close()
+		w.Header().Set("Allow", "GET, POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func handleExecuteHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	log.Printf("%s begin", r.RemoteAddr)
 	defer log.Printf("%s end", r.RemoteAddr)
 
-	wasm := bufio.NewReader(r.Body)
+	input := bufio.NewReader(r.Body)
+	output := new(bytes.Buffer)
 
-	var m wag.Module
-
-	err := m.Load(wasm, env, nil, nil, run.RODataAddr, nil)
+	exit, trap, err, internal := execute(input, input, output)
 	if err != nil {
 		log.Printf("%s error: %v", r.RemoteAddr, err)
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintln(w, err)
+		if internal {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintln(w, err)
+		}
+		return
+	}
+
+	if trap != 0 {
+		w.Header().Set("X-Gate-Trap", trap.String())
+	} else {
+		w.Header().Set("X-Gate-Exit", strconv.Itoa(exit))
+	}
+
+	w.Write(output.Bytes())
+}
+
+func handleExecuteWebSocket(w http.ResponseWriter, r *http.Request) {
+	u := websocket.Upgrader{
+		CheckOrigin: func(*http.Request) bool { return true },
+	}
+
+	conn, err := u.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+	defer conn.Close()
+
+	log.Printf("%s begin", r.RemoteAddr)
+	defer log.Printf("%s end", r.RemoteAddr)
+
+	_, wasm, err := conn.NextReader()
+	if err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+
+	msg := make(map[string]interface{})
+
+	exit, trap, err, internal := execute(bufio.NewReader(wasm), newWebSocketReader(conn), webSocketWriter{conn})
+	if err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		if internal {
+			msg["error"] = "internal"
+		} else {
+			msg["error"] = err.Error()
+		}
+	} else if trap != 0 {
+		msg["trap"] = trap.String()
+	} else {
+		msg["exit"] = exit
+	}
+
+	if conn.WriteJSON(msg) == nil {
+		conn.WriteMessage(websocket.CloseMessage, webSocketClose)
+	}
+}
+
+func execute(wasm *bufio.Reader, input io.Reader, output io.Writer) (exit int, trap traps.Id, err error, internal bool) {
+	var m wag.Module
+
+	err = m.Load(wasm, env, nil, nil, run.RODataAddr, nil)
+	if err != nil {
 		return
 	}
 
@@ -118,44 +205,52 @@ func execute(w http.ResponseWriter, r *http.Request) {
 
 	payload, err := run.NewPayload(&m, memorySize, stackSize)
 	if err != nil {
-		log.Printf("%s error: %v", r.RemoteAddr, err)
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintln(w, err)
 		return
 	}
 	defer payload.Close()
 
-	output, err := run.Run(env, payload)
+	exit, trap, err = run.Run(env, payload, readWriter{input, output})
 	if err != nil {
-		if trap, ok := err.(traps.Id); ok {
-			w.Header().Set("X-Gate-Trap", trap.String())
-		} else {
-			log.Printf("%s error: %v", r.RemoteAddr, err)
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintln(w, err)
+		internal = true
+	}
+	return
+}
+
+type webSocketReader struct {
+	conn  *websocket.Conn
+	frame io.Reader
+}
+
+func newWebSocketReader(conn *websocket.Conn) *webSocketReader {
+	return &webSocketReader{
+		conn: conn,
+	}
+}
+
+func (r *webSocketReader) Read(buf []byte) (n int, err error) {
+	if r.frame == nil {
+		_, r.frame, err = r.conn.NextReader()
+		if err != nil {
 			return
 		}
 	}
 
-	var data []byte
-
-	if len(output) >= 8 {
-		size := binary.LittleEndian.Uint32(output)
-		if size >= 8 && size <= uint32(len(output)) {
-			data = output[8:size]
-		}
+	n, err = r.frame.Read(buf)
+	if err == io.EOF {
+		r.frame = nil
+		err = nil
 	}
+	return
+}
 
-	if data == nil {
-		log.Printf("%s error: invalid output: %v", r.RemoteAddr, output)
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
+type webSocketWriter struct {
+	conn *websocket.Conn
+}
 
-	w.WriteHeader(http.StatusOK)
-
-	if _, err := w.Write(data); err != nil {
-		log.Printf("%s error: %v", r.RemoteAddr, err)
+func (w webSocketWriter) Write(buf []byte) (n int, err error) {
+	err = w.conn.WriteMessage(websocket.BinaryMessage, buf)
+	if err == nil {
+		n = len(buf)
 	}
 	return
 }

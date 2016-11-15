@@ -17,6 +17,7 @@ export GATE_TEST_LOADER		:= $(PWD)/bin/loader
 export GATE_TEST_WASM		:= $(PWD)/tests/test/prog.wasm
 
 build:
+	$(GO) get github.com/gorilla/websocket
 	$(GO) get github.com/tsavola/wag
 	$(GO) get golang.org/x/crypto/acme/autocert
 	$(GO) get golang.org/x/net/http2
