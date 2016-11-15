@@ -31,6 +31,7 @@ all: build
 	$(MAKE) -C libc
 	$(MAKE) -C tests/test
 	$(MAKE) -C tests/test2
+	$(MAKE) -C tests/test3
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
@@ -47,5 +48,6 @@ clean:
 	$(MAKE) -C libc clean
 	$(MAKE) -C tests/test clean
 	$(MAKE) -C tests/test2 clean
+	$(MAKE) -C tests/test3 clean
 
 .PHONY: build all check clean
