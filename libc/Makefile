@@ -1,43 +1,38 @@
-GATEDIR		:= ../..
+GATEDIR		:= ..
 
-include ../clang.make
-include ../llvm.make
+CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
+CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Os
 
-CPPFLAGS	:= -isystem arch -isystem musl/include -isystem musl/obj/include -I../include
-CFLAGS		:= -g -Wall -Wextra -Wno-unused-parameter -emit-llvm -Os
-CXXFLAGS	:= -std=c++14
-
-MUSL_OBJECTS := \
-	musl/obj/src/internal/libc.o \
-	musl/obj/src/malloc/malloc.o
-
-OBJECTS := \
-	$(MUSL_OBJECTS) \
-	dummy.bc \
-	errno.bc \
+LIBC_OBJECTS := $(addprefix libc_build/, \
+	__errno_location.bc \
+	calloc.bc \
 	expand_heap.bc \
+	libc.bc \
+	malloc.bc \
 	memcpy.bc \
-	memset.bc
+	memset.bc \
+)
 
-CXXOBJECTS := \
-	new.bc
+build: $(LIBC_OBJECTS) compat.bc wasm.bc
 
-build: libc.bc libc++.bc
+include $(GATEDIR)/crt/rules.make
 
-libc.bc: $(OBJECTS)
-	$(LLVMLINK) -o $@ $(OBJECTS)
+LLVMBINDIR	:= $(WAGTOOLCHAIN)/llvm-build/bin
+BINARYENBINDIR	:= $(WAGTOOLCHAIN)/binaryen-build/bin
 
-libc++.bc: $(CXXOBJECTS)
-	$(LLVMLINK) -o $@ $(CXXOBJECTS)
+libc_build/%.ll:
+	musl/libc.py --clang_dir=$(realpath $(LLVMBINDIR)) --binaryen_dir=$(realpath $(BINARYENBINDIR)) --musl=$(realpath musl) --save-temps
 
-$(MUSL_OBJECTS): $(wildcard arch/*.h)
-	cd musl && ./configure CC="$(CLANG)" CFLAGS="-g -emit-llvm"
-	$(MAKE) -C musl ARCH=../../arch $(MUSL_OBJECTS:musl/%=%)
+libc_build/%.bc: libc_build/%.ll
+	$(LLVMBINDIR)/llvm-as -o $@ libc_build/$*.ll
+
+compat.bc: compat.c $(GATEDIR)/include/gate.h
+
+wasm.bc: wasm.ll
+	$(LLVMBINDIR)/llvm-as -o $@ wasm.ll
 
 clean:
-	- $(MAKE) -C musl clean
-	rm -f *.bc
+	rm -f *.bc *.s *.wast
+	rm -rf libc_build
 
 .PHONY: build clean
-
-include ../crt/rules.make

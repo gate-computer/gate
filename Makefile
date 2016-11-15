@@ -27,6 +27,7 @@ build:
 
 all: build
 	$(MAKE) -C crt
+	$(MAKE) -C libc
 	$(MAKE) -C tests/test
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
@@ -41,6 +42,7 @@ clean:
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C crt clean
+	$(MAKE) -C libc clean
 	$(MAKE) -C tests/test clean
 
 .PHONY: build all check clean
