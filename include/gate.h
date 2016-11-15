@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef GATE_CONSTFUNC
+# define GATE_CONSTFUNC __attribute__ ((const))
+#endif
+
 #ifndef GATE_NORETURN
 # define GATE_NORETURN __attribute__ ((noreturn))
 #endif
@@ -53,13 +57,13 @@ struct gate_ev_packet {
 // extern const int __gate_abi_version;
 // extern const size_t __gate_max_packet_size;
 
-extern int __gate_get_abi_version(void) GATE_NOEXCEPT;
-extern size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC int __gate_get_abi_version(void) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
 
 #define gate_abi_version     (__gate_get_abi_version())
 #define gate_max_packet_size (__gate_get_max_packet_size())
 
-extern void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
 extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
 extern void __gate_recv_full(void *buf, size_t size) GATE_NOEXCEPT;
 extern void __gate_send_full(const void *data, size_t size) GATE_NOEXCEPT;
