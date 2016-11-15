@@ -45,7 +45,8 @@ struct gate_op_packet {
 } GATE_PACKED;
 
 enum gate_ev_code {
-	GATE_EV_CODE_POLLOUT = 1,
+	GATE_EV_CODE_POLLOUT = 0,
+	GATE_EV_CODE_ORIGIN  = 1,
 };
 
 struct gate_ev_packet {
