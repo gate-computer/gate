@@ -1,6 +1,6 @@
-GATEDIR		:= ..
+GATEDIR		:= ../..
 
-CFLAGS		+= -g -Wall -Wextra -Wno-unused-parameter
+CFLAGS		+= -g -Wall -Wextra -Wno-unused-parameter -ffreestanding -Oz
 CXXFLAGS	+= -std=c++14
 
 OBJECTS		:= test.bc

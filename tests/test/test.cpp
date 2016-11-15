@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #include <gate.h>
 
 long workaround;
@@ -34,10 +36,12 @@ public:
 		return buf + header_size;
 	}
 
-	const gate_op_packet *op_data()
+	const gate_op_packet *op_data(enum gate_op_code code, uint16_t flags = 0)
 	{
 		gate_op_packet *header = reinterpret_cast<gate_op_packet *> (buf);
 		header->size = size;
+		header->code = code;
+		header->flags = flags;
 		return header;
 	}
 
@@ -60,7 +64,7 @@ int main()
 	if (p.size > gate_max_packet_size)
 		return 1;
 
-	indirection(p.op_data());
+	indirection(p.op_data(GATE_OP_CODE_ORIGIN));
 
 	return 0;
 }

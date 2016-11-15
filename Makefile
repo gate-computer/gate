@@ -14,7 +14,7 @@ GOPACKAGES := \
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
 export GATE_TEST_LOADER		:= $(PWD)/bin/loader
-export GATE_TEST_WASM		:= $(PWD)/test/prog.wasm
+export GATE_TEST_WASM		:= $(PWD)/tests/test/prog.wasm
 
 build:
 	$(GO) get github.com/tsavola/wag
@@ -27,7 +27,7 @@ build:
 
 all: build
 	$(MAKE) -C crt
-	$(MAKE) -C test
+	$(MAKE) -C tests/test
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
@@ -41,6 +41,6 @@ clean:
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C crt clean
-	$(MAKE) -C test clean
+	$(MAKE) -C tests/test clean
 
 .PHONY: build all check clean
