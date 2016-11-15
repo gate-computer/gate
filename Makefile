@@ -8,13 +8,9 @@ GOPACKAGEPREFIX	:= github.com/tsavola/gate
 -include config.make
 
 GOPACKAGES := \
-	$(GOPACKAGEPREFIX)/client \
 	$(GOPACKAGEPREFIX)/httpserver \
 	$(GOPACKAGEPREFIX)/internal/memfd \
-	$(GOPACKAGEPREFIX)/run \
-	$(GOPACKAGEPREFIX)/server \
-	$(GOPACKAGEPREFIX)/stream \
-	$(GOPACKAGEPREFIX)/stream/tlsconfig
+	$(GOPACKAGEPREFIX)/run
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
 export GATE_TEST_LOADER		:= $(PWD)/bin/loader
