@@ -2,7 +2,8 @@ package run_test
 
 import (
 	"bufio"
-	"encoding/binary"
+	"bytes"
+	"io"
 	"os"
 	"testing"
 
@@ -12,6 +13,11 @@ import (
 
 	"."
 )
+
+type readWriter struct {
+	io.Reader
+	io.Writer
+}
 
 const (
 	dumpText = true
@@ -48,7 +54,7 @@ func TestRun(t *testing.T) {
 	}
 
 	if dumpText && testing.Verbose() {
-		dewag.PrintTo(os.Stdout, m.Text(), m.FunctionMap())
+		dewag.PrintTo(os.Stdout, m.Text(), m.FunctionMap(), nil)
 	}
 
 	_, memorySize := m.MemoryLimits()
@@ -62,10 +68,16 @@ func TestRun(t *testing.T) {
 	}
 	defer payload.Close()
 
-	output, err := run.Run(env, payload)
-	dumpOutput(t, output)
+	var output bytes.Buffer
+
+	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output})
+	t.Logf("output: %#v\n", string(output.Bytes()))
 	if err != nil {
 		t.Fatalf("run error: %v", err)
+	} else if trap != 0 {
+		t.Fatalf("run trap: %s", trap)
+	} else if exit != 0 {
+		t.Fatalf("run exit: %s", exit)
 	}
 
 	if name := os.Getenv("GATE_TEST_DUMP"); name != "" {
@@ -78,23 +90,5 @@ func TestRun(t *testing.T) {
 		if err := payload.DumpGlobalsMemoryStack(f); err != nil {
 			t.Fatalf("dump error: %v", err)
 		}
-	}
-}
-
-func dumpOutput(t *testing.T, data []byte) {
-	for len(data) > 0 {
-		if len(data) >= 8 {
-			size := binary.LittleEndian.Uint32(data)
-			if size >= 8 && size <= uint32(len(data)) {
-				t.Logf("op size:    %d\n", size)
-				t.Logf("op code:    %d\n", binary.LittleEndian.Uint16(data[4:]))
-				t.Logf("op flags:   0x%x\n", binary.LittleEndian.Uint16(data[6:]))
-				t.Logf("op payload: %#v\n", string(data[8:size]))
-				data = data[size:]
-				continue
-			}
-		}
-		t.Logf("garbage: %#v\n", string(data))
-		break
 	}
 }

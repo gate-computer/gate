@@ -2,15 +2,14 @@ package run
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/types"
 	"github.com/tsavola/wag/wasm"
 
@@ -267,7 +266,7 @@ func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func Run(env *Environment, payload *Payload) (output []byte, err error) {
+func Run(env *Environment, payload *Payload, origin io.ReadWriter) (exit int, trap traps.Id, err error) {
 	cmd := exec.Cmd{
 		Path: env.executor,
 		Args: []string{},
@@ -301,22 +300,42 @@ func Run(env *Environment, payload *Payload) (output []byte, err error) {
 		return
 	}
 
-	err = binary.Write(stdin, nativeEndian, payload.info)
-	if err != nil {
-		cmd.Process.Kill()
+	err = runIO(origin, readWriteKiller{stdout, stdin, cmd.Process.Kill}, &payload.info)
+	if err == nil {
+		err = cmd.Wait()
+		if _, ok := err.(*exec.ExitError); ok && cmd.ProcessState.Exited() {
+			err = nil
+		}
+	} else {
 		cmd.Wait()
-		return
 	}
-
-	output, _ = ioutil.ReadAll(stdout)
-
-	err = cmd.Wait()
 	if err != nil {
 		return
 	}
 
-	if !cmd.ProcessState.Success() {
-		err = errors.New(cmd.ProcessState.String())
+	code := cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus()
+
+	switch code {
+	case 0, 1:
+		exit = code
+		return
 	}
+
+	if n := code - 100; n >= 0 && n < int(traps.NumTraps) {
+		trap = traps.Id(n)
+		return
+	}
+
+	err = fmt.Errorf("unknown process exit code: %d", code)
 	return
+}
+
+func runIO(origin io.ReadWriter, subject readWriteKiller, info *payloadInfo) (err error) {
+	err = binary.Write(subject, nativeEndian, info)
+	if err != nil {
+		subject.kill()
+		return
+	}
+
+	return ioLoop(origin, subject)
 }
