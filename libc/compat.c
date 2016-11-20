@@ -108,7 +108,7 @@ void *__mremap(void *old_addr, size_t old_len, size_t new_len, int flags, void *
 
 int __munmap(void *start, size_t len)
 {
-	fail('F');
+	return 0;
 }
 
 size_t __stdio_write(FILE *ptr, const unsigned char *buf, size_t count)
