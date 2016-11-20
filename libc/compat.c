@@ -1,6 +1,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <sys/mman.h>
+
 #include <gate.h>
 
 #define __NR_brk 45
@@ -86,6 +88,16 @@ int __madvise(void *addr, size_t len, int advice)
 
 void *__mmap(void *start, size_t len, int prot, int flags, int fd, off_t off)
 {
+	if (prot == (PROT_READ|PROT_WRITE) && flags == (MAP_PRIVATE|MAP_ANONYMOUS)) {
+		int start = sys_brk(0);
+		int end = start + len;
+
+		if (end >= start && sys_brk(end) >= end)
+			return (void *) start;
+
+		return MAP_FAILED;
+	}
+
 	fail('D');
 }
 
