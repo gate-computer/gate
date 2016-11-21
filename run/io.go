@@ -59,10 +59,9 @@ func ioLoop(origin io.ReadWriter, subject readWriteKiller) (err error) {
 		}
 	}()
 
-	evs, evErr := evLoop(subject)
+	evs, evDone := evLoop(subject)
 	defer func() {
-		for range evErr {
-		}
+		<-evDone
 	}()
 	defer close(evs)
 
@@ -111,7 +110,7 @@ func ioLoop(origin io.ReadWriter, subject readWriteKiller) (err error) {
 		case doEvs <- ev:
 			ev = nil
 
-		case err = <-evErr:
+		case <-evDone:
 			return
 		}
 	}
@@ -207,17 +206,15 @@ func opLoop(r io.Reader) <-chan opPacket {
 	return ops
 }
 
-func evLoop(w io.Writer) (chan<- []byte, <-chan error) {
+func evLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
 	evs := make(chan []byte)
-	done := make(chan error)
+	done := make(chan struct{})
 
 	go func() {
 		defer close(done)
 
 		for buf := range evs {
-			_, err := w.Write(buf)
-			if err != nil {
-				done <- fmt.Errorf("ev write: %v", err)
+			if _, err := w.Write(buf); err != nil {
 				return
 			}
 		}
@@ -229,7 +226,7 @@ func evLoop(w io.Writer) (chan<- []byte, <-chan error) {
 func handleOp(op opPacket, origin io.ReadWriter) (ev []byte, err error) {
 	err = op.err
 	if err != nil {
-		err = fmt.Errorf("ev write: %v", err)
+		err = fmt.Errorf("handleOp: %v", err)
 		return
 	}
 
@@ -244,7 +241,7 @@ func handleOp(op opPacket, origin io.ReadWriter) (ev []byte, err error) {
 	case opCodeOrigin:
 		_, err = origin.Write(op.payload)
 		if err != nil {
-			err = fmt.Errorf("ev write: %v", err)
+			err = fmt.Errorf("handleOp: write to origin: %v", err)
 			return
 		}
 
