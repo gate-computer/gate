@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
@@ -73,6 +74,7 @@ func main() {
 	}
 
 	http.HandleFunc("/execute", handleExecute)
+	http.HandleFunc("/execute-custom", handleExecuteCustom)
 
 	if letsencrypt {
 		if !acceptTOS {
@@ -187,6 +189,47 @@ func handleExecuteWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	if conn.WriteJSON(msg) == nil {
 		conn.WriteMessage(websocket.CloseMessage, webSocketClose)
+	}
+}
+
+func handleExecuteCustom(w http.ResponseWriter, r *http.Request) {
+	h, ok := w.(http.Hijacker)
+	if !ok {
+		log.Printf("%s: connection cannot be hijacked", r.RemoteAddr)
+		return
+	}
+	conn, rw, err := h.Hijack()
+	if err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+	defer conn.Close()
+
+	if _, err := rw.Write([]byte("HTTP/1.0 200 OK\r\n\r\n")); err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+
+	if err := rw.Flush(); err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+
+	log.Printf("%s begin", r.RemoteAddr)
+	defer log.Printf("%s end", r.RemoteAddr)
+
+	var wasmSize int64
+
+	if err := binary.Read(rw, binary.LittleEndian, &wasmSize); err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+
+	wasm := bufio.NewReader(io.LimitReader(rw, wasmSize))
+
+	_, _, err, _ = execute(wasm, rw, rw)
+	if err != nil {
+		log.Printf("%s error: %v", r.RemoteAddr, err)
 	}
 }
 
