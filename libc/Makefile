@@ -5,12 +5,23 @@ CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Os
 
 LIBC_OBJECTS := $(addprefix libc_build/, \
 	__errno_location.bc \
+	atoi.bc \
 	calloc.bc \
 	expand_heap.bc \
 	libc.bc \
 	malloc.bc \
 	memcpy.bc \
 	memset.bc \
+	stpcpy.bc \
+	stpncpy.bc \
+	strcasecmp.bc \
+	strncasecmp.bc \
+	strcmp.bc \
+	strncmp.bc \
+	strcpy.bc \
+	strncpy.bc \
+	strlen.bc \
+	vsprintf.bc \
 )
 
 build: $(LIBC_OBJECTS) compat.bc wasm.bc
