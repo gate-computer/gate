@@ -17,6 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/wasm"
 	"golang.org/x/crypto/acme/autocert"
@@ -128,7 +129,7 @@ func handleExecuteHTTP(w http.ResponseWriter, r *http.Request) {
 	input := bufio.NewReader(r.Body)
 	output := new(bytes.Buffer)
 
-	exit, trap, err, internal := execute(input, input, output)
+	exit, trap, err, internal := execute(r, input, input, output)
 	if err != nil {
 		log.Printf("%s error: %v", r.RemoteAddr, err)
 		if internal {
@@ -173,7 +174,7 @@ func handleExecuteWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	msg := make(map[string]interface{})
 
-	exit, trap, err, internal := execute(bufio.NewReader(wasm), newWebSocketReader(conn), webSocketWriter{conn})
+	exit, trap, err, internal := execute(r, bufio.NewReader(wasm), newWebSocketReader(conn), webSocketWriter{conn})
 	if err != nil {
 		log.Printf("%s error: %v", r.RemoteAddr, err)
 		if internal {
@@ -193,11 +194,7 @@ func handleExecuteWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleExecuteCustom(w http.ResponseWriter, r *http.Request) {
-	h, ok := w.(http.Hijacker)
-	if !ok {
-		log.Printf("%s: connection cannot be hijacked", r.RemoteAddr)
-		return
-	}
+	h, _ := w.(http.Hijacker)
 	conn, rw, err := h.Hijack()
 	if err != nil {
 		log.Printf("%s error: %v", r.RemoteAddr, err)
@@ -227,14 +224,18 @@ func handleExecuteCustom(w http.ResponseWriter, r *http.Request) {
 
 	wasm := bufio.NewReader(io.LimitReader(rw, wasmSize))
 
-	_, _, err, _ = execute(wasm, rw, rw)
+	_, _, err, _ = execute(r, wasm, rw, rw)
 	if err != nil {
 		log.Printf("%s error: %v", r.RemoteAddr, err)
 	}
 }
 
-func execute(wasm *bufio.Reader, input io.Reader, output io.Writer) (exit int, trap traps.Id, err error, internal bool) {
-	var m wag.Module
+func execute(r *http.Request, wasm *bufio.Reader, input io.Reader, output io.Writer) (exit int, trap traps.Id, err error, internal bool) {
+	var ns sections.NameSection
+
+	m := wag.Module{
+		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
+	}
 
 	err = m.Load(wasm, env, nil, nil, run.RODataAddr, nil)
 	if err != nil {
@@ -255,6 +256,11 @@ func execute(wasm *bufio.Reader, input io.Reader, output io.Writer) (exit int, t
 	exit, trap, err = run.Run(env, payload, readWriter{input, output})
 	if err != nil {
 		internal = true
+	} else {
+		err := payload.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
+		if err != nil {
+			log.Printf("%s error: %v", r.RemoteAddr, err)
+		}
 	}
 	return
 }

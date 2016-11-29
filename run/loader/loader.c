@@ -160,6 +160,7 @@ static int main(void)
 	struct __attribute__ ((packed)) {
 		uint32_t page_size;
 		uint32_t rodata_size;
+		uint64_t text_addr;
 		uint32_t text_size;
 		uint32_t memory_offset;
 		uint32_t init_memory_size;
@@ -176,8 +177,8 @@ static int main(void)
 			return 21;
 	}
 
-	void *text_ptr = sys_mmap(NULL, info.text_size, PROT_EXEC, MAP_PRIVATE|MAP_NORESERVE, GATE_MAPS_FD, info.rodata_size);
-	if (text_ptr == MAP_FAILED)
+	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_EXEC, MAP_PRIVATE|MAP_NORESERVE|MAP_FIXED, GATE_MAPS_FD, info.rodata_size);
+	if (text_ptr != (void *) info.text_addr)
 		return 22;
 
 	size_t globals_memory_offset = (size_t) info.rodata_size + (size_t) info.text_size;

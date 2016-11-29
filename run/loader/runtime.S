@@ -13,14 +13,10 @@ trap_handler:
 
 	mov	%eax, %edi		// zero-extend status (1st syscall arg)
 	test	%edi, %edi
-	je	.Lexit
+	je	sys_exit
 
 	add	$100, %edi
-
-.Lexit:
-	mov	$SYS_exit, %eax
-	syscall
-	int3
+	jmp	sys_exit
 
 .Lmissing_function:
 	// using 40 bytes of the 128-byte stack red zone
@@ -120,16 +116,12 @@ __gate_recv_full:
 	ret
 
 .Lbounds:
-	mov	$SYS_exit, %eax
 	mov	$13, %edi		// status (1st syscall arg)
-	syscall
-	int3
+	jmp	sys_exit
 
 .Lerror:
-	mov	$SYS_exit, %eax
 	mov	$14, %edi		// status (1st syscall arg)
-	syscall
-	int3
+	jmp	sys_exit
 
 	.globl	__gate_exit
 	.type	__gate_exit,@function
@@ -140,6 +132,12 @@ __gate_exit:
 	xor	%edi, %edi
 	test	%ecx, %ecx
 	setne	%dil			// status boolean (1st syscall arg)
+
+sys_exit:
+	sub	$8+128, %r13		// stack reserve
+	mov	%rsp, %rax
+	sub	%r13, %rax
+	mov	%rax, (%r13)		// first word of stack space
 
 	mov	$SYS_exit, %eax
 	syscall

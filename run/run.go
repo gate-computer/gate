@@ -9,11 +9,16 @@ import (
 	"syscall"
 
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/types"
 	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate/internal/memfd"
+)
+
+const (
+	textAddr = 0x400000000 // TODO: randomize
 )
 
 var (
@@ -138,6 +143,7 @@ func (env *Environment) ImportGlobal(module, field string, t types.T) (value uin
 type payloadInfo struct {
 	PageSize       uint32
 	RODataSize     uint32
+	TextAddr       uint64
 	TextSize       uint32
 	MemoryOffset   uint32
 	InitMemorySize uint32
@@ -211,6 +217,7 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 		info: payloadInfo{
 			PageSize:       pageSize,
 			RODataSize:     roDataSize,
+			TextAddr:       textAddr,
 			TextSize:       textSize,
 			MemoryOffset:   uint32(memoryOffset),
 			InitMemorySize: uint32(initMemorySize),
@@ -264,6 +271,22 @@ func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 
 	fmt.Fprintf(w, "---\n")
 	return
+}
+
+func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
+	fd := int(payload.maps.Fd())
+
+	offset := int64(payload.info.RODataSize) + int64(payload.info.TextSize) + int64(payload.info.MemoryOffset) + int64(payload.info.GrowMemorySize)
+
+	size := int(payload.info.StackSize)
+
+	stack, err := syscall.Mmap(fd, offset, size, syscall.PROT_READ, syscall.MAP_PRIVATE)
+	if err != nil {
+		return
+	}
+	defer syscall.Munmap(stack)
+
+	return writeStacktraceTo(w, stack, funcMap, callMap, funcSigs, ns)
 }
 
 func Run(env *Environment, payload *Payload, origin io.ReadWriter) (exit int, trap traps.Id, err error) {
