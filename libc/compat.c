@@ -73,7 +73,7 @@ void abort(void)
 
 pthread_t pthread_self(void)
 {
-	fail('B');
+	return 0;
 }
 
 void _Exit(int code)
