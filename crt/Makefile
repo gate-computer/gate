@@ -1,7 +1,7 @@
 GATEDIR		:= ..
 
 CPPFLAGS	+= -DNDEBUG
-CFLAGS		+= -fomit-frame-pointer -Os -g -Wall -Wextra -Wno-unused-parameter -ffreestanding -Oz
+CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -ffreestanding -Oz
 
 build: $(GATEDIR)/crt/start.bc
 

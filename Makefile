@@ -29,6 +29,7 @@ build:
 all: build
 	$(MAKE) -C crt
 	$(MAKE) -C libc
+	$(MAKE) -C malloc
 	$(MAKE) -C tests/test
 	$(MAKE) -C tests/test2
 	$(MAKE) -C tests/test3
@@ -46,6 +47,7 @@ clean:
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C crt clean
 	$(MAKE) -C libc clean
+	$(MAKE) -C malloc clean
 	$(MAKE) -C tests/test clean
 	$(MAKE) -C tests/test2 clean
 	$(MAKE) -C tests/test3 clean

@@ -1,30 +1,27 @@
 GATEDIR		:= ..
 
-CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
-CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Os
+PYTHON		?= python
 
-LIBC_OBJECTS := $(addprefix libc_build/, \
-	__errno_location.bc \
+CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
+CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
+
+LIBC_OBJECTS	:= $(addprefix libc_build/, \
 	atoi.bc \
-	calloc.bc \
-	expand_heap.bc \
-	libc.bc \
-	malloc.bc \
 	memcpy.bc \
 	memset.bc \
 	stpcpy.bc \
 	stpncpy.bc \
 	strcasecmp.bc \
-	strncasecmp.bc \
 	strcmp.bc \
-	strncmp.bc \
 	strcpy.bc \
-	strncpy.bc \
 	strlen.bc \
-	vsprintf.bc \
+	strncasecmp.bc \
+	strncmp.bc \
+	strncpy.bc \
+	tolower.bc \
 )
 
-build: $(LIBC_OBJECTS) compat.bc wasm.bc
+build: $(LIBC_OBJECTS) compat.bc
 
 include $(GATEDIR)/crt/rules.make
 
@@ -32,18 +29,15 @@ LLVMBINDIR	:= $(WAGTOOLCHAIN)/llvm-build/bin
 BINARYENBINDIR	:= $(WAGTOOLCHAIN)/binaryen-build/bin
 
 libc_build/%.ll:
-	musl/libc.py --clang_dir=$(realpath $(LLVMBINDIR)) --binaryen_dir=$(realpath $(BINARYENBINDIR)) --musl=$(realpath musl) --save-temps
+	PYTHONPATH=musl $(PYTHON) -B musl.py --clang_dir=$(realpath $(LLVMBINDIR)) --binaryen_dir=$(realpath $(BINARYENBINDIR)) --musl=$(realpath musl) --save-temps
 
 libc_build/%.bc: libc_build/%.ll
 	$(LLVMBINDIR)/llvm-as -o $@ libc_build/$*.ll
 
-compat.bc: compat.c $(GATEDIR)/include/gate.h
-
-wasm.bc: wasm.ll
-	$(LLVMBINDIR)/llvm-as -o $@ wasm.ll
+compat.bc: compat.c $(GATEDIR)/include/gate.h Makefile
 
 clean:
-	rm -f *.bc *.s *.wast
+	rm -f *.bc *.wast
 	rm -rf libc_build
 
 .PHONY: build clean

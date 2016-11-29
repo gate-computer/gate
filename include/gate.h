@@ -78,7 +78,7 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 static inline size_t gate_recv_packet(void *buf, size_t size) GATE_NOEXCEPT
 {
 	if (size < gate_max_packet_size)
-		__gate_exit(1);
+		gate_exit(1);
 
 	__gate_recv_full(buf, sizeof (struct gate_ev_packet));
 

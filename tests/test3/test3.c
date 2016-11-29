@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -5,42 +6,43 @@
 
 #include <gate.h>
 
-static void fail(int code)
+static const int num_garbage_slots = 2;
+static void *garbage[num_garbage_slots];
+
+static void do_it(int c, int n)
 {
-	static char buf[sizeof (struct gate_op_packet) + sizeof (int32_t)];
-
-	struct gate_op_packet *head = (struct gate_op_packet *) buf;
-	head->size = sizeof (buf);
-	head->code = GATE_OP_CODE_ORIGIN;
-
-	*(int32_t *) (buf + sizeof (struct gate_op_packet)) = (int32_t) code;
-
-	gate_send_packet(head);
-	gate_exit(1);
-}
-
-static void do_it(int n)
-{
-	size_t size = sizeof (struct gate_op_packet) + n;
+	size_t size = sizeof (struct gate_op_packet) + n + 1;
 
 	struct gate_op_packet *buf = calloc(size, sizeof (char));
 	if (buf == NULL)
-		fail(n);
+		gate_exit(1);
 
 	buf->size = size;
 	buf->code = GATE_OP_CODE_ORIGIN;
 
-	memset(buf + 1, n, n);
+	memset(buf + 1, c, n);
+	((char *) (buf + 1))[n] = '\n';
 
 	gate_send_packet(buf);
 
-	free(buf);
+	while (true) {
+		for (int i = 0; i < num_garbage_slots; i++)
+			if (garbage[i] == NULL) {
+				garbage[i] = buf;
+				return;
+			}
+
+		for (int i = 0; i < num_garbage_slots; i++) {
+			free(garbage[i]);
+			garbage[i] = NULL;
+		}
+	}
 }
 
 int main(void)
 {
-	for (int i = 32; i < 127; i++)
-		do_it(i);
+	for (int i = 33; i < 127; i++)
+		do_it(i, i - 32);
 
 	return 0;
 }

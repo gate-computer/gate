@@ -1,20 +1,17 @@
 GATEDIR		:= ../..
 
 CPPFLAGS	+= -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include
-CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -Os
+CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
 
 OBJECTS		:= test3.bc
 
 LIBS := \
-	$(GATEDIR)/libc/libc_build/__errno_location.bc \
-	$(GATEDIR)/libc/libc_build/calloc.bc \
-	$(GATEDIR)/libc/libc_build/expand_heap.bc \
-	$(GATEDIR)/libc/libc_build/libc.bc \
-	$(GATEDIR)/libc/libc_build/malloc.bc \
+	$(GATEDIR)/libc/compat.bc \
 	$(GATEDIR)/libc/libc_build/memcpy.bc \
 	$(GATEDIR)/libc/libc_build/memset.bc \
-	$(GATEDIR)/libc/compat.bc \
-	$(GATEDIR)/libc/wasm.bc
+	$(GATEDIR)/malloc/malloc.bc \
+	$(GATEDIR)/malloc/morecore.bc \
+	$(GATEDIR)/malloc/wasm.bc
 
 build: prog.wasm
 

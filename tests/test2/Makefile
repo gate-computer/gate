@@ -2,7 +2,7 @@ export WAGTOOLCHAIN_ALLOCATE_STACK := 1048576
 
 GATEDIR		:= ../..
 
-CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -ffreestanding -Oz
+CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -ffreestanding -Oz
 CXXFLAGS	+= -std=c++14
 
 OBJECTS		:= test2.bc
