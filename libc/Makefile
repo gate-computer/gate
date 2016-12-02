@@ -5,21 +5,7 @@ PYTHON		?= python
 CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
 CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
 
-LIBC_OBJECTS	:= $(addprefix libc_build/, \
-	atoi.bc \
-	memcpy.bc \
-	memset.bc \
-	stpcpy.bc \
-	stpncpy.bc \
-	strcasecmp.bc \
-	strcmp.bc \
-	strcpy.bc \
-	strlen.bc \
-	strncasecmp.bc \
-	strncmp.bc \
-	strncpy.bc \
-	tolower.bc \
-)
+LIBC_OBJECTS	= $(patsubst %.ll,%.bc,$(wildcard libc_build/*.ll))
 
 build: $(LIBC_OBJECTS) compat.bc
 
