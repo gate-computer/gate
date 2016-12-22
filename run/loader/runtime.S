@@ -1,6 +1,25 @@
+#include <asm/errno.h>
 #include <sys/syscall.h>
 
 #include "../defs.h"
+
+	.globl	signal_handler
+	.type	signal_handler,@function
+	.align	16
+
+// edi = signum
+signal_handler:
+	movq	$1, GATE_SIGNAL_STACK_R9_OFFSET(%rsp)
+	ret
+
+	.globl	signal_restorer
+	.type	signal_restorer,@function
+	.align	16
+
+signal_restorer:
+	mov	$SYS_rt_sigreturn, %eax
+	syscall
+	int3
 
 	.globl	trap_handler
 	.type	trap_handler,@function
@@ -13,22 +32,22 @@ trap_handler:
 
 	mov	%eax, %edi		// zero-extend status (1st syscall arg)
 	test	%edi, %edi
-	je	sys_exit
+	je	.Lexit
 
 	add	$100, %edi
-	jmp	sys_exit
+	jmp	.Lexit
 
 .Lmissing_function:
 	// using 40 bytes of the 128-byte stack red zone
 
 	// save registers possibly used as parameters of the missing function
-	push	%rcx			// clobbered by syscall
-	push	%rsi			// used for syscall arg
-	push	%rdi			// used for syscall arg
-	push	%r11			// clobbered by syscall
+	mov	%rcx, -8(%rsp)		// clobbered by syscall
+	mov	%rsi, -16(%rsp)		// used for syscall arg
+	mov	%rdi, -24(%rsp)		// used for syscall arg
+	mov	%r11, -32(%rsp)		// clobbered by syscall
 
-	mov	$1, %edi		// stdout fd (1st syscall arg)
-	lea	-8(%rsp), %rsi		// ptr (2nd syscall arg)
+	mov	$GATE_OUTPUT_FD, %edi	// fd (1st syscall arg)
+	lea	-40(%rsp), %rsi		// ptr (2nd syscall arg)
 	mov	$8, %edx		// size (3rd syscall arg)
 
 	mov	%edx, (%rsi)		// op packet: size
@@ -45,45 +64,53 @@ trap_handler:
 	jne	.Lloop_mf
 
 	mov	$GATE_WAKEUP_FD, %edi	// fd (1st syscall arg)
-	lea	-1(%rsp), %rsi		// ptr (2nd syscall arg)
+	lea	-40(%rsp), %rsi		// ptr (2nd syscall arg)
 	mov	$1, %edx		// size (3rd syscall arg)
 	mov	$SYS_read, %eax
 	syscall
 	test	%rax, %rax
 	jl	.Lerror			// EOF is ok
 
-	pop	%r11
-	pop	%rdi
-	pop	%rsi
-	pop	%rcx
+	mov	-32(%rsp), %r11
+	mov	-24(%rsp), %rdi
+	mov	-16(%rsp), %rsi
+	mov	-8(%rsp), %rcx
 
 	// rewind return address before the call instruction that got us here
 	sub	$5, (%rsp)
 	ret
 
-	.globl	__gate_send_full
-	.type	__gate_send_full,@function
-	.align	64 // important ABI functions fit within single cache line
+	.globl	__gate_send
+	.type	__gate_send,@function
+	.align	128 // important ABI functions fit in 128 bytes; align naturally
 
 // ecx = relative addr
 // ebx = size
-__gate_send_full:
-	mov	$1, %edi		// SYS_write/stdout fd (1st syscall arg)
+__gate_send:
+	mov	$SYS_write, %ebp
+	mov	$GATE_OUTPUT_FD, %edi	// fd (1st syscall arg)
 	jmp	.Lio
 
-	.globl	__gate_recv_full
-	.type	__gate_recv_full,@function
+	.globl	__gate_recv
+	.type	__gate_recv,@function
 	.align	16
 
 // ecx = relative addr
 // ebx = size
-__gate_recv_full:
-	xor	%edi, %edi		// SYS_read/stdin fd (1st syscall arg)
+// ebp = flags
+__gate_recv:
+	mov	$GATE_NONBLOCK_FD, %eax
+	xor	%ebp, %ebp		// SYS_read
+	xor	%edi, %edi		// GATE_BLOCK_FD (1st syscall arg)
+	shr	$1, %ebp		// flag parameter to CPU carry flag
+	cmovc	%eax, %edi		// fd (1st syscall arg)
 	// fall through to .Lio
 
 // ecx = relative addr
 // ebx = size
-// rdi = syscall/fd (1st syscall arg)
+// rdi = fd (1st syscall arg)
+// rbp = syscall
+// result: remaining size
 .Lio:
 	// check lower bound of relative addr
 	and	%ecx, %ecx		// zero-extend relative addr + test
@@ -104,24 +131,28 @@ __gate_recv_full:
 	cmp	%rsi, %r11		// against absolute addr (wrap-around)
 	jl	.Lbounds
 .Lloop_io:
-	mov	%edi, %eax		// syscall
+	mov	%ebp, %eax		// syscall
 	syscall
-	test	%eax, %eax		// 32-bit test ok; size limit is less than 0x80000000
+	test	%rax, %rax
 	jle	.Lerror
 
 	add	%rax, %rsi		// update absolute addr (2nd syscall arg)
 	sub	%eax, %edx		// update size (3rd syscall arg)
 	jne	.Lloop_io
 .Lempty:
+	xor	%eax, %eax		// remaining size (result)
+	ret
+
+.Lerror:
+	mov	$14, %edi		// status (1st syscall arg)
+	cmp	$-EAGAIN, %rax
+	jne	.Lexit
+	mov	%edx, %eax		// remaining size (result)
 	ret
 
 .Lbounds:
 	mov	$13, %edi		// status (1st syscall arg)
-	jmp	sys_exit
-
-.Lerror:
-	mov	$14, %edi		// status (1st syscall arg)
-	jmp	sys_exit
+	jmp	.Lexit
 
 	.globl	__gate_exit
 	.type	__gate_exit,@function
@@ -133,7 +164,7 @@ __gate_exit:
 	test	%ecx, %ecx
 	setne	%dil			// status boolean (1st syscall arg)
 
-sys_exit:
+.Lexit:
 	sub	$8+128, %r13		// stack reserve
 	mov	%rsp, %rax
 	sub	%r13, %rax
@@ -148,7 +179,7 @@ sys_exit:
 	.align	16
 
 __gate_func_ptr:
-	xor	%eax, %eax		// result
+	xor	%eax, %eax		// null ptr (result)
 	ret
 
 	.globl	__gate_get_abi_version
@@ -166,6 +197,19 @@ __gate_get_abi_version:
 __gate_get_max_packet_size:
 	mov	$GATE_MAX_PACKET_SIZE, %eax
 	ret
+
+#ifdef GATE_DEBUG_PATH
+	.globl	__gate_debug_write
+	.type	__gate_debug_write,@function
+	.align	16
+
+// ecx = relative addr
+// ebx = size
+__gate_debug_write:
+	mov	$SYS_write, %ebp
+	mov	$GATE_DEBUG_FD, %edi	// fd (1st syscall arg)
+	jmp	.Lio
+#endif
 
 // don't want executable stack
 .section .note.GNU-stack,"",%progbits

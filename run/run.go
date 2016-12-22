@@ -22,11 +22,11 @@ const (
 )
 
 var (
-	pageSize = uint32(os.Getpagesize())
+	pageSize = os.Getpagesize()
 )
 
 func roundToPage(size int) uint32 {
-	mask := pageSize - 1
+	mask := uint32(pageSize) - 1
 	return (uint32(size) + mask) &^ mask
 }
 
@@ -60,6 +60,7 @@ func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, e
 		n, err = fmt.Fscanf(symbolFile, "%x T %s\n", &addr, &name)
 		if err != nil {
 			if err == io.EOF && n == 0 {
+				err = nil
 				break
 			}
 			return
@@ -86,7 +87,13 @@ func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, e
 				Args: []types.T{types.I32},
 			}}
 
-		case "__gate_recv_full", "__gate_send_full":
+		case "__gate_recv":
+			funcs[name] = envFunc{addr, types.Function{
+				Args:   []types.T{types.I32, types.I32, types.I32},
+				Result: types.I32,
+			}}
+
+		case "__gate_send", "__gate_debug_write":
 			funcs[name] = envFunc{addr, types.Function{
 				Args: []types.T{types.I32, types.I32},
 			}}
@@ -168,54 +175,54 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 	text := m.Text()
 	data, memoryOffset := m.Data()
 
-	fd, err := memfd.Create("payload", memfd.CLOEXEC|memfd.ALLOW_SEALING)
+	mapsFd, err := memfd.Create("maps", memfd.CLOEXEC|memfd.ALLOW_SEALING)
 	if err != nil {
 		return
 	}
 
-	f := os.NewFile(uintptr(fd), "memfd")
+	maps := os.NewFile(uintptr(mapsFd), "maps")
 
-	_, err = f.Write(roData)
+	_, err = maps.Write(roData)
 	if err != nil {
-		f.Close()
+		maps.Close()
 		return
 	}
 
 	roDataSize := roundToPage(len(roData))
 
-	_, err = f.WriteAt(text, int64(roDataSize))
+	_, err = maps.WriteAt(text, int64(roDataSize))
 	if err != nil {
-		f.Close()
+		maps.Close()
 		return
 	}
 
 	textSize := roundToPage(len(text))
 
-	_, err = f.WriteAt(data, int64(roDataSize)+int64(textSize))
+	_, err = maps.WriteAt(data, int64(roDataSize)+int64(textSize))
 	if err != nil {
-		f.Close()
+		maps.Close()
 		return
 	}
 
 	globalsMemorySize := roundToPage(memoryOffset + int(growMemorySize))
 	totalSize := int64(roDataSize) + int64(textSize) + int64(globalsMemorySize) + int64(stackSize)
 
-	err = f.Truncate(totalSize)
+	err = maps.Truncate(totalSize)
 	if err != nil {
-		f.Close()
+		maps.Close()
 		return
 	}
 
-	_, err = memfd.Fcntl(fd, memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
+	_, err = memfd.Fcntl(mapsFd, memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
 	if err != nil {
-		f.Close()
+		maps.Close()
 		return
 	}
 
 	payload = &Payload{
-		maps: f,
+		maps: maps,
 		info: payloadInfo{
-			PageSize:       pageSize,
+			PageSize:       uint32(pageSize),
 			RODataSize:     roDataSize,
 			TextAddr:       textAddr,
 			TextSize:       textSize,
@@ -296,14 +303,14 @@ func Run(env *Environment, payload *Payload, origin io.ReadWriter) (exit int, tr
 		Env:  []string{},
 		Dir:  "/",
 		ExtraFiles: []*os.File{
-			payload.maps,
+			env.loader,
 		},
 		SysProcAttr: &syscall.SysProcAttr{
 			Pdeathsig: syscall.SIGKILL,
 		},
 	}
 
-	cmd.Stderr = env.loader
+	cmd.Stderr = payload.maps
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

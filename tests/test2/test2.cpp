@@ -85,13 +85,13 @@ int main()
 
 	while (1) {
 		char evdata[gate_max_packet_size];
-		gate_recv_packet(evdata, gate_max_packet_size);
-		auto evhead = reinterpret_cast<const gate_ev_packet *> (evdata);
+		gate_recv_packet(evdata, gate_max_packet_size, 0);
+		auto evhead = reinterpret_cast<const gate_ev_header *> (evdata);
 
 		if (evhead->code == GATE_EV_CODE_ORIGIN) {
 			const Buf<const char> expr = {
-				evdata + sizeof (gate_ev_packet),
-				evhead->size - sizeof (gate_ev_packet),
+				evdata + sizeof (gate_ev_header),
+				evhead->size - sizeof (gate_ev_header),
 			};
 
 			if (expr.size == 0)
@@ -99,18 +99,18 @@ int main()
 
 			char opdata[gate_max_packet_size];
 
-			for (unsigned i = 0; i < sizeof (gate_op_packet); i++)
+			for (unsigned i = 0; i < sizeof (gate_op_header); i++)
 				opdata[i] = 0;
 
 			const Buf<char> out = {
-				opdata + sizeof (gate_op_packet),
-				sizeof (opdata) - sizeof (gate_op_packet),
+				opdata + sizeof (gate_op_header),
+				sizeof (opdata) - sizeof (gate_op_header),
 			};
 
 			auto outlen = state.eval(expr, out);
 
-			auto ophead = reinterpret_cast<gate_op_packet *> (opdata);
-			ophead->size = sizeof (gate_op_packet) + outlen;
+			auto ophead = reinterpret_cast<gate_op_header *> (opdata);
+			ophead->size = sizeof (gate_op_header) + outlen;
 			ophead->code = GATE_OP_CODE_ORIGIN;
 
 			gate_send_packet(ophead);

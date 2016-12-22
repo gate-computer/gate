@@ -17,8 +17,8 @@ int main(int argc, char **argv)
 
 	struct rlimit rl;
 
-	rl.rlim_cur = GATE_STACK_PAGES * page_size;
-	rl.rlim_max = GATE_STACK_PAGES * page_size;
+	rl.rlim_cur = GATE_LOADER_STACK_PAGES * page_size;
+	rl.rlim_max = GATE_LOADER_STACK_PAGES * page_size;
 	if (setrlimit(RLIMIT_STACK, &rl) != 0)
 		return 4;
 

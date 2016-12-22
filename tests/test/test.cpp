@@ -3,11 +3,11 @@
 #include <gate.h>
 
 long workaround;
-void (*indirection)(const gate_op_packet *);
+void (*indirection)(const gate_op_header *);
 
 namespace {
 
-void implementation(const gate_op_packet *p)
+void implementation(const gate_op_header *p)
 {
 	gate_send_packet(p);
 }
@@ -36,9 +36,9 @@ public:
 		return buf + header_size;
 	}
 
-	const gate_op_packet *op_data(enum gate_op_code code, uint16_t flags = 0)
+	const gate_op_header *op_data(enum gate_op_code code, uint16_t flags = 0)
 	{
-		gate_op_packet *header = reinterpret_cast<gate_op_packet *> (buf);
+		gate_op_header *header = reinterpret_cast<gate_op_header *> (buf);
 		header->size = size;
 		header->code = code;
 		header->flags = flags;

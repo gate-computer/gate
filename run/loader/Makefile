@@ -6,6 +6,10 @@ CPPFLAGS	+= -DNDEBUG -DPIE
 CFLAGS		+= -std=gnu99 -Os -g -Wall -Wextra -Wno-unused-parameter -fPIE -fomit-frame-pointer -fno-stack-protector -Wno-main
 LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segment=0x100000000 -Wl,--build-id=none
 
+ifeq ($(DEBUG),1)
+CPPFLAGS	+= -DGATE_DEBUG_PATH='"/tmp/gate-debug.log"'
+endif
+
 OBJECTS		:= loader.o runtime.o
 
 ../../bin/loader: $(OBJECTS)
