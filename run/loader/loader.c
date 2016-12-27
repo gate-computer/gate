@@ -4,11 +4,9 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
-#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include <linux/seccomp.h>
 
 #include "../defs.h"
 
@@ -19,6 +17,8 @@
 #define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER)
 
 // avoiding function prototypes avoids GOT section
+extern int runtime_exit;
+extern int runtime_start;
 extern int signal_handler;
 extern int signal_restorer;
 extern int trap_handler;
@@ -146,7 +146,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        syscall                                         \n"
 		"        mov     $41, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
-		"        jne     .Lexit                                  \n"
+		"        jne     runtime_exit                            \n"
 		// register suspend signal handler (using 32 bytes of stack red zone)
 		"        mov     $"xstr(SIGUSR1)", %%edi                 \n" // signum
 		"        xor     %%edx, %%edx                            \n" // oldact
@@ -161,36 +161,9 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        syscall                                         \n"
 		"        mov     $42, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
-		"        jne     .Lexit                                  \n"
-		// enable seccomp (r9 is syscall parameter, but ignored with PR_SET_SECCOMP)
-		"        mov     $"xstr(PR_SET_SECCOMP)", %%edi          \n"
-		"        mov     $"xstr(SECCOMP_MODE_STRICT)", %%esi     \n"
-		"        xor     %%edx, %%edx                            \n"
-		"        xor     %%r8d, %%r8d                            \n"
-		"        mov     $"xstr(SYS_prctl)", %%eax               \n"
-		"        syscall                                         \n"
-		"        mov     $43, %%edi                              \n"
-		"        test    %%rax, %%rax                            \n"
-		"        jne     .Lexit                                  \n"
-		// clear unused registers
-		"        xor     %%ecx, %%ecx                            \n"
-		"        xor     %%ebx, %%ebx                            \n"
-		"        xor     %%ebp, %%ebp                            \n"
-		"        xor     %%esi, %%esi                            \n"
-		"        xor     %%edi, %%edi                            \n"
-		"        xor     %%r8d, %%r8d                            \n"
-		"        xor     %%r10d, %%r10d                          \n"
-		"        xor     %%r11d, %%r11d                          \n"
-		// 0 = no resume
-		"        xor     %%eax, %%eax                            \n"
-		// skip trap code
-		"        mov     %%r12, %%rdx                            \n"
-		"        add     $16, %%rdx                              \n"
-		"        jmp     *%%rdx                                  \n"
-		".Lexit:                                                 \n"
-		"        mov     $"xstr(SYS_exit)", %%rax                \n"
-		"        syscall                                         \n"
-		"        int3                                            \n"
+		"        jne     runtime_exit                            \n"
+		// execute runtime
+		"        jmp     runtime_start                           \n"
 		:
 		: "r" (rax), "r" (rdx), "r" (rcx), "r" (rsi), "r" (r9), "r" (r10), "r" (r11), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 	);

@@ -3,6 +3,58 @@
 
 #include "../defs.h"
 
+.section .runtime,"ax",%progbits
+
+	.globl	runtime_start
+	.type	runtime_start,@function
+	.align	16
+
+// r9  = suspend flag
+// r12 = text address
+// r13 = stack limit
+// r14 = memory address
+// r15 = current memory limit
+// mm0 = trap handler
+// mm1 = memory growth limit
+runtime_start:
+	// unmap loader text section
+	mov	$GATE_LOADER_TEXT_ADDR, %rdi
+	mov	$GATE_LOADER_TEXT_SIZE, %esi
+	mov     $SYS_munmap, %eax
+	syscall
+	mov     $41, %edi
+	test    %rax, %rax
+	jne     .Lexit
+
+	// enable seccomp (r9 is ignored with PR_SET_SECCOMP)
+	mov	$22, %edi		// PR_SET_SECCOMP
+	mov	$1, %esi		// SECCOMP_MODE_STRICT
+	xor	%edx, %edx
+	xor	%r8d, %r8d
+	mov	$SYS_prctl, %eax
+	syscall
+	mov	$43, %edi
+	test	%rax, %rax
+	jne	.Lexit
+
+	// clear unused registers
+	xor	%ecx, %ecx
+	xor	%ebx, %ebx
+	xor	%ebp, %ebp
+	xor	%esi, %esi
+	xor	%edi, %edi
+	xor	%r8d, %r8d
+	xor	%r10d, %r10d
+	xor	%r11d, %r11d
+
+	// 0 = no resume
+	xor	%eax, %eax
+
+	// skip trap code
+	mov	%r12, %rdx
+	add	$16, %rdx
+	jmp	*%rdx
+
 	.globl	signal_handler
 	.type	signal_handler,@function
 	.align	16
@@ -164,6 +216,11 @@ __gate_exit:
 	test	%ecx, %ecx
 	setne	%dil			// status boolean (1st syscall arg)
 
+	.globl	runtime_exit
+	.type	runtime_exit,@function
+
+// ecx = status code
+runtime_exit:
 .Lexit:
 	sub	$8+128, %r13		// stack reserve
 	mov	%rsp, %rax
