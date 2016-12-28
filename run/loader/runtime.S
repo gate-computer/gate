@@ -152,10 +152,10 @@ __gate_send:
 // ebp = flags
 __gate_recv:
 	mov	$GATE_NONBLOCK_FD, %eax
-	xor	%ebp, %ebp		// SYS_read
 	xor	%edi, %edi		// GATE_BLOCK_FD (1st syscall arg)
 	shr	$1, %ebp		// flag parameter to CPU carry flag
 	cmovc	%eax, %edi		// fd (1st syscall arg)
+	xor	%ebp, %ebp		// SYS_read
 	// fall through to .Lio
 
 // ecx = relative addr

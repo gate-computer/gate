@@ -4,12 +4,10 @@
 
 int main(void)
 {
-	char idle = 0;
+	int idle = 0;
 	char payload;
 
 	while (1) {
-		gate_debug("while\n");
-
 		idle++;
 
 		char buf[gate_max_packet_size];
@@ -28,7 +26,7 @@ int main(void)
 		break;
 	}
 
-	size_t size = sizeof (struct gate_op_header) + 2;
+	size_t size = sizeof (struct gate_op_header) + 3;
 	char buf[size];
 
 	struct gate_op_header *op = (void *) buf;
@@ -37,7 +35,8 @@ int main(void)
 	op->flags = 0;
 
 	buf[sizeof (struct gate_op_header) + 0] = idle;
-	buf[sizeof (struct gate_op_header) + 1] = payload;
+	buf[sizeof (struct gate_op_header) + 1] = idle >> 8;
+	buf[sizeof (struct gate_op_header) + 2] = payload;
 
 	gate_send_packet(op);
 	return 0;

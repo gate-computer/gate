@@ -1,5 +1,7 @@
 GATEDIR		:= ../..
 
+export WAGTOOLCHAIN_ALLOCATE_STACK := 131072
+
 CPPFLAGS	+= -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include
 CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
 
