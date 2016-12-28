@@ -215,6 +215,7 @@ __gate_exit:
 	xor	%edi, %edi
 	test	%ecx, %ecx
 	setne	%dil			// status boolean (1st syscall arg)
+	// fall through to .Lexit
 
 	.globl	runtime_exit
 	.type	runtime_exit,@function
