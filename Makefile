@@ -8,6 +8,7 @@ GOPACKAGEPREFIX	:= github.com/tsavola/gate
 -include config.make
 
 GOPACKAGES := \
+	$(GOPACKAGEPREFIX)/debugger \
 	$(GOPACKAGEPREFIX)/httpserver \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run
@@ -24,6 +25,7 @@ build:
 	$(GO) get golang.org/x/net/http2/hpack
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/debugger
 	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/httpserver
 
 all: build
