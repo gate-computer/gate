@@ -62,7 +62,11 @@ func getCallSites(callMap []byte) (callSites map[int]callSite) {
 
 func writeStacktraceTo(w io.Writer, stack, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
 	unused := binary.LittleEndian.Uint64(stack)
-	if unused == 0 || unused > uint64(len(stack)) || (unused&7) != 0 {
+	if unused == 0 {
+		err = errors.New("no stack")
+		return
+	}
+	if unused > uint64(len(stack)) || (unused&7) != 0 {
 		err = errors.New("corrupted stack")
 		return
 	}
