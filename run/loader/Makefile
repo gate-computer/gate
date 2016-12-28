@@ -6,10 +6,6 @@ CPPFLAGS	+= -DNDEBUG -DPIE -DGATE_LOADER_TEXT_ADDR=0x100000000 -DGATE_LOADER_TEX
 CFLAGS		+= -std=gnu99 -Os -g -Wall -Wextra -Wno-unused-parameter -fPIE -fomit-frame-pointer -fno-stack-protector -Wno-main
 LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segment=0x100000000 -Wl,--section-start=.runtime=0x100001000 -Wl,--build-id=none
 
-ifeq ($(DEBUG),1)
-CPPFLAGS	+= -DGATE_DEBUG_PATH='"/tmp/gate-debug.log"'
-endif
-
 OBJECTS		:= loader.o runtime.o
 
 ../../bin/loader: $(OBJECTS) Makefile

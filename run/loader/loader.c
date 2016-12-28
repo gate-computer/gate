@@ -221,18 +221,12 @@ static int main(void)
 	void *stack_limit = stack_buf + GATE_SIGNAL_STACK_RESERVE;
 	void *stack_ptr = stack_buf + info.stack_size;
 
-	int nonblock_fd = sys_open(GATE_BLOCK_PATH, O_RDONLY|O_CLOEXEC|O_NONBLOCK, 0);
-	if (nonblock_fd != GATE_NONBLOCK_FD)
-		return 25;
-
 	if (sys_close(GATE_MAPS_FD) != 0)
 		return 26;
 
-#ifdef GATE_DEBUG_PATH
-	int debug_fd = sys_open(GATE_DEBUG_PATH, O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT, 0777);
-	if (debug_fd != GATE_DEBUG_FD)
-		return 27;
-#endif
+	int nonblock_fd = sys_open(GATE_BLOCK_PATH, O_RDONLY|O_CLOEXEC|O_NONBLOCK, 0);
+	if (nonblock_fd != GATE_NONBLOCK_FD)
+		return 25;
 
 	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit);
 }

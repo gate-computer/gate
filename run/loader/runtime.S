@@ -255,7 +255,6 @@ __gate_get_max_packet_size:
 	mov	$GATE_MAX_PACKET_SIZE, %eax
 	ret
 
-#ifdef GATE_DEBUG_PATH
 	.globl	__gate_debug_write
 	.type	__gate_debug_write,@function
 	.align	16
@@ -266,7 +265,6 @@ __gate_debug_write:
 	mov	$SYS_write, %ebp
 	mov	$GATE_DEBUG_FD, %edi	// fd (1st syscall arg)
 	jmp	.Lio
-#endif
 
 // don't want executable stack
 .section .note.GNU-stack,"",%progbits

@@ -7,11 +7,11 @@
 #define GATE_BLOCK_FD    0
 #define GATE_BLOCK_PATH  "/proc/self/fd/0"
 #define GATE_OUTPUT_FD   1
-#define GATE_MAPS_FD     2
 #define GATE_DEBUG_FD    2
-#define GATE_LOADER_FD   3
+#define GATE_MAPS_FD     3
 #define GATE_NONBLOCK_FD 3
-#define GATE_WAKEUP_FD   4
+#define GATE_LOADER_FD   4
+#define GATE_WAKEUP_FD   5
 
 #define GATE_SIGNAL_STACK_RESERVE   0x600 // TODO
 #define GATE_SIGNAL_STACK_R9_OFFSET 56

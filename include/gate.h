@@ -72,7 +72,9 @@ extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
 extern size_t __gate_recv(void *buf, size_t size, unsigned int flags) GATE_NOEXCEPT;
 extern void __gate_send(const void *data, size_t size) GATE_NOEXCEPT;
 
-#ifdef GATE_DEBUG
+#ifdef NDEBUG
+# define gate_debug(s)
+#else
 static inline void gate_debug(const char *s)
 {
 	size_t size = 0;
@@ -82,8 +84,6 @@ static inline void gate_debug(const char *s)
 
 	__gate_debug_write(s, size);
 }
-#else
-# define gate_debug(s)
 #endif
 
 GATE_NORETURN

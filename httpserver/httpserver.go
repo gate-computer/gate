@@ -17,7 +17,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/dewag"
 	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/wasm"
@@ -254,11 +253,7 @@ func execute(r *http.Request, wasm *bufio.Reader, input io.Reader, output io.Wri
 	}
 	defer payload.Close()
 
-	if false {
-		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
-	}
-
-	exit, trap, err = run.Run(env, payload, readWriter{input, output})
+	exit, trap, err = run.Run(env, payload, readWriter{input, output}, nil)
 	if err != nil {
 		internal = true
 	} else if trap != 0 || exit != 0 {

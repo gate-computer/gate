@@ -296,21 +296,20 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	return writeStacktraceTo(w, stack, funcMap, callMap, funcSigs, ns)
 }
 
-func Run(env *Environment, payload *Payload, origin io.ReadWriter) (exit int, trap traps.Id, err error) {
+func Run(env *Environment, payload *Payload, origin io.ReadWriter, debug io.Writer) (exit int, trap traps.Id, err error) {
 	cmd := exec.Cmd{
 		Path: env.executor,
 		Args: []string{},
 		Env:  []string{},
 		Dir:  "/",
 		ExtraFiles: []*os.File{
+			payload.maps,
 			env.loader,
 		},
 		SysProcAttr: &syscall.SysProcAttr{
 			Pdeathsig: syscall.SIGKILL,
 		},
 	}
-
-	cmd.Stderr = payload.maps
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -322,6 +321,8 @@ func Run(env *Environment, payload *Payload, origin io.ReadWriter) (exit int, tr
 		stdin.Close()
 		return
 	}
+
+	cmd.Stderr = debug
 
 	err = cmd.Start()
 	if err != nil {
