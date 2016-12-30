@@ -237,7 +237,7 @@ func execute(r *http.Request, wasm *bufio.Reader, input io.Reader, output io.Wri
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err = m.Load(wasm, env, nil, nil, run.RODataAddr, nil)
+	err = m.Load(wasm, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		return
 	}

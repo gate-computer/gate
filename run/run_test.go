@@ -48,7 +48,7 @@ func TestRun(t *testing.T) {
 
 	var m wag.Module
 
-	err = m.Load(r, env, nil, nil, run.RODataAddr, nil)
+	err = m.Load(r, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}

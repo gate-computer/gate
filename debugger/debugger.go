@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -78,7 +79,7 @@ func main() {
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err = m.Load(bufio.NewReader(wasm), env, nil, nil, run.RODataAddr, nil)
+	err = m.Load(bufio.NewReader(wasm), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		return
 	}
