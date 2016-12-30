@@ -251,8 +251,8 @@ func handleOp(op opPacket, origin io.ReadWriter) (ev []byte, err error) {
 	}
 
 	if (op.flags & opFlagPollout) != 0 {
-		buf := make([]byte, 8)
-		nativeEndian.PutUint32(buf[0:], 8)
+		buf := make([]byte, 16)
+		nativeEndian.PutUint32(buf[0:], 16)
 		nativeEndian.PutUint16(buf[4:], evCodePollout)
 		ev = buf
 	}
