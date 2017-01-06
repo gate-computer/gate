@@ -39,7 +39,6 @@ func main() {
 		loader        = path.Join(dir, "bin/loader")
 		loaderSymbols = loader + ".symbols"
 		stackSize     = 16 * 1024 * 1024
-		stdio         = false
 		addr          = ""
 	)
 
@@ -52,8 +51,7 @@ func main() {
 	flag.StringVar(&loader, "loader", loader, "filename")
 	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
 	flag.IntVar(&stackSize, "stack-size", stackSize, "stack size")
-	flag.BoolVar(&stdio, "stdio", stdio, "use stdio (conflicts with -addr)")
-	flag.StringVar(&addr, "addr", addr, "socket path (conflicts with -stdio)")
+	flag.StringVar(&addr, "addr", addr, "I/O socket path (replaces stdio)")
 
 	flag.Parse()
 
@@ -97,10 +95,7 @@ func main() {
 	}
 
 	var conn io.ReadWriteCloser
-
-	if stdio {
-		conn = readWriteCloser{os.Stdin, os.Stdout}
-	} else if addr != "" {
+	if addr != "" {
 		os.Remove(addr)
 		l, err := net.Listen("unix", addr)
 		if err != nil {
@@ -112,12 +107,8 @@ func main() {
 			log.Fatal(err)
 		}
 	} else {
-		conn, err = os.OpenFile(os.DevNull, os.O_RDWR, 0)
-		if err != nil {
-			log.Fatal(err)
-		}
+		conn = readWriteCloser{os.Stdin, os.Stdout}
 	}
-
 	defer conn.Close()
 
 	exit, trap, err := run.Run(env, payload, conn, os.Stderr)
