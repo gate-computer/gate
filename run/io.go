@@ -32,11 +32,11 @@ const (
 	opFlagsMask = opFlagPollout
 )
 
-type opPacket struct {
+type subjectRead struct {
 	err     error
-	payload []byte
 	code    opCode
 	flags   opFlags
+	payload []byte
 }
 
 const (
@@ -45,48 +45,62 @@ const (
 )
 
 func ioLoop(origin io.ReadWriter, subject readWriteKiller) (err error) {
-	reads := originLoop(origin)
+	originInput := originReadLoop(origin)
 	defer func() {
 		go func() {
-			for range reads {
+			for range originInput {
 			}
 		}()
 	}()
 
-	ops := opLoop(subject)
+	subjectInput := subjectReadLoop(subject)
 	defer func() {
-		for range ops {
+		for range subjectInput {
 		}
 	}()
 
-	evs, evDone := evLoop(subject)
+	subjectOutput, subjectOutputEnd := subjectWriteLoop(subject)
 	defer func() {
-		<-evDone
+		<-subjectOutputEnd
 	}()
-	defer close(evs)
+	defer close(subjectOutput)
 
 	defer subject.kill()
 
-	var ev []byte
+	var (
+		pendingEvs   [][]byte
+		pendingPolls uint64
+	)
 
 	for {
 		var (
-			doReads <-chan originRead
-			doOps   <-chan opPacket
-			doEvs   chan<- []byte
+			doOriginInput   <-chan originRead
+			doSubjectInput  <-chan subjectRead
+			doSubjectOutput chan<- []byte
 		)
 
+		var ev []byte
+
+		if len(pendingEvs) > 0 {
+			ev = pendingEvs[0]
+		} else if pendingPolls > 0 {
+			ev = make([]byte, 16)
+			nativeEndian.PutUint32(ev[0:], 16)
+			nativeEndian.PutUint16(ev[4:], evCodePollout)
+			nativeEndian.PutUint64(ev[8:], pendingPolls)
+		}
+
 		if ev == nil {
-			doReads = reads
-			doOps = ops
+			doOriginInput = originInput
+			doSubjectInput = subjectInput
 		} else {
-			doEvs = evs
+			doSubjectOutput = subjectOutput
 		}
 
 		select {
-		case read, ok := <-doReads:
+		case read, ok := <-doOriginInput:
 			if !ok {
-				reads = nil
+				originInput = nil
 				break
 			}
 
@@ -97,26 +111,41 @@ func ioLoop(origin io.ReadWriter, subject readWriteKiller) (err error) {
 
 			ev = read.ev
 
-		case op, ok := <-doOps:
+		case read, ok := <-doSubjectInput:
 			if !ok {
 				return
 			}
-
-			ev, err = handleOp(op, origin)
-			if err != nil {
+			if read.err != nil {
+				err = read.err
 				return
 			}
 
-		case doEvs <- ev:
-			ev = nil
+			ev, poll, e := handleOp(read, origin)
+			if e != nil {
+				err = e
+				return
+			}
+			if ev != nil {
+				pendingEvs = append(pendingEvs, ev)
+			}
+			if poll {
+				pendingPolls++
+			}
 
-		case <-evDone:
+		case doSubjectOutput <- ev:
+			if len(pendingEvs) > 0 {
+				pendingEvs = pendingEvs[1:]
+			} else {
+				pendingPolls = 0
+			}
+
+		case <-subjectOutputEnd:
 			return
 		}
 	}
 }
 
-func originLoop(r io.Reader) <-chan originRead {
+func originReadLoop(r io.Reader) <-chan originRead {
 	reads := make(chan originRead)
 
 	go func() {
@@ -136,7 +165,7 @@ func originLoop(r io.Reader) <-chan originRead {
 			if err != nil {
 				if err != io.EOF {
 					reads <- originRead{
-						err: err,
+						err: fmt.Errorf("origin read: %v", err),
 					}
 				} else if n != 0 {
 					buf = buf[:8]
@@ -155,11 +184,11 @@ func originLoop(r io.Reader) <-chan originRead {
 	return reads
 }
 
-func opLoop(r io.Reader) <-chan opPacket {
-	ops := make(chan opPacket)
+func subjectReadLoop(r io.Reader) <-chan subjectRead {
+	reads := make(chan subjectRead)
 
 	go func() {
-		defer close(ops)
+		defer close(reads)
 
 		for {
 			var header struct {
@@ -171,15 +200,15 @@ func opLoop(r io.Reader) <-chan opPacket {
 			err := binary.Read(r, nativeEndian, &header)
 			if err != nil {
 				if err != io.EOF {
-					ops <- opPacket{
-						err: fmt.Errorf("op read: %v", err),
+					reads <- subjectRead{
+						err: fmt.Errorf("subject read: %v", err),
 					}
 				}
 				return
 			}
 
 			if header.Size < 8 || header.Size > maxPacketSize {
-				ops <- opPacket{
+				reads <- subjectRead{
 					err: fmt.Errorf("invalid op packet size: %d", header.Size),
 				}
 				return
@@ -189,51 +218,47 @@ func opLoop(r io.Reader) <-chan opPacket {
 
 			_, err = io.ReadFull(r, payload)
 			if err != nil {
-				ops <- opPacket{
-					err: fmt.Errorf("op read: %v", err),
+				reads <- subjectRead{
+					err: fmt.Errorf("subject read: %v", err),
 				}
 				return
 			}
 
-			ops <- opPacket{
-				payload: payload,
+			reads <- subjectRead{
 				code:    opCode(header.Code),
 				flags:   opFlags(header.Flags),
+				payload: payload,
 			}
 		}
 	}()
 
-	return ops
+	return reads
 }
 
-func evLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
-	evs := make(chan []byte)
-	done := make(chan struct{})
+func subjectWriteLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
+	writes := make(chan []byte)
+	end := make(chan struct{})
 
 	go func() {
-		defer close(done)
+		defer close(end)
 
-		for buf := range evs {
+		for buf := range writes {
 			if _, err := w.Write(buf); err != nil {
 				return
 			}
 		}
 	}()
 
-	return evs, done
+	return writes, end
 }
 
-func handleOp(op opPacket, origin io.ReadWriter) (ev []byte, err error) {
-	err = op.err
-	if err != nil {
-		err = fmt.Errorf("handleOp: %v", err)
-		return
-	}
-
+func handleOp(op subjectRead, origin io.ReadWriter) (ev []byte, poll bool, err error) {
 	if (op.flags &^ opFlagsMask) != 0 {
 		err = fmt.Errorf("invalid op packet flags: 0x%x", op.flags)
 		return
 	}
+
+	poll = (op.flags & opFlagPollout) != 0
 
 	switch op.code {
 	case opCodeNone:
@@ -241,20 +266,13 @@ func handleOp(op opPacket, origin io.ReadWriter) (ev []byte, err error) {
 	case opCodeOrigin:
 		_, err = origin.Write(op.payload)
 		if err != nil {
-			err = fmt.Errorf("handleOp: write to origin: %v", err)
+			err = fmt.Errorf("origin write: %v", err)
 			return
 		}
 
 	default:
 		err = fmt.Errorf("invalid op packet code: %d", op.code)
 		return
-	}
-
-	if (op.flags & opFlagPollout) != 0 {
-		buf := make([]byte, 16)
-		nativeEndian.PutUint32(buf[0:], 16)
-		nativeEndian.PutUint16(buf[4:], evCodePollout)
-		ev = buf
 	}
 
 	return
