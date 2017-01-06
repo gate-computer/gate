@@ -8,8 +8,8 @@ GOPACKAGEPREFIX	:= github.com/tsavola/gate
 -include config.make
 
 GOPACKAGES := \
-	$(GOPACKAGEPREFIX)/debugger \
-	$(GOPACKAGEPREFIX)/httpserver \
+	$(GOPACKAGEPREFIX)/cmd/runner \
+	$(GOPACKAGEPREFIX)/cmd/server \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run
 
@@ -21,12 +21,10 @@ build:
 	$(GO) get github.com/gorilla/websocket
 	$(GO) get github.com/tsavola/wag
 	$(GO) get golang.org/x/crypto/acme/autocert
-	$(GO) get golang.org/x/net/http2
-	$(GO) get golang.org/x/net/http2/hpack
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/debugger
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/httpserver
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/cmd/runner
+	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/cmd/server
 
 all: build
 	$(MAKE) -C crt
@@ -37,8 +35,6 @@ all: build
 	$(MAKE) -C tests/test2
 	$(MAKE) -C tests/test3
 	$(MAKE) -C tests/nonblock
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/client
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/server
 
 check: all
 	$(MAKE) -C run/loader/tests check
