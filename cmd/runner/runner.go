@@ -23,11 +23,6 @@ type readWriteCloser struct {
 	io.WriteCloser
 }
 
-const (
-	dumpText       = true
-	dumpStacktrace = true
-)
-
 func main() {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -39,6 +34,8 @@ func main() {
 		loader        = path.Join(dir, "bin/loader")
 		loaderSymbols = loader + ".symbols"
 		stackSize     = 16 * 1024 * 1024
+		dumpText      = false
+		dumpStack     = false
 		addr          = ""
 	)
 
@@ -51,6 +48,8 @@ func main() {
 	flag.StringVar(&loader, "loader", loader, "filename")
 	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
 	flag.IntVar(&stackSize, "stack-size", stackSize, "stack size")
+	flag.BoolVar(&dumpText, "dump-text", dumpText, "disassemble before running")
+	flag.BoolVar(&dumpStack, "dump-stack", dumpStack, "print stacktrace after running")
 	flag.StringVar(&addr, "addr", addr, "I/O socket path (replaces stdio)")
 
 	flag.Parse()
@@ -120,7 +119,7 @@ func main() {
 		log.Printf("exit: %d", exit)
 	}
 
-	if dumpStacktrace {
+	if dumpStack {
 		err := payload.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
 		if err != nil {
 			log.Print(err)
