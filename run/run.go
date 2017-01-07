@@ -296,7 +296,7 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	return writeStacktraceTo(w, stack, funcMap, callMap, funcSigs, ns)
 }
 
-func Run(env *Environment, payload *Payload, origin io.ReadWriter, debug io.Writer) (exit int, trap traps.Id, err error) {
+func Run(env *Environment, payload *Payload, origin io.ReadWriter, ifaces Interfaces, debug io.Writer) (exit int, trap traps.Id, err error) {
 	cmd := exec.Cmd{
 		Path: env.executor,
 		Args: []string{},
@@ -331,7 +331,7 @@ func Run(env *Environment, payload *Payload, origin io.ReadWriter, debug io.Writ
 		return
 	}
 
-	err = runIO(origin, readWriteKiller{stdout, stdin, cmd.Process.Kill}, &payload.info)
+	err = runIO(origin, readWriteKiller{stdout, stdin, cmd.Process.Kill}, ifaces, &payload.info)
 	if err == nil {
 		err = cmd.Wait()
 		if _, ok := err.(*exec.ExitError); ok && cmd.ProcessState.Exited() {
@@ -361,12 +361,12 @@ func Run(env *Environment, payload *Payload, origin io.ReadWriter, debug io.Writ
 	return
 }
 
-func runIO(origin io.ReadWriter, subject readWriteKiller, info *payloadInfo) (err error) {
+func runIO(origin io.ReadWriter, subject readWriteKiller, ifaces Interfaces, info *payloadInfo) (err error) {
 	err = binary.Write(subject, nativeEndian, info)
 	if err != nil {
 		subject.kill()
 		return
 	}
 
-	return ioLoop(origin, subject)
+	return ioLoop(origin, subject, ifaces)
 }

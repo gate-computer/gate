@@ -253,7 +253,7 @@ func execute(r *http.Request, wasm *bufio.Reader, input io.Reader, output io.Wri
 	}
 	defer payload.Close()
 
-	exit, trap, err = run.Run(env, payload, readWriter{input, output}, nil)
+	exit, trap, err = run.Run(env, payload, readWriter{input, output}, nil, nil)
 	if err != nil {
 		internal = true
 	} else if trap != 0 || exit != 0 {

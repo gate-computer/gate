@@ -34,8 +34,9 @@ enum gate_func_id {
 #define GATE_RECV_FLAG_NONBLOCK 0x1
 
 enum gate_op_code {
-	GATE_OP_CODE_NONE   = 0,
-	GATE_OP_CODE_ORIGIN = 1,
+	GATE_OP_CODE_NONE,
+	GATE_OP_CODE_ORIGIN,
+	GATE_OP_CODE_INTERFACES,
 };
 
 #define GATE_OP_FLAG_POLLOUT 0x1
@@ -47,8 +48,9 @@ struct gate_op_header {
 } GATE_PACKED;
 
 enum gate_ev_code {
-	GATE_EV_CODE_POLLOUT = 0,
-	GATE_EV_CODE_ORIGIN  = 1,
+	GATE_EV_CODE_POLLOUT,
+	GATE_EV_CODE_ORIGIN,
+	GATE_EV_CODE_INTERFACES,
 };
 
 struct gate_ev_header {

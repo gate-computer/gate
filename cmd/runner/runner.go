@@ -78,6 +78,7 @@ func main() {
 
 	err = m.Load(bufio.NewReader(wasm), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
+		log.Fatal(err)
 		return
 	}
 
@@ -85,6 +86,7 @@ func main() {
 
 	payload, err := run.NewPayload(&m, memorySize, int32(stackSize))
 	if err != nil {
+		log.Fatal(err)
 		return
 	}
 	defer payload.Close()
@@ -110,7 +112,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	exit, trap, err := run.Run(env, payload, conn, os.Stderr)
+	exit, trap, err := run.Run(env, payload, conn, interfaces{}, os.Stderr)
 	if err != nil {
 		log.Print(err)
 	} else if trap != 0 {
@@ -125,4 +127,10 @@ func main() {
 			log.Print(err)
 		}
 	}
+}
+
+type interfaces struct{}
+
+func (interfaces) Names() []string {
+	return []string{}
 }

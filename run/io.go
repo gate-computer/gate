@@ -6,6 +6,16 @@ import (
 	"io"
 )
 
+type Interfaces interface {
+	Names() []string
+}
+
+type noInterfaces struct{}
+
+func (noInterfaces) Names() (names []string) {
+	return
+}
+
 type readWriteKiller struct {
 	io.Reader
 	io.Writer
@@ -20,8 +30,9 @@ type originRead struct {
 type opCode uint16
 
 const (
-	opCodeNone   = opCode(0)
-	opCodeOrigin = opCode(1)
+	opCodeNone = opCode(iota)
+	opCodeOrigin
+	opCodeInterfaces
 )
 
 type opFlags uint16
@@ -40,11 +51,16 @@ type subjectRead struct {
 }
 
 const (
-	evCodePollout = uint16(0)
-	evCodeOrigin  = uint16(1)
+	evCodePollout = uint16(iota)
+	evCodeOrigin
+	evCodeInterfaces
 )
 
-func ioLoop(origin io.ReadWriter, subject readWriteKiller) (err error) {
+func ioLoop(origin io.ReadWriter, subject readWriteKiller, ifaces Interfaces) (err error) {
+	if ifaces == nil {
+		ifaces = noInterfaces{}
+	}
+
 	originInput := originReadLoop(origin)
 	defer func() {
 		go func() {
@@ -120,7 +136,7 @@ func ioLoop(origin io.ReadWriter, subject readWriteKiller) (err error) {
 				return
 			}
 
-			ev, poll, e := handleOp(read, origin)
+			ev, poll, e := handleOp(read, origin, ifaces)
 			if e != nil {
 				err = e
 				return
@@ -252,7 +268,7 @@ func subjectWriteLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
 	return writes, end
 }
 
-func handleOp(op subjectRead, origin io.ReadWriter) (ev []byte, poll bool, err error) {
+func handleOp(op subjectRead, origin io.ReadWriter, ifaces Interfaces) (ev []byte, poll bool, err error) {
 	if (op.flags &^ opFlagsMask) != 0 {
 		err = fmt.Errorf("invalid op packet flags: 0x%x", op.flags)
 		return
@@ -268,6 +284,25 @@ func handleOp(op subjectRead, origin io.ReadWriter) (ev []byte, poll bool, err e
 		if err != nil {
 			err = fmt.Errorf("origin write: %v", err)
 			return
+		}
+
+	case opCodeInterfaces:
+		names := ifaces.Names()
+		offset := 8 + 4
+		size := offset
+
+		for _, s := range names {
+			size += len(s) + 1
+		}
+
+		ev = make([]byte, size)
+		nativeEndian.PutUint32(ev[0:], uint32(size))
+		nativeEndian.PutUint16(ev[4:], evCodeInterfaces)
+		nativeEndian.PutUint32(ev[8:], uint32(len(names)))
+
+		for _, s := range names {
+			copy(ev[offset:], s)
+			offset += len(s) + 1
 		}
 
 	default:

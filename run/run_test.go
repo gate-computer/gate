@@ -70,7 +70,7 @@ func TestRun(t *testing.T) {
 
 	var output bytes.Buffer
 
-	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, os.Stdout)
+	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, nil, os.Stdout)
 	t.Logf("output: %#v\n", string(output.Bytes()))
 	if err != nil {
 		t.Fatalf("run error: %v", err)
