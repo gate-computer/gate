@@ -16,4 +16,4 @@ clean:
 
 .PHONY: build clean
 
-include $(GATEDIR)/crt/rules.make
+include $(GATEDIR)/crt/rules.mk

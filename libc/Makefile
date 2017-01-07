@@ -5,7 +5,7 @@ PYTHON		?= python
 CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
 CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
 
-include $(GATEDIR)/crt/rules.make
+include $(GATEDIR)/crt/rules.mk
 
 LLVMBINDIR	:= $(WAGTOOLCHAIN)/llvm-build/bin
 BINARYENBINDIR	:= $(WAGTOOLCHAIN)/binaryen-build/bin

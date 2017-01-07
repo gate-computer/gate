@@ -21,7 +21,7 @@ CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -ffreestanding -Oz
 
 build: malloc.bc morecore.bc wasm.bc
 
-include $(GATEDIR)/crt/rules.make
+include $(GATEDIR)/crt/rules.mk
 
 LLVMBINDIR	:= $(WAGTOOLCHAIN)/llvm-build/bin
 

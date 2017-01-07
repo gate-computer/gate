@@ -12,4 +12,4 @@ clean:
 
 .PHONY: build clean
 
-include rules.make
+include rules.mk

@@ -5,7 +5,7 @@ export GOPATH	:= $(PWD)
 
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
--include config.make
+-include config.mk
 
 GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/cmd/runner \
