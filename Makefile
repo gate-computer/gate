@@ -15,7 +15,7 @@ GOPACKAGES := \
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
 export GATE_TEST_LOADER		:= $(PWD)/bin/loader
-export GATE_TEST_WASM		:= $(PWD)/tests/test/prog.wasm
+export GATE_TEST_WASM		:= $(PWD)/tests/hello/prog.wasm
 
 build:
 	$(GO) get github.com/gorilla/websocket
@@ -31,10 +31,7 @@ all: build
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C run/loader/tests
-	$(MAKE) -C tests/test
-	$(MAKE) -C tests/test2
-	$(MAKE) -C tests/test3
-	$(MAKE) -C tests/nonblock
+	set -e; for DIR in tests/*/; do $(MAKE) -C $$DIR; done
 
 check: all
 	$(MAKE) -C run/loader/tests check
@@ -50,9 +47,6 @@ clean:
 	$(MAKE) -C crt clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
-	$(MAKE) -C tests/test clean
-	$(MAKE) -C tests/test2 clean
-	$(MAKE) -C tests/test3 clean
-	$(MAKE) -C tests/nonblock clean
+	for DIR in tests/*/; do $(MAKE) -C $$DIR clean; done
 
 .PHONY: build all check clean

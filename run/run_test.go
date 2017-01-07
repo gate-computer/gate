@@ -25,7 +25,7 @@ const (
 
 func TestRun(t *testing.T) {
 	const (
-		memorySizeLimit = wasm.Page
+		memorySizeLimit = 24 * wasm.Page
 		stackSize       = 4096
 	)
 
