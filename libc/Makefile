@@ -23,7 +23,7 @@ libc-objects: $(patsubst %.ll,%.bc,$(wildcard libc_build/*.ll))
 libc_build/%.bc: libc_build/%.ll
 	$(LLVMBINDIR)/llvm-as -o $@ libc_build/$*.ll
 
-compat.bc: compat.c $(GATEDIR)/include/gate.h Makefile
+compat.bc: compat.c $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 
 clean:
 	rm -f *.bc *.wast
