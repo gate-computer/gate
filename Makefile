@@ -4,6 +4,8 @@ GO		?= go
 
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
+TESTS		:= $(dir $(wildcard tests/*/Makefile))
+
 -include config.mk
 
 GOPACKAGES := \
@@ -27,7 +29,7 @@ all: build
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C run/loader/tests
-	set -e; for DIR in tests/*/; do $(MAKE) -C $$DIR; done
+	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
 check: all
 	$(MAKE) -C run/loader/tests check
@@ -42,6 +44,6 @@ clean:
 	$(MAKE) -C crt clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
-	for DIR in tests/*/; do $(MAKE) -C $$DIR clean; done
+	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
 .PHONY: build all check clean
