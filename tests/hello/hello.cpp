@@ -56,7 +56,7 @@ int main()
 	indirection = implementation;
 
 	char str[] = "hello world\n";
-	Packet<sizeof (str)> p;
+	Packet<sizeof (str) - 1> p;
 
 	for (int i = 0; i < p.payload_size; i++)
 		p.payload()[i] = str[i];

@@ -62,8 +62,6 @@ func TestCloexec(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf("readlink: %#v", string(output))
-
 	if strings.Contains(string(output), "memfd:") {
 		t.Fail()
 	}

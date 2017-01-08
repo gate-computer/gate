@@ -20,7 +20,7 @@ type readWriter struct {
 }
 
 const (
-	dumpText = true
+	dumpText = false
 )
 
 func TestRun(t *testing.T) {
@@ -71,7 +71,9 @@ func TestRun(t *testing.T) {
 	var output bytes.Buffer
 
 	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, nil, os.Stdout)
-	t.Logf("output: %#v\n", string(output.Bytes()))
+	if s := string(output.Bytes()); s != "hello world\n" {
+		t.Fatalf("output: %#v", s)
+	}
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {

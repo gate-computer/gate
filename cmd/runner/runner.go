@@ -114,7 +114,7 @@ func main() {
 
 	exit, trap, err := run.Run(env, payload, conn, interfaces{}, os.Stderr)
 	if err != nil {
-		log.Print(err)
+		log.Fatal(err)
 	} else if trap != 0 {
 		log.Printf("trap: %s", trap)
 	} else if exit != 0 {
