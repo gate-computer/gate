@@ -35,6 +35,7 @@ check: all
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race -v $(GOPACKAGES)
+	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir) check;)
 
 clean:
 	rm -rf bin lib pkg
