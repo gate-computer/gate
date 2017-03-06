@@ -1,5 +1,5 @@
 int __malloc_current_memory(void);
-void __malloc_grow_memory(int n);
+int __malloc_grow_memory(int n);
 
 int __malloc_morecore(int increment)
 {
