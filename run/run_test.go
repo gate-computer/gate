@@ -11,7 +11,7 @@ import (
 	"github.com/tsavola/wag/dewag"
 	"github.com/tsavola/wag/wasm"
 
-	"."
+	"github.com/tsavola/gate/run"
 )
 
 type readWriter struct {

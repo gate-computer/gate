@@ -1,7 +1,6 @@
 PWD		:= $(shell pwd)
 
 GO		?= go
-export GOPATH	:= $(PWD)
 
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
@@ -18,13 +17,10 @@ export GATE_TEST_LOADER		:= $(PWD)/bin/loader
 export GATE_TEST_WASM		:= $(PWD)/tests/hello/prog.wasm
 
 build:
-	$(GO) get github.com/gorilla/websocket
-	$(GO) get github.com/tsavola/wag
-	$(GO) get golang.org/x/crypto/acme/autocert
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/cmd/runner
-	$(GO) install $(GOBUILDFLAGS) $(GOPACKAGEPREFIX)/cmd/server
+	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/runner
+	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/server
 
 all: build
 	$(MAKE) -C crt
@@ -36,7 +32,6 @@ all: build
 check: all
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
-	$(GO) get github.com/bnagy/gapstone
 	$(GO) test -race -v $(GOPACKAGES)
 
 clean:

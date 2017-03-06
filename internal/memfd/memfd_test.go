@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"testing"
 
-	"."
+	"github.com/tsavola/gate/internal/memfd"
 )
 
 func create(t *testing.T, name string, flags memfd.Flags) (fd int) {
