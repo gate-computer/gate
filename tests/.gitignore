@@ -2,3 +2,4 @@
 *.s
 *.wast
 prog.*
+test.html

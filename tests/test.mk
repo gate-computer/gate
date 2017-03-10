@@ -9,12 +9,18 @@ OBJECT		?= $(patsubst %.cpp,%.bc,$(patsubst %.c,%.bc,$(SOURCE)))
 
 OBJECTS		:= $(OBJECT)
 
-build: prog.wasm
+build: prog.wasm test.html
 
 $(OBJECT): $(SOURCE) $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/tests/test.mk $(GATEDIR)/crt/rules.mk
 
+test.html: prog.wasm
+	echo > $@ \
+		"<script src=\"../../run/run.js\"></script>" \
+		"<script src=\"../../run/run_test.js\"></script>" \
+		"<script>testRun('data:;base64,"$$(base64 -w0 prog.wasm)"')</script>"
+
 clean:
-	rm -f prog.* *.bc *.s *.wast
+	rm -f prog.* test.html *.bc *.s *.wast
 
 .PHONY: build clean
 

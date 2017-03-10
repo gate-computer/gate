@@ -1,4 +1,4 @@
-// some of these are also defined in defs.go
+// some of these are also defined in defs.go and work.js
 
 #define GATE_RODATA_ADDR 0x10000
 

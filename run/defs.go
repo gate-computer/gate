@@ -1,6 +1,6 @@
 package run
 
-// these are also defined in defs.h
+// some of these are also defined in defs.h and work.js
 
 const (
 	RODataAddr = 0x10000
