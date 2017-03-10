@@ -81,7 +81,7 @@ func TestRun(t *testing.T) {
 	} else if trap != 0 {
 		t.Fatalf("run trap: %s", trap)
 	} else if exit != 0 {
-		t.Fatalf("run exit: %s", exit)
+		t.Fatalf("run exit: %d", exit)
 	}
 
 	if name := os.Getenv("GATE_TEST_DUMP"); name != "" {

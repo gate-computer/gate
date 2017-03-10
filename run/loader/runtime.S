@@ -79,17 +79,23 @@ signal_restorer:
 
 // eax = trap id
 trap_handler:
+	test	%eax, %eax
+	je	.Ltrap_exit
+
 	cmp	$1, %eax
-	je	.Lmissing_function
+	je	.Ltrap_missing_function
 
-	mov	%eax, %edi		// zero-extend status (1st syscall arg)
-	test	%edi, %edi
-	je	.Lexit
-
-	add	$100, %edi
+	mov	%eax, %edi		// zero-extend
+	add	$100, %edi		// status (1st syscall arg)
 	jmp	.Lexit
 
-.Lmissing_function:
+.Ltrap_exit:
+	mov	$1, %edi		// failure status (1st syscall arg)
+	shrq	$32, %rax		// exit code
+	cmove	%eax, %edi		// success status (1st syscall arg)
+	jmp	.Lexit
+
+.Ltrap_missing_function:
 	// using 40 bytes of the 128-byte stack red zone
 
 	// save registers possibly used as parameters of the missing function
