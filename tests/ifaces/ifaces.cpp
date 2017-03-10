@@ -20,6 +20,12 @@ int main()
 	char buf[gate_max_packet_size];
 	gate_recv_packet(buf, gate_max_packet_size, 0);
 
+	auto ev = reinterpret_cast<const gate_ev_header *> (buf);
+	if (ev->code != GATE_EV_CODE_INTERFACES) {
+		gate_debug("Unexpected packet type\n");
+		return 1;
+	}
+
 	auto ifaces = reinterpret_cast<const payload *> (buf + sizeof (gate_ev_header));
 	const char *names[ifaces->count];
 	const char *ptr = ifaces->strings;
