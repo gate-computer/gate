@@ -73,6 +73,7 @@ func main() {
 	var ns sections.NameSection
 
 	m := wag.Module{
+		MainSymbol:           "main",
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 

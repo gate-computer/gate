@@ -25,7 +25,6 @@ build:
 	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/server
 
 all: build
-	$(MAKE) -C crt
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C run/loader/tests
@@ -42,7 +41,6 @@ clean:
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C run/loader/tests clean
-	$(MAKE) -C crt clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)

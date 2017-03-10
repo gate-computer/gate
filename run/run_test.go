@@ -46,7 +46,9 @@ func TestRun(t *testing.T) {
 
 	r := bufio.NewReader(f)
 
-	var m wag.Module
+	m := wag.Module{
+		MainSymbol: "main",
+	}
 
 	err = m.Load(r, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {

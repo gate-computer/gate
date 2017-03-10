@@ -234,6 +234,7 @@ func execute(r *http.Request, wasm *bufio.Reader, input io.Reader, output io.Wri
 	var ns sections.NameSection
 
 	m := wag.Module{
+		MainSymbol:           "main",
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 

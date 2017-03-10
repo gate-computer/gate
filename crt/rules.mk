@@ -7,7 +7,7 @@ LINKER		:= $(WAGTOOLCHAIN)/bin/link
 CPPFLAGS	+= -isystem $(GATEDIR)/include
 
 prog.wasm: $(OBJECTS)
-	$(LINKER) -o $@ $(GATEDIR)/crt/start.bc $(OBJECTS) $(LIBS)
+	$(LINKER) -o $@ $(OBJECTS) $(LIBS)
 
 %.bc: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
