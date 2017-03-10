@@ -14,7 +14,7 @@
 	const EV_HEADER_SIZE = 8
 
 	let Gate = {
-		scriptUrl: "/",
+		scriptUrl: "../",
 		ioUrl:     window.location.origin + "/io/",
 		debug:     !!window.console,
 		Runner:    Runner,

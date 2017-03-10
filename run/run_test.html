@@ -1,4 +1,9 @@
-function testRun(url) {
+<!--*- mode: javascript -*-->
+
+<script src="run.js"></script>
+<script>
+
+(function() {
 	function handleOrigin(data) {
 		let bytes = new Uint8Array(data)
 		var text = ""
@@ -12,6 +17,8 @@ function testRun(url) {
 	function handleExit(status) {
 		console.log("exit:", status)
 	}
+
+	let url = "../tests/" + location.hash.substring(1) + "/prog.wasm"
 
 	let xhr = new XMLHttpRequest()
 	xhr.responseType = "arraybuffer"
@@ -29,4 +36,6 @@ function testRun(url) {
 			runner.sendOrigin(data.buffer)
 		}, 333)
 	}
-}
+}())
+
+</script>
