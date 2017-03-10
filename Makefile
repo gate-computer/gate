@@ -11,6 +11,7 @@ TESTS		:= $(dir $(wildcard tests/*/Makefile))
 GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/cmd/runner \
 	$(GOPACKAGEPREFIX)/cmd/server \
+	$(GOPACKAGEPREFIX)/cmd/webio \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run
 
@@ -23,6 +24,7 @@ build:
 	$(MAKE) -C run/loader
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/runner
 	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/server
+	$(GO) build $(GOBUILDFLAGS) -o bin/webio $(GOPACKAGEPREFIX)/cmd/webio
 
 all: build
 	$(MAKE) -C libc
