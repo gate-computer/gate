@@ -9,5 +9,5 @@ const (
 const (
 	abiVersion    = 0
 	maxPacketSize = 0x10000
-	maxInterfaces = 100
+	maxServices   = 100
 )

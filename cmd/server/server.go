@@ -59,7 +59,7 @@ func main() {
 	e := server.Executor{
 		MemorySizeLimit: memorySizeLimit,
 		StackSize:       stackSize,
-		Interfaces:      interfaces{},
+		Services:        services{},
 		Env:             env,
 		Log:             log.New(os.Stderr, "", 0),
 	}
@@ -95,12 +95,12 @@ func main() {
 	log.Fatal(err)
 }
 
-type interfaces struct{}
+type services struct{}
 
-func (interfaces) Info(name string) (info run.InterfaceInfo) {
+func (services) Info(name string) (info run.ServiceInfo) {
 	return
 }
 
-func (interfaces) Message([]byte, uint32) (found bool) {
+func (services) Message([]byte, uint32) (found bool) {
 	return
 }

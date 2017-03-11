@@ -35,8 +35,8 @@ func TestHello(t *testing.T) {
 	}
 }
 
-func TestIfaces(t *testing.T) {
-	testRun(t, "ifaces")
+func TestServices(t *testing.T) {
+	testRun(t, "services")
 }
 
 func testRun(t *testing.T, testName string) (output bytes.Buffer) {
@@ -86,7 +86,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 	defer payload.Close()
 
-	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, ifaces{}, os.Stdout)
+	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, services{}, os.Stdout)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
@@ -110,9 +110,9 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	return
 }
 
-type ifaces struct{}
+type services struct{}
 
-func (ifaces) Info(name string) run.InterfaceInfo {
+func (services) Info(name string) run.ServiceInfo {
 	var (
 		atom    uint32
 		version uint32
@@ -128,10 +128,10 @@ func (ifaces) Info(name string) run.InterfaceInfo {
 		version = 12765
 	}
 
-	return run.MakeInterfaceInfo(atom, version)
+	return run.MakeServiceInfo(atom, version)
 }
 
-func (ifaces) Message(payload []byte, atom uint32) (found bool) {
+func (services) Message(payload []byte, atom uint32) (found bool) {
 	switch atom {
 	case 1, 2:
 		found = true

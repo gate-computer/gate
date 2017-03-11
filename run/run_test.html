@@ -24,10 +24,10 @@
 			return {atom, version}
 		},
 
-		onmessage(payload, interfaceAtom) {
+		onmessage(payload, serviceAtom) {
 			var found = false
 
-			switch (interfaceAtom) {
+			switch (serviceAtom) {
 			case 1:
 			case 2:
 				found = true

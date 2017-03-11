@@ -1,18 +1,18 @@
 (function() {
-	const MAX_INTERFACES = 100
+	const MAX_SERVICES = 100
 
-	const OP_CODE_NONE       = 0
-	const OP_CODE_ORIGIN     = 1
-	const OP_CODE_INTERFACES = 2
-	const OP_CODE_MESSAGE    = 3
+	const OP_CODE_NONE     = 0
+	const OP_CODE_ORIGIN   = 1
+	const OP_CODE_SERVICES = 2
+	const OP_CODE_MESSAGE  = 3
 
 	const OP_FLAG_POLLOUT = 0x1
 
 	const OP_HEADER_SIZE = 8
 
-	const EV_CODE_POLLOUT    = 0
-	const EV_CODE_ORIGIN     = 1
-	const EV_CODE_INTERFACES = 2
+	const EV_CODE_POLLOUT  = 0
+	const EV_CODE_ORIGIN   = 1
+	const EV_CODE_SERVICES = 2
 
 	const EV_HEADER_SIZE = 8
 
@@ -91,18 +91,18 @@
 					runner.onorigin(event.data.slice(OP_HEADER_SIZE))
 				break
 
-			case OP_CODE_INTERFACES:
+			case OP_CODE_SERVICES:
 				if (op.byteLength < OP_HEADER_SIZE + 4 + 4)
-					throw "interfaces op: packet is too short"
+					throw "services op: packet is too short"
 
 				let count = op.getUint32(OP_HEADER_SIZE, true)
-				if (count > MAX_INTERFACES)
-					throw "interfaces op: too many interfaces requested"
+				if (count > MAX_SERVICES)
+					throw "services op: too many services requested"
 
 				let evPacket = new ArrayBuffer(EV_HEADER_SIZE + 4 + 4 + 8*count)
 				let ev = new DataView(evPacket)
 				ev.setUint32(0, evPacket.byteLength, true)
-				ev.setUint16(4, EV_CODE_INTERFACES, true)
+				ev.setUint16(4, EV_CODE_SERVICES, true)
 				ev.setUint32(EV_HEADER_SIZE, count, true)
 
 				var nameBuf = new Uint8Array(event.data, OP_HEADER_SIZE + 4 + 4)
@@ -111,7 +111,7 @@
 				for (var i = 0; i < count; i++) {
 					let nameLen = nameBuf.indexOf(0)
 					if (nameLen < 0)
-						throw "interfaces op: name data is truncated"
+						throw "services op: name data is truncated"
 
 					var name = ""
 					for (var j = 0; j < nameLen; j++)
@@ -135,7 +135,7 @@
 				let atom = op.getUint32(OP_HEADER_SIZE, true)
 
 				if (atom == 0 || !ifaces.onmessage(event.data.slice(OP_HEADER_SIZE), atom))
-					throw "message op: invalid interface atom"
+					throw "message op: invalid service atom"
 
 				break
 

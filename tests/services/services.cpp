@@ -36,7 +36,7 @@ int main()
 	const Op op = {
 		.header = {
 			.size = sizeof (op),
-			.code = GATE_OP_CODE_INTERFACES,
+			.code = GATE_OP_CODE_SERVICES,
 		},
 		.payload = {
 			.count = 2,
@@ -49,33 +49,33 @@ int main()
 	gate_recv_packet(ev_buf, gate_max_packet_size, 0);
 	auto ev = reinterpret_cast<const Ev *> (ev_buf);
 
-	if (ev->header.code != GATE_EV_CODE_INTERFACES) {
+	if (ev->header.code != GATE_EV_CODE_SERVICES) {
 		gate_debug("Unexpected packet type\n");
 		return 1;
 	}
 
 	if (ev->payload.count != 2) {
-		gate_debug("Unexpected number of interface entries\n");
+		gate_debug("Unexpected number of service entries\n");
 		return 1;
 	}
 
 	if (ev->payload.infos[0].atom != 1) {
-		gate_debug("Unexpected test1 interface atom\n");
+		gate_debug("Unexpected test1 service atom\n");
 		return 1;
 	}
 
 	if (ev->payload.infos[0].version != 1337) {
-		gate_debug("Unexpected test1 interface version\n");
+		gate_debug("Unexpected test1 service version\n");
 		return 1;
 	}
 
 	if (ev->payload.infos[1].atom != 2) {
-		gate_debug("Unexpected test2 interface atom\n");
+		gate_debug("Unexpected test2 service atom\n");
 		return 1;
 	}
 
 	if (ev->payload.infos[1].version != 12765) {
-		gate_debug("Unexpected test2 interface version\n");
+		gate_debug("Unexpected test2 service version\n");
 		return 1;
 	}
 

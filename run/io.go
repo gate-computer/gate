@@ -8,24 +8,24 @@ import (
 	"io"
 )
 
-type InterfaceInfo uint64
+type ServiceInfo uint64
 
-func MakeInterfaceInfo(atom uint32, version uint32) InterfaceInfo {
-	return InterfaceInfo(version)<<32 | InterfaceInfo(atom)
+func MakeServiceInfo(atom uint32, version uint32) ServiceInfo {
+	return ServiceInfo(version)<<32 | ServiceInfo(atom)
 }
 
-type Interfaces interface {
-	Info(string) InterfaceInfo
-	Message(packetPayload []byte, atom uint32) (interfaceFound bool)
+type Services interface {
+	Info(string) ServiceInfo
+	Message(packetPayload []byte, atom uint32) (serviceFound bool)
 }
 
-type noInterfaces struct{}
+type noServices struct{}
 
-func (noInterfaces) Info(string) (info InterfaceInfo) {
+func (noServices) Info(string) (info ServiceInfo) {
 	return
 }
 
-func (noInterfaces) Message([]byte, uint32) (found bool) {
+func (noServices) Message([]byte, uint32) (found bool) {
 	return
 }
 
@@ -45,7 +45,7 @@ type opCode uint16
 const (
 	opCodeNone = opCode(iota)
 	opCodeOrigin
-	opCodeInterfaces
+	opCodeServices
 	opCodeMessage
 )
 
@@ -67,12 +67,12 @@ type subjectRead struct {
 const (
 	evCodePollout = uint16(iota)
 	evCodeOrigin
-	evCodeInterfaces
+	evCodeServices
 )
 
-func ioLoop(origin io.ReadWriter, subject readWriteKiller, ifaces Interfaces) (err error) {
-	if ifaces == nil {
-		ifaces = noInterfaces{}
+func ioLoop(origin io.ReadWriter, subject readWriteKiller, services Services) (err error) {
+	if services == nil {
+		services = noServices{}
 	}
 
 	originInput := originReadLoop(origin)
@@ -150,7 +150,7 @@ func ioLoop(origin io.ReadWriter, subject readWriteKiller, ifaces Interfaces) (e
 				return
 			}
 
-			ev, poll, e := handleOp(read, origin, ifaces)
+			ev, poll, e := handleOp(read, origin, services)
 			if e != nil {
 				err = e
 				return
@@ -282,7 +282,7 @@ func subjectWriteLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
 	return writes, end
 }
 
-func handleOp(op subjectRead, origin io.ReadWriter, ifaces Interfaces) (ev []byte, poll bool, err error) {
+func handleOp(op subjectRead, origin io.ReadWriter, services Services) (ev []byte, poll bool, err error) {
 	if (op.flags &^ opFlagsMask) != 0 {
 		err = fmt.Errorf("invalid op packet flags: 0x%x", op.flags)
 		return
@@ -299,11 +299,11 @@ func handleOp(op subjectRead, origin io.ReadWriter, ifaces Interfaces) (ev []byt
 			err = fmt.Errorf("origin write: %v", err)
 		}
 
-	case opCodeInterfaces:
-		ev, err = handleInterfaces(op.payload, ifaces)
+	case opCodeServices:
+		ev, err = handleServices(op.payload, services)
 
 	case opCodeMessage:
-		err = handleMessage(op.payload, ifaces)
+		err = handleMessage(op.payload, services)
 
 	default:
 		err = fmt.Errorf("invalid op packet code: %d", op.code)
@@ -311,22 +311,22 @@ func handleOp(op subjectRead, origin io.ReadWriter, ifaces Interfaces) (ev []byt
 	return
 }
 
-func handleInterfaces(opPayload []byte, ifaces Interfaces) (ev []byte, err error) {
+func handleServices(opPayload []byte, services Services) (ev []byte, err error) {
 	if len(opPayload) < 4+4 {
-		err = errors.New("interfaces op: packet is too short")
+		err = errors.New("services op: packet is too short")
 		return
 	}
 
 	count := nativeEndian.Uint32(opPayload)
-	if count > maxInterfaces {
-		err = errors.New("interfaces op: too many interfaces requested")
+	if count > maxServices {
+		err = errors.New("services op: too many services requested")
 		return
 	}
 
 	evSize := 8 + 4 + 4 + 8*count
 	ev = make([]byte, evSize)
 	nativeEndian.PutUint32(ev[0:], uint32(evSize))
-	nativeEndian.PutUint16(ev[4:], evCodeInterfaces)
+	nativeEndian.PutUint16(ev[4:], evCodeServices)
 	nativeEndian.PutUint32(ev[8:], count)
 
 	nameBuf := opPayload[4+4:]
@@ -335,21 +335,21 @@ func handleInterfaces(opPayload []byte, ifaces Interfaces) (ev []byte, err error
 	for i := uint32(0); i < count; i++ {
 		nameLen := bytes.IndexByte(nameBuf, 0)
 		if nameLen < 0 {
-			err = errors.New("interfaces op: name data is truncated")
+			err = errors.New("services op: name data is truncated")
 			return
 		}
 
 		name := string(nameBuf[:nameLen])
 		nameBuf = nameBuf[nameLen+1:]
 
-		nativeEndian.PutUint64(infoBuf, uint64(ifaces.Info(name)))
+		nativeEndian.PutUint64(infoBuf, uint64(services.Info(name)))
 		infoBuf = infoBuf[8:]
 	}
 
 	return
 }
 
-func handleMessage(payload []byte, ifaces Interfaces) (err error) {
+func handleMessage(payload []byte, services Services) (err error) {
 	if len(payload) < 4 {
 		err = errors.New("message op: packet is too short")
 		return
@@ -357,8 +357,8 @@ func handleMessage(payload []byte, ifaces Interfaces) (err error) {
 
 	atom := nativeEndian.Uint32(payload)
 
-	if atom == 0 || !ifaces.Message(payload, atom) {
-		err = errors.New("message op: invalid interface atom")
+	if atom == 0 || !services.Message(payload, atom) {
+		err = errors.New("message op: invalid service atom")
 		return
 	}
 

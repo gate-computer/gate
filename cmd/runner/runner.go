@@ -113,7 +113,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	exit, trap, err := run.Run(env, payload, conn, interfaces{}, os.Stderr)
+	exit, trap, err := run.Run(env, payload, conn, services{}, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	} else if trap != 0 {
@@ -130,12 +130,12 @@ func main() {
 	}
 }
 
-type interfaces struct{}
+type services struct{}
 
-func (interfaces) Info(name string) (info run.InterfaceInfo) {
+func (services) Info(name string) (info run.ServiceInfo) {
 	return
 }
 
-func (interfaces) Message([]byte, uint32) (found bool) {
+func (services) Message([]byte, uint32) (found bool) {
 	return
 }

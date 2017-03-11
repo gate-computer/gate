@@ -36,7 +36,7 @@ enum gate_func_id {
 enum gate_op_code {
 	GATE_OP_CODE_NONE,
 	GATE_OP_CODE_ORIGIN,
-	GATE_OP_CODE_INTERFACES,
+	GATE_OP_CODE_SERVICES,
 	GATE_OP_CODE_MESSAGE,
 };
 
@@ -51,7 +51,7 @@ struct gate_op_header {
 enum gate_ev_code {
 	GATE_EV_CODE_POLLOUT,
 	GATE_EV_CODE_ORIGIN,
-	GATE_EV_CODE_INTERFACES,
+	GATE_EV_CODE_SERVICES,
 };
 
 struct gate_ev_header {
