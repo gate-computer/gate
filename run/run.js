@@ -4,6 +4,7 @@
 	const OP_CODE_NONE       = 0
 	const OP_CODE_ORIGIN     = 1
 	const OP_CODE_INTERFACES = 2
+	const OP_CODE_MESSAGE    = 3
 
 	const OP_FLAG_POLLOUT = 0x1
 
@@ -125,6 +126,17 @@
 				}
 
 				sendPacket(evPacket)
+				break
+
+			case OP_CODE_MESSAGE:
+				if (op.byteLength < OP_HEADER_SIZE + 4)
+					throw "message op: packet is too short"
+
+				let atom = op.getUint32(OP_HEADER_SIZE, true)
+
+				if (atom == 0 || !ifaces.onmessage(event.data.slice(OP_HEADER_SIZE), atom))
+					throw "message op: invalid interface atom"
+
 				break
 
 			default:

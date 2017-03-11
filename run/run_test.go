@@ -130,3 +130,12 @@ func (ifaces) Info(name string) run.InterfaceInfo {
 
 	return run.MakeInterfaceInfo(atom, version)
 }
+
+func (ifaces) Message(payload []byte, atom uint32) (found bool) {
+	switch atom {
+	case 1, 2:
+		found = true
+	}
+
+	return
+}

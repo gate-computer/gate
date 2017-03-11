@@ -100,3 +100,7 @@ type interfaces struct{}
 func (interfaces) Info(name string) (info run.InterfaceInfo) {
 	return
 }
+
+func (interfaces) Message([]byte, uint32) (found bool) {
+	return
+}

@@ -23,6 +23,19 @@
 
 			return {atom, version}
 		},
+
+		onmessage(payload, interfaceAtom) {
+			var found = false
+
+			switch (interfaceAtom) {
+			case 1:
+			case 2:
+				found = true
+				break
+			}
+
+			return found
+		},
 	}
 
 	function handleOrigin(data) {

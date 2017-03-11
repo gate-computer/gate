@@ -16,11 +16,16 @@ func MakeInterfaceInfo(atom uint32, version uint32) InterfaceInfo {
 
 type Interfaces interface {
 	Info(string) InterfaceInfo
+	Message(packetPayload []byte, atom uint32) (interfaceFound bool)
 }
 
 type noInterfaces struct{}
 
 func (noInterfaces) Info(string) (info InterfaceInfo) {
+	return
+}
+
+func (noInterfaces) Message([]byte, uint32) (found bool) {
 	return
 }
 
@@ -41,6 +46,7 @@ const (
 	opCodeNone = opCode(iota)
 	opCodeOrigin
 	opCodeInterfaces
+	opCodeMessage
 )
 
 type opFlags uint16
@@ -296,6 +302,9 @@ func handleOp(op subjectRead, origin io.ReadWriter, ifaces Interfaces) (ev []byt
 	case opCodeInterfaces:
 		ev, err = handleInterfaces(op.payload, ifaces)
 
+	case opCodeMessage:
+		err = handleMessage(op.payload, ifaces)
+
 	default:
 		err = fmt.Errorf("invalid op packet code: %d", op.code)
 	}
@@ -335,6 +344,22 @@ func handleInterfaces(opPayload []byte, ifaces Interfaces) (ev []byte, err error
 
 		nativeEndian.PutUint64(infoBuf, uint64(ifaces.Info(name)))
 		infoBuf = infoBuf[8:]
+	}
+
+	return
+}
+
+func handleMessage(payload []byte, ifaces Interfaces) (err error) {
+	if len(payload) < 4 {
+		err = errors.New("message op: packet is too short")
+		return
+	}
+
+	atom := nativeEndian.Uint32(payload)
+
+	if atom == 0 || !ifaces.Message(payload, atom) {
+		err = errors.New("message op: invalid interface atom")
+		return
 	}
 
 	return
