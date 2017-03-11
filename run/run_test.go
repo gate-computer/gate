@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/tsavola/wag"
@@ -23,7 +24,22 @@ const (
 	dumpText = false
 )
 
-func TestRun(t *testing.T) {
+func TestAlloc(t *testing.T) {
+	testRun(t, "alloc")
+}
+
+func TestHello(t *testing.T) {
+	output := testRun(t, "hello")
+	if s := string(output.Bytes()); s != "hello world\n" {
+		t.Fatalf("output: %#v", s)
+	}
+}
+
+func TestIfaces(t *testing.T) {
+	testRun(t, "ifaces")
+}
+
+func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	const (
 		memorySizeLimit = 24 * wasm.Page
 		stackSize       = 4096
@@ -31,7 +47,7 @@ func TestRun(t *testing.T) {
 
 	executorBin := os.Getenv("GATE_TEST_EXECUTOR")
 	loaderBin := os.Getenv("GATE_TEST_LOADER")
-	wasmPath := os.Getenv("GATE_TEST_WASM")
+	wasmPath := path.Join(os.Getenv("GATE_TEST_DIR"), testName, "prog.wasm")
 
 	env, err := run.NewEnvironment(executorBin, loaderBin, loaderBin+".symbols")
 	if err != nil {
@@ -70,12 +86,7 @@ func TestRun(t *testing.T) {
 	}
 	defer payload.Close()
 
-	var output bytes.Buffer
-
 	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, nil, os.Stdout)
-	if s := string(output.Bytes()); s != "hello world\n" {
-		t.Fatalf("output: %#v", s)
-	}
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
@@ -95,4 +106,6 @@ func TestRun(t *testing.T) {
 			t.Fatalf("dump error: %v", err)
 		}
 	}
+
+	return
 }

@@ -17,7 +17,7 @@ GOPACKAGES := \
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
 export GATE_TEST_LOADER		:= $(PWD)/bin/loader
-export GATE_TEST_WASM		:= $(PWD)/tests/hello/prog.wasm
+export GATE_TEST_DIR		:= $(PWD)/tests
 
 build:
 	$(MAKE) -C run/executor
@@ -36,7 +36,6 @@ check: all
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race -v $(GOPACKAGES)
-	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir) check;)
 
 clean:
 	rm -rf bin lib pkg
