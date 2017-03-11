@@ -4,6 +4,27 @@
 <script>
 
 (function() {
+	let ifaces = {
+		getInfo(name) {
+			var atom
+			var version
+
+			switch (name) {
+			case "test1":
+				atom = 1
+				version = 1337
+				break
+
+			case "test2":
+				atom = 2
+				version = 12765
+				break
+			}
+
+			return {atom, version}
+		},
+	}
+
 	function handleOrigin(data) {
 		let bytes = new Uint8Array(data)
 		var text = ""
@@ -25,7 +46,7 @@
 	xhr.open("GET", url)
 	xhr.send()
 	xhr.onload = () => {
-		let runner = new Gate.Runner(xhr.response)
+		let runner = new Gate.Runner(xhr.response, ifaces)
 		runner.onorigin = handleOrigin
 		runner.onexit = handleExit
 		runner.run()

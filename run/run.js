@@ -1,4 +1,6 @@
 (function() {
+	const MAX_INTERFACES = 100
+
 	const OP_CODE_NONE       = 0
 	const OP_CODE_ORIGIN     = 1
 	const OP_CODE_INTERFACES = 2
@@ -20,7 +22,7 @@
 		Runner:    Runner,
 	}
 
-	function Runner(wasm) {
+	function Runner(wasm, ifaces) {
 		let runner = this
 		runner.onorigin = null
 		runner.onexit = null
@@ -66,20 +68,18 @@
 		}
 
 		socket.onmessage = (event) => {
-			let header = new DataView(event.data, 0, OP_HEADER_SIZE)
-			let size = header.getUint32(0, true)
-			let code = header.getUint16(4, true)
-			let flags = header.getUint16(6, true)
+			let op = new DataView(event.data)
+			let size = op.getUint32(0, true)
+			let code = op.getUint16(4, true)
+			let flags = op.getUint16(6, true)
 
-			if (size != event.data.byteLength)
-				throw "inconsistent packet size"
+			if (size != op.byteLength)
+				throw "inconsistent op packet size"
 
 			if ((flags & OP_FLAG_POLLOUT) != 0 && !pollout) {
 				setTimeout(sendPollout)
 				pollout = true
 			}
-
-			let payload = event.data.slice(OP_HEADER_SIZE)
 
 			switch (code) {
 			case OP_CODE_NONE:
@@ -87,15 +87,44 @@
 
 			case OP_CODE_ORIGIN:
 				if (runner.onorigin)
-					runner.onorigin(payload)
+					runner.onorigin(event.data.slice(OP_HEADER_SIZE))
 				break
 
 			case OP_CODE_INTERFACES:
-				let packet = new ArrayBuffer(EV_HEADER_SIZE + 4)
-				let header = new DataView(packet, 0, EV_HEADER_SIZE)
-				header.setUint32(0, packet.byteLength, true)
-				header.setUint16(4, EV_CODE_INTERFACES, true)
-				sendPacket(packet)
+				if (op.byteLength < OP_HEADER_SIZE + 4 + 4)
+					throw "interfaces op: packet is too short"
+
+				let count = op.getUint32(OP_HEADER_SIZE, true)
+				if (count > MAX_INTERFACES)
+					throw "interfaces op: too many interfaces requested"
+
+				let evPacket = new ArrayBuffer(EV_HEADER_SIZE + 4 + 4 + 8*count)
+				let ev = new DataView(evPacket)
+				ev.setUint32(0, evPacket.byteLength, true)
+				ev.setUint16(4, EV_CODE_INTERFACES, true)
+				ev.setUint32(EV_HEADER_SIZE, count, true)
+
+				var nameBuf = new Uint8Array(event.data, OP_HEADER_SIZE + 4 + 4)
+				var evOffset = EV_HEADER_SIZE + 4 + 4
+
+				for (var i = 0; i < count; i++) {
+					let nameLen = nameBuf.indexOf(0)
+					if (nameLen < 0)
+						throw "interfaces op: name data is truncated"
+
+					var name = ""
+					for (var j = 0; j < nameLen; j++)
+						name += String.fromCharCode(nameBuf[j])
+
+					nameBuf = nameBuf.slice(nameLen+1)
+
+					let {atom, version} = ifaces.getInfo(name)
+					ev.setUint32(evOffset + 0, atom, true)
+					ev.setUint32(evOffset + 4, version, true)
+					evOffset += 8
+				}
+
+				sendPacket(evPacket)
 				break
 
 			default:
