@@ -1,53 +1,35 @@
 #include <stdint.h>
+#include <string.h>
 
 #include <gate.h>
 
 #define NAMES "test1\0test2"
 
-struct Info {
-	uint32_t atom;
-	uint32_t version;
-} __attribute__ ((packed));
-
-struct OpPayload {
-	uint32_t count;
-	uint32_t dummy;
-	char names[sizeof (NAMES)];
-} __attribute__ ((packed));
-
-struct Op {
+struct ServicesOp {
 	struct gate_op_header header;
-	struct OpPayload payload;
+	struct gate_op_services payload;
 } __attribute__ ((packed));
 
-struct EvPayload {
-	uint32_t count;
-	uint32_t dummy;
-	Info infos[];
-} __attribute__ ((packed));
-
-struct Ev {
+struct ServicesEv {
 	struct gate_ev_header header;
-	struct EvPayload payload;
+	struct gate_ev_services payload;
 } __attribute__ ((packed));
 
 int main()
 {
-	const Op op = {
-		.header = {
-			.size = sizeof (op),
-			.code = GATE_OP_CODE_SERVICES,
-		},
-		.payload = {
-			.count = 2,
-			.names = NAMES,
-		},
-	};
-	gate_send_packet(&op.header);
+	auto op_size = sizeof (ServicesOp) + sizeof (NAMES);
+	char op_buf[op_size];
+	memset(op_buf, 0, op_size);
+	auto op = reinterpret_cast<ServicesOp *> (op_buf);
+	op->header.size = op_size;
+	op->header.code = GATE_OP_CODE_SERVICES;
+	op->payload.count = 2;
+	memcpy(op->payload.names, NAMES, sizeof (NAMES));
+	gate_send_packet(&op->header);
 
 	char ev_buf[gate_max_packet_size];
 	gate_recv_packet(ev_buf, gate_max_packet_size, 0);
-	auto ev = reinterpret_cast<const Ev *> (ev_buf);
+	auto ev = reinterpret_cast<const ServicesEv *> (ev_buf);
 
 	if (ev->header.code != GATE_EV_CODE_SERVICES) {
 		gate_debug("Unexpected packet type\n");
@@ -80,7 +62,7 @@ int main()
 	}
 
 	auto atoms_size = ev->header.size - sizeof (ev->header) - 8;
-	if (atoms_size != ev->payload.count * sizeof (Info)) {
+	if (atoms_size != ev->payload.count * sizeof (gate_service_info)) {
 		gate_debug("Inconsistent packet size\n");
 		return 1;
 	}

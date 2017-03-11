@@ -11,6 +11,7 @@ import (
 type ServiceInfo uint64
 
 func MakeServiceInfo(atom uint32, version uint32) ServiceInfo {
+	// this assumes little-endian byte-order
 	return ServiceInfo(version)<<32 | ServiceInfo(atom)
 }
 

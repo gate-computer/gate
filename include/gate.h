@@ -60,6 +60,25 @@ struct gate_ev_header {
 	uint16_t __reserved;
 } GATE_PACKED;
 
+struct gate_service_info {
+	uint32_t atom;
+	uint32_t version;
+} GATE_PACKED;
+
+// gate_op_services represents the payload of a GATE_OP_CODE_SERVICES packet.
+struct gate_op_services {
+	uint32_t count;
+	uint32_t __reserved;
+	char names[0]; // variable length
+} GATE_PACKED;
+
+// gate_ev_services represents the payload of a GATE_EV_CODE_SERVICES packet.
+struct gate_ev_services {
+	uint32_t count;
+	uint32_t __reserved;
+	struct gate_service_info infos[0]; // variable length
+} GATE_PACKED;
+
 // extern const int __gate_abi_version;
 // extern const size_t __gate_max_packet_size;
 
