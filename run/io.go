@@ -1,18 +1,26 @@
 package run
 
 import (
+	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 )
 
+type InterfaceInfo uint64
+
+func MakeInterfaceInfo(atom uint32, version uint32) InterfaceInfo {
+	return InterfaceInfo(version)<<32 | InterfaceInfo(atom)
+}
+
 type Interfaces interface {
-	Names() []string
+	Info(string) InterfaceInfo
 }
 
 type noInterfaces struct{}
 
-func (noInterfaces) Names() (names []string) {
+func (noInterfaces) Info(string) (info InterfaceInfo) {
 	return
 }
 
@@ -283,31 +291,50 @@ func handleOp(op subjectRead, origin io.ReadWriter, ifaces Interfaces) (ev []byt
 		_, err = origin.Write(op.payload)
 		if err != nil {
 			err = fmt.Errorf("origin write: %v", err)
-			return
 		}
 
 	case opCodeInterfaces:
-		names := ifaces.Names()
-		offset := 8 + 4
-		size := offset
-
-		for _, s := range names {
-			size += len(s) + 1
-		}
-
-		ev = make([]byte, size)
-		nativeEndian.PutUint32(ev[0:], uint32(size))
-		nativeEndian.PutUint16(ev[4:], evCodeInterfaces)
-		nativeEndian.PutUint32(ev[8:], uint32(len(names)))
-
-		for _, s := range names {
-			copy(ev[offset:], s)
-			offset += len(s) + 1
-		}
+		ev, err = handleInterfaces(op.payload, ifaces)
 
 	default:
 		err = fmt.Errorf("invalid op packet code: %d", op.code)
+	}
+	return
+}
+
+func handleInterfaces(opPayload []byte, ifaces Interfaces) (ev []byte, err error) {
+	if len(opPayload) < 4+4 {
+		err = errors.New("interfaces op: packet is too short")
 		return
+	}
+
+	count := nativeEndian.Uint32(opPayload)
+	if count > maxInterfaces {
+		err = errors.New("interfaces op: too many interfaces requested")
+		return
+	}
+
+	evSize := 8 + 4 + 4 + 8*count
+	ev = make([]byte, evSize)
+	nativeEndian.PutUint32(ev[0:], uint32(evSize))
+	nativeEndian.PutUint16(ev[4:], evCodeInterfaces)
+	nativeEndian.PutUint32(ev[8:], count)
+
+	nameBuf := opPayload[4+4:]
+	infoBuf := ev[8+4+4:]
+
+	for i := uint32(0); i < count; i++ {
+		nameLen := bytes.IndexByte(nameBuf, 0)
+		if nameLen < 0 {
+			err = errors.New("interfaces op: name data is truncated")
+			return
+		}
+
+		name := string(nameBuf[:nameLen])
+		nameBuf = nameBuf[nameLen+1:]
+
+		nativeEndian.PutUint64(infoBuf, uint64(ifaces.Info(name)))
+		infoBuf = infoBuf[8:]
 	}
 
 	return

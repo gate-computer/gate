@@ -86,7 +86,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 	defer payload.Close()
 
-	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, nil, os.Stdout)
+	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, ifaces{}, os.Stdout)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
@@ -108,4 +108,25 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 
 	return
+}
+
+type ifaces struct{}
+
+func (ifaces) Info(name string) run.InterfaceInfo {
+	var (
+		atom    uint32
+		version uint32
+	)
+
+	switch name {
+	case "test1":
+		atom = 1
+		version = 1337
+
+	case "test2":
+		atom = 2
+		version = 12765
+	}
+
+	return run.MakeInterfaceInfo(atom, version)
 }

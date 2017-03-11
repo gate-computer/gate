@@ -132,6 +132,6 @@ func main() {
 
 type interfaces struct{}
 
-func (interfaces) Names() []string {
-	return []string{}
+func (interfaces) Info(name string) (info run.InterfaceInfo) {
+	return
 }
