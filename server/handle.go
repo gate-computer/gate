@@ -22,6 +22,7 @@ import (
 type Executor struct {
 	MemorySizeLimit wasm.MemorySize
 	StackSize       int32
+	Interfaces      run.Interfaces
 	Env             *run.Environment
 	Log             Logger
 }
@@ -180,7 +181,7 @@ func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer
 	}
 	defer payload.Close()
 
-	exit, trap, err = run.Run(e.Env, payload, readWriter{input, output}, nil, nil)
+	exit, trap, err = run.Run(e.Env, payload, readWriter{input, output}, e.Interfaces, nil)
 	if err != nil {
 		internal = true
 	} else if trap != 0 || exit != 0 {

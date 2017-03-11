@@ -59,6 +59,7 @@ func main() {
 	e := server.Executor{
 		MemorySizeLimit: memorySizeLimit,
 		StackSize:       stackSize,
+		Interfaces:      interfaces{},
 		Env:             env,
 		Log:             log.New(os.Stderr, "", 0),
 	}
@@ -92,4 +93,10 @@ func main() {
 	}
 
 	log.Fatal(err)
+}
+
+type interfaces struct{}
+
+func (interfaces) Names() []string {
+	return []string{}
 }
