@@ -67,8 +67,11 @@
 		console.log("origin:", bytes, text)
 	}
 
+	var exited = false
+
 	function handleExit(status) {
 		console.log("exit:", status)
+		exited = true
 	}
 
 	let url = "../tests/" + location.hash.substring(1) + "/prog.wasm"
@@ -84,6 +87,9 @@
 		runner.run()
 
 		setTimeout(() => {
+			if (exited)
+				return
+
 			let data = new DataView(new ArrayBuffer(1))
 			data.setUint8(0, 43)
 			runner.sendOrigin(data.buffer)

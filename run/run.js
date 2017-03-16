@@ -171,6 +171,7 @@
 		worker.onmessage = (event) => {
 			worker.terminate()
 			messenger.close()
+			socket.close()
 
 			if ("gateResult" in event.data) {
 				if (runner.onexit)
