@@ -169,8 +169,8 @@
 		let worker = new Worker(Gate.scriptUrl + "run/work.js")
 
 		worker.onmessage = (event) => {
+			messenger.shutdown()
 			worker.terminate()
-			messenger.close()
 			socket.close()
 
 			if ("gateResult" in event.data) {

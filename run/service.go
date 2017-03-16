@@ -24,7 +24,7 @@ type ServiceRegistry interface {
 
 type Messenger interface {
 	Message(op []byte) (serviceOk bool)
-	Close()
+	Shutdown()
 }
 
 type noServices struct{}
@@ -43,7 +43,7 @@ func (dummyMessenger) Message([]byte) (ok bool) {
 	return
 }
 
-func (c dummyMessenger) Close() {
+func (c dummyMessenger) Shutdown() {
 	close(c)
 }
 

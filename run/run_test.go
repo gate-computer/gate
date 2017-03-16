@@ -142,6 +142,6 @@ func (testMessenger) Message(op []byte) (ok bool) {
 	return
 }
 
-func (evs testMessenger) Close() {
+func (evs testMessenger) Shutdown() {
 	close(evs)
 }

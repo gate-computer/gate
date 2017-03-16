@@ -55,7 +55,9 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 		for range messageInput {
 		}
 	}()
-	defer messenger.Close()
+	defer func() {
+		go messenger.Shutdown()
+	}()
 
 	subjectInput := subjectReadLoop(subject)
 	defer func() {
