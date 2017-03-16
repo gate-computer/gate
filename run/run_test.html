@@ -4,8 +4,10 @@
 <script>
 
 (function() {
-	let ifaces = {
+	let serviceRegistry = {
 		getInfo(name) {
+			console.log("getting info of service", name)
+
 			var atom
 			var version
 
@@ -24,21 +26,38 @@
 			return {atom, version}
 		},
 
-		onmessage(payload, serviceAtom) {
-			var found = false
+		createMessenger(sendMessage) {
+			console.log("creating service messenger")
 
-			switch (serviceAtom) {
-			case 1:
-			case 2:
-				found = true
-				break
+			return {
+				handleMessage(op) {
+					let header = new DataView(op)
+					let atom = header.getUint32(8, true)
+					var ok = false
+
+					switch (atom) {
+					case 1:
+					case 2:
+						ok = true
+						break
+					}
+
+					return ok
+				},
+
+				close() {
+					console.log("service messenger closed")
+				},
 			}
-
-			return found
 		},
 	}
 
 	function handleOrigin(data) {
+		if (data.byteLength == 0) {
+			console.log("origin: EOF")
+			return
+		}
+
 		let bytes = new Uint8Array(data)
 		var text = ""
 
@@ -59,7 +78,7 @@
 	xhr.open("GET", url)
 	xhr.send()
 	xhr.onload = () => {
-		let runner = new Gate.Runner(xhr.response, ifaces)
+		let runner = new Gate.Runner(xhr.response, serviceRegistry)
 		runner.onorigin = handleOrigin
 		runner.onexit = handleExit
 		runner.run()

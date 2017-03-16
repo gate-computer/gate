@@ -52,6 +52,7 @@ enum gate_ev_code {
 	GATE_EV_CODE_POLLOUT,
 	GATE_EV_CODE_ORIGIN,
 	GATE_EV_CODE_SERVICES,
+	GATE_EV_CODE_MESSAGE,
 };
 
 struct gate_ev_header {

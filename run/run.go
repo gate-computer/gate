@@ -296,7 +296,11 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	return writeStacktraceTo(w, stack, funcMap, callMap, funcSigs, ns)
 }
 
-func Run(env *Environment, payload *Payload, origin io.ReadWriter, services Services, debug io.Writer) (exit int, trap traps.Id, err error) {
+func Run(env *Environment, payload *Payload, origin io.ReadWriter, services ServiceRegistry, debug io.Writer) (exit int, trap traps.Id, err error) {
+	if services == nil {
+		services = noServices{}
+	}
+
 	cmd := exec.Cmd{
 		Path: env.executor,
 		Args: []string{},
@@ -331,7 +335,7 @@ func Run(env *Environment, payload *Payload, origin io.ReadWriter, services Serv
 		return
 	}
 
-	err = runIO(origin, readWriteKiller{stdout, stdin, cmd.Process.Kill}, services, &payload.info)
+	err = runIO(origin, services, readWriteKiller{stdout, stdin, cmd.Process.Kill}, &payload.info)
 	if err == nil {
 		err = cmd.Wait()
 		if _, ok := err.(*exec.ExitError); ok && cmd.ProcessState.Exited() {
@@ -361,12 +365,12 @@ func Run(env *Environment, payload *Payload, origin io.ReadWriter, services Serv
 	return
 }
 
-func runIO(origin io.ReadWriter, subject readWriteKiller, services Services, info *payloadInfo) (err error) {
-	err = binary.Write(subject, nativeEndian, info)
+func runIO(origin io.ReadWriter, services ServiceRegistry, subject readWriteKiller, info *payloadInfo) (err error) {
+	err = binary.Write(subject, endian, info)
 	if err != nil {
 		subject.kill()
 		return
 	}
 
-	return ioLoop(origin, subject, services)
+	return ioLoop(origin, services, subject)
 }

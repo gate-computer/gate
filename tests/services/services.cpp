@@ -28,13 +28,11 @@ int main()
 	gate_send_packet(&op->header);
 
 	char ev_buf[gate_max_packet_size];
-	gate_recv_packet(ev_buf, gate_max_packet_size, 0);
-	auto ev = reinterpret_cast<const ServicesEv *> (ev_buf);
-
-	if (ev->header.code != GATE_EV_CODE_SERVICES) {
-		gate_debug("Unexpected packet type\n");
-		return 1;
-	}
+	const ServicesEv *ev;
+	do {
+		gate_recv_packet(ev_buf, gate_max_packet_size, 0);
+		ev = reinterpret_cast<ServicesEv *> (ev_buf);
+	} while (ev->header.code != GATE_EV_CODE_SERVICES);
 
 	if (ev->payload.count != 2) {
 		gate_debug("Unexpected number of service entries\n");

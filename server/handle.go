@@ -22,8 +22,8 @@ import (
 type Executor struct {
 	MemorySizeLimit wasm.MemorySize
 	StackSize       int32
-	Services        run.Services
 	Env             *run.Environment
+	Services        run.ServiceRegistry
 	Log             Logger
 }
 

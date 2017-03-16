@@ -1,4 +1,4 @@
-// some of these are also defined in defs.go and defs.h
+// some of these are also defined in defs.go, defs.h and run.js
 
 const ABI_VERSION     = 0
 const MAX_PACKET_SIZE = 0x10000

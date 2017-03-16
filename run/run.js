@@ -1,5 +1,12 @@
 (function() {
-	const MAX_SERVICES = 100
+	// some of these are also defined in defs.go, defs.h and work.js
+
+	const MAX_PACKET_SIZE = 0x10000
+	const MAX_SERVICES    = 100
+
+	const HEADER_SIZE          = 8
+	const SERVICES_HEADER_SIZE = HEADER_SIZE + 8
+	const MESSAGE_HEADER_SIZE  = HEADER_SIZE + 4
 
 	const OP_CODE_NONE     = 0
 	const OP_CODE_ORIGIN   = 1
@@ -8,13 +15,10 @@
 
 	const OP_FLAG_POLLOUT = 0x1
 
-	const OP_HEADER_SIZE = 8
-
 	const EV_CODE_POLLOUT  = 0
 	const EV_CODE_ORIGIN   = 1
 	const EV_CODE_SERVICES = 2
-
-	const EV_HEADER_SIZE = 8
+	const EV_CODE_MESSAGE  = 3
 
 	let Gate = {
 		scriptUrl: "../",
@@ -23,7 +27,7 @@
 		Runner:    Runner,
 	}
 
-	function Runner(wasm, ifaces) {
+	function Runner(wasm, serviceRegistry) {
 		let runner = this
 		runner.onorigin = null
 		runner.onexit = null
@@ -41,45 +45,103 @@
 			sendBuffer = null
 		}
 
-		function sendPacket(packet) {
+		function send(ev) {
 			if (sendBuffer === null)
-				socket.send(packet)
+				socket.send(ev)
 			else
-				sendBuffer.push(packet)
-		}
-
-		runner.sendOrigin = (payload) => {
-			let packet = new ArrayBuffer(EV_HEADER_SIZE + payload.byteLength)
-			let header = new DataView(packet, 0, EV_HEADER_SIZE)
-			header.setUint32(0, packet.byteLength, true)
-			header.setUint16(4, EV_CODE_ORIGIN, true)
-			new Uint8Array(packet, EV_HEADER_SIZE).set(payload)
-			sendPacket(packet)
+				sendBuffer.push(ev)
 		}
 
 		var pollout = false
 
 		function sendPollout() {
-			let packet = new ArrayBuffer(EV_HEADER_SIZE)
-			let header = new DataView(packet, 0, EV_HEADER_SIZE)
-			header.setUint32(0, packet.byteLength, true)
+			let ev = new ArrayBuffer(HEADER_SIZE)
+			let header = new DataView(ev, 0, HEADER_SIZE)
+			header.setUint32(0, ev.byteLength, true)
 			header.setUint16(4, EV_CODE_POLLOUT, true)
-			socket.send(packet)
+			socket.send(ev)
 			pollout = false
 		}
 
+		runner.sendOrigin = (payload) => {
+			let ev = new ArrayBuffer(HEADER_SIZE + payload.byteLength)
+			let header = new DataView(ev)
+			header.setUint32(0, ev.byteLength, true)
+			header.setUint16(4, EV_CODE_ORIGIN, true)
+			new Uint8Array(ev, HEADER_SIZE).set(payload)
+			send(ev)
+		}
+
+		let messenger = serviceRegistry.createMessenger((ev) => {
+			if (ev.byteLength < MESSAGE_HEADER_SIZE || ev.byteLength > MAX_PACKET_SIZE)
+				throw "invalid ev packet buffer length"
+
+			let header = new DataView(packet)
+			header.setUint32(ev.byteLength, true)
+			header.setUint16(EV_CODE_MESSAGE, true)
+			header.setUint16(0, true)
+			send(ev)
+		})
+
+		function handleServices(op) {
+			if (op.byteLength < SERVICES_HEADER_SIZE)
+				throw "services op: packet is too short"
+
+			let count = op.getUint32(HEADER_SIZE, true)
+			if (count > MAX_SERVICES)
+				throw "services op: too many services requested"
+
+			let evBuf = new ArrayBuffer(SERVICES_HEADER_SIZE + 8*count)
+			let ev = new DataView(evBuf)
+			ev.setUint32(0, evBuf.byteLength, true)
+			ev.setUint16(4, EV_CODE_SERVICES, true)
+			ev.setUint32(HEADER_SIZE, count, true)
+
+			var nameBuf = new Uint8Array(op.buffer, SERVICES_HEADER_SIZE)
+			var evOffset = SERVICES_HEADER_SIZE
+
+			for (var i = 0; i < count; i++) {
+				let nameLen = nameBuf.indexOf(0)
+				if (nameLen < 0)
+					throw "services op: name data is truncated"
+
+				var name = ""
+				for (var j = 0; j < nameLen; j++)
+					name += String.fromCharCode(nameBuf[j])
+
+				nameBuf = nameBuf.slice(nameLen+1)
+
+				let {atom, version} = serviceRegistry.getInfo(name)
+				ev.setUint32(evOffset + 0, atom, true)
+				ev.setUint32(evOffset + 4, version, true)
+				evOffset += 8
+			}
+
+			send(evBuf)
+		}
+
+		function handleMessage(op) {
+			if (opBuf.byteLength < MESSAGE_HEADER_SIZE)
+				throw "message op: packet is too short"
+
+			if (!messenger.handleMessage(op.buffer))
+				throw "message op: invalid service atom"
+		}
+
 		socket.onmessage = (event) => {
-			let op = new DataView(event.data)
+			let opBuf = event.data
+			let op = new DataView(opBuf)
 			let size = op.getUint32(0, true)
+
+			if (size != opBuf.byteLength)
+				throw "inconsistent op packet size"
+
 			let code = op.getUint16(4, true)
 			let flags = op.getUint16(6, true)
 
-			if (size != op.byteLength)
-				throw "inconsistent op packet size"
-
 			if ((flags & OP_FLAG_POLLOUT) != 0 && !pollout) {
-				setTimeout(sendPollout)
 				pollout = true
+				setTimeout(sendPollout)
 			}
 
 			switch (code) {
@@ -88,55 +150,15 @@
 
 			case OP_CODE_ORIGIN:
 				if (runner.onorigin)
-					runner.onorigin(event.data.slice(OP_HEADER_SIZE))
+					runner.onorigin(opBuf.slice(HEADER_SIZE))
 				break
 
 			case OP_CODE_SERVICES:
-				if (op.byteLength < OP_HEADER_SIZE + 4 + 4)
-					throw "services op: packet is too short"
-
-				let count = op.getUint32(OP_HEADER_SIZE, true)
-				if (count > MAX_SERVICES)
-					throw "services op: too many services requested"
-
-				let evPacket = new ArrayBuffer(EV_HEADER_SIZE + 4 + 4 + 8*count)
-				let ev = new DataView(evPacket)
-				ev.setUint32(0, evPacket.byteLength, true)
-				ev.setUint16(4, EV_CODE_SERVICES, true)
-				ev.setUint32(EV_HEADER_SIZE, count, true)
-
-				var nameBuf = new Uint8Array(event.data, OP_HEADER_SIZE + 4 + 4)
-				var evOffset = EV_HEADER_SIZE + 4 + 4
-
-				for (var i = 0; i < count; i++) {
-					let nameLen = nameBuf.indexOf(0)
-					if (nameLen < 0)
-						throw "services op: name data is truncated"
-
-					var name = ""
-					for (var j = 0; j < nameLen; j++)
-						name += String.fromCharCode(nameBuf[j])
-
-					nameBuf = nameBuf.slice(nameLen+1)
-
-					let {atom, version} = ifaces.getInfo(name)
-					ev.setUint32(evOffset + 0, atom, true)
-					ev.setUint32(evOffset + 4, version, true)
-					evOffset += 8
-				}
-
-				sendPacket(evPacket)
+				handleServices(op)
 				break
 
 			case OP_CODE_MESSAGE:
-				if (op.byteLength < OP_HEADER_SIZE + 4)
-					throw "message op: packet is too short"
-
-				let atom = op.getUint32(OP_HEADER_SIZE, true)
-
-				if (atom == 0 || !ifaces.onmessage(event.data.slice(OP_HEADER_SIZE), atom))
-					throw "message op: invalid service atom"
-
+				handleMessage(op)
 				break
 
 			default:
@@ -148,6 +170,7 @@
 
 		worker.onmessage = (event) => {
 			worker.terminate()
+			messenger.close()
 
 			if ("gateResult" in event.data) {
 				if (runner.onexit)

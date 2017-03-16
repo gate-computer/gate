@@ -3,6 +3,7 @@ package run_test
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"io"
 	"os"
 	"path"
@@ -86,7 +87,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 	defer payload.Close()
 
-	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, services{}, os.Stdout)
+	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, testServiceRegistry{}, os.Stdout)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
@@ -110,32 +111,37 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	return
 }
 
-type services struct{}
+type testServiceRegistry struct{}
 
-func (services) Info(name string) run.ServiceInfo {
-	var (
-		atom    uint32
-		version uint32
-	)
-
+func (testServiceRegistry) Info(name string) (info run.ServiceInfo) {
 	switch name {
 	case "test1":
-		atom = 1
-		version = 1337
+		info.Atom = 1
+		info.Version = 1337
 
 	case "test2":
-		atom = 2
-		version = 12765
-	}
-
-	return run.MakeServiceInfo(atom, version)
-}
-
-func (services) Message(payload []byte, atom uint32) (found bool) {
-	switch atom {
-	case 1, 2:
-		found = true
+		info.Atom = 2
+		info.Version = 12765
 	}
 
 	return
+}
+
+func (testServiceRegistry) Messenger(evs chan<- []byte) run.Messenger {
+	return testMessenger(evs)
+}
+
+type testMessenger chan<- []byte
+
+func (testMessenger) Message(op []byte) (ok bool) {
+	switch binary.LittleEndian.Uint32(op[8:]) {
+	case 1, 2:
+		ok = true
+	}
+
+	return
+}
+
+func (evs testMessenger) Close() {
+	close(evs)
 }
