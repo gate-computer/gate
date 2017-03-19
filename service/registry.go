@@ -62,6 +62,7 @@ func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 				return
 			}
 			inst = r.factories[index].New()
+			instances[atom] = inst
 		}
 		inst.Handle(op, evs)
 	}
