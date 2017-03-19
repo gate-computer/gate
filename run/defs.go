@@ -12,7 +12,7 @@ const (
 
 const (
 	abiVersion    = 0
-	maxPacketSize = 0x10000
+	maxPacketSize = 0x10000 // coincides with default pipe buffer size on Linux
 	maxServices   = 100
 
 	headerSize = 8
