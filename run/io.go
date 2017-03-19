@@ -80,11 +80,12 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 
 	for {
 		var (
-			doEv            []byte
-			doOriginInput   <-chan read
-			doMessageInput  <-chan []byte
-			doSubjectInput  <-chan read
-			doSubjectOutput chan<- []byte
+			doEv               []byte
+			doOriginInput      <-chan read
+			doMessageInput     <-chan []byte
+			doSubjectInput     <-chan read
+			doSubjectOutputEnd <-chan struct{}
+			doSubjectOutput    chan<- []byte
 		)
 
 		if len(pendingEvs) > 0 {
@@ -97,6 +98,7 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 			doOriginInput = originInput
 			doMessageInput = messageInput
 			doSubjectInput = subjectInput
+			doSubjectOutputEnd = subjectOutputEnd
 		} else {
 			doSubjectOutput = subjectOutput
 		}
@@ -139,15 +141,15 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 				pendingPolls++
 			}
 
+		case <-doSubjectOutputEnd:
+			return
+
 		case doSubjectOutput <- doEv:
 			if len(pendingEvs) > 0 {
 				pendingEvs = pendingEvs[1:]
 			} else {
 				pendingPolls = 0
 			}
-
-		case <-subjectOutputEnd:
-			return
 		}
 	}
 }
