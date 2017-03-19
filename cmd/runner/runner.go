@@ -18,11 +18,16 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/service"
 	_ "github.com/tsavola/gate/service/defaults"
+	"github.com/tsavola/gate/service/echo"
 )
 
 type readWriteCloser struct {
 	io.Reader
 	io.WriteCloser
+}
+
+func init() {
+	echo.DefaultFactory.Log = log.New(os.Stderr, "echo service: ", 0)
 }
 
 func main() {
