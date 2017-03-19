@@ -19,12 +19,7 @@ type ServiceInfo struct {
 
 type ServiceRegistry interface {
 	Info(serviceName string) ServiceInfo
-	Messenger(evs chan<- []byte) Messenger
-}
-
-type Messenger interface {
-	Message(op []byte) (serviceOk bool)
-	Shutdown()
+	Serve(ops <-chan []byte, evs chan<- []byte) error
 }
 
 type noServices struct{}
@@ -33,18 +28,11 @@ func (noServices) Info(string) (info ServiceInfo) {
 	return
 }
 
-func (noServices) Messenger(c chan<- []byte) Messenger {
-	return dummyMessenger(c)
-}
-
-type dummyMessenger chan<- []byte
-
-func (dummyMessenger) Message([]byte) (ok bool) {
+func (noServices) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
+	defer close(evs)
+	for range ops {
+	}
 	return
-}
-
-func (c dummyMessenger) Shutdown() {
-	close(c)
 }
 
 func handleServicesOp(op []byte, services ServiceRegistry) (ev []byte, err error) {
@@ -87,7 +75,7 @@ func handleServicesOp(op []byte, services ServiceRegistry) (ev []byte, err error
 	return
 }
 
-func handleMessageOp(op []byte, messenger Messenger) (err error) {
+func handleMessageOp(op []byte) (msg []byte, err error) {
 	if len(op) < messageHeaderSize {
 		err = errors.New("message op: packet is too short")
 		return
@@ -96,11 +84,7 @@ func handleMessageOp(op []byte, messenger Messenger) (err error) {
 	// hide packet flags from service implementations
 	endian.PutUint16(op[6:], 0)
 
-	if !messenger.Message(op) {
-		err = errors.New("message op: invalid service atom")
-		return
-	}
-
+	msg = op
 	return
 }
 

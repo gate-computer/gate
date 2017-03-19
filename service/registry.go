@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/binary"
+	"errors"
 	"sync"
 
 	"github.com/tsavola/gate/run"
@@ -31,48 +32,40 @@ func (r *Registry) Info(name string) run.ServiceInfo {
 	return r.infos[name]
 }
 
-func (r *Registry) Messenger(evs chan<- []byte) run.Messenger {
-	return &messenger{
-		factories: r.factories,
-		instances: make(map[uint32]Instance),
-		evs:       evs,
-	}
-}
+func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
+	defer close(evs)
 
-type messenger struct {
-	factories []func(chan<- []byte) Instance
-	instances map[uint32]Instance
-	evs       chan<- []byte
-}
+	instances := make(map[uint32]Instance)
+	defer shutdown(instances)
 
-func (mr *messenger) Message(op []byte) (ok bool) {
-	atom := binary.LittleEndian.Uint32(op[8:])
-	inst, found := mr.instances[atom]
-	if !found {
-		index := atom - 1 // underflow wraps around
-		if index >= uint32(len(mr.factories)) {
-			return
+	for op := range ops {
+		atom := binary.LittleEndian.Uint32(op[8:])
+		inst, found := instances[atom]
+		if !found {
+			index := atom - 1 // underflow wraps around
+			if index >= uint32(len(r.factories)) {
+				err = errors.New("invalid service atom")
+				return
+			}
+			inst = r.factories[index](evs)
 		}
-		inst = mr.factories[index](mr.evs)
+		inst.Message(op)
 	}
-	inst.Message(op)
-	ok = true
+
 	return
 }
 
-func (mr *messenger) Shutdown() {
+func shutdown(instances map[uint32]Instance) {
 	var wg sync.WaitGroup
+	defer wg.Wait()
 
 	shutdown := func(inst Instance) {
 		defer wg.Done()
 		inst.Shutdown()
 	}
 
-	for _, inst := range mr.instances {
+	for _, inst := range instances {
 		wg.Add(1)
 		go shutdown(inst)
 	}
-
-	wg.Wait()
-	close(mr.evs)
 }

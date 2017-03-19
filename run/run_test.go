@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -127,21 +128,19 @@ func (testServiceRegistry) Info(name string) (info run.ServiceInfo) {
 	return
 }
 
-func (testServiceRegistry) Messenger(evs chan<- []byte) run.Messenger {
-	return testMessenger(evs)
-}
+func (testServiceRegistry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
+	defer close(evs)
 
-type testMessenger chan<- []byte
+	for op := range ops {
+		switch binary.LittleEndian.Uint32(op[8:]) {
+		case 1, 2:
+			// ok
 
-func (testMessenger) Message(op []byte) (ok bool) {
-	switch binary.LittleEndian.Uint32(op[8:]) {
-	case 1, 2:
-		ok = true
+		default:
+			err = errors.New("invalid service atom")
+			return
+		}
 	}
 
 	return
-}
-
-func (evs testMessenger) Shutdown() {
-	close(evs)
 }

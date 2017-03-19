@@ -49,15 +49,26 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 		}()
 	}()
 
-	messageInput := make(chan []byte, 1) // service may send a reply message synchronously
-	messenger := services.Messenger(messageInput)
+	var (
+		messageInput  = make(chan []byte)
+		messageOutput = make(chan []byte)
+		serviceErr    = make(chan error, 1)
+	)
+	go func() {
+		defer close(serviceErr)
+		serviceErr <- services.Serve(messageOutput, messageInput)
+	}()
 	defer func() {
 		for range messageInput {
 		}
+		if err == nil {
+			err = <-serviceErr
+			if err != nil {
+				err = fmt.Errorf("serve: %v", err)
+			}
+		}
 	}()
-	defer func() {
-		go messenger.Shutdown()
-	}()
+	defer close(messageOutput)
 
 	subjectInput := subjectReadLoop(subject)
 	defer func() {
@@ -74,6 +85,7 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 	defer subject.kill()
 
 	var (
+		pendingMsg   []byte
 		pendingEvs   [][]byte
 		pendingPolls uint64
 	)
@@ -83,6 +95,7 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 			doEv               []byte
 			doOriginInput      <-chan read
 			doMessageInput     <-chan []byte
+			doMessageOutput    chan<- []byte
 			doSubjectInput     <-chan read
 			doSubjectOutputEnd <-chan struct{}
 			doSubjectOutput    chan<- []byte
@@ -94,10 +107,16 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 			doEv = makePolloutEv(pendingPolls)
 		}
 
+		if pendingMsg != nil {
+			doMessageOutput = messageOutput
+		}
+
 		if doEv == nil {
 			doOriginInput = originInput
 			doMessageInput = messageInput
-			doSubjectInput = subjectInput
+			if pendingMsg == nil {
+				doSubjectInput = subjectInput
+			}
 			doSubjectOutputEnd = subjectOutputEnd
 		} else {
 			doSubjectOutput = subjectOutput
@@ -128,18 +147,24 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 				return
 			}
 
-			ev, poll, opErr := handleOp(read.buf, origin, services, messenger)
+			msg, ev, poll, opErr := handleOp(read.buf, origin, services)
 			if opErr != nil {
 				err = opErr
 				return
 			}
 
+			if msg != nil {
+				pendingMsg = msg
+			}
 			if ev != nil {
 				pendingEvs = append(pendingEvs, ev)
 			}
 			if poll {
 				pendingPolls++
 			}
+
+		case doMessageOutput <- pendingMsg:
+			pendingMsg = nil
 
 		case <-doSubjectOutputEnd:
 			return
@@ -241,7 +266,7 @@ func subjectWriteLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
 	return writes, end
 }
 
-func handleOp(op []byte, origin io.ReadWriter, services ServiceRegistry, messenger Messenger) (ev []byte, poll bool, err error) {
+func handleOp(op []byte, origin io.ReadWriter, services ServiceRegistry) (msg, ev []byte, poll bool, err error) {
 	var (
 		code  = opCode(endian.Uint16(op[4:]))
 		flags = opFlags(endian.Uint16(op[6:]))
@@ -267,7 +292,7 @@ func handleOp(op []byte, origin io.ReadWriter, services ServiceRegistry, messeng
 		ev, err = handleServicesOp(op, services)
 
 	case opCodeMessage:
-		err = handleMessageOp(op, messenger)
+		msg, err = handleMessageOp(op)
 
 	default:
 		err = fmt.Errorf("invalid op packet code: %d", code)
