@@ -49,7 +49,7 @@ func ioLoop(origin io.ReadWriter, services ServiceRegistry, subject readWriteKil
 		}()
 	}()
 
-	messageInput := make(chan []byte)
+	messageInput := make(chan []byte, 1) // service may send a reply message synchronously
 	messenger := services.Messenger(messageInput)
 	defer func() {
 		for range messageInput {
