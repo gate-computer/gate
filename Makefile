@@ -13,7 +13,9 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/cmd/server \
 	$(GOPACKAGEPREFIX)/cmd/webio \
 	$(GOPACKAGEPREFIX)/internal/memfd \
-	$(GOPACKAGEPREFIX)/run
+	$(GOPACKAGEPREFIX)/run \
+	$(GOPACKAGEPREFIX)/server \
+	$(GOPACKAGEPREFIX)/service
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
 export GATE_TEST_LOADER		:= $(PWD)/bin/loader

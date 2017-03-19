@@ -16,6 +16,7 @@ import (
 	"github.com/tsavola/wag/sections"
 
 	"github.com/tsavola/gate/run"
+	"github.com/tsavola/gate/service"
 )
 
 type readWriteCloser struct {
@@ -113,7 +114,7 @@ func main() {
 	}
 	defer conn.Close()
 
-	exit, trap, err := run.Run(env, payload, conn, nil, os.Stderr)
+	exit, trap, err := run.Run(env, payload, conn, service.DefaultRegistry, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	} else if trap != 0 {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/service"
 )
 
 const (
@@ -60,6 +61,7 @@ func main() {
 		MemorySizeLimit: memorySizeLimit,
 		StackSize:       stackSize,
 		Env:             env,
+		Services:        service.DefaultRegistry,
 		Log:             log.New(os.Stderr, "", 0),
 	}
 
