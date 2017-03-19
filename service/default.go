@@ -9,6 +9,6 @@ func Register(r *Registry, name string, version uint32, f Factory) {
 	r.Register(name, version, f)
 }
 
-func RegisterFunc(r *Registry, name string, version uint32, f func(evs chan<- []byte) Instance) {
+func RegisterFunc(r *Registry, name string, version uint32, f func() Instance) {
 	Register(r, name, version, FactoryFunc(f))
 }

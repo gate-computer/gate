@@ -11,15 +11,15 @@ func Register(r *service.Registry) {
 	service.RegisterFunc(r, Name, Version, New)
 }
 
-func New(c chan<- []byte) service.Instance {
-	return echo(c)
+func New() service.Instance {
+	return echo{}
 }
 
-type echo chan<- []byte
+type echo struct{}
 
-func (c echo) Message(buf []byte) {
-	c <- buf
+func (echo) Handle(op []byte, evs chan<- []byte) {
+	evs <- op
 }
 
-func (c echo) Shutdown() {
+func (echo) Shutdown() {
 }

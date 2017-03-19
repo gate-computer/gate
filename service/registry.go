@@ -9,18 +9,18 @@ import (
 )
 
 type Instance interface {
-	Message(op []byte)
+	Handle(op []byte, evs chan<- []byte)
 	Shutdown()
 }
 
 type Factory interface {
-	New(evs chan<- []byte) Instance
+	New() Instance
 }
 
-type FactoryFunc func(chan<- []byte) Instance
+type FactoryFunc func() Instance
 
-func (f FactoryFunc) New(evs chan<- []byte) Instance {
-	return f(evs)
+func (f FactoryFunc) New() Instance {
+	return f()
 }
 
 type Registry struct {
@@ -38,7 +38,7 @@ func (r *Registry) Register(name string, version uint32, f Factory) {
 	r.infos[name] = run.ServiceInfo{Atom: atom, Version: version}
 }
 
-func (r *Registry) RegisterFunc(name string, version uint32, f func(chan<- []byte) Instance) {
+func (r *Registry) RegisterFunc(name string, version uint32, f func() Instance) {
 	r.Register(name, version, FactoryFunc(f))
 }
 
@@ -61,9 +61,9 @@ func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 				err = errors.New("invalid service atom")
 				return
 			}
-			inst = r.factories[index].New(evs)
+			inst = r.factories[index].New()
 		}
-		inst.Message(op)
+		inst.Handle(op, evs)
 	}
 
 	return
