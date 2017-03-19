@@ -15,7 +15,9 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
-	$(GOPACKAGEPREFIX)/service
+	$(GOPACKAGEPREFIX)/service \
+	$(GOPACKAGEPREFIX)/service/defaults \
+	$(GOPACKAGEPREFIX)/service/echo
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
 export GATE_TEST_LOADER		:= $(PWD)/bin/loader
@@ -38,6 +40,7 @@ check: all
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race -v $(GOPACKAGES)
+	bin/runner tests/echo/prog.wasm
 
 clean:
 	rm -rf bin lib pkg

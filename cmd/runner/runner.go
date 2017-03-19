@@ -17,6 +17,7 @@ import (
 
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/service"
+	_ "github.com/tsavola/gate/service/defaults"
 )
 
 type readWriteCloser struct {
