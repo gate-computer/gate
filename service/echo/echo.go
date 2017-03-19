@@ -8,7 +8,7 @@ const (
 )
 
 func Register(r *service.Registry) {
-	service.Register(r, Name, Version, New)
+	service.RegisterFunc(r, Name, Version, New)
 }
 
 func New(c chan<- []byte) service.Instance {
