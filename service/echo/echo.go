@@ -30,10 +30,10 @@ func (f *Factory) New() service.Instance {
 	}
 }
 
-var DefaultFactory = new(Factory)
+var Default = new(Factory)
 
 func Register(r *service.Registry) {
-	service.Register(r, Name, Version, DefaultFactory)
+	service.Register(r, Name, Version, Default)
 }
 
 type echo struct {

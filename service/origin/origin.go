@@ -26,10 +26,10 @@ func (f *Factory) New() service.Instance {
 	return &origin{f.R, f.W}
 }
 
-var DefaultFactory = new(Factory)
+var Default = new(Factory)
 
 func Register(r *service.Registry) {
-	DefaultFactory.Register(r)
+	Default.Register(r)
 }
 
 func CloneRegistryWith(r *service.Registry, origIn io.Reader, origOut io.Writer) *service.Registry {

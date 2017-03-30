@@ -29,13 +29,13 @@ const (
 )
 
 var (
-	DefaultGroup = new(Group)
+	Default = new(Group)
 
 	prevId uint64 // atomic
 )
 
 func Register(r *service.Registry) {
-	service.Register(r, Name, Version, DefaultGroup)
+	service.Register(r, Name, Version, Default)
 }
 
 type Logger interface {

@@ -28,7 +28,7 @@ type readWriteCloser struct {
 }
 
 func init() {
-	echo.DefaultFactory.Log = log.New(os.Stderr, "echo service: ", 0)
+	echo.Default.Log = log.New(os.Stderr, "echo service: ", 0)
 }
 
 func main() {
@@ -121,8 +121,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	origin.DefaultFactory.R = conn
-	origin.DefaultFactory.W = conn
+	origin.Default.R = conn
+	origin.Default.W = conn
 
 	exit, trap, err := run.Run(env, payload, service.DefaultRegistry, os.Stderr)
 	if err != nil {
