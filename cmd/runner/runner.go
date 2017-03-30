@@ -124,7 +124,7 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
-	exit, trap, err := run.Run(env, payload, service.DefaultRegistry, os.Stderr)
+	exit, trap, err := run.Run(env, payload, service.Defaults, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	} else if trap != 0 {
