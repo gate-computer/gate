@@ -104,25 +104,25 @@ func main() {
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
 	}
 
-	var conn io.ReadWriteCloser
 	if addr != "" {
 		os.Remove(addr)
 		l, err := net.Listen("unix", addr)
 		if err != nil {
 			log.Fatal(err)
 		}
-		conn, err = l.Accept()
+		conn, err := l.Accept()
 		l.Close()
 		if err != nil {
 			log.Fatal(err)
 		}
-	} else {
-		conn = readWriteCloser{os.Stdin, os.Stdout}
-	}
-	defer conn.Close()
+		defer conn.Close()
 
-	origin.Default.R = conn
-	origin.Default.W = conn
+		origin.Default.R = conn
+		origin.Default.W = conn
+	} else {
+		origin.Default.R = os.Stdin
+		origin.Default.W = os.Stdout
+	}
 
 	exit, trap, err := run.Run(env, payload, service.DefaultRegistry, os.Stderr)
 	if err != nil {
