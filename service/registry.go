@@ -33,13 +33,35 @@ func (r *Registry) Register(name string, version int32, f Factory) {
 		r.infos = make(map[string]run.ServiceInfo)
 	}
 
-	r.factories = append(r.factories, f)
-	code := uint16(len(r.factories))
+	var code uint16
+
+	if info, found := r.infos[name]; found {
+		code = info.Code
+		r.factories[code-1] = f
+	} else {
+		r.factories = append(r.factories, f)
+		code = uint16(len(r.factories))
+	}
+
 	r.infos[name] = run.ServiceInfo{Code: code, Version: version}
 }
 
 func (r *Registry) RegisterFunc(name string, version int32, f func() Instance) {
 	r.Register(name, version, FactoryFunc(f))
+}
+
+func (r *Registry) Clone() *Registry {
+	clone := new(Registry)
+
+	clone.factories = make([]Factory, len(r.factories))
+	copy(clone.factories, r.factories)
+
+	clone.infos = make(map[string]run.ServiceInfo)
+	for k, v := range r.infos {
+		clone.infos[k] = v
+	}
+
+	return clone
 }
 
 func (r *Registry) Info(name string) run.ServiceInfo {

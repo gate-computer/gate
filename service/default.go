@@ -12,3 +12,10 @@ func Register(r *Registry, name string, version int32, f Factory) {
 func RegisterFunc(r *Registry, name string, version int32, f func() Instance) {
 	Register(r, name, version, FactoryFunc(f))
 }
+
+func Clone(r *Registry) *Registry {
+	if r == nil {
+		r = DefaultRegistry
+	}
+	return r.Clone()
+}

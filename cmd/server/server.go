@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -14,8 +15,8 @@ import (
 
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/service"
 	_ "github.com/tsavola/gate/service/defaults"
+	"github.com/tsavola/gate/service/origin"
 )
 
 const (
@@ -62,7 +63,7 @@ func main() {
 		MemorySizeLimit: memorySizeLimit,
 		StackSize:       stackSize,
 		Env:             env,
-		Services:        service.DefaultRegistry,
+		Services:        services,
 		Log:             log.New(os.Stderr, "", 0),
 	}
 
@@ -95,4 +96,8 @@ func main() {
 	}
 
 	log.Fatal(err)
+}
+
+func services(r io.Reader, w io.Writer) run.ServiceRegistry {
+	return origin.CloneRegistryWith(nil, r, w)
 }

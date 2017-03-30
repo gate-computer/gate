@@ -23,7 +23,7 @@ type Executor struct {
 	MemorySizeLimit wasm.MemorySize
 	StackSize       int32
 	Env             *run.Environment
-	Services        run.ServiceRegistry
+	Services        func(io.Reader, io.Writer) run.ServiceRegistry
 	Log             Logger
 }
 
@@ -181,8 +181,9 @@ func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer
 	}
 	defer payload.Close()
 
-	// TODO: origin: readWriter{input, output}
-	exit, trap, err = run.Run(e.Env, payload, e.Services, nil)
+	registry := e.Services(input, output)
+
+	exit, trap, err = run.Run(e.Env, payload, registry, nil)
 	if err != nil {
 		internal = true
 	} else if trap != 0 || exit != 0 {

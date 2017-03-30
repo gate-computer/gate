@@ -19,6 +19,7 @@ import (
 	"github.com/tsavola/gate/service"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/echo"
+	"github.com/tsavola/gate/service/origin"
 )
 
 type readWriteCloser struct {
@@ -120,7 +121,9 @@ func main() {
 	}
 	defer conn.Close()
 
-	// TODO: origin: conn
+	origin.DefaultFactory.R = conn
+	origin.DefaultFactory.W = conn
+
 	exit, trap, err := run.Run(env, payload, service.DefaultRegistry, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
