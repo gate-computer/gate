@@ -18,6 +18,7 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/service \
 	$(GOPACKAGEPREFIX)/service/defaults \
 	$(GOPACKAGEPREFIX)/service/echo \
+	$(GOPACKAGEPREFIX)/service/origin \
 	$(GOPACKAGEPREFIX)/service/peer
 
 export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
