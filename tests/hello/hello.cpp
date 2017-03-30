@@ -2,12 +2,14 @@
 
 #include <gate.h>
 
+#define ORIGIN 1 // TODO
+
 long workaround;
-void (*indirection)(const gate_op_header *);
+void (*indirection)(const gate_packet *);
 
 namespace {
 
-void implementation(const gate_op_header *p)
+void implementation(const gate_packet *p)
 {
 	gate_send_packet(p);
 }
@@ -36,12 +38,12 @@ public:
 		return buf + header_size;
 	}
 
-	const gate_op_header *op_data(enum gate_op_code code, uint16_t flags = 0)
+	const gate_packet *op_data(uint16_t code, uint16_t flags = 0)
 	{
-		gate_op_header *header = reinterpret_cast<gate_op_header *> (buf);
+		gate_packet *header = reinterpret_cast<gate_packet *> (buf);
 		header->size = size;
-		header->code = code;
 		header->flags = flags;
+		header->code = code;
 		return header;
 	}
 
@@ -64,7 +66,7 @@ int main()
 	if (p.size > gate_max_packet_size)
 		return 1;
 
-	indirection(p.op_data(GATE_OP_CODE_ORIGIN));
+	indirection(p.op_data(ORIGIN));
 
 	return 0;
 }

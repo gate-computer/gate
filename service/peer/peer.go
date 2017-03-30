@@ -12,9 +12,8 @@ const (
 	Name    = "peer"
 	Version = 0
 
-	headerSize            = 8
-	messageHeaderSize     = headerSize + 4
-	peerMessageHeaderSize = messageHeaderSize + 4
+	packetHeaderSize     = 8
+	peerPacketHeaderSize = packetHeaderSize + 4
 )
 
 const (
@@ -59,23 +58,23 @@ func (g *Group) New() service.Instance {
 
 type peer struct {
 	group *Group
-	atom  uint32
+	code  uint16
 	id    uint64
 	queue queue
 }
 
 func (p *peer) Handle(op []byte, evs chan<- []byte) {
-	if p.atom == 0 {
-		p.atom = binary.LittleEndian.Uint32(op[headerSize:])
+	if p.code == 0 {
+		p.code = binary.LittleEndian.Uint16(op[6:])
 	}
 
-	if len(op) < peerMessageHeaderSize {
+	if len(op) < peerPacketHeaderSize {
 		// TODO: send error message ev
 		p.group.Log.Printf("peer %d: packet is too short", p.id)
 		return
 	}
 
-	action := op[messageHeaderSize]
+	action := op[packetHeaderSize]
 
 	switch action {
 	case opInit:
@@ -118,18 +117,18 @@ func (self *peer) handleMessageOp(buf []byte) {
 		return
 	}
 
-	if len(buf) < peerMessageHeaderSize+8 {
+	if len(buf) < peerPacketHeaderSize+8 {
 		// TODO: send error message ev
 		self.group.Log.Printf("peer %d: message: packet is too short", self.id)
 		return
 	}
 
-	otherId := binary.LittleEndian.Uint64(buf[peerMessageHeaderSize:])
+	otherId := binary.LittleEndian.Uint64(buf[peerPacketHeaderSize:])
 
-	binary.LittleEndian.PutUint32(buf[messageHeaderSize:], 0)
-	buf[messageHeaderSize] = evMessage
+	binary.LittleEndian.PutUint32(buf[packetHeaderSize:], 0)
+	buf[packetHeaderSize] = evMessage
 
-	binary.LittleEndian.PutUint64(buf[peerMessageHeaderSize:], self.id)
+	binary.LittleEndian.PutUint64(buf[peerPacketHeaderSize:], self.id)
 
 	self.group.lock.Lock()
 	other := self.group.peers[otherId]
@@ -159,11 +158,11 @@ func (self *peer) Shutdown() {
 	}
 }
 
-func (self *peer) notify(other *peer, code byte) {
-	ev := make([]byte, peerMessageHeaderSize+8)
-	binary.LittleEndian.PutUint32(ev[headerSize:], self.atom)
-	ev[messageHeaderSize] = code
-	binary.LittleEndian.PutUint64(ev[peerMessageHeaderSize:], other.id)
+func (self *peer) notify(other *peer, evCode byte) {
+	ev := make([]byte, peerPacketHeaderSize+8)
+	binary.LittleEndian.PutUint16(ev[6:], self.code)
+	ev[packetHeaderSize] = evCode
+	binary.LittleEndian.PutUint64(ev[peerPacketHeaderSize:], other.id)
 
 	self.queue.enqueue(ev, false)
 }

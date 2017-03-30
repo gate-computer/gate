@@ -2,6 +2,8 @@
 
 #include <gate.h>
 
+#define ORIGIN 1 // TODO
+
 int main(void)
 {
 	int idle = 0;
@@ -15,28 +17,28 @@ int main(void)
 		if (len == 0)
 			continue;
 
-		const struct gate_ev_header *ev = (void *) buf;
-		if (ev->code != GATE_EV_CODE_ORIGIN)
+		const struct gate_packet *ev = (void *) buf;
+		if (ev->code != ORIGIN)
 			continue;
 
-		if (len < sizeof (struct gate_ev_header) + 1)
+		if (len < sizeof (struct gate_packet) + 1)
 			gate_exit(1);
 
-		payload = buf[sizeof (struct gate_ev_header)];
+		payload = buf[sizeof (struct gate_packet)];
 		break;
 	}
 
-	size_t size = sizeof (struct gate_op_header) + 3;
+	size_t size = sizeof (struct gate_packet) + 3;
 	char buf[size];
 
-	struct gate_op_header *op = (void *) buf;
+	struct gate_packet *op = (void *) buf;
 	op->size = size;
-	op->code = GATE_OP_CODE_ORIGIN;
 	op->flags = 0;
+	op->code = ORIGIN;
 
-	buf[sizeof (struct gate_op_header) + 0] = idle;
-	buf[sizeof (struct gate_op_header) + 1] = idle >> 8;
-	buf[sizeof (struct gate_op_header) + 2] = payload;
+	buf[sizeof (struct gate_packet) + 0] = idle;
+	buf[sizeof (struct gate_packet) + 1] = idle >> 8;
+	buf[sizeof (struct gate_packet) + 2] = payload;
 
 	gate_send_packet(op);
 	return 0;

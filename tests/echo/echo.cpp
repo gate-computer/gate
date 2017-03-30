@@ -6,87 +6,79 @@
 #define SERVICE "echo"
 #define CONTENT "ECHO.. Echo.. echo..\n"
 
-struct ServicesOp {
-	gate_op_header header;
-	gate_op_services payload;
+struct ServiceNamePacket {
+	gate_service_name_packet packet;
 	char names[sizeof (SERVICE)];
 } __attribute__ ((packed));
 
-struct ServicesEv {
-	gate_ev_header header;
-	gate_ev_services payload;
-} __attribute__ ((packed));
-
 struct MessageOp {
-	gate_op_header header;
-	uint32_t service;
+	gate_packet header;
 	char content[sizeof (CONTENT)];
 } __attribute__ ((packed));
 
 struct MessageEv {
-	struct {
-		gate_ev_header er;
-		uint32_t service;
-	} head;
+	gate_packet header;
 	char content[0];
 } __attribute__ ((packed));
 
-static uint32_t get_service_atom()
+static uint16_t get_service_code()
 {
-	const ServicesOp op = {
-		.header = {
-			.size = sizeof (op),
-			.code = GATE_OP_CODE_SERVICES,
-		},
-		.payload = {
+	const ServiceNamePacket op = {
+		.packet = {
+			.header = {
+				.size = sizeof (op),
+			},
 			.count = 1,
 		},
 		.names = SERVICE,
 	};
-	gate_send_packet(&op.header);
+	gate_send_packet(&op.packet.header);
 
 	while (1) {
 		char buf[gate_max_packet_size];
 		gate_recv_packet(buf, gate_max_packet_size, 0);
-		auto ev = reinterpret_cast<const ServicesEv *> (buf);
-		if (ev->header.code == GATE_EV_CODE_SERVICES)
-			return ev->payload.infos[0].atom;
+		auto ev = reinterpret_cast<const gate_service_info_packet *> (buf);
+		if (ev->header.code == 0)
+			return ev->infos[0].code;
 	}
 }
 
-static void send_message(uint32_t service)
+static void send_message(uint16_t code)
 {
 	const MessageOp op = {
 		.header = {
 			.size = sizeof (op),
-			.code = GATE_OP_CODE_MESSAGE,
+			.code = code,
 		},
-		.service = service,
 		.content = CONTENT,
 	};
 	gate_send_packet(&op.header);
 }
 
-static MessageEv *recv_message(char *buf, size_t bufsize, uint32_t service)
+static MessageEv *recv_message(char *buf, size_t bufsize, uint16_t code)
 {
 	while (1) {
 		gate_recv_packet(buf, bufsize, 0);
 		auto ev = reinterpret_cast<MessageEv *> (buf);
-		if (ev->head.er.code == GATE_EV_CODE_MESSAGE && ev->head.service == service)
+		if (ev->header.code == code)
 			return ev;
 	}
 }
 
 int main()
 {
-	auto service = get_service_atom();
+	auto code = get_service_code();
+	if (code == 0) {
+		gate_debug("No such service: echo\n");
+		return 1;
+	}
 
-	send_message(service);
+	send_message(code);
 
 	char buf[gate_max_packet_size];
-	const auto reply = recv_message(buf, gate_max_packet_size, service);
+	const auto reply = recv_message(buf, gate_max_packet_size, code);
 
-	auto length = reply->head.er.size - sizeof (reply->head);
+	auto length = reply->header.size - sizeof (reply->header);
 	if (length != sizeof (CONTENT)) {
 		gate_debug("Length mismatch\n");
 		return 1;

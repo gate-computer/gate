@@ -6,15 +6,13 @@ import (
 )
 
 const (
-	serviceInfoSize    = 8
-	servicesHeaderSize = headerSize + 8
-
-	messageHeaderSize = headerSize + 4
+	servicePacketHeaderSize = packetHeaderSize + 8
+	serviceInfoSize         = 8
 )
 
 type ServiceInfo struct {
-	Atom    uint32
-	Version uint32
+	Code    uint16
+	Version int32
 }
 
 type ServiceRegistry interface {
@@ -35,31 +33,30 @@ func (noServices) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 	return
 }
 
-func handleServicesOp(op []byte, services ServiceRegistry) (ev []byte, err error) {
-	if len(op) < servicesHeaderSize {
-		err = errors.New("services op: packet is too short")
+func handleServicesPacket(request []byte, services ServiceRegistry) (response []byte, err error) {
+	if len(request) < servicePacketHeaderSize {
+		err = errors.New("service discovery packet is too short")
 		return
 	}
 
-	count := endian.Uint32(op[headerSize:])
+	count := endian.Uint32(request[packetHeaderSize+4:])
 	if count > maxServices {
-		err = errors.New("services op: too many services requested")
+		err = errors.New("too many services requested")
 		return
 	}
 
-	size := servicesHeaderSize + 8*count
-	ev = make([]byte, size)
-	endian.PutUint32(ev[0:], uint32(size))
-	endian.PutUint16(ev[4:], evCodeServices)
-	endian.PutUint32(ev[headerSize:], count)
+	size := servicePacketHeaderSize + serviceInfoSize*count
+	response = make([]byte, size)
+	endian.PutUint32(response[0:], uint32(size))
+	endian.PutUint32(response[packetHeaderSize+4:], count)
 
-	nameBuf := op[servicesHeaderSize:]
-	infoBuf := ev[servicesHeaderSize:]
+	nameBuf := request[servicePacketHeaderSize:]
+	infoBuf := response[servicePacketHeaderSize:]
 
 	for i := uint32(0); i < count; i++ {
 		nameLen := bytes.IndexByte(nameBuf, 0)
 		if nameLen < 0 {
-			err = errors.New("services op: name data is truncated")
+			err = errors.New("name string is truncated in service discovery packet")
 			return
 		}
 
@@ -67,36 +64,10 @@ func handleServicesOp(op []byte, services ServiceRegistry) (ev []byte, err error
 		nameBuf = nameBuf[nameLen+1:]
 
 		info := services.Info(name)
-		endian.PutUint32(infoBuf[0:], info.Atom)
-		endian.PutUint32(infoBuf[4:], info.Version)
+		endian.PutUint16(infoBuf[0:], info.Code)
+		endian.PutUint32(infoBuf[4:], uint32(info.Version))
 		infoBuf = infoBuf[serviceInfoSize:]
 	}
 
 	return
-}
-
-func handleMessageOp(op []byte) (msg []byte, err error) {
-	if len(op) < messageHeaderSize {
-		err = errors.New("message op: packet is too short")
-		return
-	}
-
-	// hide packet flags from service implementations
-	endian.PutUint16(op[6:], 0)
-
-	msg = op
-	return
-}
-
-func initMessageEv(ev []byte) []byte {
-	if len(ev) < messageHeaderSize || len(ev) > maxPacketSize {
-		panic(errors.New("invalid message ev packet buffer length"))
-	}
-
-	// service implementations may use packet header as scratch space
-	endian.PutUint32(ev[0:], uint32(len(ev)))
-	endian.PutUint16(ev[4:], evCodeMessage)
-	endian.PutUint16(ev[6:], 0)
-
-	return ev
 }

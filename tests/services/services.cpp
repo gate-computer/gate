@@ -5,62 +5,51 @@
 
 #define NAMES "test1\0test2"
 
-struct ServicesOp {
-	struct gate_op_header header;
-	struct gate_op_services payload;
-} __attribute__ ((packed));
-
-struct ServicesEv {
-	struct gate_ev_header header;
-	struct gate_ev_services payload;
-} __attribute__ ((packed));
-
 int main()
 {
-	auto op_size = sizeof (ServicesOp) + sizeof (NAMES);
+	auto op_size = sizeof (gate_service_name_packet) + sizeof (NAMES);
 	char op_buf[op_size];
 	memset(op_buf, 0, op_size);
-	auto op = reinterpret_cast<ServicesOp *> (op_buf);
+	auto op = reinterpret_cast<gate_service_name_packet *> (op_buf);
 	op->header.size = op_size;
-	op->header.code = GATE_OP_CODE_SERVICES;
-	op->payload.count = 2;
-	memcpy(op->payload.names, NAMES, sizeof (NAMES));
+	op->count = 2;
+	memcpy(op->names, NAMES, sizeof (NAMES));
 	gate_send_packet(&op->header);
 
 	char ev_buf[gate_max_packet_size];
-	const ServicesEv *ev;
+	const gate_service_info_packet *ev;
 	do {
 		gate_recv_packet(ev_buf, gate_max_packet_size, 0);
-		ev = reinterpret_cast<ServicesEv *> (ev_buf);
-	} while (ev->header.code != GATE_EV_CODE_SERVICES);
+		ev = reinterpret_cast<gate_service_info_packet *> (ev_buf);
+	} while (ev->header.code != 0 || ev->header.size == sizeof (gate_packet));
 
-	if (ev->payload.count != 2) {
+	if (ev->count != 2) {
 		gate_debug("Unexpected number of service entries\n");
 		return 1;
 	}
 
-	if (ev->payload.infos[0].atom != 1) {
-		gate_debug("Unexpected test1 service atom\n");
+	if (ev->infos[0].code != 2) {
+		gate_debug("Unexpected test1 service code\n");
 		return 1;
 	}
 
-	if (ev->payload.infos[0].version != 1337) {
+	if (ev->infos[0].version != 1337) {
 		gate_debug("Unexpected test1 service version\n");
 		return 1;
 	}
 
-	if (ev->payload.infos[1].atom != 2) {
-		gate_debug("Unexpected test2 service atom\n");
+	if (ev->infos[1].code != 3) {
+		gate_debug("Unexpected test2 service code\n");
 		return 1;
 	}
 
-	if (ev->payload.infos[1].version != 12765) {
+	if (ev->infos[1].version != 12765) {
 		gate_debug("Unexpected test2 service version\n");
 		return 1;
 	}
 
-	auto atoms_size = ev->header.size - sizeof (ev->header) - 8;
-	if (atoms_size != ev->payload.count * sizeof (gate_service_info)) {
+	auto codes_size = ev->header.size - sizeof (ev->header) - 8;
+	if (codes_size != ev->count * sizeof (gate_service_info)) {
 		gate_debug("Inconsistent packet size\n");
 		return 1;
 	}

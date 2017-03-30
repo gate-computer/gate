@@ -10,7 +10,7 @@ const (
 	Name    = "echo"
 	Version = 0
 
-	messageHeaderSize = 8 + 4
+	packetHeaderSize = 8
 )
 
 type Logger interface {
@@ -41,11 +41,11 @@ type echo struct {
 	log Logger
 }
 
-func (e *echo) Handle(op []byte, evs chan<- []byte) {
-	evs <- op
+func (e *echo) Handle(buf []byte, replies chan<- []byte) {
+	replies <- buf
 
 	if e.log != nil {
-		msg := op[messageHeaderSize:]
+		msg := buf[packetHeaderSize:]
 		e.log.Printf("instance %d: %#v", e.id, string(msg))
 	}
 }

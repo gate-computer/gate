@@ -8,22 +8,26 @@
 		getInfo(name) {
 			console.log("getting info of service", name)
 
-			var atom
-			var version
+			var code
+			var version = 0
 
 			switch (name) {
+			case "origin":
+				code = 1
+				break
+
 			case "test1":
-				atom = 1
+				code = 2
 				version = 1337
 				break
 
 			case "test2":
-				atom = 2
+				code = 3
 				version = 12765
 				break
 			}
 
-			return {atom, version}
+			return {code, version}
 		},
 
 		createMessenger(sendMessage) {
@@ -31,18 +35,30 @@
 
 			return {
 				handleMessage(op) {
-					let header = new DataView(op)
-					let atom = header.getUint32(8, true)
-					var ok = false
-
-					switch (atom) {
+					switch (new DataView(op).getUint16(6, true)) {
 					case 1:
-					case 2:
-						ok = true
-						break
-					}
+						if (op.byteLength == 8) {
+							console.log("origin: EOF")
+							return
+						}
 
-					return ok
+						let bytes = new Uint8Array(op, 8)
+						var text = ""
+
+						for (var i = 0; i < bytes.length; i++)
+							text += String.fromCharCode(bytes[i])
+
+						console.log("origin:", bytes, text)
+						break
+
+					case 2:
+					case 3:
+						// ok
+						break
+
+					default:
+						throw "invalid service code"
+					}
 				},
 
 				shutdown() {
@@ -50,21 +66,6 @@
 				},
 			}
 		},
-	}
-
-	function handleOrigin(data) {
-		if (data.byteLength == 0) {
-			console.log("origin: EOF")
-			return
-		}
-
-		let bytes = new Uint8Array(data)
-		var text = ""
-
-		for (var i = 0; i < bytes.length; i++)
-			text += String.fromCharCode(bytes[i])
-
-		console.log("origin:", bytes, text)
 	}
 
 	var exited = false
@@ -82,18 +83,8 @@
 	xhr.send()
 	xhr.onload = () => {
 		let runner = new Gate.Runner(xhr.response, serviceRegistry)
-		runner.onorigin = handleOrigin
 		runner.onexit = handleExit
 		runner.run()
-
-		setTimeout(() => {
-			if (exited)
-				return
-
-			let data = new DataView(new ArrayBuffer(1))
-			data.setUint8(0, 43)
-			runner.sendOrigin(data.buffer)
-		}, 333)
 	}
 }())
 

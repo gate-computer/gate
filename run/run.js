@@ -4,21 +4,11 @@
 	const MAX_PACKET_SIZE = 0x10000
 	const MAX_SERVICES    = 100
 
-	const HEADER_SIZE          = 8
-	const SERVICES_HEADER_SIZE = HEADER_SIZE + 8
-	const MESSAGE_HEADER_SIZE  = HEADER_SIZE + 4
+	const PACKET_HEADER_SIZE         = 8
+	const SERVICE_PACKET_HEADER_SIZE = PACKET_HEADER_SIZE + 8
+	const SERVICE_INFO_SIZE          = 8
 
-	const OP_CODE_NONE     = 0
-	const OP_CODE_ORIGIN   = 1
-	const OP_CODE_SERVICES = 2
-	const OP_CODE_MESSAGE  = 3
-
-	const OP_FLAG_POLLOUT = 0x1
-
-	const EV_CODE_POLLOUT  = 0
-	const EV_CODE_ORIGIN   = 1
-	const EV_CODE_SERVICES = 2
-	const EV_CODE_MESSAGE  = 3
+	const PACKET_FLAG_POLLOUT = 0x1
 
 	let Gate = {
 		scriptUrl: "../",
@@ -29,7 +19,6 @@
 
 	function Runner(wasm, serviceRegistry) {
 		let runner = this
-		runner.onorigin = null
 		runner.onexit = null
 
 		let token = Math.random().toString()
@@ -45,65 +34,60 @@
 			sendBuffer = null
 		}
 
-		function send(ev) {
+		function send(data) {
 			if (sendBuffer === null)
-				socket.send(ev)
+				socket.send(data)
 			else
-				sendBuffer.push(ev)
+				sendBuffer.push(data)
 		}
 
 		var pollout = false
 
 		function sendPollout() {
-			let ev = new ArrayBuffer(HEADER_SIZE)
-			let header = new DataView(ev, 0, HEADER_SIZE)
-			header.setUint32(0, ev.byteLength, true)
-			header.setUint16(4, EV_CODE_POLLOUT, true)
-			socket.send(ev)
+			let buf = new ArrayBuffer(PACKET_HEADER_SIZE)
+			let header = new DataView(buf, 0, PACKET_HEADER_SIZE)
+			header.setUint32(0, buf.byteLength, true)
+			header.setUint16(4, PACKET_FLAG_POLLOUT, true)
+			socket.send(buf)
 			pollout = false
 		}
 
-		runner.sendOrigin = (payload) => {
-			let ev = new ArrayBuffer(HEADER_SIZE + payload.byteLength)
-			let header = new DataView(ev)
-			header.setUint32(0, ev.byteLength, true)
-			header.setUint16(4, EV_CODE_ORIGIN, true)
-			new Uint8Array(ev, HEADER_SIZE).set(payload)
-			send(ev)
-		}
+		let messenger = serviceRegistry.createMessenger((buf) => {
+			if (buf.byteLength < PACKET_HEADER_SIZE || buf.byteLength > MAX_PACKET_SIZE)
+				throw "invalid outgoing message packet buffer length"
 
-		let messenger = serviceRegistry.createMessenger((ev) => {
-			if (ev.byteLength < MESSAGE_HEADER_SIZE || ev.byteLength > MAX_PACKET_SIZE)
-				throw "invalid ev packet buffer length"
+			let header = new DataView(buf)
 
-			let header = new DataView(packet)
-			header.setUint32(ev.byteLength, true)
-			header.setUint16(EV_CODE_MESSAGE, true)
-			header.setUint16(0, true)
-			send(ev)
+			if (header.getUint16(6, true) == 0)
+				throw "service code is zero in outgoing message packet header"
+
+			header.setUint32(0, buf.byteLength, true)
+			header.setUint16(4, 0, true)
+
+			send(buf)
 		})
 
-		function handleServices(op) {
-			if (op.byteLength < SERVICES_HEADER_SIZE)
-				throw "services op: packet is too short"
+		function handleServices(requestBuf) {
+			if (requestBuf.byteLength < SERVICE_PACKET_HEADER_SIZE)
+				throw "service discovery packet is too short"
 
-			let count = op.getUint32(HEADER_SIZE, true)
+			let request = new DataView(requestBuf)
+			let count = request.getUint32(PACKET_HEADER_SIZE+4, true)
 			if (count > MAX_SERVICES)
-				throw "services op: too many services requested"
+				throw "too many services requested"
 
-			let evBuf = new ArrayBuffer(SERVICES_HEADER_SIZE + 8*count)
-			let ev = new DataView(evBuf)
-			ev.setUint32(0, evBuf.byteLength, true)
-			ev.setUint16(4, EV_CODE_SERVICES, true)
-			ev.setUint32(HEADER_SIZE, count, true)
+			let responseBuf = new ArrayBuffer(SERVICE_PACKET_HEADER_SIZE + SERVICE_INFO_SIZE*count)
+			let response = new DataView(responseBuf)
+			response.setUint32(0, responseBuf.byteLength, true)
+			response.setUint32(PACKET_HEADER_SIZE+4, count, true)
 
-			var nameBuf = new Uint8Array(op.buffer, SERVICES_HEADER_SIZE)
-			var evOffset = SERVICES_HEADER_SIZE
+			var nameBuf = new Uint8Array(requestBuf, SERVICE_PACKET_HEADER_SIZE)
+			var responseOffset = SERVICE_PACKET_HEADER_SIZE
 
 			for (var i = 0; i < count; i++) {
 				let nameLen = nameBuf.indexOf(0)
 				if (nameLen < 0)
-					throw "services op: name data is truncated"
+					throw "name string is truncated in service discovery packet"
 
 				var name = ""
 				for (var j = 0; j < nameLen; j++)
@@ -111,58 +95,36 @@
 
 				nameBuf = nameBuf.slice(nameLen+1)
 
-				let {atom, version} = serviceRegistry.getInfo(name)
-				ev.setUint32(evOffset + 0, atom, true)
-				ev.setUint32(evOffset + 4, version, true)
-				evOffset += 8
+				let {code, version} = serviceRegistry.getInfo(name)
+				response.setUint16(responseOffset + 0, code, true)
+				response.setUint32(responseOffset + 4, version, true)
+				responseOffset += SERVICE_INFO_SIZE
 			}
 
-			send(evBuf)
-		}
-
-		function handleMessage(op) {
-			if (opBuf.byteLength < MESSAGE_HEADER_SIZE)
-				throw "message op: packet is too short"
-
-			if (!messenger.handleMessage(op.buffer))
-				throw "message op: invalid service atom"
+			send(responseBuf)
 		}
 
 		socket.onmessage = (event) => {
-			let opBuf = event.data
-			let op = new DataView(opBuf)
-			let size = op.getUint32(0, true)
+			let buf = event.data
+			let header = new DataView(buf)
+			let size = header.getUint32(0, true)
 
-			if (size != opBuf.byteLength)
-				throw "inconsistent op packet size"
+			if (size != buf.byteLength)
+				throw "inconsistent incoming packet size"
 
-			let code = op.getUint16(4, true)
-			let flags = op.getUint16(6, true)
+			let flags = header.getUint16(4, true)
+			let code = header.getUint16(6, true)
 
-			if ((flags & OP_FLAG_POLLOUT) != 0 && !pollout) {
+			if ((flags & PACKET_FLAG_POLLOUT) != 0 && !pollout) {
 				pollout = true
 				setTimeout(sendPollout)
 			}
 
-			switch (code) {
-			case OP_CODE_NONE:
-				break
-
-			case OP_CODE_ORIGIN:
-				if (runner.onorigin)
-					runner.onorigin(opBuf.slice(HEADER_SIZE))
-				break
-
-			case OP_CODE_SERVICES:
-				handleServices(op)
-				break
-
-			case OP_CODE_MESSAGE:
-				handleMessage(op)
-				break
-
-			default:
-				throw code
+			if (code === 0) {
+				if (size > PACKET_HEADER_SIZE)
+					handleServices(buf)
+			} else {
+				messenger.handleMessage(buf)
 			}
 		}
 

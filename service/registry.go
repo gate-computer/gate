@@ -28,17 +28,17 @@ type Registry struct {
 	infos     map[string]run.ServiceInfo
 }
 
-func (r *Registry) Register(name string, version uint32, f Factory) {
+func (r *Registry) Register(name string, version int32, f Factory) {
 	if r.infos == nil {
 		r.infos = make(map[string]run.ServiceInfo)
 	}
 
 	r.factories = append(r.factories, f)
-	atom := uint32(len(r.factories))
-	r.infos[name] = run.ServiceInfo{Atom: atom, Version: version}
+	code := uint16(len(r.factories))
+	r.infos[name] = run.ServiceInfo{Code: code, Version: version}
 }
 
-func (r *Registry) RegisterFunc(name string, version uint32, f func() Instance) {
+func (r *Registry) RegisterFunc(name string, version int32, f func() Instance) {
 	r.Register(name, version, FactoryFunc(f))
 }
 
@@ -49,20 +49,20 @@ func (r *Registry) Info(name string) run.ServiceInfo {
 func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 	defer close(evs)
 
-	instances := make(map[uint32]Instance)
+	instances := make(map[uint16]Instance)
 	defer shutdown(instances)
 
 	for op := range ops {
-		atom := binary.LittleEndian.Uint32(op[8:])
-		inst, found := instances[atom]
+		code := binary.LittleEndian.Uint16(op[6:])
+		inst, found := instances[code]
 		if !found {
-			index := atom - 1 // underflow wraps around
+			index := uint32(code) - 1 // underflow wraps around
 			if index >= uint32(len(r.factories)) {
-				err = errors.New("invalid service atom")
+				err = errors.New("invalid service code")
 				return
 			}
 			inst = r.factories[index].New()
-			instances[atom] = inst
+			instances[code] = inst
 		}
 		inst.Handle(op, evs)
 	}
@@ -70,7 +70,7 @@ func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 	return
 }
 
-func shutdown(instances map[uint32]Instance) {
+func shutdown(instances map[uint16]Instance) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 

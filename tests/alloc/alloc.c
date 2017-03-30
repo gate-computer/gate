@@ -6,19 +6,21 @@
 
 #include <gate.h>
 
+#define ORIGIN 1 // TODO
+
 static const int num_garbage_slots = 2;
 static void *garbage[num_garbage_slots];
 
 static void do_it(int c, int n)
 {
-	size_t size = sizeof (struct gate_op_header) + n + 1;
+	size_t size = sizeof (struct gate_packet) + n + 1;
 
-	struct gate_op_header *buf = calloc(size, sizeof (char));
+	struct gate_packet *buf = calloc(size, sizeof (char));
 	if (buf == NULL)
 		gate_exit(1);
 
 	buf->size = size;
-	buf->code = GATE_OP_CODE_ORIGIN;
+	buf->code = ORIGIN;
 
 	memset(buf + 1, c, n);
 	((char *) (buf + 1))[n] = '\n';

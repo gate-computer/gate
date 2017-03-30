@@ -120,7 +120,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	exit, trap, err := run.Run(env, payload, conn, service.DefaultRegistry, os.Stderr)
+	// TODO: origin: conn
+	exit, trap, err := run.Run(env, payload, service.DefaultRegistry, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	} else if trap != 0 {

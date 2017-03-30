@@ -27,56 +27,37 @@ extern "C" {
 # endif
 #endif
 
+#define GATE_RECV_FLAG_NONBLOCK 0x1
+
+#define GATE_PACKET_FLAG_POLLOUT 0x1
+
 enum gate_func_id {
 	__GATE_FUNC_RESERVED
 };
 
-#define GATE_RECV_FLAG_NONBLOCK 0x1
-
-enum gate_op_code {
-	GATE_OP_CODE_NONE,
-	GATE_OP_CODE_ORIGIN,
-	GATE_OP_CODE_SERVICES,
-	GATE_OP_CODE_MESSAGE,
-};
-
-#define GATE_OP_FLAG_POLLOUT 0x1
-
-struct gate_op_header {
+struct gate_packet {
 	uint32_t size;
-	uint16_t code;
 	uint16_t flags;
-} GATE_PACKED;
-
-enum gate_ev_code {
-	GATE_EV_CODE_POLLOUT,
-	GATE_EV_CODE_ORIGIN,
-	GATE_EV_CODE_SERVICES,
-	GATE_EV_CODE_MESSAGE,
-};
-
-struct gate_ev_header {
-	uint32_t size;
 	uint16_t code;
-	uint16_t __reserved;
 } GATE_PACKED;
 
 struct gate_service_info {
-	uint32_t atom;
-	uint32_t version;
+	uint16_t code;
+	uint16_t __reserved;
+	int32_t version;
 } GATE_PACKED;
 
-// gate_op_services represents the payload of a GATE_OP_CODE_SERVICES packet.
-struct gate_op_services {
-	uint32_t count;
+struct gate_service_name_packet {
+	struct gate_packet header;
 	uint32_t __reserved;
+	uint32_t count;
 	char names[0]; // variable length
 } GATE_PACKED;
 
-// gate_ev_services represents the payload of a GATE_EV_CODE_SERVICES packet.
-struct gate_ev_services {
-	uint32_t count;
+struct gate_service_info_packet {
+	struct gate_packet header;
 	uint32_t __reserved;
+	uint32_t count;
 	struct gate_service_info infos[0]; // variable length
 } GATE_PACKED;
 
@@ -123,26 +104,26 @@ static inline size_t gate_recv_packet(void *buf, size_t size, unsigned int flags
 	unsigned int other_flags = flags & ~(unsigned int) GATE_RECV_FLAG_NONBLOCK;
 
 	if ((flags & GATE_RECV_FLAG_NONBLOCK) != 0) {
-		size_t remain = __gate_recv(buf, sizeof (struct gate_ev_header), flags);
-		if (remain == sizeof (struct gate_ev_header))
+		size_t remain = __gate_recv(buf, sizeof (struct gate_packet), flags);
+		if (remain == sizeof (struct gate_packet))
 			return 0;
 
 		if (remain > 0) {
-			size_t n = sizeof (struct gate_ev_header) - remain;
+			size_t n = sizeof (struct gate_packet) - remain;
 			__gate_recv((char *) buf + n, remain, other_flags);
 		}
 	} else {
-		__gate_recv(buf, sizeof (struct gate_ev_header), other_flags);
+		__gate_recv(buf, sizeof (struct gate_packet), other_flags);
 	}
 
-	const struct gate_ev_header *header = (struct gate_ev_header *) buf;
+	const struct gate_packet *header = (struct gate_packet *) buf;
 
-	__gate_recv((char *) buf + sizeof (struct gate_ev_header), header->size - sizeof (struct gate_ev_header), other_flags);
+	__gate_recv((char *) buf + sizeof (struct gate_packet), header->size - sizeof (struct gate_packet), other_flags);
 
 	return header->size;
 }
 
-static inline void gate_send_packet(const struct gate_op_header *packet) GATE_NOEXCEPT
+static inline void gate_send_packet(const struct gate_packet *packet) GATE_NOEXCEPT
 {
 	__gate_send(packet, packet->size);
 }

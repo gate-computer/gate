@@ -88,7 +88,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 	defer payload.Close()
 
-	exit, trap, err := run.Run(env, payload, readWriter{new(bytes.Buffer), &output}, testServiceRegistry{}, os.Stdout)
+	exit, trap, err := run.Run(env, payload, &testServiceRegistry{origin: &output}, os.Stdout)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
@@ -112,32 +112,43 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	return
 }
 
-type testServiceRegistry struct{}
+type testServiceRegistry struct {
+	origin io.Writer
+}
 
-func (testServiceRegistry) Info(name string) (info run.ServiceInfo) {
+func (services *testServiceRegistry) Info(name string) (info run.ServiceInfo) {
 	switch name {
+	case "origin":
+		info.Code = 1
+		info.Version = 0
+
 	case "test1":
-		info.Atom = 1
+		info.Code = 2
 		info.Version = 1337
 
 	case "test2":
-		info.Atom = 2
+		info.Code = 3
 		info.Version = 12765
 	}
 
 	return
 }
 
-func (testServiceRegistry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
+func (services *testServiceRegistry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 	defer close(evs)
 
 	for op := range ops {
-		switch binary.LittleEndian.Uint32(op[8:]) {
-		case 1, 2:
+		switch binary.LittleEndian.Uint16(op[6:]) {
+		case 1:
+			if _, err := services.origin.Write(op[8:]); err != nil {
+				panic(err)
+			}
+
+		case 2, 3:
 			// ok
 
 		default:
-			err = errors.New("invalid service atom")
+			err = errors.New("invalid service code")
 			return
 		}
 	}
