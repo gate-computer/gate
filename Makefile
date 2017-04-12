@@ -44,6 +44,7 @@ check: all
 	$(GO) test -race -v $(GOPACKAGES)
 	bin/runner tests/echo/prog.wasm
 	bin/runner tests/hello/prog.wasm
+	bin/runner tests/peer/prog.wasm
 
 clean:
 	rm -rf bin lib pkg

@@ -1,7 +1,7 @@
 export WAGTOOLCHAIN_ALLOCATE_STACK := 1048576
 
 CPPFLAGS	+= -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include
-CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -ffreestanding -Oz
+CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -ffreestanding -Oz
 CXXFLAGS	+= -std=c++14
 
 SOURCE		?= $(firstword $(wildcard *.c *.cpp))
