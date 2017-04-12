@@ -13,7 +13,7 @@ const (
 	Version = 0
 
 	packetHeaderSize     = 8
-	peerPacketHeaderSize = packetHeaderSize + 4
+	peerPacketHeaderSize = packetHeaderSize + 8
 )
 
 const (

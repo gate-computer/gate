@@ -20,7 +20,7 @@ enum peer_ev_type {
 struct peer_packet {
 	struct gate_packet header;
 	uint8_t type;
-	uint8_t padding[3];
+	uint8_t padding[7];
 } GATE_PACKED;
 
 struct peer_id_packet {
