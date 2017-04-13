@@ -127,7 +127,7 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 
 	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("environment: %v", err)
 	}
 
 	var ns sections.NameSection
@@ -139,14 +139,14 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 
 	err = m.Load(bufio.NewReader(wasm), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("module: %v", err)
 	}
 
 	_, memorySize := m.MemoryLimits()
 
 	payload, err := run.NewPayload(&m, memorySize, int32(stackSize))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("payload: %v", err)
 	}
 	defer payload.Close()
 
@@ -166,7 +166,7 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 	if dumpStack {
 		err := payload.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
 		if err != nil {
-			log.Print(err)
+			log.Printf("stacktrace: %v", err)
 		}
 	}
 }
