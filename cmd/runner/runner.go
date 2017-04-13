@@ -98,8 +98,16 @@ func main() {
 
 	done := make(chan struct{}, len(args))
 
-	for _, arg := range args {
-		go execute(arg, done)
+	for i, arg := range args {
+		var r run.ServiceRegistry
+
+		if i == 0 {
+			r = service.Defaults
+		} else {
+			r = origin.CloneRegistryWith(service.Defaults, nil, os.Stdout)
+		}
+
+		go execute(arg, r, done)
 	}
 
 	for range args {
@@ -107,7 +115,7 @@ func main() {
 	}
 }
 
-func execute(filename string, done chan<- struct{}) {
+func execute(filename string, services run.ServiceRegistry, done chan<- struct{}) {
 	defer func() {
 		done <- struct{}{}
 	}()
@@ -146,7 +154,7 @@ func execute(filename string, done chan<- struct{}) {
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
 	}
 
-	exit, trap, err := run.Run(env, payload, service.Defaults, os.Stderr)
+	exit, trap, err := run.Run(env, payload, services, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	} else if trap != 0 {
