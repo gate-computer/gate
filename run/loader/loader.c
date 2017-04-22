@@ -170,7 +170,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 	__builtin_unreachable();
 }
 
-static int main(void)
+static int main()
 {
 	struct __attribute__ ((packed)) {
 		uint32_t page_size;
@@ -232,7 +232,7 @@ static int main(void)
 }
 
 __attribute__ ((noreturn))
-void _start(void)
+void _start()
 {
 	sys_exit(main());
 }

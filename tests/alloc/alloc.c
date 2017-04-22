@@ -41,10 +41,8 @@ static void do_it(int c, int n)
 	}
 }
 
-int main(void)
+void main()
 {
 	for (int i = 33; i < 127; i++)
 		do_it(i, i - 32);
-
-	return 0;
 }

@@ -120,7 +120,7 @@ static struct peer_service peer_service = {
 	},
 };
 
-static void send_peer_init_packet(void)
+static void send_peer_init_packet()
 {
 	const struct peer_packet packet = {
 		.header = {
@@ -133,7 +133,7 @@ static void send_peer_init_packet(void)
 	gate_send_packet(&packet.header);
 }
 
-static void send_peer_message_packet(void)
+static void send_peer_message_packet()
 {
 	const struct peer_id_packet packet = {
 		.peer_header = {
@@ -149,7 +149,7 @@ static void send_peer_message_packet(void)
 	gate_send_packet(&packet.peer_header.header);
 }
 
-int main(void)
+void main()
 {
 	struct gate_service_registry *r = gate_service_registry_create();
 	if (r == NULL)
@@ -180,6 +180,4 @@ int main(void)
 			message_sent = true;
 		}
 	}
-
-	return 0;
 }

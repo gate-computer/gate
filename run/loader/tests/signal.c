@@ -18,11 +18,11 @@ static void test_handler(int signum)
 	);
 }
 
-int main(void)
+int main()
 {
 	// TODO: static assert
 	if (GATE_SIGNAL_STACK_R9_OFFSET != sizeof (void *) + (size_t) &(((struct ucontext *) 0)->uc_mcontext.gregs[1]))
-		return -1;
+		return 1;
 
 	void *stackptr_main;
 

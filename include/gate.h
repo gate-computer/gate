@@ -64,8 +64,8 @@ struct gate_service_info_packet {
 // extern const int __gate_abi_version;
 // extern const size_t __gate_max_packet_size;
 
-extern GATE_CONSTFUNC int __gate_get_abi_version(void) GATE_NOEXCEPT;
-extern GATE_CONSTFUNC size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC int __gate_get_abi_version() GATE_NOEXCEPT;
+extern GATE_CONSTFUNC size_t __gate_get_max_packet_size() GATE_NOEXCEPT;
 
 #define gate_abi_version     (__gate_get_abi_version())
 #define gate_max_packet_size (__gate_get_max_packet_size())

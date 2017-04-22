@@ -4,7 +4,7 @@
 
 #define ORIGIN 1 // TODO
 
-int main(void)
+void main()
 {
 	int idle = 0;
 	char payload;
@@ -41,5 +41,4 @@ int main(void)
 	buf[sizeof (struct gate_packet) + 2] = payload;
 
 	gate_send_packet(op);
-	return 0;
 }
