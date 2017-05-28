@@ -27,7 +27,8 @@ const (
 )
 
 func TestAlloc(t *testing.T) {
-	testRun(t, "alloc")
+	output := testRun(t, "alloc")
+	t.Log(string(output.Bytes()))
 }
 
 func TestHello(t *testing.T) {
