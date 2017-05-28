@@ -41,7 +41,7 @@ all: build
 check: all
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
-	$(GO) test -race -v $(GOPACKAGES)
+	$(GO) test -race $(GOPACKAGES)
 	bin/runner tests/echo/prog.wasm
 	bin/runner tests/hello/prog.wasm
 	bin/runner tests/peer/prog.wasm tests/peer/prog.wasm
