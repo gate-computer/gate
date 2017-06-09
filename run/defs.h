@@ -18,3 +18,11 @@
 
 #define GATE_ABI_VERSION     0
 #define GATE_MAX_PACKET_SIZE 0x10000
+
+#define GATE_LIMIT_AS (0x80000000LL + /* rodata */ \
+                       0x1000LL     + /* loader .runtime section */ \
+                       0x80000000LL + /* text */ \
+                       0x80000000LL + /* globals + memory */ \
+                       0x80000000LL)  /* stack */
+
+#define GATE_LIMIT_FILENO GATE_WAKEUP_FD
