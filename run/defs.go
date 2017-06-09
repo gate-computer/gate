@@ -8,6 +8,9 @@ import (
 
 const (
 	RODataAddr = 0x10000
+
+	minTextAddr = 0x000200000000
+	maxTextAddr = 0x7f0000000000 - 0x200000000
 )
 
 const (

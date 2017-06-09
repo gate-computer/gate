@@ -1,6 +1,7 @@
 package run
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -17,10 +18,6 @@ import (
 	"github.com/tsavola/gate/internal/memfd"
 )
 
-const (
-	textAddr = 0x400000000 // TODO: randomize
-)
-
 var (
 	pageSize = os.Getpagesize()
 )
@@ -28,6 +25,17 @@ var (
 func roundToPage(size int) uint32 {
 	mask := uint32(pageSize) - 1
 	return (uint32(size) + mask) &^ mask
+}
+
+func randTextAddr() uint64 {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	minPage := minTextAddr / uint64(pageSize)
+	maxPage := maxTextAddr / uint64(pageSize)
+	page := minPage + uint64(endian.Uint32(b))%(maxPage-minPage)
+	return page * uint64(pageSize)
 }
 
 type envFunc struct {
@@ -224,7 +232,7 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 		info: payloadInfo{
 			PageSize:       uint32(pageSize),
 			RODataSize:     roDataSize,
-			TextAddr:       textAddr,
+			TextAddr:       randTextAddr(),
 			TextSize:       textSize,
 			MemoryOffset:   uint32(memoryOffset),
 			InitMemorySize: uint32(initMemorySize),
@@ -293,7 +301,7 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	}
 	defer syscall.Munmap(stack)
 
-	return writeStacktraceTo(w, stack, funcMap, callMap, funcSigs, ns)
+	return writeStacktraceTo(w, payload.info.TextAddr, stack, funcMap, callMap, funcSigs, ns)
 }
 
 func Run(env *Environment, payload *Payload, services ServiceRegistry, debug io.Writer) (exit int, trap traps.Id, err error) {
