@@ -173,9 +173,10 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 static int main()
 {
 	struct __attribute__ ((packed)) {
+		uint64_t text_addr;
+		uint64_t heap_addr;
 		uint32_t page_size;
 		uint32_t rodata_size;
-		uint64_t text_addr;
 		uint32_t text_size;
 		uint32_t memory_offset;
 		uint32_t init_memory_size;
@@ -202,8 +203,8 @@ static int main()
 	void *memory_ptr = NULL;
 
 	if (globals_memory_size > 0) {
-		void *ptr = sys_mmap(NULL, globals_memory_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE, GATE_MAPS_FD, globals_memory_offset);
-		if (ptr == MAP_FAILED)
+		void *ptr = sys_mmap((void *) info.heap_addr, globals_memory_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, globals_memory_offset);
+		if (ptr != (void *) info.heap_addr)
 			return 23;
 
 		memory_ptr = ptr + info.memory_offset;

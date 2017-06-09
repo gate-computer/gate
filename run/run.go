@@ -27,13 +27,19 @@ func roundToPage(size int) uint32 {
 	return (uint32(size) + mask) &^ mask
 }
 
-func randTextAddr() uint64 {
-	b := make([]byte, 4)
+func randAddrs() (textAddr, heapAddr uint64) {
+	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
 		panic(err)
 	}
-	minPage := minTextAddr / uint64(pageSize)
-	maxPage := maxTextAddr / uint64(pageSize)
+	textAddr = randAddr(minTextAddr, maxTextAddr, b[0:4])
+	heapAddr = randAddr(minHeapAddr, maxHeapAddr, b[4:8])
+	return
+}
+
+func randAddr(minAddr, maxAddr uint64, b []byte) uint64 {
+	minPage := minAddr / uint64(pageSize)
+	maxPage := maxAddr / uint64(pageSize)
 	page := minPage + uint64(endian.Uint32(b))%(maxPage-minPage)
 	return page * uint64(pageSize)
 }
@@ -156,9 +162,10 @@ func (env *Environment) ImportGlobal(module, field string, t types.T) (value uin
 }
 
 type payloadInfo struct {
+	TextAddr       uint64
+	HeapAddr       uint64
 	PageSize       uint32
 	RODataSize     uint32
-	TextAddr       uint64
 	TextSize       uint32
 	MemoryOffset   uint32
 	InitMemorySize uint32
@@ -227,12 +234,15 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 		return
 	}
 
+	textAddr, heapAddr := randAddrs()
+
 	payload = &Payload{
 		maps: maps,
 		info: payloadInfo{
+			TextAddr:       textAddr,
+			HeapAddr:       heapAddr,
 			PageSize:       uint32(pageSize),
 			RODataSize:     roDataSize,
-			TextAddr:       randTextAddr(),
 			TextSize:       textSize,
 			MemoryOffset:   uint32(memoryOffset),
 			InitMemorySize: uint32(initMemorySize),
