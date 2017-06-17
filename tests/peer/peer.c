@@ -85,31 +85,12 @@ static struct peer_service peer_service = {
 
 static void send_peer_init_packet()
 {
-	const struct peer_packet packet = {
-		.header = {
-			.size = sizeof (packet),
-			.code = peer_service.parent.code,
-		},
-		.type = PEER_OP_INIT,
-	};
-
-	gate_send_packet(&packet.header);
+	peer_send_init_packet(peer_service.parent.code);
 }
 
 static void send_peer_message_packet()
 {
-	const struct peer_id_packet packet = {
-		.peer_header = {
-			.header = {
-				.size = sizeof (packet),
-				.code = peer_service.parent.code,
-			},
-			.type = PEER_OP_MESSAGE,
-		},
-		.peer_id = peer_service.my_peer_id,
-	};
-
-	gate_send_packet(&packet.peer_header.header);
+	peer_send_message_packet(peer_service.parent.code, peer_service.my_peer_id);
 }
 
 void main()
