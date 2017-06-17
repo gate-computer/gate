@@ -2,6 +2,7 @@
 
 #include <gate.h>
 #include <gate/service-inline.h>
+#include <gate/services/origin.h>
 #include <gate/services/peer.h>
 
 #define container_of(ptr, type, member) ({ \
@@ -22,21 +23,8 @@ static void send_origin_packet(const char *msg)
 {
 	gate_debug(msg);
 
-	if (origin_service.code == 0)
-		return;
-
-	size_t msglen = strlen(msg);
-	size_t size = sizeof (struct gate_packet) + msglen;
-	char buf[size];
-	struct gate_packet *header = (struct gate_packet *) buf;
-
-	memset(buf, 0, sizeof (struct gate_packet));
-	header->size = size;
-	header->code = origin_service.code;
-
-	memcpy(buf + sizeof (struct gate_packet), msg, msglen);
-
-	gate_send_packet(header);
+	if (origin_service.code)
+		origin_send_packet(origin_service.code, msg, strlen(msg));
 }
 
 struct peer_service {
