@@ -98,7 +98,7 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 
 static inline size_t gate_recv_packet(void *buf, size_t size, unsigned int flags) GATE_NOEXCEPT
 {
-	if (size < gate_max_packet_size)
+	if (size > gate_max_packet_size)
 		gate_exit(1);
 
 	unsigned int other_flags = flags & ~(unsigned int) GATE_RECV_FLAG_NONBLOCK;
