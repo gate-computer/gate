@@ -12,7 +12,7 @@ import (
 
 func main() {
 	var (
-		url      = "ws://localhost:8888/execute"
+		url      = "ws://localhost:8888"
 		wasmName = "tests/test2/prog.wasm"
 	)
 

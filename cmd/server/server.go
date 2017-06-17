@@ -67,7 +67,7 @@ func main() {
 		Log:             log.New(os.Stderr, "", 0),
 	}
 
-	http.Handle("/execute", e.Handler())
+	http.Handle("/", e.Handler())
 
 	if letsencrypt {
 		if !acceptTOS {
