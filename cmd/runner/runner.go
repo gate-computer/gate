@@ -120,11 +120,6 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		done <- struct{}{}
 	}()
 
-	wasm, err := os.Open(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
 	if err != nil {
 		log.Fatalf("environment: %v", err)
@@ -137,7 +132,7 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err = m.Load(bufio.NewReader(wasm), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err = load(&m, filename, env)
 	if err != nil {
 		log.Fatalf("module: %v", err)
 	}
@@ -169,4 +164,15 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 			log.Printf("stacktrace: %v", err)
 		}
 	}
+}
+
+func load(m *wag.Module, filename string, env *run.Environment) (err error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	err = m.Load(bufio.NewReader(f), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	return
 }
