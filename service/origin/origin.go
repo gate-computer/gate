@@ -46,11 +46,8 @@ type origin struct {
 func (o *origin) Handle(buf []byte, replies chan<- []byte) {
 	if o.w != nil {
 		if _, err := o.w.Write(buf[packetHeaderSize:]); err != nil {
-			if err == io.EOF {
-				o.w = nil
-			} else {
-				panic(err)
-			}
+			// assume that the error is EOF, broken pipe or such
+			o.w = nil
 		}
 	}
 }
