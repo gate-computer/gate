@@ -30,7 +30,7 @@ struct peer_id_packet {
 	uint64_t peer_id;
 } GATE_PACKED;
 
-static inline void peer_send_init_packet(uint16_t code)
+static inline void peer_send_init(uint16_t code)
 {
 	const struct peer_packet packet = {
 		.header = {
@@ -43,7 +43,7 @@ static inline void peer_send_init_packet(uint16_t code)
 	gate_send_packet(&packet.header);
 }
 
-static inline void peer_send_message_packet(uint16_t code, uint64_t peer_id)
+static inline void peer_send_message(uint16_t code, uint64_t peer_id)
 {
 	const struct peer_id_packet packet = {
 		.peer_header = {
