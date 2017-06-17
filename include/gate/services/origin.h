@@ -6,6 +6,8 @@
 
 #include "../../gate.h"
 
+#define ORIGIN_SERVICE_NAME "origin"
+
 static inline void origin_send_packet(uint16_t code, const void *msg, size_t msglen)
 {
 	if (msglen > gate_max_packet_size - sizeof (struct gate_packet))

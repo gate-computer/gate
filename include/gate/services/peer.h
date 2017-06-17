@@ -5,6 +5,8 @@
 
 #include "../../gate.h"
 
+#define PEER_SERVICE_NAME "peer"
+
 enum peer_op_type {
 	PEER_OP_INIT,
 	PEER_OP_MESSAGE,

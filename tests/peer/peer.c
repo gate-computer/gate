@@ -15,7 +15,7 @@ static void origin_packet_received(struct gate_service *service, void *data, siz
 }
 
 static struct gate_service origin_service = {
-	.name = "origin",
+	.name = ORIGIN_SERVICE_NAME,
 	.received = origin_packet_received,
 };
 
@@ -78,7 +78,7 @@ static void peer_packet_received(struct gate_service *parent, void *data, size_t
 
 static struct peer_service peer_service = {
 	.parent = {
-		.name = "peer",
+		.name = PEER_SERVICE_NAME,
 		.received = peer_packet_received,
 	},
 };
