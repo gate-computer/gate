@@ -68,7 +68,6 @@ func main() {
 	}
 
 	http.Handle("/execute", e.Handler())
-	http.Handle("/execute-custom", e.CustomHandler())
 
 	if letsencrypt {
 		if !acceptTOS {
