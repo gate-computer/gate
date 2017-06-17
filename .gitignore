@@ -1,3 +1,10 @@
+*.bc
+*.o
+*.s
+*.wast
+
+prog.*
+
 /bin/
 /config.mk
 /lib/
