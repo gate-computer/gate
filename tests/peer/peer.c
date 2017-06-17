@@ -17,8 +17,6 @@ static struct gate_service origin_service = {
 	.received = origin_packet_received,
 };
 
-int dummy;
-
 static void send_origin_packet(const char *msg)
 {
 	gate_debug(msg);
@@ -37,8 +35,7 @@ static void send_origin_packet(const char *msg)
 
 	memcpy(buf + sizeof (struct gate_packet), msg, msglen);
 
-	if (dummy == 0) // avoids broken module (or wag bug)
-		gate_send_packet(header);
+	gate_send_packet(header);
 }
 
 enum peer_op_type {
