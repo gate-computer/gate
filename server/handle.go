@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/gorilla/websocket"
@@ -24,6 +23,7 @@ type Executor struct {
 	Env             *run.Environment
 	Services        func(io.Reader, io.Writer) run.ServiceRegistry
 	Log             Logger
+	Debug           io.Writer
 }
 
 func (e *Executor) Handler() http.Handler {
@@ -141,11 +141,11 @@ func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer
 
 	registry := e.Services(input, output)
 
-	exit, trap, err = run.Run(e.Env, payload, registry, nil)
+	exit, trap, err = run.Run(e.Env, payload, registry, e.Debug)
 	if err != nil {
 		internal = true
-	} else if trap != 0 || exit != 0 {
-		err := payload.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
+	} else if (trap != 0 || exit != 0) && e.Debug != nil {
+		err := payload.DumpStacktrace(e.Debug, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
 		if err != nil {
 			e.Log.Printf("%s error: %v", r.RemoteAddr, err)
 		}

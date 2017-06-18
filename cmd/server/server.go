@@ -41,6 +41,7 @@ func main() {
 		email         = ""
 		acceptTOS     = false
 		certCacheDir  = "/var/lib/gate-httpserver-letsencrypt"
+		debug         = false
 	)
 
 	flag.StringVar(&executor, "executor", executor, "filename")
@@ -51,6 +52,7 @@ func main() {
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
 	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
 	flag.StringVar(&certCacheDir, "cert-cache-dir", certCacheDir, "certificate storage")
+	flag.BoolVar(&debug, "debug", debug, "write payload programs' debug output to stderr")
 	flag.Parse()
 	domains := flag.Args()
 
@@ -65,6 +67,10 @@ func main() {
 		Env:             env,
 		Services:        services,
 		Log:             log.New(os.Stderr, "", 0),
+	}
+
+	if debug {
+		e.Debug = os.Stderr
 	}
 
 	http.Handle("/", e.Handler())
