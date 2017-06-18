@@ -54,9 +54,11 @@ func (o *origin) Handle(buf []byte, replies chan<- []byte) {
 	}
 
 	if o.w != nil {
-		if _, err := o.w.Write(buf[packetHeaderSize:]); err != nil {
-			// assume that the error is EOF, broken pipe or such
-			o.w = nil
+		if content := buf[packetHeaderSize:]; len(content) > 0 {
+			if _, err := o.w.Write(content); err != nil {
+				// assume that the error is EOF, broken pipe or such
+				o.w = nil
+			}
 		}
 	}
 }
