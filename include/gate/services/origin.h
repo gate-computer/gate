@@ -8,6 +8,17 @@
 
 #define ORIGIN_SERVICE_NAME "origin"
 
+static inline void origin_send_packet(void *buf, size_t size, uint16_t code)
+{
+	struct gate_packet *header = (struct gate_packet *) buf;
+
+	memset(buf, 0, sizeof (struct gate_packet));
+	header->size = size;
+	header->code = code;
+
+	gate_send_packet(header);
+}
+
 static inline void origin_send(uint16_t code, const void *msg, size_t msglen)
 {
 	if (msglen > gate_max_packet_size - sizeof (struct gate_packet))
@@ -15,15 +26,10 @@ static inline void origin_send(uint16_t code, const void *msg, size_t msglen)
 
 	size_t size = sizeof (struct gate_packet) + msglen;
 	char buf[size];
-	struct gate_packet *header = (struct gate_packet *) buf;
-
-	memset(buf, 0, sizeof (struct gate_packet));
-	header->size = size;
-	header->code = code;
 
 	memcpy(buf + sizeof (struct gate_packet), msg, msglen);
 
-	gate_send_packet(header);
+	origin_send_packet(buf, size, code);
 }
 
 static inline void origin_send_str(uint16_t code, const char *msg)
