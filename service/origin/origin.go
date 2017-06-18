@@ -76,7 +76,6 @@ func (o *origin) readLoop(code []byte, replies chan<- []byte) {
 
 		n, err := o.r.Read(buf[packetHeaderSize:])
 		if err != nil {
-			o.r = nil
 			return
 		}
 
