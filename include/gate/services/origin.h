@@ -31,4 +31,9 @@ static inline void origin_send_str(uint16_t code, const char *msg)
 	origin_send(code, msg, strlen(msg));
 }
 
+static inline void origin_send_init(uint16_t code)
+{
+	origin_send(code, NULL, 0);
+}
+
 #endif
