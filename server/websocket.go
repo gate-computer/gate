@@ -20,19 +20,24 @@ func newWebSocketReader(conn *websocket.Conn) *webSocketReader {
 }
 
 func (r *webSocketReader) Read(buf []byte) (n int, err error) {
-	if r.frame == nil {
-		_, r.frame, err = r.conn.NextReader()
-		if err != nil {
+	for {
+		if r.frame == nil {
+			_, r.frame, err = r.conn.NextReader()
+			if err != nil {
+				return
+			}
+		}
+
+		n, err = r.frame.Read(buf)
+		if err == io.EOF {
+			r.frame = nil
+			err = nil
+		}
+
+		if n != 0 || err != nil {
 			return
 		}
 	}
-
-	n, err = r.frame.Read(buf)
-	if err == io.EOF {
-		r.frame = nil
-		err = nil
-	}
-	return
 }
 
 type webSocketWriter struct {
