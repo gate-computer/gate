@@ -9,6 +9,7 @@ TESTS		:= $(dir $(wildcard tests/*/Makefile))
 -include config.mk
 
 GOPACKAGES := \
+	$(GOPACKAGEPREFIX) \
 	$(GOPACKAGEPREFIX)/cmd/runner \
 	$(GOPACKAGEPREFIX)/cmd/server \
 	$(GOPACKAGEPREFIX)/cmd/webio \

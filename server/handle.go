@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/wasm"
 
+	"github.com/tsavola/gate"
 	"github.com/tsavola/gate/run"
 )
 
@@ -45,31 +47,30 @@ func (e *Executor) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (e *Executor) handlePost(w http.ResponseWriter, r *http.Request) {
-	e.Log.Printf("%s begin", r.RemoteAddr)
-	defer e.Log.Printf("%s end", r.RemoteAddr)
-
 	input := bufio.NewReader(r.Body)
 	output := new(bytes.Buffer)
 
-	exit, trap, err, internal := e.execute(input, input, output, r)
-	if err != nil {
-		e.Log.Printf("%s error: %v", r.RemoteAddr, err)
-		if internal {
-			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.Header().Set("Content-Type", "text/plain")
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintln(w, err)
-		}
+	result, bug := e.executeResult(input, input, output, r)
+	if bug {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if trap != 0 {
-		w.Header().Set("X-Gate-Trap", trap.String())
-	} else {
-		w.Header().Set("X-Gate-Exit", strconv.Itoa(exit))
+	resultJson, err := json.Marshal(result)
+	if err != nil {
+		panic(err)
+	}
+	w.Header().Set(gate.ResultHTTPHeaderName, string(resultJson))
+
+	if result.Error != "" {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintln(w, result.Error)
+		return
 	}
 
+	w.Header().Set("Content-Length", strconv.Itoa(output.Len()))
+	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Write(output.Bytes())
 }
 
@@ -85,37 +86,45 @@ func (e *Executor) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	e.Log.Printf("%s begin", r.RemoteAddr)
-	defer e.Log.Printf("%s end", r.RemoteAddr)
-
 	_, wasm, err := conn.NextReader()
 	if err != nil {
 		e.Log.Printf("%s error: %v", r.RemoteAddr, err)
 		return
 	}
 
-	msg := make(map[string]interface{})
-
-	exit, trap, err, internal := e.execute(bufio.NewReader(wasm), newWebSocketReader(conn), webSocketWriter{conn}, r)
-	if err != nil {
-		e.Log.Printf("%s error: %v", r.RemoteAddr, err)
-		if internal {
-			msg["error"] = "internal"
-		} else {
-			msg["error"] = err.Error()
-		}
-	} else if trap != 0 {
-		msg["trap"] = trap.String()
-	} else {
-		msg["exit"] = exit
+	result, bug := e.executeResult(bufio.NewReader(wasm), newWebSocketReader(conn), webSocketWriter{conn}, r)
+	if bug {
+		result.Error = "internal server error"
 	}
 
-	if conn.WriteJSON(msg) == nil {
+	if conn.WriteJSON(result) == nil {
 		conn.WriteMessage(websocket.CloseMessage, webSocketClose)
 	}
 }
 
-func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer, r *http.Request) (exit int, trap traps.Id, err error, internal bool) {
+func (e *Executor) executeResult(wasm *bufio.Reader, input io.Reader, output io.Writer, r *http.Request) (result gate.Result, internal bool) {
+	exit, trap, err, internal := e.execute(wasm, input, output, r)
+
+	switch {
+	case internal:
+
+	case err != nil:
+		result.Error = err.Error()
+
+	case trap != 0:
+		result.Trap = trap.String()
+
+	default:
+		result.Exit = exit
+	}
+
+	return
+}
+
+func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer, r *http.Request) (exit int, trap traps.Id, err error, bug bool) {
+	e.Log.Printf("%s begin", r.RemoteAddr)
+	defer e.Log.Printf("%s end", r.RemoteAddr)
+
 	var ns sections.NameSection
 
 	m := wag.Module{
@@ -141,12 +150,12 @@ func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer
 
 	registry := e.Services(input, output)
 
-	exit, trap, err = run.Run(e.Env, payload, registry, e.Debug)
-	if err != nil {
-		internal = true
+	exit, trap, runErr := run.Run(e.Env, payload, registry, e.Debug)
+	if runErr != nil {
+		e.Log.Printf("%s error: %v", r.RemoteAddr, runErr)
+		bug = true
 	} else if (trap != 0 || exit != 0) && e.Debug != nil {
-		err := payload.DumpStacktrace(e.Debug, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
-		if err != nil {
+		if err := payload.DumpStacktrace(e.Debug, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns); err != nil {
 			e.Log.Printf("%s error: %v", r.RemoteAddr, err)
 		}
 	}
