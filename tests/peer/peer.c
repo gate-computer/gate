@@ -110,7 +110,7 @@ void main()
 		gate_recv_for_services(r, 0);
 
 		if (peer_service.my_peer_id && !message_sent) {
-			peer_send_message(peer_service.parent.code, peer_service.my_peer_id);
+			peer_send_message(peer_service.parent.code, peer_service.my_peer_id, NULL, 0);
 			message_sent = true;
 		}
 	}
