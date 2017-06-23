@@ -12,6 +12,7 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX) \
 	$(GOPACKAGEPREFIX)/cmd/runner \
 	$(GOPACKAGEPREFIX)/cmd/server \
+	$(GOPACKAGEPREFIX)/cmd/talk \
 	$(GOPACKAGEPREFIX)/cmd/webio \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
@@ -37,6 +38,8 @@ all: build
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C run/loader/tests
+	$(MAKE) -C cmd/talk/payload
+	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/cmd/talk
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
 check: all
@@ -54,6 +57,7 @@ clean:
 	$(MAKE) -C run/loader/tests clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
+	$(MAKE) -C cmd/talk/payload clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
 .PHONY: build all check clean
