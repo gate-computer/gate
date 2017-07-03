@@ -48,6 +48,7 @@ check: all
 	$(GO) test -race $(GOPACKAGES)
 	bin/runner tests/echo/prog.wasm
 	bin/runner tests/hello/prog.wasm
+	bin/runner tests/nop/prog.wasm
 	bin/runner tests/peer/prog.wasm tests/peer/prog.wasm
 
 clean:
