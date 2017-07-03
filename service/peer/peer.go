@@ -2,16 +2,9 @@ package peer
 
 import (
 	"encoding/binary"
-	"sync"
-	"sync/atomic"
-
-	"github.com/tsavola/gate/service"
 )
 
 const (
-	Name    = "peer"
-	Version = 0
-
 	packetHeaderSize     = 8
 	peerPacketHeaderSize = packetHeaderSize + 8
 )
@@ -28,34 +21,6 @@ const (
 	evRemoved
 )
 
-var (
-	Default = new(Group)
-
-	prevId uint64 // atomic
-)
-
-func Register(r *service.Registry) {
-	service.Register(r, Name, Version, Default)
-}
-
-type Logger interface {
-	Printf(string, ...interface{})
-}
-
-type Group struct {
-	Log Logger
-
-	lock  sync.Mutex
-	peers map[uint64]*peer
-}
-
-func (g *Group) New() service.Instance {
-	return &peer{
-		group: g,
-		id:    atomic.AddUint64(&prevId, 1),
-	}
-}
-
 type peer struct {
 	group *Group
 	code  uint16
@@ -63,14 +28,14 @@ type peer struct {
 	queue queue
 }
 
-func (p *peer) Handle(op []byte, evs chan<- []byte) {
-	if p.code == 0 {
-		p.code = binary.LittleEndian.Uint16(op[6:])
+func (self *peer) Handle(op []byte, evs chan<- []byte) {
+	if self.code == 0 {
+		self.code = binary.LittleEndian.Uint16(op[6:])
 	}
 
 	if len(op) < peerPacketHeaderSize {
 		// TODO: send error message ev
-		p.group.Log.Printf("peer %d: packet is too short", p.id)
+		self.group.Log.Printf("peer %d: packet is too short", self.id)
 		return
 	}
 
@@ -78,14 +43,14 @@ func (p *peer) Handle(op []byte, evs chan<- []byte) {
 
 	switch action {
 	case opInit:
-		p.handleInitOp(evs)
+		self.handleInitOp(evs)
 
 	case opMessage:
-		p.handleMessageOp(op)
+		self.handleMessageOp(op)
 
 	default:
 		// TODO: send error message ev
-		p.group.Log.Printf("peer %d: invalid action: %d", p.id, action)
+		self.group.Log.Printf("peer %d: invalid action: %d", self.id, action)
 		return
 	}
 }
@@ -165,70 +130,4 @@ func (self *peer) notify(other *peer, evCode byte) {
 	binary.LittleEndian.PutUint64(ev[peerPacketHeaderSize:], other.id)
 
 	self.queue.enqueue(ev, false)
-}
-
-type queue struct {
-	buffer   [][]byte
-	shutdown bool
-	wakeup   chan struct{}
-	stopped  chan struct{}
-	sink     chan<- []byte
-}
-
-func (q *queue) inited() bool {
-	return q.wakeup != nil
-}
-
-func (q *queue) init(lock sync.Locker, sink chan<- []byte) {
-	q.wakeup = make(chan struct{}, 1)
-	q.stopped = make(chan struct{})
-	q.sink = sink
-	go q.loop(lock)
-}
-
-func (q *queue) enqueue(item []byte, shutdown bool) {
-	if shutdown {
-		q.shutdown = true
-	} else {
-		q.buffer = append(q.buffer, item)
-	}
-
-	select {
-	case q.wakeup <- struct{}{}:
-	default:
-	}
-}
-
-func (q *queue) loop(lock sync.Locker) {
-	defer close(q.stopped)
-
-	var item []byte
-
-	for {
-		lock.Lock()
-		if item == nil && len(q.buffer) > 0 {
-			item = q.buffer[0]
-			q.buffer = q.buffer[1:]
-		}
-		shutdown := q.shutdown
-		lock.Unlock()
-
-		if shutdown {
-			break
-		}
-
-		var doSink chan<- []byte
-
-		if item != nil {
-			doSink = q.sink
-		}
-
-		select {
-		case <-q.wakeup:
-			// ok
-
-		case doSink <- item:
-			item = nil
-		}
-	}
 }
