@@ -96,6 +96,10 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
+	if len(args) == 1 {
+		log.SetPrefix(args[0] + ": ")
+	}
+
 	done := make(chan struct{}, len(args))
 
 	for i, arg := range args {
