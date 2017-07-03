@@ -48,8 +48,8 @@ check: all
 	$(GO) test -race $(GOPACKAGES)
 	bin/runner -dump-time tests/echo/prog.wasm
 	bin/runner -dump-time tests/hello/prog.wasm
-	bin/runner -dump-time tests/nop/prog.wasm
-	bin/runner tests/peer/prog.wasm tests/peer/prog.wasm
+	bin/runner -dump-time -repeat=1000 tests/nop/prog.wasm
+	bin/runner -dump-time tests/peer/prog.wasm tests/peer/prog.wasm
 
 clean:
 	rm -rf bin lib pkg

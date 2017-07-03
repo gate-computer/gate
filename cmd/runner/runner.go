@@ -28,7 +28,14 @@ type readWriteCloser struct {
 	io.WriteCloser
 }
 
+type timing struct {
+	loading time.Duration
+	running time.Duration
+	overall time.Duration
+}
+
 func init() {
+	log.SetFlags(0)
 	echo.Default.Log = log.New(os.Stderr, "echo service: ", 0)
 }
 
@@ -41,6 +48,7 @@ var (
 	dumpTime  = false
 	dumpText  = false
 	dumpStack = false
+	repeat    = 1
 )
 
 func main() {
@@ -66,9 +74,10 @@ func main() {
 	flag.StringVar(&loader, "loader", loader, "filename")
 	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
 	flag.IntVar(&stackSize, "stack-size", stackSize, "stack size")
-	flag.BoolVar(&dumpTime, "dump-time", dumpTime, "print timings running")
+	flag.BoolVar(&dumpTime, "dump-time", dumpTime, "print average timings per program")
 	flag.BoolVar(&dumpText, "dump-text", dumpText, "disassemble before running")
 	flag.BoolVar(&dumpStack, "dump-stack", dumpStack, "print stacktrace after running")
+	flag.IntVar(&repeat, "repeat", repeat, "repeat the program execution(s) multiple times")
 	flag.StringVar(&addr, "addr", addr, "I/O socket path (replaces stdio)")
 
 	flag.Parse()
@@ -99,30 +108,43 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
-	if len(args) == 1 {
-		log.SetPrefix(args[0] + ": ")
-	}
+	timings := make([]timing, len(args))
 
-	done := make(chan struct{}, len(args))
+	for round := 0; round < repeat; round++ {
+		done := make(chan struct{}, len(args))
 
-	for i, arg := range args {
-		var r run.ServiceRegistry
+		for i, arg := range args {
+			var r run.ServiceRegistry
 
-		if i == 0 {
-			r = service.Defaults
-		} else {
-			r = origin.CloneRegistryWith(service.Defaults, nil, os.Stdout)
+			if i == 0 {
+				r = service.Defaults
+			} else {
+				r = origin.CloneRegistryWith(service.Defaults, nil, os.Stdout)
+			}
+
+			go execute(arg, r, &timings[i], done)
 		}
 
-		go execute(arg, r, done)
+		for range args {
+			<-done
+		}
 	}
 
-	for range args {
-		<-done
+	if dumpTime {
+		for i, arg := range args {
+			output := func(title string, sum time.Duration) {
+				avg := sum / time.Duration(repeat)
+				log.Printf("%s "+title+": %6d.%03dµs", arg, avg/time.Microsecond, avg%time.Microsecond)
+			}
+
+			output("loading time", timings[i].loading)
+			output("running time", timings[i].running)
+			output("overall time", timings[i].overall)
+		}
 	}
 }
 
-func execute(filename string, services run.ServiceRegistry, done chan<- struct{}) {
+func execute(filename string, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
 	defer func() {
 		done <- struct{}{}
 	}()
@@ -185,11 +207,9 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		}
 	}
 
-	if dumpTime {
-		log.Printf("loading time: %v", tLoadEnd.Sub(tLoadBegin))
-		log.Printf("running time: %v", tRunEnd.Sub(tRunBegin))
-		log.Printf("overall time: %v", tEnd.Sub(tBegin))
-	}
+	timing.loading += tLoadEnd.Sub(tLoadBegin)
+	timing.running += tRunEnd.Sub(tRunBegin)
+	timing.overall += tEnd.Sub(tBegin)
 }
 
 func load(m *wag.Module, filename string, env *run.Environment) (err error) {
