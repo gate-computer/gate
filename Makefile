@@ -46,9 +46,9 @@ check: all
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
-	bin/runner tests/echo/prog.wasm
-	bin/runner tests/hello/prog.wasm
-	bin/runner tests/nop/prog.wasm
+	bin/runner -dump-time tests/echo/prog.wasm
+	bin/runner -dump-time tests/hello/prog.wasm
+	bin/runner -dump-time tests/nop/prog.wasm
 	bin/runner tests/peer/prog.wasm tests/peer/prog.wasm
 
 clean:

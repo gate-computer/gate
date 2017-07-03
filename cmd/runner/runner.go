@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"time"
 
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/dewag"
@@ -37,6 +38,7 @@ var (
 	loaderSymbols string
 
 	stackSize = 16 * 1024 * 1024
+	dumpTime  = false
 	dumpText  = false
 	dumpStack = false
 )
@@ -64,6 +66,7 @@ func main() {
 	flag.StringVar(&loader, "loader", loader, "filename")
 	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
 	flag.IntVar(&stackSize, "stack-size", stackSize, "stack size")
+	flag.BoolVar(&dumpTime, "dump-time", dumpTime, "print timings running")
 	flag.BoolVar(&dumpText, "dump-text", dumpText, "disassemble before running")
 	flag.BoolVar(&dumpStack, "dump-stack", dumpStack, "print stacktrace after running")
 	flag.StringVar(&addr, "addr", addr, "I/O socket path (replaces stdio)")
@@ -124,10 +127,14 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		done <- struct{}{}
 	}()
 
+	tBegin := time.Now()
+
 	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
 	if err != nil {
 		log.Fatalf("environment: %v", err)
 	}
+
+	tLoadBegin := time.Now()
 
 	var ns sections.NameSection
 
@@ -141,6 +148,8 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		log.Fatalf("module: %v", err)
 	}
 
+	tLoadEnd := time.Now()
+
 	_, memorySize := m.MemoryLimits()
 
 	payload, err := run.NewPayload(&m, memorySize, int32(stackSize))
@@ -153,10 +162,17 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
 	}
 
+	tRunBegin := time.Now()
+
 	exit, trap, err := run.Run(env, payload, services, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
-	} else if trap != 0 {
+	}
+
+	tRunEnd := time.Now()
+	tEnd := tRunEnd
+
+	if trap != 0 {
 		log.Printf("trap: %s", trap)
 	} else if exit != 0 {
 		log.Printf("exit: %d", exit)
@@ -167,6 +183,12 @@ func execute(filename string, services run.ServiceRegistry, done chan<- struct{}
 		if err != nil {
 			log.Printf("stacktrace: %v", err)
 		}
+	}
+
+	if dumpTime {
+		log.Printf("loading time: %v", tLoadEnd.Sub(tLoadBegin))
+		log.Printf("running time: %v", tRunEnd.Sub(tRunBegin))
+		log.Printf("overall time: %v", tEnd.Sub(tBegin))
 	}
 }
 
