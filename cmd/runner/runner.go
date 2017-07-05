@@ -108,6 +108,11 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
+	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
+	if err != nil {
+		log.Fatalf("environment: %v", err)
+	}
+
 	timings := make([]timing, len(args))
 
 	for round := 0; round < repeat; round++ {
@@ -122,7 +127,7 @@ func main() {
 				r = origin.CloneRegistryWith(service.Defaults, nil, os.Stdout)
 			}
 
-			go execute(arg, r, &timings[i], done)
+			go execute(env, arg, r, &timings[i], done)
 		}
 
 		for range args {
@@ -144,19 +149,13 @@ func main() {
 	}
 }
 
-func execute(filename string, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
+func execute(env *run.Environment, filename string, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
 	defer func() {
 		done <- struct{}{}
 	}()
 
 	tBegin := time.Now()
-
-	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
-	if err != nil {
-		log.Fatalf("environment: %v", err)
-	}
-
-	tLoadBegin := time.Now()
+	tLoadBegin := tBegin
 
 	var ns sections.NameSection
 
@@ -165,7 +164,7 @@ func execute(filename string, services run.ServiceRegistry, timing *timing, done
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err = load(&m, filename, env)
+	err := load(&m, filename, env)
 	if err != nil {
 		log.Fatalf("module: %v", err)
 	}
