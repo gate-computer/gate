@@ -135,7 +135,7 @@ trap_handler:
 	mov	-8(%rsp), %rcx
 
 	// rewind return address before the call instruction that got us here
-	sub	$5, (%rsp)
+	subq	$5, (%rsp)
 	ret
 
 	.globl	__gate_send
