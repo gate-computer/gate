@@ -182,10 +182,14 @@ static int main()
 		uint32_t init_memory_size;
 		uint32_t grow_memory_size;
 		uint32_t stack_size;
+		uint32_t magic_number;
 	} info;
 
 	if (read_full(&info, sizeof (info)) != 0)
 		return 20;
+
+	if (info.magic_number != GATE_MAGIC_NUMBER)
+		return 55;
 
 	if (info.rodata_size > 0) {
 		void *ptr = sys_mmap((void *) GATE_RODATA_ADDR, info.rodata_size, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, 0);

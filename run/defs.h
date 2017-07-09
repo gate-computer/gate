@@ -26,3 +26,5 @@
                        0x80000000LL)  /* stack */
 
 #define GATE_LIMIT_FILENO GATE_WAKEUP_FD
+
+#define GATE_MAGIC_NUMBER 0x7e1c5d67

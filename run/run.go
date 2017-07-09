@@ -171,6 +171,7 @@ type payloadInfo struct {
 	InitMemorySize uint32
 	GrowMemorySize uint32
 	StackSize      uint32
+	MagicNumber    uint32
 }
 
 type Payload struct {
@@ -248,6 +249,7 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 			InitMemorySize: uint32(initMemorySize),
 			GrowMemorySize: uint32(growMemorySize),
 			StackSize:      uint32(stackSize),
+			MagicNumber:    magicNumber,
 		},
 	}
 	return

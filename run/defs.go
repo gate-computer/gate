@@ -22,6 +22,8 @@ const (
 	maxServices   = 100
 
 	packetHeaderSize = 8
+
+	magicNumber = 0x7e1c5d67
 )
 
 var (
