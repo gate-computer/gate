@@ -1,6 +1,6 @@
 CPPFLAGS	+= -DNDEBUG
 CFLAGS		+= -std=gnu99 -Os -g -Wall -Wextra -Wno-unused-parameter
-LDFLAGS		+=
+LDFLAGS		+= -static
 
 ../../bin/executor: executor.o
 	mkdir -p $(dir $@)
