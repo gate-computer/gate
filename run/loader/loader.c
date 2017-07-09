@@ -144,7 +144,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        sub     %%rsi, %%rdi                            \n"
 		"        mov     $"xstr(SYS_munmap)", %%eax              \n"
 		"        syscall                                         \n"
-		"        mov     $41, %%edi                              \n"
+		"        mov     $52, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
 		"        jne     runtime_exit                            \n"
 		// register suspend signal handler (using 32 bytes of stack red zone)
@@ -159,7 +159,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        xor     %%r9d, %%r9d                            \n" // clear suspend flag
 		"        mov     $"xstr(SYS_rt_sigaction)", %%eax        \n"
 		"        syscall                                         \n"
-		"        mov     $42, %%edi                              \n"
+		"        mov     $53, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
 		"        jne     runtime_exit                            \n"
 		// execute runtime
@@ -186,7 +186,7 @@ static int main()
 	} info;
 
 	if (read_full(&info, sizeof (info)) != 0)
-		return 20;
+		return 54;
 
 	if (info.magic_number != GATE_MAGIC_NUMBER)
 		return 55;
@@ -194,12 +194,12 @@ static int main()
 	if (info.rodata_size > 0) {
 		void *ptr = sys_mmap((void *) GATE_RODATA_ADDR, info.rodata_size, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, 0);
 		if (ptr != (void *) GATE_RODATA_ADDR)
-			return 21;
+			return 56;
 	}
 
 	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_EXEC, MAP_PRIVATE|MAP_NORESERVE|MAP_FIXED, GATE_MAPS_FD, info.rodata_size);
 	if (text_ptr != (void *) info.text_addr)
-		return 22;
+		return 57;
 
 	size_t globals_memory_offset = (size_t) info.rodata_size + (size_t) info.text_size;
 	size_t globals_memory_size = info.memory_offset + info.grow_memory_size;
@@ -209,7 +209,7 @@ static int main()
 	if (globals_memory_size > 0) {
 		void *ptr = sys_mmap((void *) info.heap_addr, globals_memory_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, globals_memory_offset);
 		if (ptr != (void *) info.heap_addr)
-			return 23;
+			return 58;
 
 		memory_ptr = ptr + info.memory_offset;
 	}
@@ -221,17 +221,17 @@ static int main()
 
 	void *stack_buf = sys_mmap(NULL, info.stack_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE|MAP_STACK, GATE_MAPS_FD, stack_offset);
 	if (stack_buf == MAP_FAILED)
-		return 24;
+		return 59;
 
 	void *stack_limit = stack_buf + GATE_SIGNAL_STACK_RESERVE;
 	void *stack_ptr = stack_buf + info.stack_size;
 
 	if (sys_close(GATE_MAPS_FD) != 0)
-		return 26;
+		return 60;
 
 	int nonblock_fd = sys_open(GATE_BLOCK_PATH, O_RDONLY|O_CLOEXEC|O_NONBLOCK, 0);
 	if (nonblock_fd != GATE_NONBLOCK_FD)
-		return 25;
+		return 61;
 
 	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit);
 }

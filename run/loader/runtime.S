@@ -22,7 +22,7 @@ runtime_start:
 	mov	$GATE_LOADER_TEXT_SIZE, %esi
 	mov     $SYS_munmap, %eax
 	syscall
-	mov     $41, %edi
+	mov     $50, %edi
 	test    %rax, %rax
 	jne     .Lexit
 
@@ -33,7 +33,7 @@ runtime_start:
 	xor	%r8d, %r8d
 	mov	$SYS_prctl, %eax
 	syscall
-	mov	$43, %edi
+	mov	$51, %edi
 	test	%rax, %rax
 	jne	.Lexit
 
