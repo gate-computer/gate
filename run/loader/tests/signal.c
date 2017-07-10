@@ -1,5 +1,9 @@
+#define _GNU_SOURCE
+
+#include <assert.h>
 #include <signal.h>
 #include <stdio.h>
+
 #include <unistd.h>
 
 #include "../../defs.h"
@@ -20,9 +24,7 @@ static void test_handler(int signum)
 
 int main()
 {
-	// TODO: static assert
-	if (GATE_SIGNAL_STACK_R9_OFFSET != sizeof (void *) + (size_t) &(((struct ucontext *) 0)->uc_mcontext.gregs[1]))
-		return 1;
+	static_assert(GATE_SIGNAL_STACK_R9_OFFSET == sizeof (void *) + (size_t) &(((struct ucontext *) 0)->uc_mcontext.gregs[1]), "position of saved r9 on signal stack");
 
 	void *stackptr_main;
 
