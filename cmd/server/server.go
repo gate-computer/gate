@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path"
 	"time"
 
 	"github.com/tsavola/wag/wasm"
@@ -27,26 +26,26 @@ const (
 )
 
 func main() {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	var (
-		executor      = path.Join(dir, "bin/executor")
-		loader        = path.Join(dir, "bin/loader")
-		loaderSymbols = loader + ".symbols"
-		addr          = "localhost:8888"
-		letsencrypt   = false
-		email         = ""
-		acceptTOS     = false
-		certCacheDir  = "/var/lib/gate-httpserver-letsencrypt"
-		debug         = false
+		config = run.Config{
+			LibDir:   "lib",
+			MaxProcs: run.DefaultMaxProcs,
+		}
+		addr         = "localhost:8888"
+		letsencrypt  = false
+		email        = ""
+		acceptTOS    = false
+		certCacheDir = "/var/lib/gate-httpserver-letsencrypt"
+		debug        = false
 	)
 
-	flag.StringVar(&executor, "executor", executor, "filename")
-	flag.StringVar(&loader, "loader", loader, "filename")
-	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
+	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
+	flag.UintVar(&config.Uids[0], "boot-uid", config.Uids[0], "user id for bootstrapping executor")
+	flag.UintVar(&config.Gids[0], "boot-gid", config.Gids[0], "group id for bootstrapping executor")
+	flag.UintVar(&config.Uids[1], "exec-uid", config.Uids[1], "user id for executing code")
+	flag.UintVar(&config.Gids[1], "exec-gid", config.Gids[1], "group id for executing code")
+	flag.UintVar(&config.Gids[2], "pipe-gid", config.Gids[2], "group id for file descriptor sharing")
+	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
@@ -56,10 +55,11 @@ func main() {
 	flag.Parse()
 	domains := flag.Args()
 
-	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
+	env, err := run.NewEnvironment(&config)
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer env.Close()
 
 	e := server.Executor{
 		MemorySizeLimit: memorySizeLimit,

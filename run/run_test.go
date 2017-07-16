@@ -7,7 +7,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/user"
 	"path"
+	"strconv"
 	"testing"
 
 	"github.com/tsavola/wag"
@@ -16,6 +18,14 @@ import (
 
 	"github.com/tsavola/gate/run"
 )
+
+func parseId(t *testing.T, s string) uint {
+	n, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return uint(n)
+}
 
 type readWriter struct {
 	io.Reader
@@ -48,14 +58,41 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		stackSize       = 4096
 	)
 
-	executorBin := os.Getenv("GATE_TEST_EXECUTOR")
-	loaderBin := os.Getenv("GATE_TEST_LOADER")
-	wasmPath := path.Join(os.Getenv("GATE_TEST_DIR"), testName, "prog.wasm")
-
-	env, err := run.NewEnvironment(executorBin, loaderBin, loaderBin+".symbols")
+	bootUser, err := user.Lookup(os.Getenv("GATE_TEST_BOOTUSER"))
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	execUser, err := user.Lookup(os.Getenv("GATE_TEST_EXECUSER"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pipeGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_PIPEGROUP"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := run.Config{
+		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
+		Uids: [2]uint{
+			parseId(t, bootUser.Uid),
+			parseId(t, execUser.Uid),
+		},
+		Gids: [3]uint{
+			parseId(t, bootUser.Gid),
+			parseId(t, execUser.Gid),
+			parseId(t, pipeGroup.Gid),
+		},
+	}
+
+	wasmPath := path.Join(os.Getenv("GATE_TEST_DIR"), testName, "prog.wasm")
+
+	env, err := run.NewEnvironment(&config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer env.Close()
 
 	f, err := os.Open(wasmPath)
 	if err != nil {

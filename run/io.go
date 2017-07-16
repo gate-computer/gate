@@ -9,7 +9,11 @@ import (
 type readWriteKiller struct {
 	io.Reader
 	io.Writer
-	kill func() error
+	p *process
+}
+
+func (rwk *readWriteKiller) kill() {
+	rwk.p.kill()
 }
 
 type read struct {

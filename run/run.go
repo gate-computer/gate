@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"syscall"
 
 	"github.com/tsavola/wag"
@@ -50,17 +49,17 @@ type envFunc struct {
 }
 
 type Environment struct {
-	executor string
-	loader   *os.File
+	executor executor
 	funcs    map[string]envFunc
+	pipeGid  uint
 }
 
-func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, err error) {
-	symbolFile, err := os.Open(loaderSymbols)
+func NewEnvironment(config *Config) (env *Environment, err error) {
+	mapFile, err := os.Open(config.runtimeMap())
 	if err != nil {
 		return
 	}
-	defer symbolFile.Close()
+	defer mapFile.Close()
 
 	funcs := make(map[string]envFunc)
 
@@ -71,7 +70,7 @@ func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, e
 			n    int
 		)
 
-		n, err = fmt.Fscanf(symbolFile, "%x T %s\n", &addr, &name)
+		n, err = fmt.Fscanf(mapFile, "%x T %s\n", &addr, &name)
 		if err != nil {
 			if err == io.EOF && n == 0 {
 				err = nil
@@ -80,7 +79,7 @@ func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, e
 			return
 		}
 		if n != 2 {
-			err = fmt.Errorf("%s: parse error", loaderSymbols)
+			err = fmt.Errorf("%s: parse error", config.runtimeMap())
 			return
 		}
 
@@ -114,16 +113,12 @@ func NewEnvironment(executor, loader, loaderSymbols string) (env *Environment, e
 		}
 	}
 
-	loaderFile, err := os.Open(loader)
-	if err != nil {
-		return
+	env = &Environment{
+		funcs:   funcs,
+		pipeGid: config.Gids[2],
 	}
 
-	env = &Environment{
-		executor: executor,
-		loader:   loaderFile,
-		funcs:    funcs,
-	}
+	err = env.executor.init(config)
 	return
 }
 
@@ -159,6 +154,10 @@ func (env *Environment) ImportGlobal(module, field string, t types.T) (value uin
 
 	err = fmt.Errorf("imported global not found: %s %s %s", module, field, t)
 	return
+}
+
+func (env *Environment) Close() error {
+	return env.executor.close()
 }
 
 type payloadInfo struct {
@@ -321,74 +320,110 @@ func Run(env *Environment, payload *Payload, services ServiceRegistry, debug io.
 		services = noServices{}
 	}
 
-	cmd := exec.Cmd{
-		Path: env.executor,
-		Args: []string{},
-		Env:  []string{},
-		Dir:  "/",
-		ExtraFiles: []*os.File{
-			payload.maps,
-			env.loader,
-		},
-		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig: syscall.SIGKILL,
-		},
-	}
-
-	stdin, err := cmd.StdinPipe()
+	stdinR, stdinW, err := os.Pipe()
 	if err != nil {
 		return
 	}
+	defer stdinW.Close()
 
-	stdout, err := cmd.StdoutPipe()
+	err = syscall.Fchown(int(stdinR.Fd()), -1, int(env.pipeGid))
 	if err != nil {
-		stdin.Close()
+		stdinR.Close()
 		return
 	}
 
-	cmd.Stderr = debug
-
-	err = cmd.Start()
+	err = syscall.Fchmod(int(stdinR.Fd()), 0640)
 	if err != nil {
-		stdin.Close()
-		stdout.Close()
+		stdinR.Close()
 		return
 	}
 
-	err = runIO(services, readWriteKiller{stdout, stdin, cmd.Process.Kill}, &payload.info)
-	if err == nil {
-		err = cmd.Wait()
-		if _, ok := err.(*exec.ExitError); ok && cmd.ProcessState.Exited() {
-			err = nil
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		stdinR.Close()
+		return
+	}
+	defer stdoutR.Close()
+
+	execFiles := []*os.File{stdinR, stdoutW, payload.maps}
+
+	if debug != nil {
+		var (
+			debugR *os.File
+			debugW *os.File
+		)
+
+		debugR, debugW, err = os.Pipe()
+		if err != nil {
+			stdinR.Close()
+			stdoutW.Close()
+			return
 		}
-	} else {
-		cmd.Wait()
+
+		go func() {
+			defer debugR.Close()
+			io.Copy(debug, debugR)
+		}()
+
+		execFiles = append(execFiles, debugW)
 	}
+
+	p, err := env.executor.execute(execFiles)
+	if err != nil {
+		return
+	}
+	defer p.kill()
+
+	err = runIO(services, readWriteKiller{stdoutR, stdinW, p}, &payload.info)
 	if err != nil {
 		return
 	}
 
-	code := cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus()
-
-	switch code {
-	case 0, 1:
-		exit = code
+	status, err := p.killWait()
+	if err != nil {
 		return
 	}
 
-	if n := code - 100; n >= 0 && n < int(traps.NumTraps) {
-		trap = traps.Id(n)
+	switch {
+	case status.Exited():
+		code := status.ExitStatus()
+
+		switch code {
+		case 0, 1:
+			exit = code
+			return
+		}
+
+		if n := code - 100; n >= 0 && n < int(traps.NumTraps) {
+			trap = traps.Id(n)
+			return
+		}
+
+		err = fmt.Errorf("process exit code: %d", code)
+		return
+
+	case status.Signaled():
+		err = fmt.Errorf("process termination signal: %d", status.Signal())
+		return
+
+	default:
+		err = fmt.Errorf("unknown process status: %d", status)
 		return
 	}
+}
 
-	err = fmt.Errorf("unknown process exit code: %d", code)
-	return
+func closeExecutionFiles(execFiles []*os.File) {
+	execFiles[0].Close() // stdinR
+	execFiles[1].Close() // stdoutW
+
+	if len(execFiles) > 3 {
+		execFiles[3].Close() // debugW
+	}
 }
 
 func runIO(services ServiceRegistry, subject readWriteKiller, info *payloadInfo) (err error) {
 	err = binary.Write(subject, endian, info)
 	if err != nil {
-		subject.kill()
 		return
 	}
 

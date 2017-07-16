@@ -8,10 +8,10 @@ LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segmen
 
 OBJECTS		:= loader.o runtime.o
 
-../../bin/loader: $(OBJECTS) Makefile
+../../lib/loader: $(OBJECTS) Makefile
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS)
-	$(NM) $@ | grep " __gate_" > $@.symbols
+	$(NM) $@ | grep " __gate_" > $(dir $@)runtime.map
 	$(OBJCOPY) --remove-section=.comment --remove-section=.eh_frame $@
 	$(STRIP) $@
 

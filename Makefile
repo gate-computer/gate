@@ -1,6 +1,7 @@
 PWD		:= $(shell pwd)
 
 GO		?= go
+SETCAP		?= setcap
 
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
@@ -23,11 +24,21 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/service/origin \
 	$(GOPACKAGEPREFIX)/service/peer
 
-export GATE_TEST_EXECUTOR	:= $(PWD)/bin/executor
-export GATE_TEST_LOADER		:= $(PWD)/bin/loader
-export GATE_TEST_DIR		:= $(PWD)/tests
+export GATE_TEST_LIBDIR		= $(PWD)/lib
+export GATE_TEST_BOOTUSER	= sys
+export GATE_TEST_EXECUSER	= daemon
+export GATE_TEST_PIPEGROUP	= $(word 2,$(shell groups))
+export GATE_TEST_DIR		= $(PWD)/tests
+
+run = bin/runner \
+	-boot-uid=$(shell id -u $(GATE_TEST_BOOTUSER)) \
+	-boot-gid=$(shell id -g $(GATE_TEST_BOOTUSER)) \
+	-exec-uid=$(shell id -u $(GATE_TEST_EXECUSER)) \
+	-exec-gid=$(shell id -g $(GATE_TEST_EXECUSER)) \
+	-pipe-gid=$(shell getent group $(GATE_TEST_PIPEGROUP) | cut -d: -f3)
 
 build:
+	$(MAKE) -C run/container
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/runner
@@ -42,17 +53,22 @@ all: build
 	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/cmd/talk
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
-check: all
+capabilities:
+	chmod go-wx lib/container
+	$(SETCAP) cap_dac_override,cap_setgid,cap_setuid+ep lib/container
+
+check:
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
-	bin/runner -dump-time tests/echo/prog.wasm
-	bin/runner -dump-time tests/hello/prog.wasm
-	bin/runner -dump-time -repeat=1000 tests/nop/prog.wasm
-	bin/runner -dump-time tests/peer/prog.wasm tests/peer/prog.wasm
+	$(run) -dump-time tests/echo/prog.wasm
+	$(run) -dump-time tests/hello/prog.wasm
+	$(run) -dump-time -repeat=1000 tests/nop/prog.wasm
+	$(run) -dump-time tests/peer/prog.wasm tests/peer/prog.wasm
 
 clean:
 	rm -rf bin lib pkg
+	$(MAKE) -C run/container clean
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C run/loader/tests clean
@@ -61,4 +77,4 @@ clean:
 	$(MAKE) -C cmd/talk/payload clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: build all check clean
+.PHONY: build all capabilities check clean

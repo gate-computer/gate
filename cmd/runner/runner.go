@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"path"
 	"time"
 
 	"github.com/tsavola/wag"
@@ -40,10 +39,6 @@ func init() {
 }
 
 var (
-	executor      string
-	loader        string
-	loaderSymbols string
-
 	stackSize = 16 * 1024 * 1024
 	dumpTime  = false
 	dumpText  = false
@@ -52,17 +47,12 @@ var (
 )
 
 func main() {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	executor = path.Join(dir, "bin/executor")
-	loader = path.Join(dir, "bin/loader")
-	loaderSymbols = loader + ".symbols"
-
 	var (
-		addr string
+		config = run.Config{
+			LibDir:   "lib",
+			MaxProcs: run.DefaultMaxProcs,
+		}
+		addr = ""
 	)
 
 	flag.Usage = func() {
@@ -70,9 +60,13 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.StringVar(&executor, "executor", executor, "filename")
-	flag.StringVar(&loader, "loader", loader, "filename")
-	flag.StringVar(&loaderSymbols, "loader-symbols", loaderSymbols, "filename")
+	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
+	flag.UintVar(&config.Uids[0], "boot-uid", config.Uids[0], "user id for bootstrapping executor")
+	flag.UintVar(&config.Gids[0], "boot-gid", config.Gids[0], "group id for bootstrapping executor")
+	flag.UintVar(&config.Uids[1], "exec-uid", config.Uids[1], "user id for executing code")
+	flag.UintVar(&config.Gids[1], "exec-gid", config.Gids[1], "group id for executing code")
+	flag.UintVar(&config.Gids[2], "pipe-gid", config.Gids[2], "group id for file descriptor sharing")
+	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
 	flag.IntVar(&stackSize, "stack-size", stackSize, "stack size")
 	flag.BoolVar(&dumpTime, "dump-time", dumpTime, "print average timings per program")
 	flag.BoolVar(&dumpText, "dump-text", dumpText, "disassemble before running")
@@ -108,10 +102,11 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
-	env, err := run.NewEnvironment(executor, loader, loaderSymbols)
+	env, err := run.NewEnvironment(&config)
 	if err != nil {
 		log.Fatalf("environment: %v", err)
 	}
+	defer env.Close()
 
 	timings := make([]timing, len(args))
 
