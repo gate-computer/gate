@@ -45,6 +45,8 @@ func main() {
 	flag.UintVar(&config.Uids[1], "exec-uid", config.Uids[1], "user id for executing code")
 	flag.UintVar(&config.Gids[1], "exec-gid", config.Gids[1], "group id for executing code")
 	flag.UintVar(&config.Gids[2], "pipe-gid", config.Gids[2], "group id for file descriptor sharing")
+	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
+	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
 	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")

@@ -164,8 +164,9 @@ func (e *executor) init(config *Config) (err error) {
 			uitoa(config.Uids[1]),
 			uitoa(config.Gids[1]),
 			uitoa(config.Gids[2]),
+			config.cgroupTitle(),
+			config.CgroupParent,
 		},
-		Env:    []string{},
 		Dir:    "/",
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{

@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <fcntl.h>
 #include <grp.h>
@@ -24,6 +25,7 @@
 #include <sys/capability.h>
 
 #include "../defs.h"
+#include "cgroup.h"
 
 struct identity {
 	uid_t uid;
@@ -177,12 +179,18 @@ static int xclone(int (*fn)(void *), int flags)
 
 static struct identity identities[2];
 static gid_t supplementary_gid;
+static struct cgroup_config cgroup_config;
 static int syncpipe[2];
 
 int main(int argc, char **argv)
 {
-	if (argc != 6) {
-		fprintf(stderr, "%s: argc != 6\n", argv[0]);
+	if (argc == 2 && strcmp(argv[1], "--cgroup-backend") == 0) {
+		puts(cgroup_backend);
+		return 0;
+	}
+
+	if (argc != 8) {
+		fprintf(stderr, "%s: argc != 8\n", argv[0]);
 		return 1;
 	}
 
@@ -191,6 +199,8 @@ int main(int argc, char **argv)
 	identities[1].uid = xatoui(argv[3]);
 	identities[1].gid = xatoui(argv[4]);
 	supplementary_gid = xatoui(argv[5]);
+	cgroup_config.title = argv[6];
+	cgroup_config.parent = argv[7];
 
 	umask(0777);
 
@@ -239,7 +249,11 @@ static int parent_main(pid_t child_pid)
 
 	// user namespace configured
 
+	init_cgroup(child_pid, &cgroup_config);
+
 	xcapclear();
+
+	// cgroup configured
 
 	xclose(syncpipe[1]); // wake child up
 
@@ -290,7 +304,7 @@ static int child_main(void *dummy_arg)
 		break;
 	}
 
-	// user namespace has been configured by parent at this point
+	// user namespace and cgroup have been configured by parent
 
 	// supplementary group
 	const gid_t groups[1] = {4};

@@ -4,6 +4,8 @@ import "path"
 
 const (
 	DefaultMaxProcs = 32767 - 1 // practical maximum (minus init process)
+
+	DefaultCgroupTitle = "gate-executor"
 )
 
 type Config struct {
@@ -17,6 +19,10 @@ type Config struct {
 	Gids [3]uint
 
 	MaxProcs int
+
+	// These have no effect if Container was compiled without cgroup support.
+	CgroupParent string
+	CgroupTitle  string
 }
 
 func (c *Config) libpath(name string) string {
@@ -65,4 +71,12 @@ func (c *Config) maxProcs() int64 {
 	} else {
 		return int64(c.MaxProcs)
 	}
+}
+
+func (c *Config) cgroupTitle() (s string) {
+	s = c.CgroupTitle
+	if s == "" {
+		s = DefaultCgroupTitle
+	}
+	return
 }

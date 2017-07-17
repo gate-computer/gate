@@ -3,6 +3,8 @@ PWD		:= $(shell pwd)
 GO		?= go
 SETCAP		?= setcap
 
+CGROUP_BACKEND	?= systemd
+
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
 TESTS		:= $(dir $(wildcard tests/*/Makefile))
@@ -38,7 +40,7 @@ run = bin/runner \
 	-pipe-gid=$(shell getent group $(GATE_TEST_PIPEGROUP) | cut -d: -f3)
 
 build:
-	$(MAKE) -C run/container
+	$(MAKE) -C run/container CGROUP_BACKEND=$(CGROUP_BACKEND)
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/runner
