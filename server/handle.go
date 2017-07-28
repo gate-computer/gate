@@ -414,15 +414,17 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 
 	go inst.run(&s.Settings, newWebsocketReader(conn), newWebsocketWriteCloser(conn, written))
 
-	result, ok := <-exited
+	result, _ := <-exited
 	<-written
 
-	if !ok {
+	if result == nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		return
 	}
 
-	err = conn.WriteJSON(result)
+	err = conn.WriteJSON(&gate.Waited{
+		Result: *result,
+	})
 	if err != nil {
 		return
 	}

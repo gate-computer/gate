@@ -211,9 +211,6 @@ func (inst *instance) wait() (result *gate.Result, found bool) {
 }
 
 func (inst *instance) run(s *Settings, r io.Reader, w io.WriteCloser) {
-	s.Log.Printf("instance run...")
-	defer s.Log.Printf("instance runned")
-
 	var (
 		exit     int
 		trap     traps.Id
@@ -256,7 +253,6 @@ func (inst *instance) run(s *Settings, r io.Reader, w io.WriteCloser) {
 
 	payload, err := run.NewPayload(inst.module, memorySize, s.StackSize)
 	if err != nil {
-		s.Log.Printf("instance run: payload: %v", err)
 		return
 	}
 	defer payload.Close()
@@ -307,20 +303,16 @@ func (socket *pipe) attach(in io.Reader, out io.Writer, log Logger) (ok bool) {
 		defer close(inDone)
 		defer socket.in.Close()
 
-		if n, err := io.Copy(socket.in, in); err != nil {
+		if _, err := io.Copy(socket.in, in); err != nil {
 			log.Printf("origin input: %v", err)
-		} else {
-			log.Printf("origin input: %d bytes", n)
 		}
 	}()
 
 	go func() {
 		defer close(outDone)
 
-		if n, err := io.Copy(out, socket.out); err != nil {
+		if _, err := io.Copy(out, socket.out); err != nil {
 			log.Printf("origin output: %v", err)
-		} else {
-			log.Printf("origin output: %d bytes", n)
 		}
 	}()
 

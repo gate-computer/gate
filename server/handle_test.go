@@ -17,6 +17,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
+
+	"github.com/tsavola/gate"
 	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate/run"
@@ -80,6 +83,24 @@ var handler = NewHandler("/", NewState(Settings{
 	Debug: os.Stdout,
 }))
 
+var (
+	progData []byte
+	progHash string
+)
+
+func init() {
+	var err error
+
+	progData, err = ioutil.ReadFile(path.Join(os.Getenv("GATE_TEST_DIR"), "hello", "prog.wasm"))
+	if err != nil {
+		panic(err)
+	}
+
+	hash := sha512.New()
+	hash.Write(progData)
+	progHash = hex.EncodeToString(hash.Sum(nil))
+}
+
 func do(t *testing.T, req *http.Request) (resp *http.Response, body []byte) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
@@ -112,19 +133,10 @@ func TestLoadNotFound(t *testing.T) {
 }
 
 func TestLoadRunOriginWait(t *testing.T) {
-	prog, err := ioutil.ReadFile(path.Join(os.Getenv("GATE_TEST_DIR"), "hello", "prog.wasm"))
-	if err != nil {
-		panic(err)
-	}
-
-	hash := sha512.New()
-	hash.Write(prog)
-	progHash := hex.EncodeToString(hash.Sum(nil))
-
 	var progId string
 
 	{
-		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(prog))
+		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(progData))
 		req.Header.Set("Content-Type", "application/wasm")
 
 		resp, content := doJSON(t, req)
@@ -239,5 +251,45 @@ func TestLoadRunOriginWait(t *testing.T) {
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatal(resp.StatusCode)
 		}
+	}
+}
+
+func TestRunOriginWaitWebsocket(t *testing.T) {
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	var d websocket.Dialer
+	conn, _, err := d.Dial(strings.Replace(server.URL, "http", "ws", 1)+"/run/origin/wait", nil)
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	if err := conn.WriteMessage(websocket.BinaryMessage, progData); err != nil {
+		panic(err)
+	}
+
+	var running gate.Running
+	if err := conn.ReadJSON(&running); err != nil {
+		t.Fatal(err)
+	}
+	if running.Program.Id == "" || running.Program.SHA512 == "" || running.Instance.Id == "" {
+		t.Fatalf("%v", running)
+	}
+
+	frameType, data, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frameType != websocket.BinaryMessage || string(data) != "hello world\n" {
+		t.Fatal(data)
+	}
+
+	var waited gate.Waited
+	if err := conn.ReadJSON(&waited); err != nil {
+		t.Fatal(err)
+	}
+	if waited.Result.Exit != 0 || waited.Result.Trap != "" || waited.Result.Error != "" {
+		t.Fatalf("%v", waited)
 	}
 }
