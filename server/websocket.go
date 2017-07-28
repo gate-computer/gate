@@ -6,20 +6,25 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var webSocketClose = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+var (
+	websocketNormalClosure     = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+	websocketUnsupportedData   = websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "")
+	websocketAlreadyAttached   = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Already attached")
+	websocketInternalServerErr = websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "")
+)
 
-type webSocketReader struct {
+type websocketReader struct {
 	conn  *websocket.Conn
 	frame io.Reader
 }
 
-func newWebSocketReader(conn *websocket.Conn) *webSocketReader {
-	return &webSocketReader{
+func newWebsocketReader(conn *websocket.Conn) *websocketReader {
+	return &websocketReader{
 		conn: conn,
 	}
 }
 
-func (r *webSocketReader) Read(buf []byte) (n int, err error) {
+func (r *websocketReader) Read(buf []byte) (n int, err error) {
 	for {
 		if r.frame == nil {
 			_, r.frame, err = r.conn.NextReader()
@@ -40,14 +45,31 @@ func (r *webSocketReader) Read(buf []byte) (n int, err error) {
 	}
 }
 
-type webSocketWriter struct {
+type websocketWriter struct {
 	conn *websocket.Conn
 }
 
-func (w webSocketWriter) Write(buf []byte) (n int, err error) {
+func (w websocketWriter) Write(buf []byte) (n int, err error) {
 	err = w.conn.WriteMessage(websocket.BinaryMessage, buf)
 	if err == nil {
 		n = len(buf)
 	}
+	return
+}
+
+type websocketWriteCloser struct {
+	websocketWriter
+	close chan<- struct{}
+}
+
+func newWebsocketWriteCloser(conn *websocket.Conn, close chan<- struct{}) *websocketWriteCloser {
+	return &websocketWriteCloser{
+		websocketWriter{conn},
+		close,
+	}
+}
+
+func (w *websocketWriteCloser) Close() (err error) {
+	close(w.close)
 	return
 }

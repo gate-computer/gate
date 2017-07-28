@@ -1,163 +1,685 @@
 package server
 
 import (
-	"bufio"
-	"bytes"
+	"compress/gzip"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/sections"
-	"github.com/tsavola/wag/traps"
-	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate"
-	"github.com/tsavola/gate/run"
 )
 
-type Executor struct {
-	MemorySizeLimit wasm.MemorySize
-	StackSize       int32
-	Env             *run.Environment
-	Services        func(io.Reader, io.Writer) run.ServiceRegistry
-	Log             Logger
-	Debug           io.Writer
-}
-
-func (e *Executor) Handler() http.Handler {
-	return http.HandlerFunc(e.handle)
-}
-
-func (e *Executor) handle(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		e.handleWebSocket(w, r)
-
-	case http.MethodPost:
-		e.handlePost(w, r)
-
-	default:
-		w.Header().Set("Allow", "GET, POST")
-		w.WriteHeader(http.StatusMethodNotAllowed)
+func makeInstance(id uint64) gate.Instance {
+	return gate.Instance{
+		Id: fmt.Sprintf("%016x", id),
 	}
 }
 
-func (e *Executor) handlePost(w http.ResponseWriter, r *http.Request) {
-	input := bufio.NewReader(r.Body)
-	output := new(bytes.Buffer)
+func newProgram(id uint64, hash []byte) *gate.Program {
+	return &gate.Program{
+		Id:     fmt.Sprintf("%016x", id),
+		SHA512: hex.EncodeToString(hash),
+	}
+}
 
-	result, bug := e.executeResult(input, input, output, r)
-	if bug {
-		w.WriteHeader(http.StatusInternalServerError)
+func NewHandler(pattern string, s *State) http.Handler {
+	var (
+		prefix = strings.TrimRight(pattern, "/")
+		mux    = http.NewServeMux()
+	)
+
+	{
+		var (
+			path   = prefix + "/load"
+			allow  = joinHeader(http.MethodPost, http.MethodOptions)
+			accept = joinHeader("application/wasm", "application/json")
+		)
+
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				if acceptsJSON(r) {
+					switch getContentType(r) {
+					case "application/wasm":
+						handleLoadWasm(w, r, s)
+
+					case "application/json":
+						handleLoadJSON(w, r, s)
+
+					default:
+						writeUnsupportedMediaType(w, accept)
+					}
+				} else {
+					w.WriteHeader(http.StatusNotAcceptable)
+				}
+
+			case http.MethodOptions:
+				writeOptionsAccept(w, allow, accept)
+
+			default:
+				writeMethodNotAllowed(w, allow)
+			}
+		})
+	}
+
+	{
+		var (
+			path   = prefix + "/run"
+			allow  = joinHeader(http.MethodPost, http.MethodOptions)
+			accept = joinHeader("application/wasm", "application/json")
+		)
+
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				if acceptsJSON(r) {
+					switch getContentType(r) {
+					case "application/wasm":
+						handleRunWasm(w, r, s)
+
+					case "application/json":
+						handleRunJSON(w, r, s)
+
+					default:
+						writeUnsupportedMediaType(w, accept)
+					}
+				} else {
+					w.WriteHeader(http.StatusNotAcceptable)
+				}
+
+			case http.MethodOptions:
+				writeOptionsAccept(w, allow, accept)
+
+			default:
+				writeMethodNotAllowed(w, allow)
+			}
+		})
+	}
+
+	{
+		var (
+			path  = prefix + "/run/origin/wait"
+			allow = joinHeader(http.MethodGet, http.MethodOptions)
+		)
+
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				handleRunOriginWait(w, r, s)
+
+			case http.MethodOptions:
+				writeOptionsWebsocket(w, r, allow)
+
+			default:
+				writeMethodNotAllowed(w, allow)
+			}
+		})
+	}
+
+	{
+		var (
+			path  = prefix + "/origin"
+			allow = joinHeader(http.MethodGet, http.MethodOptions)
+		)
+
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodGet:
+				handleOriginWebsocket(w, r, s)
+
+			case http.MethodOptions:
+				writeOptionsWebsocket(w, r, allow)
+
+			default:
+				writeMethodNotAllowed(w, allow)
+			}
+		})
+	}
+
+	{
+		var (
+			path  = prefix + "/origin/"
+			allow = joinHeader(http.MethodPost, http.MethodOptions)
+		)
+
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				if acceptsJSON(r) {
+					handleOriginPost(w, r, s, r.URL.Path[len(path):])
+				} else {
+					w.WriteHeader(http.StatusNotAcceptable)
+				}
+
+			case http.MethodOptions:
+				writeOptions(w, allow)
+
+			default:
+				writeMethodNotAllowed(w, allow)
+			}
+		})
+	}
+
+	{
+		var (
+			path   = prefix + "/wait"
+			allow  = joinHeader(http.MethodPost, http.MethodOptions)
+			accept = "application/json"
+		)
+
+		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				if acceptsJSON(r) {
+					switch getContentType(r) {
+					case "application/json":
+						handleWait(w, r, s)
+
+					default:
+						writeUnsupportedMediaType(w, accept)
+					}
+				} else {
+					w.WriteHeader(http.StatusNotAcceptable)
+				}
+
+			case http.MethodOptions:
+				writeOptionsAccept(w, allow, accept)
+
+			default:
+				writeMethodNotAllowed(w, allow)
+			}
+		})
+	}
+
+	return mux
+}
+
+func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
+	body := decodeContent(w, r, s)
+	if body == nil {
 		return
 	}
 
-	resultJson, err := json.Marshal(result)
+	// TODO: size limit
+
+	// upload method closes body to check for decoding errors
+
+	progId, progHash, err := s.upload(body)
 	if err != nil {
-		panic(err)
-	}
-	w.Header().Set(gate.ResultHTTPHeaderName, string(resultJson))
-
-	if result.Error != "" {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintln(w, result.Error)
+		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 		return
 	}
 
-	w.Header().Set("Content-Length", strconv.Itoa(output.Len()))
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(output.Bytes())
+	writeJSON(w, &gate.Loaded{
+		Program: &gate.Program{
+			Id:     fmt.Sprintf("%016x", progId),
+			SHA512: hex.EncodeToString(progHash),
+		},
+	})
 }
 
-func (e *Executor) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
+	var load gate.Load
+
+	if !decodeContentJSON(w, r, s, &load) {
+		return
+	}
+
+	var (
+		found bool
+		valid bool
+	)
+
+	if progId, err := strconv.ParseUint(load.Program.Id, 16, 64); err == nil {
+		if progHash, err := hex.DecodeString(load.Program.SHA512); err == nil {
+			found, valid = s.check(progId, progHash)
+		}
+	}
+
+	if !found {
+		http.NotFound(w, r) // XXX: can't do this
+		return
+	}
+
+	if !valid {
+		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		return
+	}
+
+	writeJSON(w, &gate.Loaded{})
+}
+
+func handleRunWasm(w http.ResponseWriter, r *http.Request, s *State) {
+	body := decodeContent(w, r, s)
+	if body == nil {
+		return
+	}
+
+	// TODO: size limit
+
+	// uploadAndInstantiate method closes body to check for decoding errors
+
+	in, out, originSocket := newPipe()
+
+	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, nil, originSocket)
+	if err != nil {
+		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+		return
+	}
+
+	go inst.run(&s.Settings, in, out)
+
+	writeJSON(w, &gate.Running{
+		Instance: makeInstance(instId),
+		Program:  newProgram(progId, progHash),
+	})
+}
+
+func handleRunJSON(w http.ResponseWriter, r *http.Request, s *State) {
+	var run gate.Run
+
+	if !decodeContentJSON(w, r, s, &run) {
+		return
+	}
+
+	var (
+		inst   *instance
+		instId uint64
+		found  bool
+		valid  bool
+	)
+
+	in, out, originSocket := newPipe()
+
+	if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
+		if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
+			inst, instId, found, valid, err = s.instantiate(progId, progHash, nil, originSocket)
+			if err != nil {
+				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+				return
+			}
+		}
+	}
+
+	if !found {
+		http.NotFound(w, r) // XXX: can't do this
+		return
+	}
+
+	if !valid {
+		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		return
+	}
+
+	go inst.run(&s.Settings, in, out)
+
+	writeJSON(w, &gate.Running{
+		Instance: makeInstance(instId),
+	})
+}
+
+func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
 
 	conn, err := u.Upgrade(w, r, nil)
 	if err != nil {
-		e.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
 		return
 	}
 	defer conn.Close()
 
-	_, wasm, err := conn.NextReader()
+	frameType, frame, err := conn.NextReader()
 	if err != nil {
-		e.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
 		return
 	}
 
-	result, bug := e.executeResult(bufio.NewReader(wasm), newWebSocketReader(conn), webSocketWriter{conn}, r)
-	if bug {
-		result.Error = "internal server error"
-	}
+	// TODO: size limit
 
-	if conn.WriteJSON(result) == nil {
-		conn.WriteMessage(websocket.CloseMessage, webSocketClose)
-	}
-}
+	var (
+		exited  = make(chan *gate.Result, 1)
+		written = make(chan struct{})
+		inst    *instance
+		instId  uint64
+		prog    *gate.Program
+	)
 
-func (e *Executor) executeResult(wasm *bufio.Reader, input io.Reader, output io.Writer, r *http.Request) (result gate.Result, internal bool) {
-	exit, trap, err, internal := e.execute(wasm, input, output, r)
+	switch frameType {
+	case websocket.BinaryMessage:
+		var (
+			progId   uint64
+			progHash []byte
+		)
 
-	switch {
-	case internal:
+		inst, instId, progId, progHash, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), exited, nil)
+		if err != nil {
+			// TODO
+			return
+		}
 
-	case err != nil:
-		result.Error = err.Error()
+		prog = newProgram(progId, progHash)
 
-	case trap != 0:
-		result.Trap = trap.String()
+	case websocket.TextMessage:
+		var run gate.Run
 
-	default:
-		result.Exit = exit
-	}
+		err = json.NewDecoder(frame).Decode(&run)
+		if err != nil {
+			// TODO
+			return
+		}
 
-	return
-}
+		var (
+			found bool
+			valid bool
+		)
 
-func (e *Executor) execute(wasm *bufio.Reader, input io.Reader, output io.Writer, r *http.Request) (exit int, trap traps.Id, err error, bug bool) {
-	e.Log.Printf("%s begin", r.RemoteAddr)
-	defer e.Log.Printf("%s end", r.RemoteAddr)
+		if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
+			if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
+				inst, instId, found, valid, err = s.instantiate(progId, progHash, nil, nil)
+				if err != nil {
+					// TODO
+					return
+				}
+			}
 
-	var ns sections.NameSection
+			if !valid {
+				// TODO
+				return
+			}
+		}
 
-	m := wag.Module{
-		MainSymbol:           "main",
-		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
-	}
-
-	err = m.Load(wasm, e.Env, new(bytes.Buffer), nil, run.RODataAddr, nil)
-	if err != nil {
-		return
-	}
-
-	_, memorySize := m.MemoryLimits()
-	if memorySize > e.MemorySizeLimit {
-		memorySize = e.MemorySizeLimit
-	}
-
-	payload, err := run.NewPayload(&m, memorySize, e.StackSize)
-	if err != nil {
-		return
-	}
-	defer payload.Close()
-
-	registry := e.Services(input, output)
-
-	exit, trap, runErr := run.Run(e.Env, payload, registry, e.Debug)
-	if runErr != nil {
-		e.Log.Printf("%s error: %v", r.RemoteAddr, runErr)
-		bug = true
-	} else if (trap != 0 || exit != 0) && e.Debug != nil {
-		if err := payload.DumpStacktrace(e.Debug, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns); err != nil {
-			e.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		if !found {
+			// TODO
+			return
 		}
 	}
+
+	err = conn.WriteJSON(&gate.Running{
+		Instance: makeInstance(instId),
+		Program:  prog,
+	})
+	if err != nil {
+		s.cancel(inst, instId)
+		return
+	}
+
+	go inst.run(&s.Settings, newWebsocketReader(conn), newWebsocketWriteCloser(conn, written))
+
+	result, ok := <-exited
+	<-written
+
+	if !ok {
+		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
+		return
+	}
+
+	err = conn.WriteJSON(result)
+	if err != nil {
+		return
+	}
+
+	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
+}
+
+func handleOriginWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
+	u := websocket.Upgrader{
+		CheckOrigin: func(*http.Request) bool { return true },
+	}
+
+	conn, err := u.Upgrade(w, r, nil)
+	if err != nil {
+		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+	defer conn.Close()
+
+	frameType, frame, err := conn.NextReader()
+	if err != nil {
+		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		return
+	}
+
+	if frameType != websocket.TextMessage {
+		conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedData)
+		return
+	}
+
+	// TODO: size limit
+
+	var origin gate.Origin
+
+	err = json.NewDecoder(frame).Decode(&origin)
+	if err != nil {
+		// TODO
+		return
+	}
+
+	var (
+		found bool
+		ok    bool
+	)
+
+	if instId, err := strconv.ParseUint(origin.Instance.Id, 16, 64); err == nil {
+		found, ok = s.attachOrigin(instId, newWebsocketReader(conn), websocketWriter{conn})
+	}
+
+	if !ok {
+		conn.WriteMessage(websocket.CloseMessage, websocketAlreadyAttached)
+		return
+	}
+
+	if found {
+		err = conn.WriteJSON(struct{}{}) // success
+		if err != nil {
+			return
+		}
+	}
+
+	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
+}
+
+func handleOriginPost(w http.ResponseWriter, r *http.Request, s *State, urlSuffix string) {
+	body := decodeContent(w, r, s)
+	if body == nil {
+		return
+	}
+	defer body.Close()
+
+	var (
+		found bool
+		ok    bool
+	)
+
+	if instId, err := strconv.ParseUint(urlSuffix, 16, 64); err == nil {
+		found, ok = s.attachOrigin(instId, body, w)
+	}
+
+	if !found {
+		http.NotFound(w, r) // XXX: can't do this
+		return
+	}
+
+	if !ok {
+		writeText(w, r, http.StatusConflict, "Already attached")
+		return
+	}
+}
+
+func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
+	var wait gate.Wait
+
+	if !decodeContentJSON(w, r, s, &wait) {
+		return
+	}
+
+	var (
+		result *gate.Result
+		found  bool
+	)
+
+	if instId, err := strconv.ParseUint(wait.Instance.Id, 16, 64); err == nil {
+		result, found = s.wait(instId)
+	}
+
+	if !found {
+		http.NotFound(w, r) // XXX: can't do this
+		return
+	}
+
+	if result == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, &gate.Waited{
+		Result: *result,
+	})
+}
+
+func joinHeader(fields ...string) string {
+	return strings.Join(fields, ", ")
+}
+
+func acceptsJSON(r *http.Request) bool {
+	return acceptsMediaType(r, "application/", "json")
+}
+
+func acceptsText(r *http.Request) bool {
+	return acceptsMediaType(r, "text/", "plain")
+}
+
+func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
+	header := r.Header.Get("Accept")
+	if header == "" {
+		return true
+	}
+
+	for _, field := range strings.Split(header, ",") {
+		tokens := strings.SplitN(field, ";", 2)
+		mediaType := strings.TrimSpace(tokens[0])
+
+		if mediaType == "*/*" {
+			return true
+		}
+
+		if strings.HasPrefix(mediaType, prefix) {
+			tail := mediaType[len(prefix):]
+			if tail == subtype || tail == "*" {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func getContentType(r *http.Request) string {
+	header := r.Header.Get("Content-Type")
+	tokens := strings.SplitN(header, ";", 2)
+	return strings.TrimSpace(tokens[0])
+}
+
+func decodeContent(w http.ResponseWriter, r *http.Request, s *State) io.ReadCloser {
+	switch r.Header.Get("Content-Encoding") { // non-standard for request
+	case "", "identity":
+		return r.Body
+
+	case "gzip":
+		decoder, err := gzip.NewReader(r.Body)
+		if err == nil {
+			return decoder
+		}
+
+		s.Log.Printf("%v: %v", r.RemoteAddr, err)
+
+	default:
+		w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
+	return nil
+}
+
+func decodeContentJSON(w http.ResponseWriter, r *http.Request, s *State, v interface{}) (ok bool) {
+	if r.ContentLength < 0 {
+		w.WriteHeader(http.StatusLengthRequired)
+		return
+	}
+
+	body := decodeContent(w, r, s)
+	if body == nil {
+		return
+	}
+	defer body.Close()
+
+	// TODO: size limit
+
+	if err := json.NewDecoder(body).Decode(v); err != nil {
+		writeBadRequest(w, r, err)
+		return
+	}
+
+	ok = true
 	return
+}
+
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	data, err := json.MarshalIndent(v, "", "\t")
+	if err != nil {
+		panic(err)
+	}
+	data = append(data, '\n')
+
+	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Write(data)
+}
+
+func writeOptions(w http.ResponseWriter, allow string) {
+	w.Header().Set("Allow", allow)
+}
+
+func writeOptionsAccept(w http.ResponseWriter, allow, accept string) {
+	w.Header().Set("Accept", accept)          // non-standard for response
+	w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
+	writeOptions(w, allow)
+}
+
+func writeOptionsWebsocket(w http.ResponseWriter, r *http.Request, allow string) {
+	w.Header().Set("Allow", allow)
+	writeText(w, r, http.StatusOK, "WebSocket endpoint")
+}
+
+func writeMethodNotAllowed(w http.ResponseWriter, allow string) {
+	w.Header().Set("Allow", allow)
+	w.WriteHeader(http.StatusMethodNotAllowed)
+}
+
+func writeUnsupportedMediaType(w http.ResponseWriter, accept string) {
+	w.Header().Set("Accept", accept)          // non-standard for response
+	w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
+	w.WriteHeader(http.StatusUnsupportedMediaType)
+}
+
+func writeBadRequest(w http.ResponseWriter, r *http.Request, err error) {
+	writeText(w, r, http.StatusBadRequest, err)
+}
+
+func writeText(w http.ResponseWriter, r *http.Request, status int, v ...interface{}) {
+	if acceptsText(r) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(status)
+		fmt.Fprintln(w, v...)
+	} else {
+		w.WriteHeader(status)
+	}
 }

@@ -63,7 +63,7 @@ func main() {
 	}
 	defer env.Close()
 
-	e := server.Executor{
+	settings := server.Settings{
 		MemorySizeLimit: memorySizeLimit,
 		StackSize:       stackSize,
 		Env:             env,
@@ -72,10 +72,11 @@ func main() {
 	}
 
 	if debug {
-		e.Debug = os.Stderr
+		settings.Debug = os.Stderr
 	}
 
-	http.Handle("/", e.Handler())
+	state := server.NewState(settings)
+	handler := server.NewHandler("/", state)
 
 	if letsencrypt {
 		if !acceptTOS {
@@ -91,7 +92,8 @@ func main() {
 		}
 
 		s := http.Server{
-			Addr: addr,
+			Addr:    addr,
+			Handler: handler,
 			TLSConfig: &tls.Config{
 				GetCertificate: m.GetCertificate,
 			},
@@ -99,7 +101,7 @@ func main() {
 
 		err = s.ListenAndServeTLS("", "")
 	} else {
-		err = http.ListenAndServe(addr, nil)
+		err = http.ListenAndServe(addr, handler)
 	}
 
 	log.Fatal(err)
