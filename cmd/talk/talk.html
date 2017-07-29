@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>talk</title>
+		<style>
+			body {
+				margin: 0;
+			}
+
+			#output {
+				margin: 0;
+				padding: 8px;
+				list-style-type: none;
+				font-family: monospace;
+			}
+
+			.protocol {
+				opacity: 0.5;
+			}
+		</style>
+	</head>
+	<body id="body">
+		<ul id="output"></ul>
+		<script>
+
+(function() {
+	let output = document.getElementById("output")
+
+	let prog = new XMLHttpRequest()
+	prog.responseType = "arraybuffer"
+	prog.open("GET", "payload/prog.wasm")
+	prog.send()
+	prog.onload = () => {
+		let conn = new WebSocket("ws://localhost:8888/run/origin/wait")
+		conn.binaryType = "arraybuffer"
+
+		conn.onopen = () => {
+			conn.send(prog.response)
+		}
+
+		conn.onmessage = (event) => {
+			let li = document.createElement("li")
+
+			if (typeof event.data === "string") {
+				li.innerText = event.data
+				li.classList.add("protocol")
+			} else {
+				li.innerText = new TextDecoder("utf-8").decode(event.data)
+			}
+
+			output.appendChild(li)
+			output.scrollIntoView(false)
+		}
+	}
+}())
+
+		</script>
+	</body>
+</html>
