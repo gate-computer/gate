@@ -15,7 +15,15 @@ import (
 	"github.com/tsavola/gate"
 )
 
-var webSocketClose = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+const (
+	websocketStarting = iota
+	websocketWaiting
+)
+
+type websocketEvent struct {
+	gate.Running
+	gate.Finished
+}
 
 func main() {
 	if !mainResult() {
@@ -50,7 +58,7 @@ func mainResult() (ok bool) {
 
 	var d websocket.Dialer
 
-	conn, _, err := d.Dial(url, nil)
+	conn, _, err := d.Dial(url+"/run/origin/wait", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -103,6 +111,8 @@ func readLoop(conn *websocket.Conn, rl *readline.Instance, exit chan<- bool) {
 	ok := false
 	defer func() { exit <- ok }()
 
+	state := websocketStarting
+
 	for {
 		typ, data, err := conn.ReadMessage()
 		if err != nil {
@@ -112,28 +122,35 @@ func readLoop(conn *websocket.Conn, rl *readline.Instance, exit chan<- bool) {
 
 		switch typ {
 		case websocket.TextMessage:
-			var r gate.Result
+			var x websocketEvent
 
-			err := json.Unmarshal(data, &r)
+			err := json.Unmarshal(data, &x)
 			if err == nil {
-				switch {
-				case r.Error != "":
-					log.Printf("payload error: %s", r.Error)
+				switch state {
+				case websocketStarting:
+					log.Printf("payload running: program %s, instance %s", x.Program.Id, x.Instance.Id)
+					state = websocketWaiting
 
-				case r.Trap != "":
-					log.Printf("payload trap: %s", r.Trap)
+				case websocketWaiting:
+					switch {
+					case x.Result.Error != "":
+						log.Printf("payload error: %s", x.Result.Error)
 
-				case r.Exit == 0:
-					ok = true
-					fallthrough
-				default:
-					log.Printf("payload exit: %d", r.Exit)
+					case x.Result.Trap != "":
+						log.Printf("payload trap: %s", x.Result.Trap)
+
+					case x.Result.Exit == 0:
+						ok = true
+						fallthrough
+					default:
+						log.Printf("payload exit: %d", x.Result.Exit)
+					}
+					return
 				}
 			} else {
 				log.Print(err)
+				return
 			}
-
-			return
 
 		case websocket.BinaryMessage:
 			log.Printf("%s", data)

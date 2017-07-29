@@ -44,6 +44,6 @@ type Running struct {
 	Program  *Program `json:"program,omitempty"`
 }
 
-type Waited struct {
+type Finished struct {
 	Result Result `json:"result"`
 }

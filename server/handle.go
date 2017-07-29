@@ -390,14 +390,14 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 					return
 				}
 			}
-
-			if !valid {
-				// TODO
-				return
-			}
 		}
 
 		if !found {
+			// TODO
+			return
+		}
+
+		if !valid {
 			// TODO
 			return
 		}
@@ -422,7 +422,7 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	err = conn.WriteJSON(&gate.Waited{
+	err = conn.WriteJSON(&gate.Finished{
 		Result: *result,
 	})
 	if err != nil {
@@ -542,7 +542,7 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	writeJSON(w, &gate.Waited{
+	writeJSON(w, &gate.Finished{
 		Result: *result,
 	})
 }

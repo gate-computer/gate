@@ -285,11 +285,11 @@ func TestRunOriginWaitWebsocket(t *testing.T) {
 		t.Fatal(data)
 	}
 
-	var waited gate.Waited
-	if err := conn.ReadJSON(&waited); err != nil {
+	var finished gate.Finished
+	if err := conn.ReadJSON(&finished); err != nil {
 		t.Fatal(err)
 	}
-	if waited.Result.Exit != 0 || waited.Result.Trap != "" || waited.Result.Error != "" {
-		t.Fatalf("%v", waited)
+	if finished.Result.Exit != 0 || finished.Result.Trap != "" || finished.Result.Error != "" {
+		t.Fatalf("%v", finished)
 	}
 }
