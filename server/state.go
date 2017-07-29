@@ -27,16 +27,18 @@ func makeId() (id uint64) {
 type State struct {
 	Settings
 
-	lock      sync.Mutex
-	programs  map[uint64]*program
-	instances map[uint64]*instance
+	lock           sync.Mutex
+	programsByHash map[[sha512.Size]byte]*program
+	programs       map[uint64]*program
+	instances      map[uint64]*instance
 }
 
 func NewState(s Settings) *State {
 	return &State{
-		Settings:  s,
-		programs:  make(map[uint64]*program),
-		instances: make(map[uint64]*instance),
+		Settings:       s,
+		programsByHash: make(map[[sha512.Size]byte]*program),
+		programs:       make(map[uint64]*program),
+		instances:      make(map[uint64]*instance),
 	}
 }
 
@@ -46,12 +48,19 @@ func (s *State) upload(wasm io.ReadCloser) (progId uint64, progHash []byte, err 
 		return
 	}
 
-	progHash = prog.hash[:]
 	progId = makeId()
 
 	s.lock.Lock()
+	if existing, found := s.programsByHash[prog.hash]; found {
+		prog = existing
+	} else {
+		s.programsByHash[prog.hash] = prog
+	}
+	prog.ownerCount++
 	s.programs[progId] = prog
 	s.lock.Unlock()
+
+	progHash = prog.hash[:]
 	return
 }
 
@@ -73,21 +82,33 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result,
 		return
 	}
 
-	progHash = prog.hash[:]
 	progId = makeId()
 	instId = makeId()
-	inst = newInstance(&prog.module, exit, origin)
+	inst = newInstance(exit, origin)
 
 	s.lock.Lock()
+	if existing, found := s.programsByHash[prog.hash]; found {
+		prog = existing
+	} else {
+		s.programsByHash[prog.hash] = prog
+	}
+	prog.ownerCount++
+	prog.instanceCount++
 	s.programs[progId] = prog
+	inst.program = prog
 	s.instances[instId] = inst
 	s.lock.Unlock()
+
+	progHash = prog.hash[:]
 	return
 }
 
 func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Result, origin *pipe) (inst *instance, instId uint64, found, valid bool, err error) {
 	s.lock.Lock()
 	prog, found := s.programs[progId]
+	if found {
+		prog.instanceCount++
+	}
 	s.lock.Unlock()
 	if !found {
 		return
@@ -95,11 +116,15 @@ func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Resu
 
 	valid = prog.checkHash(progHash)
 	if !valid {
+		s.lock.Lock()
+		prog.instanceCount-- // cancel
+		s.lock.Unlock()
 		return
 	}
 
 	instId = makeId()
-	inst = newInstance(&prog.module, exit, origin)
+	inst = newInstance(exit, origin)
+	inst.program = prog
 
 	s.lock.Lock()
 	s.instances[instId] = inst
@@ -110,6 +135,7 @@ func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Resu
 func (s *State) cancel(inst *instance, instId uint64) {
 	s.lock.Lock()
 	delete(s.instances, instId)
+	inst.program.instanceCount--
 	s.lock.Unlock()
 
 	inst.cancel()
@@ -139,13 +165,16 @@ func (s *State) wait(instId uint64) (result *gate.Result, found bool) {
 
 	s.lock.Lock()
 	delete(s.instances, instId)
+	inst.program.instanceCount--
 	s.lock.Unlock()
 	return
 }
 
 type program struct {
-	module wag.Module
-	hash   [sha512.Size]byte
+	ownerCount    int
+	instanceCount int
+	module        wag.Module
+	hash          [sha512.Size]byte
 }
 
 func loadProgram(body io.ReadCloser, env *run.Environment) (*program, error) {
@@ -177,18 +206,18 @@ func (p *program) checkHash(hash []byte) bool {
 }
 
 type instance struct {
-	module     *wag.Module
+	program    *program
 	exit       chan *gate.Result
 	originPipe *pipe
 }
 
-func newInstance(m *wag.Module, exit chan *gate.Result, originPipe *pipe) *instance {
+// newInstance does not set the program field; it must be initialized manually.
+func newInstance(exit chan *gate.Result, originPipe *pipe) *instance {
 	if exit == nil {
 		exit = make(chan *gate.Result, 1)
 	}
 
 	return &instance{
-		module:     m,
 		exit:       exit,
 		originPipe: originPipe,
 	}
@@ -246,12 +275,12 @@ func (inst *instance) run(s *Settings, r io.Reader, w io.WriteCloser) {
 
 	defer w.Close()
 
-	_, memorySize := inst.module.MemoryLimits()
+	_, memorySize := inst.program.module.MemoryLimits()
 	if memorySize > s.MemorySizeLimit {
 		memorySize = s.MemorySizeLimit
 	}
 
-	payload, err := run.NewPayload(inst.module, memorySize, s.StackSize)
+	payload, err := run.NewPayload(&inst.program.module, memorySize, s.StackSize)
 	if err != nil {
 		return
 	}
