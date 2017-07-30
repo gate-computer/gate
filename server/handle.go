@@ -248,7 +248,6 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 		return
 	}
-
 	if !valid {
 		writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")
 		return
@@ -270,21 +269,19 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 
 	var (
-		found bool
 		valid bool
+		found bool
 	)
 
 	if progId, err := strconv.ParseUint(load.Program.Id, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(load.Program.SHA512); err == nil {
-			found, valid = s.check(progId, progHash)
+			valid, found = s.check(progId, progHash)
 		}
 	}
-
 	if !found {
 		http.NotFound(w, r) // XXX: can't do this
 		return
 	}
-
 	if !valid {
 		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
 		return
@@ -294,6 +291,8 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleRunWasm(w http.ResponseWriter, r *http.Request, s *State) {
+	// TODO: X-Content-Sha512-Hex support
+
 	body := decodeContent(w, r, s)
 	if body == nil {
 		return
@@ -329,27 +328,25 @@ func handleRunJSON(w http.ResponseWriter, r *http.Request, s *State) {
 	var (
 		inst   *instance
 		instId uint64
-		found  bool
 		valid  bool
+		found  bool
 	)
 
 	in, out, originSocket := newPipe()
 
 	if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
-			inst, instId, found, valid, err = s.instantiate(progId, progHash, nil, originSocket)
+			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, originSocket)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
 			}
 		}
 	}
-
 	if !found {
 		http.NotFound(w, r) // XXX: can't do this
 		return
 	}
-
 	if !valid {
 		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
 		return
@@ -415,25 +412,23 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 		}
 
 		var (
-			found bool
 			valid bool
+			found bool
 		)
 
 		if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
 			if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
-				inst, instId, found, valid, err = s.instantiate(progId, progHash, nil, nil)
+				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, nil)
 				if err != nil {
 					// TODO
 					return
 				}
 			}
 		}
-
 		if !found {
 			// TODO
 			return
 		}
-
 		if !valid {
 			// TODO
 			return
@@ -503,24 +498,25 @@ func handleOriginWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 
 	var (
-		found bool
 		ok    bool
+		found bool
 	)
 
 	if instId, err := strconv.ParseUint(origin.Instance.Id, 16, 64); err == nil {
-		found, ok = s.attachOrigin(instId, newWebsocketReader(conn), websocketWriter{conn})
+		ok, found = s.attachOrigin(instId, newWebsocketReader(conn), websocketWriter{conn})
 	}
-
+	if !found {
+		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
+		return
+	}
 	if !ok {
 		conn.WriteMessage(websocket.CloseMessage, websocketAlreadyAttached)
 		return
 	}
 
-	if found {
-		err = conn.WriteJSON(struct{}{}) // success
-		if err != nil {
-			return
-		}
+	err = conn.WriteJSON(struct{}{}) // success
+	if err != nil {
+		return
 	}
 
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
@@ -534,19 +530,17 @@ func handleOriginPost(w http.ResponseWriter, r *http.Request, s *State, urlSuffi
 	defer body.Close()
 
 	var (
-		found bool
 		ok    bool
+		found bool
 	)
 
 	if instId, err := strconv.ParseUint(urlSuffix, 16, 64); err == nil {
-		found, ok = s.attachOrigin(instId, body, w)
+		ok, found = s.attachOrigin(instId, body, w)
 	}
-
 	if !found {
 		http.NotFound(w, r) // XXX: can't do this
 		return
 	}
-
 	if !ok {
 		writeText(w, r, http.StatusConflict, "Already attached")
 		return

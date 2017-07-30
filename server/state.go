@@ -74,26 +74,22 @@ func (s *State) uploadPossiblyKnown(wasm io.ReadCloser, clientHash []byte) (prog
 		return
 	}
 
-	hash := sha512.New()
-
-	_, err = io.Copy(hash, wasm)
-	wasm.Close()
+	valid, err = validateReadHash(prog, wasm)
 	if err != nil {
 		return
 	}
-
-	if !prog.checkHash(hash.Sum(nil)) {
+	if !valid {
 		return
 	}
 
 	progId = makeId()
-	progHash = prog.hash[:]
-	valid = true
 
 	s.lock.Lock()
 	prog.ownerCount++
 	s.programs[progId] = prog
 	s.lock.Unlock()
+
+	progHash = prog.hash[:]
 	return
 }
 
@@ -122,7 +118,7 @@ func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (progId uin
 	return
 }
 
-func (s *State) check(progId uint64, progHash []byte) (found, valid bool) {
+func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
 	s.lock.Lock()
 	prog, found := s.programs[progId]
 	s.lock.Unlock()
@@ -130,11 +126,13 @@ func (s *State) check(progId uint64, progHash []byte) (found, valid bool) {
 		return
 	}
 
-	valid = prog.checkHash(progHash)
+	valid = validateHash(prog, progHash)
 	return
 }
 
 func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result, origin *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
+	// TODO: clientHash support
+
 	prog, _, err := loadProgram(wasm, nil, s.Env)
 	if err != nil {
 		return
@@ -161,7 +159,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result,
 	return
 }
 
-func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Result, origin *pipe) (inst *instance, instId uint64, found, valid bool, err error) {
+func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Result, origin *pipe) (inst *instance, instId uint64, valid, found bool, err error) {
 	s.lock.Lock()
 	prog, found := s.programs[progId]
 	if found {
@@ -172,7 +170,7 @@ func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Resu
 		return
 	}
 
-	valid = prog.checkHash(progHash)
+	valid = validateHash(prog, progHash)
 	if !valid {
 		s.lock.Lock()
 		prog.instanceCount-- // cancel
@@ -199,7 +197,7 @@ func (s *State) cancel(inst *instance, instId uint64) {
 	inst.cancel()
 }
 
-func (s *State) attachOrigin(instId uint64, r io.Reader, w io.Writer) (found, ok bool) {
+func (s *State) attachOrigin(instId uint64, r io.Reader, w io.Writer) (ok, found bool) {
 	s.lock.Lock()
 	inst, found := s.instances[instId]
 	s.lock.Unlock()
@@ -261,14 +259,27 @@ func loadProgram(body io.ReadCloser, clientHash []byte, env *run.Environment) (*
 	if clientHash == nil {
 		valid = true
 	} else {
-		valid = p.checkHash(clientHash)
+		valid = validateHash(p, clientHash)
 	}
 
 	return p, valid, nil
 }
 
-func (p *program) checkHash(hash []byte) bool {
+func validateHash(p *program, hash []byte) bool {
 	return subtle.ConstantTimeCompare(hash, p.hash[:]) == 1
+}
+
+func validateReadHash(p *program, r io.ReadCloser) (valid bool, err error) {
+	h := sha512.New()
+
+	_, err = io.Copy(h, r)
+	r.Close()
+	if err != nil {
+		return
+	}
+
+	valid = validateHash(p, h.Sum(nil))
+	return
 }
 
 type instance struct {
