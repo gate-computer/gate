@@ -23,7 +23,6 @@ import (
 	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate/run"
-	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 )
 
@@ -76,11 +75,9 @@ var handler = NewHandler("/", NewState(Settings{
 	MemorySizeLimit: 64 * wasm.Page,
 	StackSize:       65536,
 	Env:             newEnvironment(),
-	Services: func(r io.Reader, w io.Writer) run.ServiceRegistry {
-		return origin.CloneRegistryWith(service.Defaults, r, w)
-	},
-	Log:   log.New(os.Stderr, "log: ", 0),
-	Debug: os.Stdout,
+	Services:        func(r io.Reader, w io.Writer) run.ServiceRegistry { return origin.CloneRegistryWith(nil, r, w) },
+	Log:             log.New(os.Stderr, "log: ", 0),
+	Debug:           os.Stdout,
 }))
 
 var (
