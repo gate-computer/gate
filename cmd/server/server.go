@@ -5,8 +5,10 @@ import (
 	"flag"
 	"io"
 	"log"
+	"log/syslog"
 	"net/http"
 	"os"
+	"path"
 	"time"
 
 	"github.com/tsavola/wag/wasm"
@@ -57,9 +59,15 @@ func main() {
 	flag.Parse()
 	domains := flag.Args()
 
-	env, err := run.NewEnvironment(&config)
+	syslogger, err := syslog.New(syslog.LOG_INFO, path.Base(os.Args[0]))
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	env, err := run.NewEnvironment(&config)
+	if err != nil {
+		syslogger.Crit(err.Error())
+		os.Exit(1)
 	}
 	defer env.Close()
 
@@ -68,7 +76,7 @@ func main() {
 		StackSize:       stackSize,
 		Env:             env,
 		Services:        services,
-		Log:             log.New(os.Stderr, "", 0),
+		Log:             log.New(syslogger, "", 0),
 	}
 
 	if debug {
@@ -80,7 +88,8 @@ func main() {
 
 	if letsencrypt {
 		if !acceptTOS {
-			log.Fatal("-accept-tos option not set")
+			syslogger.Crit("-accept-tos option not set")
+			os.Exit(1)
 		}
 
 		m := autocert.Manager{
@@ -104,7 +113,8 @@ func main() {
 		err = http.ListenAndServe(addr, handler)
 	}
 
-	log.Fatal(err)
+	syslogger.Crit(err.Error())
+	os.Exit(1)
 }
 
 func services(r io.Reader, w io.Writer) run.ServiceRegistry {
