@@ -256,7 +256,7 @@ func TestRunOriginWaitWebsocket(t *testing.T) {
 	defer server.Close()
 
 	var d websocket.Dialer
-	conn, _, err := d.Dial(strings.Replace(server.URL, "http", "ws", 1)+"/run/origin/wait", nil)
+	conn, _, err := d.Dial(strings.Replace(server.URL, "http", "ws", 1)+"/run-origin-wait", nil)
 	if err != nil {
 		panic(err)
 	}

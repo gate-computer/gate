@@ -105,7 +105,7 @@ func NewHandler(pattern string, s *State) http.Handler {
 
 	{
 		var (
-			path  = prefix + "/run/origin/wait"
+			path  = prefix + "/run-origin-wait"
 			allow = joinHeader(http.MethodGet, http.MethodOptions)
 		)
 

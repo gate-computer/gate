@@ -32,7 +32,7 @@
 	prog.open("GET", "payload/prog.wasm")
 	prog.send()
 	prog.onload = () => {
-		let conn = new WebSocket("ws://localhost:8888/run/origin/wait")
+		let conn = new WebSocket("ws://localhost:8888/run-origin-wait")
 		conn.binaryType = "arraybuffer"
 
 		conn.onopen = () => {
