@@ -42,9 +42,67 @@ func NewState(s Settings) *State {
 	}
 }
 
-func (s *State) upload(wasm io.ReadCloser) (progId uint64, progHash []byte, err error) {
-	prog, err := loadProgram(wasm, s.Env)
+func (s *State) upload(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
+	if clientHash != nil {
+		var final bool
+
+		progId, progHash, valid, final, err = s.uploadPossiblyKnown(wasm, clientHash)
+		if err != nil {
+			return
+		}
+		if final {
+			return
+		}
+	}
+
+	return s.uploadUnknown(wasm, clientHash)
+}
+
+func (s *State) uploadPossiblyKnown(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid, final bool, err error) {
+	if len(clientHash) != sha512.Size {
+		final = true // avoid processing impossible input
+		return
+	}
+
+	var key [sha512.Size]byte
+	copy(key[:], clientHash)
+
+	s.lock.Lock()
+	prog, final := s.programsByHash[key]
+	s.lock.Unlock()
+	if !final {
+		return
+	}
+
+	hash := sha512.New()
+
+	_, err = io.Copy(hash, wasm)
+	wasm.Close()
 	if err != nil {
+		return
+	}
+
+	if !prog.checkHash(hash.Sum(nil)) {
+		return
+	}
+
+	progId = makeId()
+	progHash = prog.hash[:]
+	valid = true
+
+	s.lock.Lock()
+	prog.ownerCount++
+	s.programs[progId] = prog
+	s.lock.Unlock()
+	return
+}
+
+func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
+	prog, valid, err := loadProgram(wasm, clientHash, s.Env)
+	if err != nil {
+		return
+	}
+	if !valid {
 		return
 	}
 
@@ -77,7 +135,7 @@ func (s *State) check(progId uint64, progHash []byte) (found, valid bool) {
 }
 
 func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result, origin *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
-	prog, err := loadProgram(wasm, s.Env)
+	prog, _, err := loadProgram(wasm, nil, s.Env)
 	if err != nil {
 		return
 	}
@@ -177,7 +235,7 @@ type program struct {
 	hash          [sha512.Size]byte
 }
 
-func loadProgram(body io.ReadCloser, env *run.Environment) (*program, error) {
+func loadProgram(body io.ReadCloser, clientHash []byte, env *run.Environment) (*program, bool, error) {
 	hash := sha512.New()
 	wasm := bufio.NewReader(io.TeeReader(body, hash))
 
@@ -191,14 +249,22 @@ func loadProgram(body io.ReadCloser, env *run.Environment) (*program, error) {
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:
-		return nil, loadErr
+		return nil, false, loadErr
 
 	case closeErr != nil:
-		return nil, closeErr
+		return nil, false, closeErr
 	}
 
 	hash.Sum(p.hash[:0])
-	return p, nil
+
+	var valid bool
+	if clientHash == nil {
+		valid = true
+	} else {
+		valid = p.checkHash(clientHash)
+	}
+
+	return p, valid, nil
 }
 
 func (p *program) checkHash(hash []byte) bool {

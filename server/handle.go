@@ -202,6 +202,19 @@ func NewHandler(pattern string, s *State) http.Handler {
 }
 
 func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
+	var (
+		progHash []byte
+		err      error
+	)
+
+	if s := r.Header.Get("X-Content-Sha512-Hex"); s != "" { // non-standard
+		progHash, err = hex.DecodeString(s)
+		if err != nil {
+			writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")
+			return
+		}
+	}
+
 	body := decodeContent(w, r, s)
 	if body == nil {
 		return
@@ -211,9 +224,14 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 
 	// upload method closes body to check for decoding errors
 
-	progId, progHash, err := s.upload(body)
+	progId, progHash, valid, err := s.upload(body, progHash)
 	if err != nil {
 		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+		return
+	}
+
+	if !valid {
+		writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")
 		return
 	}
 
