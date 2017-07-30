@@ -43,6 +43,11 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Content-Sha512-Hex")
+			w.Header().Set("Access-Control-Allow-Methods", allow)
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
 			switch r.Method {
 			case http.MethodPost:
 				if acceptsJSON(r) {
@@ -77,6 +82,11 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Content-Sha512-Hex")
+			w.Header().Set("Access-Control-Allow-Methods", allow)
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
 			switch r.Method {
 			case http.MethodPost:
 				if acceptsJSON(r) {
@@ -150,6 +160,10 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Methods", allow)
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
 			switch r.Method {
 			case http.MethodPost:
 				if acceptsJSON(r) {
@@ -175,6 +189,11 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Methods", allow)
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+
 			switch r.Method {
 			case http.MethodPost:
 				if acceptsJSON(r) {

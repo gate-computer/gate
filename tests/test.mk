@@ -1,5 +1,7 @@
 export WAGTOOLCHAIN_ALLOCATE_STACK := 1048576
 
+SHA512SUM	?= sha512sum
+
 CPPFLAGS	+= -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include
 CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -ffreestanding -Oz
 CXXFLAGS	+= -std=c++14
@@ -9,9 +11,12 @@ OBJECT		?= $(patsubst %.cpp,%.bc,$(patsubst %.c,%.bc,$(SOURCE)))
 
 OBJECTS		:= $(OBJECT)
 
-build: prog.wasm
+build: prog.wasm prog.wasm.sha512sum
 
 $(OBJECT): $(SOURCE) $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/tests/test.mk $(GATEDIR)/crt/rules.mk
+
+prog.wasm.sha512sum: prog.wasm
+	$(SHA512SUM) prog.wasm > $@
 
 clean:
 	rm -f prog.* *.bc *.s *.wast

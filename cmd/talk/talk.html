@@ -17,40 +17,135 @@
 
 			.protocol {
 				opacity: 0.5;
+				white-space: pre-wrap;
 			}
 		</style>
 	</head>
-	<body id="body">
+	<body>
 		<ul id="output"></ul>
 		<script>
 
 (function() {
 	let output = document.getElementById("output")
 
+	function displayMessage(text) {
+		let li = document.createElement("li")
+		li.innerText = text
+		output.appendChild(li)
+		output.scrollIntoView(false)
+		return li
+	}
+
+	function displayProtocolMessage(text) {
+		let li = displayMessage(text)
+		li.classList.add("protocol")
+	}
+
+	function displayOriginMessage(data) {
+		displayMessage(new TextDecoder("utf-8").decode(data))
+	}
+
+	const PROG = "payload/prog.wasm" // "../../tests/hello/prog.wasm"
+	const ADDR = "localhost:8888"
+	const WEBSOCKET_ONLY = false
+	const WEBSOCKET_ORIGIN = true
+
 	let prog = new XMLHttpRequest()
 	prog.responseType = "arraybuffer"
-	prog.open("GET", "payload/prog.wasm")
+	prog.open("GET", PROG)
 	prog.send()
+
 	prog.onload = () => {
-		let conn = new WebSocket("ws://localhost:8888/run-origin-wait")
-		conn.binaryType = "arraybuffer"
+		let checksum = new XMLHttpRequest()
+		checksum.open("GET", PROG + ".sha512sum")
+		checksum.send()
 
-		conn.onopen = () => {
-			conn.send(prog.response)
-		}
+		checksum.onload = () => {
+			let hash = checksum.response.split(" ")[0]
 
-		conn.onmessage = (event) => {
-			let li = document.createElement("li")
+			if (WEBSOCKET_ONLY) {
+				let conn = new WebSocket("ws://" + ADDR + "/run-origin-wait")
+				conn.binaryType = "arraybuffer"
 
-			if (typeof event.data === "string") {
-				li.innerText = event.data
-				li.classList.add("protocol")
+				conn.onopen = () => {
+					conn.send(prog.response)
+				}
+
+				conn.onmessage = (event) => {
+					if (typeof event.data === "string")
+						displayProtocolMessage(event.data)
+					else
+						displayOriginMessage(event.data)
+				}
 			} else {
-				li.innerText = new TextDecoder("utf-8").decode(event.data)
-			}
+				let load = new XMLHttpRequest()
+				load.open("POST", "http://" + ADDR + "/load")
+				load.setRequestHeader("Content-Type", "application/wasm")
+				load.setRequestHeader("X-Content-Sha512-Hex", hash)
+				load.send(prog.response)
 
-			output.appendChild(li)
-			output.scrollIntoView(false)
+				load.onload = () => {
+					displayProtocolMessage(load.response)
+					let loaded = JSON.parse(load.response)
+
+					let run = new XMLHttpRequest()
+					run.open("POST", "http://" + ADDR + "/run")
+					run.setRequestHeader("Content-Type", "application/json")
+					run.send(JSON.stringify({program: loaded.program}))
+
+					run.onload = () => {
+						displayProtocolMessage(run.response)
+						let running = JSON.parse(run.response)
+
+						var waiting = false
+
+						function wait() {
+							if (waiting)
+								return
+
+							waiting = true
+
+							let wait = new XMLHttpRequest()
+							wait.open("POST", "http://" + ADDR + "/wait")
+							wait.setRequestHeader("Content-Type", "application/json")
+							wait.send(JSON.stringify({instance: running.instance}))
+
+							wait.onload = () => {
+								displayProtocolMessage(wait.response)
+							}
+						}
+
+						if (WEBSOCKET_ORIGIN) {
+							let origin = new WebSocket("ws://" + ADDR + "/origin")
+							origin.binaryType = "arraybuffer"
+
+							origin.onopen = () => {
+								origin.send(JSON.stringify({instance: running.instance}))
+							}
+
+							origin.onmessage = (event) => {
+								wait()
+
+								if (typeof event.data != "string")
+									displayOriginMessage(event.data)
+							}
+						} else {
+							let origin = new XMLHttpRequest()
+							origin.responseType = "arraybuffer"
+							origin.open("POST", "http://" + ADDR + "/origin/" + running.instance.id)
+							origin.send()
+
+							origin.onloadstart = wait
+							origin.onprogress = wait
+							origin.onloadend = wait
+
+							origin.onload = () => {
+								displayOriginMessage(origin.response)
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 }())
