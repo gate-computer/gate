@@ -43,7 +43,7 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Content-Sha512-Hex")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Gate-Program-Sha512")
 			w.Header().Set("Access-Control-Allow-Methods", allow)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Max-Age", "86400")
@@ -76,13 +76,13 @@ func NewHandler(pattern string, s *State) http.Handler {
 
 	{
 		var (
-			path   = prefix + "/run"
+			path   = prefix + "/spawn"
 			allow  = joinHeader(http.MethodPost, http.MethodOptions)
 			accept = joinHeader("application/wasm", "application/json")
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Content-Sha512-Hex")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Gate-Program-Sha512")
 			w.Header().Set("Access-Control-Allow-Methods", allow)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Max-Age", "86400")
@@ -92,10 +92,10 @@ func NewHandler(pattern string, s *State) http.Handler {
 				if acceptsJSON(r) {
 					switch getContentType(r) {
 					case "application/wasm":
-						handleRunWasm(w, r, s)
+						handleSpawnWasm(w, r, s)
 
 					case "application/json":
-						handleRunJSON(w, r, s)
+						handleSpawnJSON(w, r, s)
 
 					default:
 						writeUnsupportedMediaType(w, accept)
@@ -115,17 +115,17 @@ func NewHandler(pattern string, s *State) http.Handler {
 
 	{
 		var (
-			path  = prefix + "/run-origin-wait"
+			path  = prefix + "/run"
 			allow = joinHeader(http.MethodGet, http.MethodOptions)
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
-				handleRunOriginWait(w, r, s)
+				handleRun(w, r, s)
 
 			case http.MethodOptions:
-				writeOptionsWebsocket(w, r, allow)
+				writeOptions(w, allow)
 
 			default:
 				writeMethodNotAllowed(w, allow)
@@ -135,42 +135,23 @@ func NewHandler(pattern string, s *State) http.Handler {
 
 	{
 		var (
-			path  = prefix + "/origin"
-			allow = joinHeader(http.MethodGet, http.MethodOptions)
+			path      = prefix + "/communicate"
+			allow     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
+			allowCORS = joinHeader(http.MethodPost, http.MethodOptions) // excluding websocket
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				handleOriginWebsocket(w, r, s)
-
-			case http.MethodOptions:
-				writeOptionsWebsocket(w, r, allow)
-
-			default:
-				writeMethodNotAllowed(w, allow)
-			}
-		})
-	}
-
-	{
-		var (
-			path  = prefix + "/origin/"
-			allow = joinHeader(http.MethodPost, http.MethodOptions)
-		)
-
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Methods", allow)
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Gate-Instance-Id")
+			w.Header().Set("Access-Control-Allow-Methods", allowCORS)
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 
 			switch r.Method {
+			case http.MethodGet:
+				handleCommunicateWebsocket(w, r, s)
+
 			case http.MethodPost:
-				if acceptsJSON(r) {
-					handleOriginPost(w, r, s, r.URL.Path[len(path):])
-				} else {
-					w.WriteHeader(http.StatusNotAcceptable)
-				}
+				handleCommunicatePost(w, r, s)
 
 			case http.MethodOptions:
 				writeOptions(w, allow)
@@ -226,7 +207,7 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 		err      error
 	)
 
-	if s := r.Header.Get("X-Content-Sha512-Hex"); s != "" { // non-standard
+	if s := r.Header.Get("X-Gate-Program-Sha512"); s != "" {
 		progHash, err = hex.DecodeString(s)
 		if err != nil {
 			writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")
@@ -290,8 +271,10 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 	writeJSON(w, &gate.Loaded{})
 }
 
-func handleRunWasm(w http.ResponseWriter, r *http.Request, s *State) {
-	// TODO: X-Content-Sha512-Hex support
+func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
+	// TODO: X-Gate-Program-Sha512 support
+
+	in, out, originPipe := newPipe()
 
 	body := decodeContent(w, r, s)
 	if body == nil {
@@ -302,28 +285,33 @@ func handleRunWasm(w http.ResponseWriter, r *http.Request, s *State) {
 
 	// uploadAndInstantiate method closes body to check for decoding errors
 
-	in, out, originSocket := newPipe()
-
-	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, nil, originSocket)
+	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, nil, originPipe)
 	if err != nil {
 		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 		return
 	}
 
-	go inst.run(&s.Settings, in, out)
+	go func() {
+		defer out.Close()
+		inst.run(&s.Settings, in, out)
+	}()
 
-	writeJSON(w, &gate.Running{
+	writeJSON(w, &gate.Spawned{
+		Loaded: gate.Loaded{
+			Program: newProgram(progId, progHash),
+		},
 		Instance: makeInstance(instId),
-		Program:  newProgram(progId, progHash),
 	})
 }
 
-func handleRunJSON(w http.ResponseWriter, r *http.Request, s *State) {
-	var run gate.Run
+func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
+	var spawn gate.Spawn
 
-	if !decodeContentJSON(w, r, s, &run) {
+	if !decodeContentJSON(w, r, s, &spawn) {
 		return
 	}
+
+	in, out, originPipe := newPipe()
 
 	var (
 		inst   *instance
@@ -332,11 +320,9 @@ func handleRunJSON(w http.ResponseWriter, r *http.Request, s *State) {
 		found  bool
 	)
 
-	in, out, originSocket := newPipe()
-
-	if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
-		if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
-			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, originSocket)
+	if progId, err := strconv.ParseUint(spawn.Program.Id, 16, 64); err == nil {
+		if progHash, err := hex.DecodeString(spawn.Program.SHA512); err == nil {
+			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, originPipe)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
@@ -352,14 +338,17 @@ func handleRunJSON(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	go inst.run(&s.Settings, in, out)
+	go func() {
+		defer out.Close()
+		inst.run(&s.Settings, in, out)
+	}()
 
-	writeJSON(w, &gate.Running{
+	writeJSON(w, &gate.Spawned{
 		Instance: makeInstance(instId),
 	})
 }
 
-func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
+func handleRun(w http.ResponseWriter, r *http.Request, s *State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -380,11 +369,10 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 	// TODO: size limit
 
 	var (
-		exited  = make(chan *gate.Result, 1)
-		written = make(chan struct{})
-		inst    *instance
-		instId  uint64
-		prog    *gate.Program
+		exited = make(chan *gate.Result, 1)
+		inst   *instance
+		instId uint64
+		loaded gate.Loaded
 	)
 
 	switch frameType {
@@ -400,7 +388,7 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 			return
 		}
 
-		prog = newProgram(progId, progHash)
+		loaded.Program = newProgram(progId, progHash)
 
 	case websocket.TextMessage:
 		var run gate.Run
@@ -436,19 +424,19 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 
 	err = conn.WriteJSON(&gate.Running{
-		Instance: makeInstance(instId),
-		Program:  prog,
+		Spawned: gate.Spawned{
+			Loaded:   loaded,
+			Instance: makeInstance(instId),
+		},
 	})
 	if err != nil {
 		s.cancel(inst, instId)
 		return
 	}
 
-	go inst.run(&s.Settings, newWebsocketReader(conn), newWebsocketWriteCloser(conn, written))
+	inst.run(&s.Settings, newWebsocketReader(conn), websocketWriter{conn})
 
 	result, _ := <-exited
-	<-written
-
 	if result == nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		return
@@ -464,7 +452,7 @@ func handleRunOriginWait(w http.ResponseWriter, r *http.Request, s *State) {
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 }
 
-func handleOriginWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
+func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -489,40 +477,48 @@ func handleOriginWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 	// TODO: size limit
 
-	var origin gate.Origin
+	var communicate gate.Communicate
 
-	err = json.NewDecoder(frame).Decode(&origin)
+	err = json.NewDecoder(frame).Decode(&communicate)
 	if err != nil {
 		// TODO
 		return
 	}
 
 	var (
-		ok    bool
-		found bool
+		originPipe *pipe
+		found      bool
 	)
 
-	if instId, err := strconv.ParseUint(origin.Instance.Id, 16, 64); err == nil {
-		ok, found = s.attachOrigin(instId, newWebsocketReader(conn), websocketWriter{conn})
+	if instId, err := strconv.ParseUint(communicate.Instance.Id, 16, 64); err == nil {
+		originPipe, found = s.attachOrigin(instId)
 	}
 	if !found {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 		return
 	}
-	if !ok {
-		conn.WriteMessage(websocket.CloseMessage, websocketAlreadyAttached)
+	if originPipe == nil {
+		conn.WriteMessage(websocket.CloseMessage, websocketAlreadyCommunicating)
 		return
 	}
 
-	err = conn.WriteJSON(struct{}{}) // success
+	err = conn.WriteJSON(gate.Communicating{})
 	if err != nil {
 		return
 	}
 
+	originPipe.io(newWebsocketReader(conn), websocketWriter{conn})
+
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 }
 
-func handleOriginPost(w http.ResponseWriter, r *http.Request, s *State, urlSuffix string) {
+func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
+	instHexId := r.Header.Get("X-Gate-Instance-Id")
+	if instHexId == "" {
+		writeText(w, r, http.StatusBadRequest, "X-Gate-Instance-Id header required")
+		return
+	}
+
 	body := decodeContent(w, r, s)
 	if body == nil {
 		return
@@ -530,21 +526,23 @@ func handleOriginPost(w http.ResponseWriter, r *http.Request, s *State, urlSuffi
 	defer body.Close()
 
 	var (
-		ok    bool
-		found bool
+		originPipe *pipe
+		found      bool
 	)
 
-	if instId, err := strconv.ParseUint(urlSuffix, 16, 64); err == nil {
-		ok, found = s.attachOrigin(instId, body, w)
+	if instId, err := strconv.ParseUint(instHexId, 16, 64); err == nil {
+		originPipe, found = s.attachOrigin(instId)
 	}
 	if !found {
 		http.NotFound(w, r) // XXX: can't do this
 		return
 	}
-	if !ok {
-		writeText(w, r, http.StatusConflict, "Already attached")
+	if originPipe == nil {
+		writeText(w, r, http.StatusConflict, "Already communicating")
 		return
 	}
+
+	originPipe.io(body, w)
 }
 
 func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
@@ -562,12 +560,10 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 	if instId, err := strconv.ParseUint(wait.Instance.Id, 16, 64); err == nil {
 		result, found = s.wait(instId)
 	}
-
 	if !found {
 		http.NotFound(w, r) // XXX: can't do this
 		return
 	}
-
 	if result == nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -685,11 +681,6 @@ func writeOptionsAccept(w http.ResponseWriter, allow, accept string) {
 	w.Header().Set("Accept", accept)          // non-standard for response
 	w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
 	writeOptions(w, allow)
-}
-
-func writeOptionsWebsocket(w http.ResponseWriter, r *http.Request, allow string) {
-	w.Header().Set("Allow", allow)
-	writeText(w, r, http.StatusOK, "WebSocket endpoint")
 }
 
 func writeMethodNotAllowed(w http.ResponseWriter, allow string) {

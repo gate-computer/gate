@@ -129,7 +129,7 @@ func TestLoadNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadRunOriginWait(t *testing.T) {
+func TestLoadSpawnCommunicateWait(t *testing.T) {
 	var progId string
 
 	{
@@ -184,7 +184,7 @@ func TestLoadRunOriginWait(t *testing.T) {
 	var instId string
 
 	{
-		req := httptest.NewRequest("POST", "/run", bytes.NewBufferString(progJSON))
+		req := httptest.NewRequest("POST", "/spawn", bytes.NewBufferString(progJSON))
 		req.Header.Set("Content-Type", "application/json")
 
 		resp, content := doJSON(t, req)
@@ -203,7 +203,8 @@ func TestLoadRunOriginWait(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/origin/"+instId, bytes.NewBuffer(nil))
+		req := httptest.NewRequest("POST", "/communicate", bytes.NewBuffer(nil))
+		req.Header.Set("X-Gate-Instance-Id", instId)
 
 		resp, body := do(t, req)
 		if resp.StatusCode != http.StatusOK {
@@ -216,7 +217,8 @@ func TestLoadRunOriginWait(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/origin/"+instId, bytes.NewBuffer(nil))
+		req := httptest.NewRequest("POST", "/communicate", bytes.NewBuffer(nil))
+		req.Header.Set("X-Gate-Instance-Id", instId)
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusConflict {
@@ -251,12 +253,12 @@ func TestLoadRunOriginWait(t *testing.T) {
 	}
 }
 
-func TestRunOriginWaitWebsocket(t *testing.T) {
+func TestRun(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
 	var d websocket.Dialer
-	conn, _, err := d.Dial(strings.Replace(server.URL, "http", "ws", 1)+"/run-origin-wait", nil)
+	conn, _, err := d.Dial(strings.Replace(server.URL, "http", "ws", 1)+"/run", nil)
 	if err != nil {
 		panic(err)
 	}

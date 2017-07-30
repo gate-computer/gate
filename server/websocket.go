@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	websocketNormalClosure     = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
-	websocketUnsupportedData   = websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "")
-	websocketAlreadyAttached   = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Already attached")
-	websocketInternalServerErr = websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "")
+	websocketNormalClosure        = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+	websocketUnsupportedData      = websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "")
+	websocketAlreadyCommunicating = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Already communicating")
+	websocketInternalServerErr    = websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "")
 )
 
 type websocketReader struct {
@@ -54,22 +54,5 @@ func (w websocketWriter) Write(buf []byte) (n int, err error) {
 	if err == nil {
 		n = len(buf)
 	}
-	return
-}
-
-type websocketWriteCloser struct {
-	websocketWriter
-	close chan<- struct{}
-}
-
-func newWebsocketWriteCloser(conn *websocket.Conn, close chan<- struct{}) *websocketWriteCloser {
-	return &websocketWriteCloser{
-		websocketWriter{conn},
-		close,
-	}
-}
-
-func (w *websocketWriteCloser) Close() (err error) {
-	close(w.close)
 	return
 }

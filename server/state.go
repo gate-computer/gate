@@ -130,7 +130,7 @@ func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result, origin *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
+func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result, originPipe *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
 	// TODO: clientHash support
 
 	prog, _, err := loadProgram(wasm, nil, s.Env)
@@ -140,7 +140,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result,
 
 	progId = makeId()
 	instId = makeId()
-	inst = newInstance(exit, origin)
+	inst = newInstance(exit, originPipe)
 
 	s.lock.Lock()
 	if existing, found := s.programsByHash[prog.hash]; found {
@@ -159,7 +159,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result,
 	return
 }
 
-func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Result, origin *pipe) (inst *instance, instId uint64, valid, found bool, err error) {
+func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Result, originPipe *pipe) (inst *instance, instId uint64, valid, found bool, err error) {
 	s.lock.Lock()
 	prog, found := s.programs[progId]
 	if found {
@@ -179,7 +179,7 @@ func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Resu
 	}
 
 	instId = makeId()
-	inst = newInstance(exit, origin)
+	inst = newInstance(exit, originPipe)
 	inst.program = prog
 
 	s.lock.Lock()
@@ -197,7 +197,7 @@ func (s *State) cancel(inst *instance, instId uint64) {
 	inst.cancel()
 }
 
-func (s *State) attachOrigin(instId uint64, r io.Reader, w io.Writer) (ok, found bool) {
+func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
 	s.lock.Lock()
 	inst, found := s.instances[instId]
 	s.lock.Unlock()
@@ -205,7 +205,7 @@ func (s *State) attachOrigin(instId uint64, r io.Reader, w io.Writer) (ok, found
 		return
 	}
 
-	ok = inst.attachOrigin(r, w, s.Log)
+	pipe = inst.attachOrigin()
 	return
 }
 
@@ -304,9 +304,9 @@ func (inst *instance) cancel() {
 	close(inst.exit)
 }
 
-func (inst *instance) attachOrigin(r io.Reader, w io.Writer, log Logger) (ok bool) {
-	if inst.originPipe != nil {
-		ok = inst.originPipe.attach(r, w, log)
+func (inst *instance) attachOrigin() (pipe *pipe) {
+	if inst.originPipe != nil && inst.originPipe.allocate() {
+		pipe = inst.originPipe
 	}
 	return
 }
@@ -316,7 +316,7 @@ func (inst *instance) wait() (result *gate.Result, found bool) {
 	return
 }
 
-func (inst *instance) run(s *Settings, r io.Reader, w io.WriteCloser) {
+func (inst *instance) run(s *Settings, r io.Reader, w io.Writer) {
 	var (
 		exit     int
 		trap     traps.Id
@@ -350,8 +350,6 @@ func (inst *instance) run(s *Settings, r io.Reader, w io.WriteCloser) {
 		}
 	}()
 
-	defer w.Close()
-
 	_, memorySize := inst.program.module.MemoryLimits()
 	if memorySize > s.MemorySizeLimit {
 		memorySize = s.MemorySizeLimit
@@ -379,27 +377,28 @@ type pipe struct {
 	attached bool
 }
 
-func newPipe() (io.Reader, io.WriteCloser, *pipe) {
+func newPipe() (inR *io.PipeReader, outW *io.PipeWriter, p *pipe) {
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 
-	return inR, outW, &pipe{
+	p = &pipe{
 		in:  inW,
 		out: outR,
 	}
+	return
 }
 
-func (socket *pipe) attach(in io.Reader, out io.Writer, log Logger) (ok bool) {
-	socket.lock.Lock()
-	ok = !socket.attached
+func (p *pipe) allocate() (ok bool) {
+	p.lock.Lock()
+	ok = !p.attached
 	if ok {
-		socket.attached = true
+		p.attached = true
 	}
-	socket.lock.Unlock()
-	if !ok {
-		return
-	}
+	p.lock.Unlock()
+	return
+}
 
+func (p *pipe) io(in io.Reader, out io.Writer) {
 	var (
 		inDone  = make(chan struct{})
 		outDone = make(chan struct{})
@@ -407,22 +406,15 @@ func (socket *pipe) attach(in io.Reader, out io.Writer, log Logger) (ok bool) {
 
 	go func() {
 		defer close(inDone)
-		defer socket.in.Close()
-
-		if _, err := io.Copy(socket.in, in); err != nil {
-			log.Printf("origin input: %v", err)
-		}
+		defer p.in.Close()
+		io.Copy(p.in, in)
 	}()
 
 	go func() {
 		defer close(outDone)
-
-		if _, err := io.Copy(out, socket.out); err != nil {
-			log.Printf("origin output: %v", err)
-		}
+		io.Copy(out, p.out)
 	}()
 
 	<-inDone
 	<-outDone
-	return
 }

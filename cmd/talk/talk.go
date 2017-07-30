@@ -58,7 +58,7 @@ func mainResult() (ok bool) {
 
 	var d websocket.Dialer
 
-	conn, _, err := d.Dial(url+"/run-origin-wait", nil)
+	conn, _, err := d.Dial(url+"/run", nil)
 	if err != nil {
 		log.Fatal(err)
 	}

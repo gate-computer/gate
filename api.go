@@ -21,11 +21,15 @@ type Load struct {
 	Program Program `json:"program"`
 }
 
+type Spawn struct {
+	Program Program `json:"program"`
+}
+
 type Run struct {
 	Program Program `json:"program"`
 }
 
-type Origin struct {
+type Communicate struct {
 	Instance Instance `json:"instance"`
 }
 
@@ -39,9 +43,17 @@ type Loaded struct {
 	Program *Program `json:"program,omitempty"`
 }
 
-type Running struct {
+type Spawned struct {
+	Loaded
 	Instance Instance `json:"instance"`
-	Program  *Program `json:"program,omitempty"`
+}
+
+type Running struct {
+	Spawned
+	Communicating
+}
+
+type Communicating struct {
 }
 
 type Finished struct {

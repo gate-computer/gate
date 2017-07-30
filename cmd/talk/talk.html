@@ -15,7 +15,7 @@
 				font-family: monospace;
 			}
 
-			.protocol {
+			.info {
 				opacity: 0.5;
 				white-space: pre-wrap;
 			}
@@ -36,19 +36,19 @@
 		return li
 	}
 
-	function displayProtocolMessage(text) {
+	function displayInfoMessage(text) {
 		let li = displayMessage(text)
-		li.classList.add("protocol")
+		li.classList.add("info")
 	}
 
-	function displayOriginMessage(data) {
+	function displayCommMessage(data) {
 		displayMessage(new TextDecoder("utf-8").decode(data))
 	}
 
 	const PROG = "payload/prog.wasm" // "../../tests/hello/prog.wasm"
 	const ADDR = "localhost:8888"
-	const WEBSOCKET_ONLY = false
-	const WEBSOCKET_ORIGIN = true
+	const WEBSOCKET_ONLY = true
+	const WEBSOCKET_COMM = true
 
 	let prog = new XMLHttpRequest()
 	prog.responseType = "arraybuffer"
@@ -64,38 +64,38 @@
 			let hash = checksum.response.split(" ")[0]
 
 			if (WEBSOCKET_ONLY) {
-				let conn = new WebSocket("ws://" + ADDR + "/run-origin-wait")
-				conn.binaryType = "arraybuffer"
+				let run = new WebSocket("ws://" + ADDR + "/run")
+				run.binaryType = "arraybuffer"
 
-				conn.onopen = () => {
-					conn.send(prog.response)
+				run.onopen = () => {
+					run.send(prog.response)
 				}
 
-				conn.onmessage = (event) => {
+				run.onmessage = (event) => {
 					if (typeof event.data === "string")
-						displayProtocolMessage(event.data)
+						displayInfoMessage(event.data)
 					else
-						displayOriginMessage(event.data)
+						displayCommMessage(event.data)
 				}
 			} else {
 				let load = new XMLHttpRequest()
 				load.open("POST", "http://" + ADDR + "/load")
 				load.setRequestHeader("Content-Type", "application/wasm")
-				load.setRequestHeader("X-Content-Sha512-Hex", hash)
+				load.setRequestHeader("X-Gate-Program-Sha512", hash)
 				load.send(prog.response)
 
 				load.onload = () => {
-					displayProtocolMessage(load.response)
+					displayInfoMessage(load.response)
 					let loaded = JSON.parse(load.response)
 
-					let run = new XMLHttpRequest()
-					run.open("POST", "http://" + ADDR + "/run")
-					run.setRequestHeader("Content-Type", "application/json")
-					run.send(JSON.stringify({program: loaded.program}))
+					let spawn = new XMLHttpRequest()
+					spawn.open("POST", "http://" + ADDR + "/spawn")
+					spawn.setRequestHeader("Content-Type", "application/json")
+					spawn.send(JSON.stringify({program: loaded.program}))
 
-					run.onload = () => {
-						displayProtocolMessage(run.response)
-						let running = JSON.parse(run.response)
+					spawn.onload = () => {
+						displayInfoMessage(spawn.response)
+						let spawned = JSON.parse(spawn.response)
 
 						var waiting = false
 
@@ -108,39 +108,40 @@
 							let wait = new XMLHttpRequest()
 							wait.open("POST", "http://" + ADDR + "/wait")
 							wait.setRequestHeader("Content-Type", "application/json")
-							wait.send(JSON.stringify({instance: running.instance}))
+							wait.send(JSON.stringify({instance: spawned.instance}))
 
 							wait.onload = () => {
-								displayProtocolMessage(wait.response)
+								displayInfoMessage(wait.response)
 							}
 						}
 
-						if (WEBSOCKET_ORIGIN) {
-							let origin = new WebSocket("ws://" + ADDR + "/origin")
-							origin.binaryType = "arraybuffer"
+						if (WEBSOCKET_COMM) {
+							let comm = new WebSocket("ws://" + ADDR + "/communicate")
+							comm.binaryType = "arraybuffer"
 
-							origin.onopen = () => {
-								origin.send(JSON.stringify({instance: running.instance}))
+							comm.onopen = () => {
+								comm.send(JSON.stringify({instance: spawned.instance}))
 							}
 
-							origin.onmessage = (event) => {
-								wait()
-
-								if (typeof event.data != "string")
-									displayOriginMessage(event.data)
+							comm.onmessage = (event) => {
+								if (typeof event.data === "string")
+									wait()
+								else
+									displayCommMessage(event.data)
 							}
 						} else {
-							let origin = new XMLHttpRequest()
-							origin.responseType = "arraybuffer"
-							origin.open("POST", "http://" + ADDR + "/origin/" + running.instance.id)
-							origin.send()
+							let comm = new XMLHttpRequest()
+							comm.responseType = "arraybuffer"
+							comm.open("POST", "http://" + ADDR + "/communicate")
+							comm.setRequestHeader("X-Gate-Instance-Id", spawned.instance.id)
+							comm.send()
 
-							origin.onloadstart = wait
-							origin.onprogress = wait
-							origin.onloadend = wait
+							comm.onloadstart = wait
+							comm.onprogress = wait
+							comm.onloadend = wait
 
-							origin.onload = () => {
-								displayOriginMessage(origin.response)
+							comm.onload = () => {
+								displayCommMessage(comm.response)
 							}
 						}
 					}
