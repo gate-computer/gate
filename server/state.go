@@ -130,7 +130,7 @@ func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result, originPipe *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
+func (s *State) uploadAndInstantiate(wasm io.ReadCloser, originPipe *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
 	// TODO: clientHash support
 
 	prog, _, err := loadProgram(wasm, nil, s.Env)
@@ -140,7 +140,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result,
 
 	progId = makeId()
 	instId = makeId()
-	inst = newInstance(exit, originPipe)
+	inst = newInstance(originPipe)
 
 	s.lock.Lock()
 	if existing, found := s.programsByHash[prog.hash]; found {
@@ -159,7 +159,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, exit chan *gate.Result,
 	return
 }
 
-func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Result, originPipe *pipe) (inst *instance, instId uint64, valid, found bool, err error) {
+func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe) (inst *instance, instId uint64, valid, found bool, err error) {
 	s.lock.Lock()
 	prog, found := s.programs[progId]
 	if found {
@@ -179,7 +179,7 @@ func (s *State) instantiate(progId uint64, progHash []byte, exit chan *gate.Resu
 	}
 
 	instId = makeId()
-	inst = newInstance(exit, originPipe)
+	inst = newInstance(originPipe)
 	inst.program = prog
 
 	s.lock.Lock()
@@ -217,7 +217,15 @@ func (s *State) wait(instId uint64) (result *gate.Result, found bool) {
 		return
 	}
 
-	result, found = inst.wait()
+	result, found = s.waitInstance(inst, instId)
+	return
+}
+
+func (s *State) waitInstance(inst *instance, instId uint64) (result *gate.Result, found bool) {
+	result, found = <-inst.exit
+	if !found {
+		return
+	}
 
 	s.lock.Lock()
 	delete(s.instances, instId)
@@ -289,13 +297,9 @@ type instance struct {
 }
 
 // newInstance does not set the program field; it must be initialized manually.
-func newInstance(exit chan *gate.Result, originPipe *pipe) *instance {
-	if exit == nil {
-		exit = make(chan *gate.Result, 1)
-	}
-
+func newInstance(originPipe *pipe) *instance {
 	return &instance{
-		exit:       exit,
+		exit:       make(chan *gate.Result, 1),
 		originPipe: originPipe,
 	}
 }
@@ -308,11 +312,6 @@ func (inst *instance) attachOrigin() (pipe *pipe) {
 	if inst.originPipe != nil && inst.originPipe.allocate() {
 		pipe = inst.originPipe
 	}
-	return
-}
-
-func (inst *instance) wait() (result *gate.Result, found bool) {
-	result, found = <-inst.exit
 	return
 }
 

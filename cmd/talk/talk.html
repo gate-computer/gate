@@ -47,8 +47,9 @@
 
 	const PROG = "payload/prog.wasm" // "../../tests/hello/prog.wasm"
 	const ADDR = "localhost:8888"
-	const WEBSOCKET_ONLY = true
-	const WEBSOCKET_COMM = true
+	const RUN_WEBSOCKET = true
+	const RUN_POST = false
+	const COMM_WEBSOCKET = true
 
 	let prog = new XMLHttpRequest()
 	prog.responseType = "arraybuffer"
@@ -63,7 +64,7 @@
 		checksum.onload = () => {
 			let hash = checksum.response.split(" ")[0]
 
-			if (WEBSOCKET_ONLY) {
+			if (RUN_WEBSOCKET) {
 				let run = new WebSocket("ws://" + ADDR + "/run")
 				run.binaryType = "arraybuffer"
 
@@ -88,60 +89,74 @@
 					displayInfoMessage(load.response)
 					let loaded = JSON.parse(load.response)
 
-					let spawn = new XMLHttpRequest()
-					spawn.open("POST", "http://" + ADDR + "/spawn")
-					spawn.setRequestHeader("Content-Type", "application/json")
-					spawn.send(JSON.stringify({program: loaded.program}))
+					if (RUN_POST) {
+						let run = new XMLHttpRequest()
+						run.responseType = "arraybuffer"
+						run.open("POST", "http://" + ADDR + "/run")
+						run.setRequestHeader("X-Gate-Program-Id", loaded.program.id)
+						run.setRequestHeader("X-Gate-Program-Sha512", hash)
+						run.send()
 
-					spawn.onload = () => {
-						displayInfoMessage(spawn.response)
-						let spawned = JSON.parse(spawn.response)
-
-						var waiting = false
-
-						function wait() {
-							if (waiting)
-								return
-
-							waiting = true
-
-							let wait = new XMLHttpRequest()
-							wait.open("POST", "http://" + ADDR + "/wait")
-							wait.setRequestHeader("Content-Type", "application/json")
-							wait.send(JSON.stringify({instance: spawned.instance}))
-
-							wait.onload = () => {
-								displayInfoMessage(wait.response)
-							}
+						run.onload = () => {
+							displayInfoMessage("X-Gate-Instance-Id: " + run.getResponseHeader("X-Gate-Instance-Id"))
+							displayCommMessage(run.response)
 						}
+					} else {
+						let spawn = new XMLHttpRequest()
+						spawn.open("POST", "http://" + ADDR + "/spawn")
+						spawn.setRequestHeader("Content-Type", "application/json")
+						spawn.send(JSON.stringify({program: loaded.program}))
 
-						if (WEBSOCKET_COMM) {
-							let comm = new WebSocket("ws://" + ADDR + "/communicate")
-							comm.binaryType = "arraybuffer"
+						spawn.onload = () => {
+							displayInfoMessage(spawn.response)
+							let spawned = JSON.parse(spawn.response)
 
-							comm.onopen = () => {
-								comm.send(JSON.stringify({instance: spawned.instance}))
+							var waiting = false
+
+							function wait() {
+								if (waiting)
+									return
+
+								waiting = true
+
+								let wait = new XMLHttpRequest()
+								wait.open("POST", "http://" + ADDR + "/wait")
+								wait.setRequestHeader("Content-Type", "application/json")
+								wait.send(JSON.stringify({instance: spawned.instance}))
+
+								wait.onload = () => {
+									displayInfoMessage(wait.response)
+								}
 							}
 
-							comm.onmessage = (event) => {
-								if (typeof event.data === "string")
-									wait()
-								else
-									displayCommMessage(event.data)
-							}
-						} else {
-							let comm = new XMLHttpRequest()
-							comm.responseType = "arraybuffer"
-							comm.open("POST", "http://" + ADDR + "/communicate")
-							comm.setRequestHeader("X-Gate-Instance-Id", spawned.instance.id)
-							comm.send()
+							if (COMM_WEBSOCKET) {
+								let comm = new WebSocket("ws://" + ADDR + "/communicate")
+								comm.binaryType = "arraybuffer"
 
-							comm.onloadstart = wait
-							comm.onprogress = wait
-							comm.onloadend = wait
+								comm.onopen = () => {
+									comm.send(JSON.stringify({instance: spawned.instance}))
+								}
 
-							comm.onload = () => {
-								displayCommMessage(comm.response)
+								comm.onmessage = (event) => {
+									if (typeof event.data === "string")
+										wait()
+									else
+										displayCommMessage(event.data)
+								}
+							} else {
+								let comm = new XMLHttpRequest()
+								comm.responseType = "arraybuffer"
+								comm.open("POST", "http://" + ADDR + "/communicate")
+								comm.setRequestHeader("X-Gate-Instance-Id", spawned.instance.id)
+								comm.send()
+
+								comm.onloadstart = wait
+								comm.onprogress = wait
+								comm.onloadend = wait
+
+								comm.onload = () => {
+									displayCommMessage(comm.response)
+								}
 							}
 						}
 					}

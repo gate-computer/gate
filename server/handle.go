@@ -16,15 +16,19 @@ import (
 	"github.com/tsavola/gate"
 )
 
+func makeHexId(id uint64) string {
+	return fmt.Sprintf("%016x", id)
+}
+
 func makeInstance(id uint64) gate.Instance {
 	return gate.Instance{
-		Id: fmt.Sprintf("%016x", id),
+		Id: makeHexId(id),
 	}
 }
 
 func newProgram(id uint64, hash []byte) *gate.Program {
 	return &gate.Program{
-		Id:     fmt.Sprintf("%016x", id),
+		Id:     makeHexId(id),
 		SHA512: hex.EncodeToString(hash),
 	}
 }
@@ -43,10 +47,7 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Gate-Program-Sha512")
-			w.Header().Set("Access-Control-Allow-Methods", allow)
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Max-Age", "86400")
+			writeCORS(w, r, allow, "Content-Type, X-Gate-Program-Sha512")
 
 			switch r.Method {
 			case http.MethodPost:
@@ -82,10 +83,7 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Gate-Program-Sha512")
-			w.Header().Set("Access-Control-Allow-Methods", allow)
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Max-Age", "86400")
+			writeCORS(w, r, allow, "Content-Type, X-Gate-Program-Sha512")
 
 			switch r.Method {
 			case http.MethodPost:
@@ -115,14 +113,20 @@ func NewHandler(pattern string, s *State) http.Handler {
 
 	{
 		var (
-			path  = prefix + "/run"
-			allow = joinHeader(http.MethodGet, http.MethodOptions)
+			path      = prefix + "/run"
+			allow     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
+			allowCORS = joinHeader(http.MethodPost, http.MethodOptions) // excluding websocket
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+			writeCORSExposeHeaders(w, r, allowCORS, "Content-Type, TE, X-Gate-Program-Id, X-Gate-Program-Sha512", "X-Gate-Instance-Id")
+
 			switch r.Method {
 			case http.MethodGet:
-				handleRun(w, r, s)
+				handleRunWebsocket(w, r, s)
+
+			case http.MethodPost:
+				handleRunPost(w, r, s)
 
 			case http.MethodOptions:
 				writeOptions(w, allow)
@@ -141,10 +145,7 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Gate-Instance-Id")
-			w.Header().Set("Access-Control-Allow-Methods", allowCORS)
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Max-Age", "86400")
+			writeCORS(w, r, allowCORS, "Content-Type, X-Gate-Instance-Id")
 
 			switch r.Method {
 			case http.MethodGet:
@@ -170,10 +171,7 @@ func NewHandler(pattern string, s *State) http.Handler {
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-			w.Header().Set("Access-Control-Allow-Methods", allow)
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Max-Age", "86400")
+			writeCORS(w, r, allow, "Content-Type")
 
 			switch r.Method {
 			case http.MethodPost:
@@ -285,7 +283,7 @@ func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
 
 	// uploadAndInstantiate method closes body to check for decoding errors
 
-	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, nil, originPipe)
+	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, originPipe)
 	if err != nil {
 		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 		return
@@ -322,7 +320,7 @@ func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if progId, err := strconv.ParseUint(spawn.Program.Id, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(spawn.Program.SHA512); err == nil {
-			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, originPipe)
+			inst, instId, valid, found, err = s.instantiate(progId, progHash, originPipe)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
@@ -348,7 +346,7 @@ func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
 	})
 }
 
-func handleRun(w http.ResponseWriter, r *http.Request, s *State) {
+func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -369,7 +367,6 @@ func handleRun(w http.ResponseWriter, r *http.Request, s *State) {
 	// TODO: size limit
 
 	var (
-		exited = make(chan *gate.Result, 1)
 		inst   *instance
 		instId uint64
 		loaded gate.Loaded
@@ -382,7 +379,7 @@ func handleRun(w http.ResponseWriter, r *http.Request, s *State) {
 			progHash []byte
 		)
 
-		inst, instId, progId, progHash, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), exited, nil)
+		inst, instId, progId, progHash, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), nil)
 		if err != nil {
 			// TODO
 			return
@@ -406,7 +403,7 @@ func handleRun(w http.ResponseWriter, r *http.Request, s *State) {
 
 		if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
 			if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
-				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, nil)
+				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil)
 				if err != nil {
 					// TODO
 					return
@@ -436,20 +433,86 @@ func handleRun(w http.ResponseWriter, r *http.Request, s *State) {
 
 	inst.run(&s.Settings, newWebsocketReader(conn), websocketWriter{conn})
 
-	result, _ := <-exited
-	if result == nil {
-		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
+	closeMsg := websocketNormalClosure
+
+	if result, ok := s.waitInstance(inst, instId); ok {
+		if result != nil {
+			err = conn.WriteJSON(&gate.Finished{
+				Result: *result,
+			})
+			if err != nil {
+				return
+			}
+		} else {
+			closeMsg = websocketInternalServerErr
+		}
+	}
+
+	conn.WriteMessage(websocket.CloseMessage, closeMsg)
+}
+
+func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
+	progHexId := r.Header.Get("X-Gate-Program-Id")
+	if progHexId == "" {
+		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Id header required")
 		return
 	}
 
-	err = conn.WriteJSON(&gate.Finished{
-		Result: *result,
-	})
-	if err != nil {
+	progHexHash := r.Header.Get("X-Gate-Program-Sha512")
+	if progHexHash == "" {
+		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Sha512 header required")
 		return
 	}
 
-	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
+	var (
+		inst   *instance
+		instId uint64
+		valid  bool
+		found  bool
+	)
+
+	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
+		if progHash, err := hex.DecodeString(progHexHash); err == nil {
+			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil)
+			if err != nil {
+				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+				return
+			}
+		}
+	}
+	if !found {
+		http.NotFound(w, r) // XXX: can't do this
+		return
+	}
+	if !valid {
+		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		return
+	}
+
+	w.Header().Set("X-Gate-Instance-Id", makeHexId(instId))
+
+	trailers := acceptsTrailers(r)
+	if trailers {
+		w.Header().Set("Trailer", "X-Gate-Result-Exit, X-Gate-Result-Trap, X-Gate-Result-Error, X-Gate-Internal-Error")
+	}
+
+	inst.run(&s.Settings, r.Body, w)
+
+	if result, ok := s.waitInstance(inst, instId); ok && trailers {
+		switch {
+		case result == nil:
+			w.Header().Set("X-Gate-Internal-Error", "1")
+
+		case result.Error != "":
+			w.Header().Set("X-Gate-Result-Error", result.Error)
+
+		case result.Trap != "":
+			w.Header().Set("X-Gate-Result-Trap", result.Trap)
+
+		default:
+			w.Header().Set("X-Gate-Result-Exit", strconv.Itoa(result.Exit))
+		}
+	}
 }
 
 func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
@@ -611,6 +674,16 @@ func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
 	return false
 }
 
+func acceptsTrailers(r *http.Request) bool {
+	for _, field := range strings.Split(r.Header.Get("TE"), ",") {
+		if strings.TrimSpace(field) == "trailers" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func getContentType(r *http.Request) string {
 	header := r.Header.Get("Content-Type")
 	tokens := strings.SplitN(header, ";", 2)
@@ -659,6 +732,23 @@ func decodeContentJSON(w http.ResponseWriter, r *http.Request, s *State, v inter
 
 	ok = true
 	return
+}
+
+func writeCORS(w http.ResponseWriter, r *http.Request, methods, headers string) (origin bool) {
+	_, origin = r.Header["Origin"]
+	if origin {
+		w.Header().Set("Access-Control-Allow-Headers", headers)
+		w.Header().Set("Access-Control-Allow-Methods", methods)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+	}
+	return
+}
+
+func writeCORSExposeHeaders(w http.ResponseWriter, r *http.Request, allowMethods, allowHeaders, exposeHeaders string) {
+	if writeCORS(w, r, allowMethods, allowHeaders) {
+		w.Header().Set("Access-Control-Expose-Headers", exposeHeaders)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, v interface{}) {
