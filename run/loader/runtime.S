@@ -29,7 +29,7 @@
 runtime_start_with_syscall:
 	// unmap loader .text section (parameters supplied by the caller)
 	syscall
-	mov     $50, %edi
+	mov     $80, %edi
 	test    %rax, %rax
 	jne     .Lexit
 
@@ -39,7 +39,7 @@ runtime_start_with_syscall:
 	xor	%edx, %edx		// args
 	mov	$SYS_seccomp, %eax
 	syscall
-	mov	$51, %edi
+	mov	$81, %edi
 	test	%rax, %rax
 	jne	.Lexit
 
@@ -224,14 +224,14 @@ __gate_recv:
 	ret
 
 .Lerror:
-	mov	$14, %edi		// status (1st syscall arg)
+	mov	$90, %edi		// status (1st syscall arg)
 	cmp	$-EAGAIN, %rax
 	jne	.Lexit
 	mov	%edx, %eax		// remaining size (result)
 	ret
 
 .Lbounds:
-	mov	$13, %edi		// status (1st syscall arg)
+	mov	$91, %edi		// status (1st syscall arg)
 	jmp	.Lexit
 
 	.align	16,INT3
