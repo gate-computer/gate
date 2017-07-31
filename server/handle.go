@@ -721,11 +721,16 @@ func decodeContentJSON(w http.ResponseWriter, r *http.Request, s *State, v inter
 	if body == nil {
 		return
 	}
-	defer body.Close()
 
 	// TODO: size limit
 
 	if err := json.NewDecoder(body).Decode(v); err != nil {
+		writeBadRequest(w, r, err)
+		body.Close()
+		return
+	}
+
+	if err := body.Close(); err != nil {
 		writeBadRequest(w, r, err)
 		return
 	}
