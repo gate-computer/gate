@@ -33,12 +33,11 @@ runtime_start_with_syscall:
 	test    %rax, %rax
 	jne     .Lexit
 
-	// enable seccomp (r9 is ignored with PR_SET_SECCOMP)
-	mov	$22, %edi		// PR_SET_SECCOMP
-	mov	$1, %esi		// SECCOMP_MODE_STRICT
-	xor	%edx, %edx
-	xor	%r8d, %r8d
-	mov	$SYS_prctl, %eax
+	// enable seccomp
+	xor	%edi, %edi		// mode (SECCOMP_SET_MODE_STRICT)
+	xor	%esi, %esi		// flags
+	xor	%edx, %edx		// args
+	mov	$SYS_seccomp, %eax
 	syscall
 	mov	$51, %edi
 	test	%rax, %rax
