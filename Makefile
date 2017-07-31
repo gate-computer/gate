@@ -63,10 +63,10 @@ check:
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
-	$(run) -dump-time tests/echo/prog.wasm
-	$(run) -dump-time tests/hello/prog.wasm
+	$(run) tests/echo/prog.wasm
+	$(run) tests/hello/prog.wasm
 	$(run) -dump-time -repeat=1000 tests/nop/prog.wasm
-	$(run) -dump-time tests/peer/prog.wasm tests/peer/prog.wasm
+	$(run) tests/peer/prog.wasm tests/peer/prog.wasm
 
 clean:
 	rm -rf bin lib pkg

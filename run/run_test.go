@@ -12,24 +12,68 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/dewag"
 	"github.com/tsavola/wag/wasm"
-
-	"github.com/tsavola/gate/run"
 )
-
-func parseId(t *testing.T, s string) uint {
-	n, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return uint(n)
-}
 
 type readWriter struct {
 	io.Reader
 	io.Writer
+}
+
+func parseId(s string) uint {
+	n, err := strconv.ParseUint(s, 10, 32)
+	if err != nil {
+		panic(err)
+	}
+	return uint(n)
+}
+
+func newEnvironment() (env *run.Environment) {
+	bootUser, err := user.Lookup(os.Getenv("GATE_TEST_BOOTUSER"))
+	if err != nil {
+		panic(err)
+	}
+
+	execUser, err := user.Lookup(os.Getenv("GATE_TEST_EXECUSER"))
+	if err != nil {
+		panic(err)
+	}
+
+	pipeGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_PIPEGROUP"))
+	if err != nil {
+		panic(err)
+	}
+
+	config := run.Config{
+		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
+		Uids: [2]uint{
+			parseId(bootUser.Uid),
+			parseId(execUser.Uid),
+		},
+		Gids: [3]uint{
+			parseId(bootUser.Gid),
+			parseId(execUser.Gid),
+			parseId(pipeGroup.Gid),
+		},
+	}
+
+	env, err = run.NewEnvironment(&config)
+	if err != nil {
+		panic(err)
+	}
+
+	return
+}
+
+func openProgram(testName string) (f *os.File) {
+	f, err := os.Open(path.Join(os.Getenv("GATE_TEST_DIR"), testName, "prog.wasm"))
+	if err != nil {
+		panic(err)
+	}
+	return
 }
 
 const (
@@ -58,55 +102,17 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		stackSize       = 4096
 	)
 
-	bootUser, err := user.Lookup(os.Getenv("GATE_TEST_BOOTUSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	execUser, err := user.Lookup(os.Getenv("GATE_TEST_EXECUSER"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pipeGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_PIPEGROUP"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	config := run.Config{
-		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
-		Uids: [2]uint{
-			parseId(t, bootUser.Uid),
-			parseId(t, execUser.Uid),
-		},
-		Gids: [3]uint{
-			parseId(t, bootUser.Gid),
-			parseId(t, execUser.Gid),
-			parseId(t, pipeGroup.Gid),
-		},
-	}
-
-	wasmPath := path.Join(os.Getenv("GATE_TEST_DIR"), testName, "prog.wasm")
-
-	env, err := run.NewEnvironment(&config)
-	if err != nil {
-		t.Fatal(err)
-	}
+	env := newEnvironment()
 	defer env.Close()
 
-	f, err := os.Open(wasmPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-
-	r := bufio.NewReader(f)
+	wasm := openProgram(testName)
+	defer wasm.Close()
 
 	m := wag.Module{
 		MainSymbol: "main",
 	}
 
-	err = m.Load(r, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err := m.Load(bufio.NewReader(wasm), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}
@@ -138,7 +144,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	if name := os.Getenv("GATE_TEST_DUMP"); name != "" {
 		f, err := os.Create(name)
 		if err != nil {
-			t.Fatal(err)
+			panic(err)
 		}
 		defer f.Close()
 
