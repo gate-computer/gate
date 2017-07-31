@@ -64,9 +64,13 @@ check:
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
 	$(run) tests/echo/prog.wasm
-	$(run) tests/hello/prog.wasm
-	$(run) -dump-time -repeat=1000 tests/nop/prog.wasm
+	$(run) -repeat=2 tests/hello/prog.wasm
+	$(run) -repeat=100 tests/nop/prog.wasm
 	$(run) tests/peer/prog.wasm tests/peer/prog.wasm
+
+benchmark:
+	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
+	$(run) -repeat=10000 -dump-time tests/nop/prog.wasm
 
 clean:
 	rm -rf bin lib pkg
@@ -79,4 +83,4 @@ clean:
 	$(MAKE) -C cmd/talk/payload clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: build all capabilities check clean
+.PHONY: build all capabilities check benchmark clean
