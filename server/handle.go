@@ -650,12 +650,12 @@ func acceptsText(r *http.Request) bool {
 }
 
 func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
-	header := r.Header.Get("Accept")
-	if header == "" {
+	fields := r.Header["Accept"]
+	if len(fields) == 0 {
 		return true
 	}
 
-	for _, field := range strings.Split(header, ",") {
+	for _, field := range fields {
 		tokens := strings.SplitN(field, ";", 2)
 		mediaType := strings.TrimSpace(tokens[0])
 
@@ -675,8 +675,8 @@ func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
 }
 
 func acceptsTrailers(r *http.Request) bool {
-	for _, field := range strings.Split(r.Header.Get("TE"), ",") {
-		if strings.TrimSpace(field) == "trailers" {
+	for _, field := range r.Header["TE"] {
+		if field == "trailers" {
 			return true
 		}
 	}
