@@ -5,10 +5,13 @@
 
 .section .runtime,"ax",%progbits
 
-	.globl	runtime_start
-	.type	runtime_start,@function
+	.globl	runtime_start_with_syscall
+	.type	runtime_start_with_syscall,@function
 	.align	16
 
+// rax = munmap syscall number
+// rdi = loader .text section address (1st syscall arg)
+// rsi = loader .text section size (2nd syscall arg)
 // r9  = suspend flag
 // r12 = text address
 // r13 = stack limit
@@ -16,11 +19,8 @@
 // r15 = current memory limit
 // mm0 = trap handler
 // mm1 = memory growth limit
-runtime_start:
-	// unmap loader text section
-	mov	$GATE_LOADER_TEXT_ADDR, %rdi
-	mov	$GATE_LOADER_TEXT_SIZE, %esi
-	mov     $SYS_munmap, %eax
+runtime_start_with_syscall:
+	// unmap loader .text section (parameters supplied by the caller)
 	syscall
 	mov     $50, %edi
 	test    %rax, %rax

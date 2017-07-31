@@ -18,7 +18,7 @@
 
 // avoiding function prototypes avoids GOT section
 extern int runtime_exit;
-extern int runtime_start;
+extern int runtime_start_with_syscall;
 extern int signal_handler;
 extern int signal_restorer;
 extern int trap_handler;
@@ -162,8 +162,11 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		"        mov     $53, %%edi                              \n"
 		"        test    %%rax, %%rax                            \n"
 		"        jne     runtime_exit                            \n"
-		// execute runtime
-		"        jmp     runtime_start                           \n"
+		// execute runtime, which immediately makes syscall with these parameters
+		"        mov     $"xstr(GATE_LOADER_TEXT_ADDR)", %%rdi   \n"
+		"        mov     $"xstr(GATE_LOADER_TEXT_SIZE)", %%esi   \n"
+		"        mov     $"xstr(SYS_munmap)", %%eax              \n"
+		"        jmp     runtime_start_with_syscall              \n"
 		:
 		: "r" (rax), "r" (rdx), "r" (rcx), "r" (rsi), "r" (r9), "r" (r10), "r" (r11), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 	);
