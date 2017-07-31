@@ -491,26 +491,21 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	w.Header().Set("X-Gate-Instance-Id", makeHexId(instId))
 
-	trailers := acceptsTrailers(r)
-	if trailers {
-		w.Header().Set("Trailer", "X-Gate-Result-Exit, X-Gate-Result-Trap, X-Gate-Result-Error, X-Gate-Internal-Error")
-	}
-
 	inst.run(&s.Settings, r.Body, w)
 
-	if result, ok := s.waitInstance(inst, instId); ok && trailers {
+	if result, ok := s.waitInstance(inst, instId); ok {
 		switch {
 		case result == nil:
-			w.Header().Set("X-Gate-Internal-Error", "1")
+			w.Header().Set(http.TrailerPrefix+"X-Gate-Internal-Error", "1")
 
 		case result.Error != "":
-			w.Header().Set("X-Gate-Result-Error", result.Error)
+			w.Header().Set(http.TrailerPrefix+"X-Gate-Result-Error", result.Error)
 
 		case result.Trap != "":
-			w.Header().Set("X-Gate-Result-Trap", result.Trap)
+			w.Header().Set(http.TrailerPrefix+"X-Gate-Result-Trap", result.Trap)
 
 		default:
-			w.Header().Set("X-Gate-Result-Exit", strconv.Itoa(result.Exit))
+			w.Header().Set(http.TrailerPrefix+"X-Gate-Result-Exit", strconv.Itoa(result.Exit))
 		}
 	}
 }
@@ -668,16 +663,6 @@ func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
 			if tail == subtype || tail == "*" {
 				return true
 			}
-		}
-	}
-
-	return false
-}
-
-func acceptsTrailers(r *http.Request) bool {
-	for _, field := range r.Header["TE"] {
-		if field == "trailers" {
-			return true
 		}
 	}
 
