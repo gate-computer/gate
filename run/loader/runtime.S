@@ -3,11 +3,18 @@
 
 #include "../defs.h"
 
+#define INT3 0xcc
+
 .section .runtime,"ax",%progbits
+
+	.align	16,INT3
+
+	.rept	16
+	int3
+	.endr
 
 	.globl	runtime_start_with_syscall
 	.type	runtime_start_with_syscall,@function
-	.align	16
 
 // rax = munmap syscall number
 // rdi = loader .text section address (1st syscall arg)
@@ -55,27 +62,41 @@ runtime_start_with_syscall:
 	add	$16, %rdx
 	jmp	*%rdx
 
+	.align	16,INT3
+
+	.rept	16
+	int3
+	.endr
+
 	.globl	signal_handler
 	.type	signal_handler,@function
-	.align	16
 
 // edi = signum
 signal_handler:
 	movq	$1, GATE_SIGNAL_STACK_R9_OFFSET(%rsp)
 	ret
 
+	.align	16,INT3
+
+	.rept	16
+	int3
+	.endr
+
 	.globl	signal_restorer
 	.type	signal_restorer,@function
-	.align	16
 
 signal_restorer:
 	mov	$SYS_rt_sigreturn, %eax
 	syscall
+
+	.align	16,INT3
+
+	.rept	16
 	int3
+	.endr
 
 	.globl	trap_handler
 	.type	trap_handler,@function
-	.align	16
 
 // eax = trap id
 trap_handler:
@@ -138,9 +159,10 @@ trap_handler:
 	subq	$5, (%rsp)
 	ret
 
+	.align	128,INT3 // important ABI functions fit in 128 bytes; align naturally
+
 	.globl	__gate_send
 	.type	__gate_send,@function
-	.align	128 // important ABI functions fit in 128 bytes; align naturally
 
 // ecx = relative addr
 // ebx = size
@@ -149,9 +171,10 @@ __gate_send:
 	mov	$GATE_OUTPUT_FD, %edi	// fd (1st syscall arg)
 	jmp	.Lio
 
+	.align	16,INT3
+
 	.globl	__gate_recv
 	.type	__gate_recv,@function
-	.align	16
 
 // ecx = relative addr
 // ebx = size
@@ -212,9 +235,10 @@ __gate_recv:
 	mov	$13, %edi		// status (1st syscall arg)
 	jmp	.Lexit
 
+	.align	16,INT3
+
 	.globl	__gate_exit
 	.type	__gate_exit,@function
-	.align	16
 
 // ecx = status number
 __gate_exit:
@@ -238,33 +262,37 @@ runtime_exit:
 	syscall
 	int3
 
+	.align	16,INT3
+
 	.globl	__gate_func_ptr
 	.type	__gate_func_ptr,@function
-	.align	16
 
 __gate_func_ptr:
 	xor	%eax, %eax		// null ptr (result)
 	ret
 
+	.align	16,INT3
+
 	.globl	__gate_get_abi_version
 	.type	__gate_get_abi_version,@function
-	.align	16
 
 __gate_get_abi_version:
 	mov	$GATE_ABI_VERSION, %eax
 	ret
 
+	.align	16,INT3
+
 	.globl	__gate_get_max_packet_size
 	.type	__gate_get_max_packet_size,@function
-	.align	16
 
 __gate_get_max_packet_size:
 	mov	$GATE_MAX_PACKET_SIZE, %eax
 	ret
 
+	.align	16,INT3
+
 	.globl	__gate_debug_write
 	.type	__gate_debug_write,@function
-	.align	16
 
 // ecx = relative addr
 // ebx = size
