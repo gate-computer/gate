@@ -56,6 +56,7 @@ all: build
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
 capabilities:
+	chmod -R go-w lib
 	chmod go-wx lib/container
 	$(SETCAP) cap_dac_override,cap_setgid,cap_setuid+ep lib/container
 

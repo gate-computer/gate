@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"syscall"
 
 	"github.com/tsavola/wag"
@@ -55,7 +56,8 @@ type Environment struct {
 }
 
 func NewEnvironment(config *Config) (env *Environment, err error) {
-	mapFile, err := os.Open(config.runtimeMap())
+	mapPath := path.Join(config.LibDir, "runtime.map")
+	mapFile, err := os.Open(mapPath)
 	if err != nil {
 		return
 	}
@@ -79,7 +81,7 @@ func NewEnvironment(config *Config) (env *Environment, err error) {
 			return
 		}
 		if n != 2 {
-			err = fmt.Errorf("%s: parse error", config.runtimeMap())
+			err = fmt.Errorf("%s: parse error", mapPath)
 			return
 		}
 

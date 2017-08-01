@@ -10,6 +10,7 @@
 
 #include <fcntl.h>
 #include <grp.h>
+#include <libgen.h>
 #include <sched.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
@@ -26,6 +27,9 @@
 
 #include "../defs.h"
 #include "cgroup.h"
+
+#define EXECUTOR_FILENAME "executor"
+#define LOADER_FILENAME   "loader"
 
 struct identity {
 	uid_t uid;
@@ -58,17 +62,6 @@ static void xclose(int fd)
 {
 	if (close(fd) != 0)
 		xerror("close");
-}
-
-// Set close-on-exec flag on a file descriptor or die.
-static void xcloexec(int fd)
-{
-	int flags = fcntl(fd, F_GETFD);
-	if (flags < 0)
-		xerror("F_GETFD");
-
-	if (fcntl(fd, F_SETFD, flags|FD_CLOEXEC) < 0)
-		xerror("FD_CLOEXEC");
 }
 
 // Set a resource limit or die.
@@ -155,6 +148,45 @@ static void xwritemap(pid_t pid, const char *filename, const char *data, int dat
 	xclose(fd);
 }
 
+// Open a file, or die.
+static int xopen(const char *dir, const char *file, int flags)
+{
+	size_t pathsize = strlen(dir) + 1 + strlen(file) + 1;
+	char path[pathsize];
+
+	strcpy(path, dir);
+	strcat(path, "/");
+	strcat(path, file);
+
+	int fd = open(path, flags, 0);
+	if (fd < 0)
+		xerror(path);
+
+	return fd;
+}
+
+// Open loader and executor binaries, or die.  Only executor fd is returned.
+// The hard-coded GATE_LOADER_FD is valid after this.
+static int xopenbinaries()
+{
+	// lstat'ing a symlink in /proc doesn't yield target path length :(
+	char linkbuf[PATH_MAX];
+	ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof (linkbuf));
+	if (linklen <= 0 || linklen >= (ssize_t) sizeof (linkbuf))
+		xerror("readlink /proc/self/exe");
+	linkbuf[linklen] = '\0';
+
+	const char *dir = dirname(linkbuf); // linkbuf is unusable after this
+
+	int loader_fd = xopen(dir, LOADER_FILENAME, O_RDONLY);
+	if (loader_fd != GATE_LOADER_FD) {
+		fprintf(stderr, "wrong number of open files\n");
+		exit(1);
+	}
+
+	return xopen(dir, EXECUTOR_FILENAME, O_RDONLY|O_CLOEXEC);
+}
+
 // Fork with clone flags, or die.
 static int xclone(int (*fn)(void *), int flags)
 {
@@ -228,8 +260,6 @@ int main(int argc, char **argv)
 static int parent_main(pid_t child_pid)
 {
 	xclose(GATE_CONTROL_FD);
-	xclose(GATE_LOADER_FD);
-	xclose(GATE_EXECUTOR_FD);
 	xclose(syncpipe[0]);
 
 	char *map;
@@ -306,6 +336,8 @@ static int child_main(void *dummy_arg)
 
 	// user namespace and cgroup have been configured by parent
 
+	int executor_fd = xopenbinaries();
+
 	// supplementary group
 	const gid_t groups[1] = {4};
 	if (setgroups(1, groups) != 0)
@@ -378,12 +410,10 @@ static int child_main(void *dummy_arg)
 	xlimit(RLIMIT_CORE, 0);
 	xlimit(RLIMIT_STACK, GATE_LOADER_STACK_PAGES * pagesize);
 
-	xcloexec(GATE_EXECUTOR_FD);
-
 	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
 	char *empty[] = {NULL};
-	fexecve(GATE_EXECUTOR_FD, empty, empty);
+	fexecve(executor_fd, empty, empty);
 	// stderr doesn't work anymore
 	return 2;
 }

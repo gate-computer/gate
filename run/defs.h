@@ -12,7 +12,6 @@
 #define GATE_MAPS_FD     3
 #define GATE_NONBLOCK_FD 3
 #define GATE_LOADER_FD   4
-#define GATE_EXECUTOR_FD 5
 #define GATE_WAKEUP_FD   5
 
 #define GATE_SIGNAL_STACK_RESERVE   0x600 // TODO

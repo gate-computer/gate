@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -122,22 +123,10 @@ func (e *executor) init(config *Config) (err error) {
 		return
 	}
 
-	containerPath, err := filepath.Abs(config.container())
+	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
 	if err != nil {
 		return
 	}
-
-	executorFile, err := os.Open(config.executor())
-	if err != nil {
-		return
-	}
-	defer executorFile.Close()
-
-	loaderFile, err := os.Open(config.loader())
-	if err != nil {
-		return
-	}
-	defer loaderFile.Close()
 
 	fdPair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
 	if err != nil {
@@ -171,8 +160,6 @@ func (e *executor) init(config *Config) (err error) {
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
 			controlFile,
-			loaderFile,
-			executorFile,
 		},
 		SysProcAttr: &syscall.SysProcAttr{
 			Pdeathsig: syscall.SIGKILL,

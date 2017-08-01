@@ -1,6 +1,7 @@
 PKGCONFIG	?= pkg-config
 
 CGROUP_BACKEND	?= systemd
+UMASK		?= 0022
 
 pkgs		:= libcap
 ifeq ($(CGROUP_BACKEND),systemd)
@@ -15,8 +16,8 @@ build: ../../lib/container-cgroup-$(CGROUP_BACKEND)
 	ln -f ../../lib/container-cgroup-$(CGROUP_BACKEND) ../../lib/container
 
 ../../lib/container-cgroup-$(CGROUP_BACKEND): container.o cgroup-$(CGROUP_BACKEND).o Makefile
-	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ container.o cgroup-$(CGROUP_BACKEND).o $(LIBS)
+	umask $(UMASK) && mkdir -p $(dir $@)
+	umask $(UMASK) && $(CC) $(CFLAGS) $(LDFLAGS) -o $@ container.o cgroup-$(CGROUP_BACKEND).o $(LIBS)
 
 container.o: container.c cgroup.h ../defs.h Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ container.c
