@@ -243,9 +243,6 @@ int main(int argc, char **argv)
 	xlimit(RLIMIT_RTTIME, 0);
 	xlimit(RLIMIT_SIGPENDING, 0); // applies only to sigqueue
 
-	if (setgroups(0, NULL) != 0)
-		xerror("setgroups to empty");
-
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
 		xerror("PR_SET_NO_NEW_PRIVS");
 

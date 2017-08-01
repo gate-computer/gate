@@ -1,7 +1,5 @@
 The container binary needs capabilities for:
 
-  - Clearing supplementary groups in the parent namespace.
-
   - Configuring namespaces.
 
   - Configuring cgroup via systemd.  Effective uid is temporarily set to root.
