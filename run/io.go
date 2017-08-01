@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/tsavola/wag/traps"
 )
 
 type readWriteKiller struct {
@@ -23,7 +25,9 @@ type read struct {
 
 const (
 	packetFlagPollout = uint16(0x1)
-	packetFlagsMask   = packetFlagPollout
+	packetFlagTrap    = uint16(0x8000)
+
+	packetFlagsMask = packetFlagPollout | packetFlagTrap
 )
 
 func ioLoop(services ServiceRegistry, subject readWriteKiller) (err error) {
@@ -111,7 +115,7 @@ func ioLoop(services ServiceRegistry, subject readWriteKiller) (err error) {
 				return
 			}
 
-			msg, ev, poll, opErr := handlePacket(read.buf, services)
+			msg, ev, poll, trap, opErr := handlePacket(read.buf, services)
 			if opErr != nil {
 				err = opErr
 				return
@@ -125,6 +129,9 @@ func ioLoop(services ServiceRegistry, subject readWriteKiller) (err error) {
 			}
 			if poll {
 				pendingPolls++
+			}
+			if trap != 0 {
+				// TODO
 			}
 
 		case doMessageOutput <- pendingMsg:
@@ -213,7 +220,7 @@ func initMessagePacket(buf []byte) []byte {
 	return buf
 }
 
-func handlePacket(buf []byte, services ServiceRegistry) (msg, reply []byte, poll bool, err error) {
+func handlePacket(buf []byte, services ServiceRegistry) (msg, reply []byte, poll bool, trap traps.Id, err error) {
 	var (
 		flags = endian.Uint16(buf[4:])
 		code  = endian.Uint16(buf[6:])
@@ -221,6 +228,22 @@ func handlePacket(buf []byte, services ServiceRegistry) (msg, reply []byte, poll
 
 	if (flags &^ packetFlagsMask) != 0 {
 		err = fmt.Errorf("invalid incoming packet flags: 0x%x", flags)
+		return
+	}
+
+	if flags&packetFlagTrap != 0 {
+		if flags != packetFlagTrap {
+			err = fmt.Errorf("excess incoming packet flags: 0x%x", flags)
+			return
+		}
+
+		switch t := traps.Id(code); t {
+		case traps.MissingFunction, traps.Suspended:
+			trap = t
+
+		default:
+			err = fmt.Errorf("invalid incoming packet trap: %d", code)
+		}
 		return
 	}
 

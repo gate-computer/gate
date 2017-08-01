@@ -102,8 +102,11 @@ trap_handler:
 	test	%eax, %eax
 	je	.Ltrap_exit
 
-	cmp	$1, %eax
-	je	.Ltrap_missing_function
+	cmp	$1, %eax		// missing function
+	je	.Ltrap_io
+
+	cmp	$2, %eax		// suspended
+	je	.Ltrap_io
 
 	mov	%eax, %edi		// zero-extend
 	add	$100, %edi		// status (1st syscall arg)
@@ -115,7 +118,7 @@ trap_handler:
 	cmove	%eax, %edi		// success status (1st syscall arg)
 	jmp	.Lexit
 
-.Ltrap_missing_function:
+.Ltrap_io:
 	// using 40 bytes of the 128-byte stack red zone
 
 	// save registers possibly used as parameters of the missing function
@@ -128,8 +131,9 @@ trap_handler:
 	lea	-40(%rsp), %rsi		// ptr (2nd syscall arg)
 	mov	$8, %edx		// size (3rd syscall arg)
 
-	mov	%edx, (%rsi)		// op packet: size
-	movl	$255, 4(%rsi)		// op packet: code, flags
+	mov	%edx, (%rsi)		// packet size
+	movw	$GATE_PACKET_FLAG_TRAP, 4(%rsi)
+	mov	%ax, 6(%rsi)		// packet code (trap)
 
 .Lloop_mf:
 	mov	$SYS_write, %eax
@@ -168,6 +172,7 @@ trap_handler:
 __gate_send:
 	mov	$SYS_write, %ebp
 	mov	$GATE_OUTPUT_FD, %edi	// fd (1st syscall arg)
+	// TODO: check that no internal flags were specified
 	jmp	.Lio
 
 	.align	16,INT3
