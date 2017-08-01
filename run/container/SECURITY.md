@@ -8,19 +8,20 @@ The container binary needs capabilities for:
 
 Things controlled by the user who can execute the container binary:
 
-  - Specify which of the parent namespace's user and group ids are mapped to the
-    container's user namespace.  The identities are used to (1) set up the
-    mount namespace, and (2) for the executor process and its children.
+  - Choose any two pairs of the parent namespace's user and group ids to be
+    mapped to the container's user namespace.  The identities are used to (1)
+    set up the mount namespace, and (2) for the executor process and its
+    children.
 
-  - Specify which of the parent namespace's group ids is mapped to the
+  - Choose one of the parent namespace's group ids to be mapped to the
     container's user namespace.  It is used as a supplementary group of the
     contained processes, which need it for opening files in /proc/self/fd/.
 
-  - Specify a parent cgroup (and name) for the container's cgroup.
+  - Choose any cgroup as the parent for the container's cgroup.
 
   - Supply the file descriptor used for interacting with the executor process
-    inside the container.  It can be used to execute arbitrary code inside the
-    fully initialized container.
+    inside the container.  It can be used to spawn and kill processes inside
+    the container, and execute arbitrary code in the processes.
 
 Environmental factors:
 
