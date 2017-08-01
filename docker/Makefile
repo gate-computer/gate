@@ -2,6 +2,6 @@ TAG	:= gate-server
 
 build:
 	$(MAKE) -C .. CGROUP_BACKEND=none
-	docker build -f Dockerfile -t $(TAG) ..
+	docker build -f Dockerfile --no-cache -t $(TAG) ..
 
 .PHONY: build
