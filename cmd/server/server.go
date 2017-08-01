@@ -38,6 +38,7 @@ func main() {
 		email        = ""
 		acceptTOS    = false
 		certCacheDir = "/var/lib/gate-server-letsencrypt"
+		syslogging   = false
 		debug        = false
 	)
 
@@ -55,19 +56,38 @@ func main() {
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
 	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
 	flag.StringVar(&certCacheDir, "cert-cache-dir", certCacheDir, "certificate storage")
+	flag.BoolVar(&syslogging, "syslog", syslogging, "send log messages to syslog instead of stderr")
 	flag.BoolVar(&debug, "debug", debug, "write payload programs' debug output to stderr")
 	flag.Parse()
 	domains := flag.Args()
 
-	syslogger, err := syslog.New(syslog.LOG_INFO, path.Base(os.Args[0]))
-	if err != nil {
-		log.Fatal(err)
+	var (
+		critLog *log.Logger
+		infoLog server.Logger
+	)
+
+	if syslogging {
+		tag := path.Base(os.Args[0])
+
+		w, err := syslog.New(syslog.LOG_CRIT, tag)
+		if err != nil {
+			log.Fatal(err)
+		}
+		critLog = log.New(w, "", 0)
+
+		w, err = syslog.New(syslog.LOG_INFO, tag)
+		if err != nil {
+			critLog.Fatal(err)
+		}
+		infoLog = log.New(w, "", 0)
+	} else {
+		critLog = log.New(os.Stderr, "", 0)
+		infoLog = critLog
 	}
 
 	env, err := run.NewEnvironment(&config)
 	if err != nil {
-		syslogger.Crit(err.Error())
-		os.Exit(1)
+		critLog.Fatal(err)
 	}
 	defer env.Close()
 
@@ -76,7 +96,7 @@ func main() {
 		StackSize:       stackSize,
 		Env:             env,
 		Services:        services,
-		Log:             log.New(syslogger, "", 0),
+		Log:             infoLog,
 	}
 
 	if debug {
@@ -88,8 +108,7 @@ func main() {
 
 	if letsencrypt {
 		if !acceptTOS {
-			syslogger.Crit("-accept-tos option not set")
-			os.Exit(1)
+			critLog.Fatal("-accept-tos option not set")
 		}
 
 		m := autocert.Manager{
@@ -113,8 +132,7 @@ func main() {
 		err = http.ListenAndServe(addr, handler)
 	}
 
-	syslogger.Crit(err.Error())
-	os.Exit(1)
+	critLog.Fatal(err)
 }
 
 func services(r io.Reader, w io.Writer) run.ServiceRegistry {
