@@ -37,7 +37,7 @@ func main() {
 		letsencrypt  = false
 		email        = ""
 		acceptTOS    = false
-		certCacheDir = "/var/lib/gate-httpserver-letsencrypt"
+		certCacheDir = "/var/lib/gate-server-letsencrypt"
 		debug        = false
 	)
 
