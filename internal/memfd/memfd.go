@@ -2,6 +2,7 @@ package memfd
 
 import (
 	"reflect"
+	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -21,7 +22,7 @@ func Create(name string, flags Flags) (fd int, err error) {
 		nameBuf = append([]byte(name), 0)
 	}
 	ret, _, err := syscall.Syscall(_SYS_memfd_create, (*reflect.StringHeader)(unsafe.Pointer(&nameBuf)).Data, uintptr(flags), 0)
-	keepAlive(nameBuf)
+	runtime.KeepAlive(nameBuf)
 	if errno, ok := err.(syscall.Errno); ok && errno == 0 {
 		err = nil
 	}
