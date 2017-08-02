@@ -107,6 +107,10 @@ func main() {
 
 	switch len(listeners) {
 	case 0:
+		if config.DaemonSocket == "" {
+			critLog.Fatal("-listen option or socket activation required")
+		}
+
 		addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
 		if err != nil {
 			critLog.Fatal(err)
@@ -176,7 +180,7 @@ func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, i
 
 	err = cmd.Wait()
 	if exit, ok := err.(*exec.ExitError); ok && exit.Success() {
-		infoLog.Printf("%d: %v", client, exit)
+		infoLog.Printf("%d: %v", client, err)
 	} else {
 		errLog.Printf("%d: %v", client, err)
 	}
