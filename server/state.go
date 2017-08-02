@@ -3,6 +3,7 @@ package server
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/sha512"
 	"crypto/subtle"
@@ -314,7 +315,7 @@ func (inst *instance) attachOrigin() (pipe *pipe) {
 	return
 }
 
-func (inst *instance) run(s *Settings, r io.Reader, w io.Writer) {
+func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Writer) {
 	var (
 		exit     int
 		trap     traps.Id
@@ -361,7 +362,7 @@ func (inst *instance) run(s *Settings, r io.Reader, w io.Writer) {
 
 	internal = true
 
-	exit, trap, err = run.Run(s.Env, payload, s.Services(r, w), s.Debug)
+	exit, trap, err = run.Run(ctx, s.Env, payload, s.Services(r, w), s.Debug)
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
 		return

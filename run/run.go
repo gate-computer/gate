@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -347,7 +348,7 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	return writeStacktraceTo(w, payload.info.TextAddr, stack, funcMap, callMap, funcSigs, ns)
 }
 
-func Run(env *Environment, payload *Payload, services ServiceRegistry, debug io.Writer) (exit int, trap traps.Id, err error) {
+func Run(ctx context.Context, env *Environment, payload *Payload, services ServiceRegistry, debug io.Writer) (exit int, trap traps.Id, err error) {
 	if services == nil {
 		services = noServices{}
 	}
@@ -406,7 +407,7 @@ func Run(env *Environment, payload *Payload, services ServiceRegistry, debug io.
 	}
 	defer p.kill()
 
-	err = runIO(services, readWriteKiller{stdoutR, stdinW, p}, &payload.info)
+	err = runIO(ctx, services, readWriteKiller{stdoutR, stdinW, p}, &payload.info)
 	if err != nil {
 		return
 	}
@@ -453,11 +454,11 @@ func closeExecutionFiles(execFiles []*os.File) {
 	}
 }
 
-func runIO(services ServiceRegistry, subject readWriteKiller, info *payloadInfo) (err error) {
+func runIO(ctx context.Context, services ServiceRegistry, subject readWriteKiller, info *payloadInfo) (err error) {
 	err = binary.Write(subject, endian, info)
 	if err != nil {
 		return
 	}
 
-	return ioLoop(services, subject)
+	return ioLoop(ctx, services, subject)
 }

@@ -2,6 +2,7 @@ package run_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -61,7 +62,7 @@ func prepareBenchmark(m *wag.Module) (p *run.Payload) {
 }
 
 func executeBenchmark(p *run.Payload, output io.Writer) (int, traps.Id, error) {
-	return run.Run(benchEnv, p, &testServiceRegistry{output}, nil)
+	return run.Run(context.Background(), benchEnv, p, &testServiceRegistry{output}, nil)
 }
 
 func BenchmarkCompileNop(b *testing.B)   { benchmarkCompile(b, benchProgNop) }

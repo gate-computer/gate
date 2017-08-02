@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -85,6 +86,8 @@ func main() {
 		os.Exit(2)
 	}
 
+	ctx := context.Background()
+
 	if addr != "" {
 		os.Remove(addr)
 		l, err := net.Listen("unix", addr)
@@ -125,7 +128,7 @@ func main() {
 				r = origin.CloneRegistryWith(service.Defaults, nil, os.Stdout)
 			}
 
-			go execute(env, arg, r, &timings[i], done)
+			go execute(ctx, env, arg, r, &timings[i], done)
 		}
 
 		for range args {
@@ -147,7 +150,7 @@ func main() {
 	}
 }
 
-func execute(env *run.Environment, filename string, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
+func execute(ctx context.Context, env *run.Environment, filename string, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
 	defer func() {
 		done <- struct{}{}
 	}()
@@ -183,7 +186,7 @@ func execute(env *run.Environment, filename string, services run.ServiceRegistry
 
 	tRunBegin := time.Now()
 
-	exit, trap, err := run.Run(env, payload, services, os.Stderr)
+	exit, trap, err := run.Run(ctx, env, payload, services, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +31,7 @@ const (
 	packetFlagsMask = packetFlagPollout | packetFlagTrap
 )
 
-func ioLoop(services ServiceRegistry, subject readWriteKiller) (err error) {
+func ioLoop(ctx context.Context, services ServiceRegistry, subject readWriteKiller) (err error) {
 	var (
 		messageInput  = make(chan []byte)
 		messageOutput = make(chan []byte)
@@ -146,6 +147,10 @@ func ioLoop(services ServiceRegistry, subject readWriteKiller) (err error) {
 			} else {
 				pendingPolls--
 			}
+
+		case <-ctx.Done():
+			err = ctx.Err()
+			return
 		}
 	}
 }

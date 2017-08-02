@@ -2,6 +2,7 @@ package server
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -290,7 +291,7 @@ func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
 
 	go func() {
 		defer out.Close()
-		inst.run(&s.Settings, in, out)
+		inst.run(context.Background(), &s.Settings, in, out)
 	}()
 
 	writeJSON(w, &api.Spawned{
@@ -337,7 +338,7 @@ func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
 
 	go func() {
 		defer out.Close()
-		inst.run(&s.Settings, in, out)
+		inst.run(context.Background(), &s.Settings, in, out)
 	}()
 
 	writeJSON(w, &api.Spawned{
@@ -430,7 +431,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	inst.run(&s.Settings, newWebsocketReader(conn), websocketWriter{conn})
+	inst.run(r.Context(), &s.Settings, newWebsocketReader(conn), websocketWriter{conn})
 
 	closeMsg := websocketNormalClosure
 
@@ -490,7 +491,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	w.Header().Set("X-Gate-Instance-Id", makeHexId(instId))
 
-	inst.run(&s.Settings, r.Body, w)
+	inst.run(r.Context(), &s.Settings, r.Body, w)
 
 	if result, ok := s.waitInstance(inst, instId); ok {
 		switch {

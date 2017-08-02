@@ -3,6 +3,7 @@ package run_test
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -86,7 +87,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 	defer payload.Close()
 
-	exit, trap, err := run.Run(env, payload, &testServiceRegistry{origin: &output}, os.Stdout)
+	exit, trap, err := run.Run(context.Background(), env, payload, &testServiceRegistry{origin: &output}, os.Stdout)
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
