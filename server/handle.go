@@ -33,7 +33,10 @@ func newProgram(id uint64, hash []byte) *api.Program {
 	}
 }
 
-func NewHandler(pattern string, s *State) http.Handler {
+// NewHandler uses http.Request's context for resources whose lifetimes are
+// tied to requests.  The context specified here is used for other resources,
+// which are merely created by requests.
+func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 	var (
 		prefix = strings.TrimRight(pattern, "/")
 		mux    = http.NewServeMux()
@@ -90,10 +93,10 @@ func NewHandler(pattern string, s *State) http.Handler {
 				if acceptsJSON(r) {
 					switch getContentType(r) {
 					case "application/wasm":
-						handleSpawnWasm(w, r, s)
+						handleSpawnWasm(ctx, w, r, s)
 
 					case "application/json":
-						handleSpawnJSON(w, r, s)
+						handleSpawnJSON(ctx, w, r, s)
 
 					default:
 						writeUnsupportedMediaType(w, accept)
@@ -269,7 +272,7 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 	writeJSON(w, &api.Loaded{})
 }
 
-func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
+func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
 	// TODO: X-Gate-Program-Sha512 support
 
 	in, out, originPipe := newPipe()
@@ -291,7 +294,7 @@ func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
 
 	go func() {
 		defer out.Close()
-		inst.run(context.Background(), &s.Settings, in, out)
+		inst.run(ctx, &s.Settings, in, out)
 	}()
 
 	writeJSON(w, &api.Spawned{
@@ -302,7 +305,7 @@ func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
 	})
 }
 
-func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
+func handleSpawnJSON(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
 	var spawn api.Spawn
 
 	if !decodeContentJSON(w, r, s, &spawn) {
@@ -338,7 +341,7 @@ func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
 
 	go func() {
 		defer out.Close()
-		inst.run(context.Background(), &s.Settings, in, out)
+		inst.run(ctx, &s.Settings, in, out)
 	}()
 
 	writeJSON(w, &api.Spawned{

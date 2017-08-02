@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
@@ -23,7 +24,7 @@ import (
 	"github.com/tsavola/wag/wasm"
 )
 
-var handler = NewHandler("/", NewState(Settings{
+var handler = NewHandler(context.Background(), "/", NewState(Settings{
 	MemorySizeLimit: 64 * wasm.Page,
 	StackSize:       65536,
 	Env:             runtest.NewEnvironment(),

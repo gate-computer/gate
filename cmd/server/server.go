@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -70,6 +71,8 @@ func main() {
 
 	domains := flag.Args()
 
+	ctx := context.Background()
+
 	var (
 		critLog *log.Logger
 		infoLog server.Logger
@@ -113,7 +116,7 @@ func main() {
 	}
 
 	state := server.NewState(settings)
-	handler := server.NewHandler("/", state)
+	handler := server.NewHandler(ctx, "/", state)
 
 	if letsencrypt {
 		if !acceptTOS {
