@@ -1,4 +1,4 @@
-package gate
+package serverapi
 
 type Program struct {
 	Id     string `json:"id,omitempty"`

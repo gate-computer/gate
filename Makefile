@@ -12,7 +12,6 @@ TESTS		:= $(dir $(wildcard tests/*/Makefile))
 -include config.mk
 
 GOPACKAGES := \
-	$(GOPACKAGEPREFIX) \
 	$(GOPACKAGEPREFIX)/cmd/containerd \
 	$(GOPACKAGEPREFIX)/cmd/runner \
 	$(GOPACKAGEPREFIX)/cmd/server \
@@ -21,6 +20,7 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
+	$(GOPACKAGEPREFIX)/server/serverapi \
 	$(GOPACKAGEPREFIX)/service \
 	$(GOPACKAGEPREFIX)/service/defaults \
 	$(GOPACKAGEPREFIX)/service/echo \

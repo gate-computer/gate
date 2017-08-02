@@ -12,22 +12,21 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-
-	"github.com/tsavola/gate"
+	api "github.com/tsavola/gate/server/serverapi"
 )
 
 func makeHexId(id uint64) string {
 	return fmt.Sprintf("%016x", id)
 }
 
-func makeInstance(id uint64) gate.Instance {
-	return gate.Instance{
+func makeInstance(id uint64) api.Instance {
+	return api.Instance{
 		Id: makeHexId(id),
 	}
 }
 
-func newProgram(id uint64, hash []byte) *gate.Program {
-	return &gate.Program{
+func newProgram(id uint64, hash []byte) *api.Program {
+	return &api.Program{
 		Id:     makeHexId(id),
 		SHA512: hex.EncodeToString(hash),
 	}
@@ -232,8 +231,8 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	writeJSON(w, &gate.Loaded{
-		Program: &gate.Program{
+	writeJSON(w, &api.Loaded{
+		Program: &api.Program{
 			Id:     fmt.Sprintf("%016x", progId),
 			SHA512: hex.EncodeToString(progHash),
 		},
@@ -241,7 +240,7 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
-	var load gate.Load
+	var load api.Load
 
 	if !decodeContentJSON(w, r, s, &load) {
 		return
@@ -266,7 +265,7 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	writeJSON(w, &gate.Loaded{})
+	writeJSON(w, &api.Loaded{})
 }
 
 func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
@@ -294,8 +293,8 @@ func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
 		inst.run(&s.Settings, in, out)
 	}()
 
-	writeJSON(w, &gate.Spawned{
-		Loaded: gate.Loaded{
+	writeJSON(w, &api.Spawned{
+		Loaded: api.Loaded{
 			Program: newProgram(progId, progHash),
 		},
 		Instance: makeInstance(instId),
@@ -303,7 +302,7 @@ func handleSpawnWasm(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
-	var spawn gate.Spawn
+	var spawn api.Spawn
 
 	if !decodeContentJSON(w, r, s, &spawn) {
 		return
@@ -341,7 +340,7 @@ func handleSpawnJSON(w http.ResponseWriter, r *http.Request, s *State) {
 		inst.run(&s.Settings, in, out)
 	}()
 
-	writeJSON(w, &gate.Spawned{
+	writeJSON(w, &api.Spawned{
 		Instance: makeInstance(instId),
 	})
 }
@@ -369,7 +368,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	var (
 		inst   *instance
 		instId uint64
-		loaded gate.Loaded
+		loaded api.Loaded
 	)
 
 	switch frameType {
@@ -388,7 +387,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		loaded.Program = newProgram(progId, progHash)
 
 	case websocket.TextMessage:
-		var run gate.Run
+		var run api.Run
 
 		err = json.NewDecoder(frame).Decode(&run)
 		if err != nil {
@@ -420,8 +419,8 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		}
 	}
 
-	err = conn.WriteJSON(&gate.Running{
-		Spawned: gate.Spawned{
+	err = conn.WriteJSON(&api.Running{
+		Spawned: api.Spawned{
 			Loaded:   loaded,
 			Instance: makeInstance(instId),
 		},
@@ -437,7 +436,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if result, ok := s.waitInstance(inst, instId); ok {
 		if result != nil {
-			err = conn.WriteJSON(&gate.Finished{
+			err = conn.WriteJSON(&api.Finished{
 				Result: *result,
 			})
 			if err != nil {
@@ -535,7 +534,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 
 	// TODO: size limit
 
-	var communicate gate.Communicate
+	var communicate api.Communicate
 
 	err = json.NewDecoder(frame).Decode(&communicate)
 	if err != nil {
@@ -560,7 +559,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 		return
 	}
 
-	err = conn.WriteJSON(gate.Communicating{})
+	err = conn.WriteJSON(api.Communicating{})
 	if err != nil {
 		return
 	}
@@ -604,14 +603,14 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
-	var wait gate.Wait
+	var wait api.Wait
 
 	if !decodeContentJSON(w, r, s, &wait) {
 		return
 	}
 
 	var (
-		result *gate.Result
+		result *api.Result
 		found  bool
 	)
 
@@ -627,7 +626,7 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	writeJSON(w, &gate.Finished{
+	writeJSON(w, &api.Finished{
 		Result: *result,
 	})
 }

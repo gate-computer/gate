@@ -16,13 +16,11 @@ import (
 	"testing"
 
 	"github.com/gorilla/websocket"
-
-	"github.com/tsavola/gate"
-	"github.com/tsavola/wag/wasm"
-
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
+	api "github.com/tsavola/gate/server/serverapi"
 	"github.com/tsavola/gate/service/origin"
+	"github.com/tsavola/wag/wasm"
 )
 
 var handler = NewHandler("/", NewState(Settings{
@@ -222,7 +220,7 @@ func TestRun(t *testing.T) {
 		panic(err)
 	}
 
-	var running gate.Running
+	var running api.Running
 	if err := conn.ReadJSON(&running); err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +236,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(data)
 	}
 
-	var finished gate.Finished
+	var finished api.Finished
 	if err := conn.ReadJSON(&finished); err != nil {
 		t.Fatal(err)
 	}

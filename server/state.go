@@ -10,11 +10,10 @@ import (
 	"io"
 	"sync"
 
+	"github.com/tsavola/gate/run"
+	api "github.com/tsavola/gate/server/serverapi"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
-
-	"github.com/tsavola/gate"
-	"github.com/tsavola/gate/run"
 )
 
 func makeId() (id uint64) {
@@ -209,7 +208,7 @@ func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
 	return
 }
 
-func (s *State) wait(instId uint64) (result *gate.Result, found bool) {
+func (s *State) wait(instId uint64) (result *api.Result, found bool) {
 	s.lock.Lock()
 	inst, found := s.instances[instId]
 	s.lock.Unlock()
@@ -221,7 +220,7 @@ func (s *State) wait(instId uint64) (result *gate.Result, found bool) {
 	return
 }
 
-func (s *State) waitInstance(inst *instance, instId uint64) (result *gate.Result, found bool) {
+func (s *State) waitInstance(inst *instance, instId uint64) (result *api.Result, found bool) {
 	result, found = <-inst.exit
 	if !found {
 		return
@@ -292,14 +291,14 @@ func validateReadHash(p *program, r io.ReadCloser) (valid bool, err error) {
 
 type instance struct {
 	program    *program
-	exit       chan *gate.Result
+	exit       chan *api.Result
 	originPipe *pipe
 }
 
 // newInstance does not set the program field; it must be initialized manually.
 func newInstance(originPipe *pipe) *instance {
 	return &instance{
-		exit:       make(chan *gate.Result, 1),
+		exit:       make(chan *api.Result, 1),
 		originPipe: originPipe,
 	}
 }
@@ -324,7 +323,7 @@ func (inst *instance) run(s *Settings, r io.Reader, w io.Writer) {
 	)
 
 	defer func() {
-		var r *gate.Result
+		var r *api.Result
 
 		defer func() {
 			defer close(inst.exit)
@@ -335,7 +334,7 @@ func (inst *instance) run(s *Settings, r io.Reader, w io.Writer) {
 			return
 		}
 
-		r = new(gate.Result)
+		r = new(api.Result)
 
 		switch {
 		case err != nil:

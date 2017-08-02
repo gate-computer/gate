@@ -11,8 +11,7 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/gorilla/websocket"
-
-	"github.com/tsavola/gate"
+	"github.com/tsavola/gate/server/serverapi"
 )
 
 const (
@@ -21,8 +20,8 @@ const (
 )
 
 type websocketEvent struct {
-	gate.Running
-	gate.Finished
+	serverapi.Running
+	serverapi.Finished
 }
 
 func main() {
