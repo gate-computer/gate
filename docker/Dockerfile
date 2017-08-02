@@ -15,7 +15,7 @@ RUN apt-get update && \
     adduser --system --uid=903 --group --no-create-home gate-executor && \
 
     chmod -R go-w /usr/lib/gate && \
-    chmod go-rwx /usr/lib/gate/container && \
+    chmod 0500 /usr/lib/gate/container && \
     chown gate:root /usr/lib/gate/container && \
     setcap cap_dac_override,cap_setgid,cap_setuid+ep /usr/lib/gate/container && \
 
