@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/coreos/go-systemd/activation"
 	"github.com/tsavola/gate/internal/cred"
 	"github.com/tsavola/gate/run"
 )
@@ -18,14 +19,13 @@ import (
 func main() {
 	var (
 		config = run.Config{
-			DaemonSocket: "/run/gate-containerd/socket",
-			LibDir:       "lib",
-			CgroupTitle:  run.DefaultCgroupTitle,
+			LibDir:      "lib",
+			CgroupTitle: run.DefaultCgroupTitle,
 		}
 		syslogging = false
 	)
 
-	flag.StringVar(&config.DaemonSocket, "socket", config.DaemonSocket, "listening unix socket")
+	flag.StringVar(&config.DaemonSocket, "listen", config.DaemonSocket, "unix socket")
 	flag.UintVar(&config.CommonGid, "common-gid", config.CommonGid, "group id for file descriptor sharing")
 	flag.UintVar(&config.ContainerCred.Uid, "container-uid", config.ContainerCred.Uid, "user id for bootstrapping executor")
 	flag.UintVar(&config.ContainerCred.Gid, "container-gid", config.ContainerCred.Gid, "group id for bootstrapping executor")
@@ -98,22 +98,41 @@ func main() {
 		config.CgroupParent,
 	}
 
-	addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
+	listeners, err := activation.Listeners(true)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 
-	if info, err := os.Lstat(addr.Name); err == nil {
-		if info.Mode()&os.ModeSocket != 0 {
-			os.Remove(addr.Name)
+	var listener *net.UnixListener
+
+	switch len(listeners) {
+	case 0:
+		addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
+		if err != nil {
+			critLog.Fatal(err)
 		}
-	}
 
-	listener, err := net.ListenUnix(addr.Net, addr)
-	if err != nil {
-		critLog.Fatal(err)
+		if info, err := os.Lstat(addr.Name); err == nil {
+			if info.Mode()&os.ModeSocket != 0 {
+				os.Remove(addr.Name)
+			}
+		}
+
+		listener, err = net.ListenUnix(addr.Net, addr)
+		if err != nil {
+			critLog.Fatal(err)
+		}
+
+	case 1:
+		if config.DaemonSocket != "" {
+			critLog.Fatal("-listen option used with socket activation")
+		}
+
+		listener = listeners[0].(*net.UnixListener)
+
+	default:
+		critLog.Fatal("too many sockets to activate")
 	}
-	defer listener.Close()
 
 	for client := uint64(0); ; client++ {
 		conn, err := listener.AcceptUnix()
