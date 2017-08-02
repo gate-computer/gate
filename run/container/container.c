@@ -31,7 +31,7 @@
 #define EXECUTOR_FILENAME "executor"
 #define LOADER_FILENAME   "loader"
 
-struct identity {
+struct cred {
 	uid_t uid;
 	gid_t gid;
 };
@@ -209,8 +209,9 @@ static int xclone(int (*fn)(void *), int flags)
 	return pid;
 }
 
-static struct identity identities[2];
-static gid_t supplementary_gid;
+static gid_t common_gid;
+static struct cred container_cred;
+static struct cred executor_cred;
 static struct cgroup_config cgroup_config;
 static int syncpipe[2];
 
@@ -226,11 +227,11 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	identities[0].uid = xatoui(argv[1]);
-	identities[0].gid = xatoui(argv[2]);
-	identities[1].uid = xatoui(argv[3]);
-	identities[1].gid = xatoui(argv[4]);
-	supplementary_gid = xatoui(argv[5]);
+	common_gid = xatoui(argv[1]);
+	container_cred.uid = xatoui(argv[2]);
+	container_cred.gid = xatoui(argv[3]);
+	executor_cred.uid = xatoui(argv[4]);
+	executor_cred.gid = xatoui(argv[5]);
 	cgroup_config.title = argv[6];
 	cgroup_config.parent = argv[7];
 
@@ -262,13 +263,13 @@ static int parent_main(pid_t child_pid)
 	char *map;
 	int maplen;
 
-	maplen = asprintf(&map, "1 %u 1\n2 %u 1\n3 %u 1\n", getuid(), identities[0].uid, identities[1].uid);
+	maplen = asprintf(&map, "1 %u 1\n2 %u 1\n3 %u 1\n", getuid(), container_cred.uid, executor_cred.uid);
 	if (maplen < 0)
 		xerror("asprintf uid_map");
 	xwritemap(child_pid, "uid_map", map, maplen);
 	free(map);
 
-	maplen = asprintf(&map, "1 %u 1\n2 %u 1\n3 %u 1\n4 %u 1\n", getgid(), identities[0].gid, identities[1].gid, supplementary_gid);
+	maplen = asprintf(&map, "1 %u 1\n2 %u 1\n3 %u 1\n4 %u 1\n", getgid(), container_cred.gid, executor_cred.gid, common_gid);
 	if (maplen < 0)
 		xerror("asprintf gid_map");
 	xwritemap(child_pid, "gid_map", map, maplen);
@@ -340,11 +341,11 @@ static int child_main(void *dummy_arg)
 	if (setgroups(1, groups) != 0)
 		xerror("setgroups");
 
-	// bootstrap identity
+	// "container" credentials
 	if (setreuid(2, 2) != 0)
-		xerror("setuid for bootstrapping");
+		xerror("setuid for container setup");
 	if (setregid(2, 2) != 0)
-		xerror("setgid for bootstrapping");
+		xerror("setgid for container setup");
 
 	if (sethostname("", 0) != 0)
 		xerror("sethostname to empty");
@@ -387,7 +388,7 @@ static int child_main(void *dummy_arg)
 	if (mount("", "/", "", MS_REMOUNT|mount_options, NULL) != 0)
 		xerror("remount new root as read-only");
 
-	// execution identity
+	// "executor" credentials
 	if (setreuid(3, 3) != 0)
 		xerror("setuid for execution");
 	if (setregid(3, 3) != 0)

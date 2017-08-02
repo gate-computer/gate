@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"log/syslog"
@@ -11,13 +12,12 @@ import (
 	"path"
 	"time"
 
-	"github.com/tsavola/wag/wasm"
-	"golang.org/x/crypto/acme/autocert"
-
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
+	"github.com/tsavola/wag/wasm"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 const (
@@ -30,8 +30,9 @@ const (
 func main() {
 	var (
 		config = run.Config{
-			LibDir:   "lib",
-			MaxProcs: run.DefaultMaxProcs,
+			MaxProcs:    run.DefaultMaxProcs,
+			LibDir:      "lib",
+			CgroupTitle: run.DefaultCgroupTitle,
 		}
 		addr         = "localhost:8888"
 		letsencrypt  = false
@@ -42,15 +43,21 @@ func main() {
 		debug        = false
 	)
 
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options] [domain...]\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+
+	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
+	flag.StringVar(&config.DaemonSocket, "daemon-socket", config.DaemonSocket, "use containerd via unix socket")
+	flag.UintVar(&config.CommonGid, "common-gid", config.CommonGid, "group id for file descriptor sharing")
+	flag.UintVar(&config.ContainerCred.Uid, "container-uid", config.ContainerCred.Uid, "user id for bootstrapping executor")
+	flag.UintVar(&config.ContainerCred.Gid, "container-gid", config.ContainerCred.Gid, "group id for bootstrapping executor")
+	flag.UintVar(&config.ExecutorCred.Uid, "executor-uid", config.ExecutorCred.Uid, "user id for executing code")
+	flag.UintVar(&config.ExecutorCred.Gid, "executor-gid", config.ExecutorCred.Gid, "group id for executing code")
 	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
-	flag.UintVar(&config.Uids[0], "boot-uid", config.Uids[0], "user id for bootstrapping executor")
-	flag.UintVar(&config.Gids[0], "boot-gid", config.Gids[0], "group id for bootstrapping executor")
-	flag.UintVar(&config.Uids[1], "exec-uid", config.Uids[1], "user id for executing code")
-	flag.UintVar(&config.Gids[1], "exec-gid", config.Gids[1], "group id for executing code")
-	flag.UintVar(&config.Gids[2], "pipe-gid", config.Gids[2], "group id for file descriptor sharing")
 	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
 	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
-	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
@@ -58,7 +65,9 @@ func main() {
 	flag.StringVar(&certCacheDir, "cert-cache-dir", certCacheDir, "certificate storage")
 	flag.BoolVar(&syslogging, "syslog", syslogging, "send log messages to syslog instead of stderr")
 	flag.BoolVar(&debug, "debug", debug, "write payload programs' debug output to stderr")
+
 	flag.Parse()
+
 	domains := flag.Args()
 
 	var (

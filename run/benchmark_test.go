@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
@@ -29,7 +30,7 @@ const (
 )
 
 var (
-	benchEnv = newEnvironment()
+	benchEnv = runtest.NewEnvironment()
 
 	benchProgNop   = readProgram("nop")
 	benchProgHello = readProgram("hello")

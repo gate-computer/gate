@@ -15,6 +15,7 @@ import (
 	"github.com/tsavola/wag/types"
 	"github.com/tsavola/wag/wasm"
 
+	"github.com/tsavola/gate/internal/cred"
 	"github.com/tsavola/gate/internal/memfd"
 )
 
@@ -25,6 +26,25 @@ var (
 func roundToPage(size int) uint32 {
 	mask := uint32(pageSize) - 1
 	return (uint32(size) + mask) &^ mask
+}
+
+// checkCurrentGid makes sure that this process belongs to gid.
+func checkCurrentGid(gid uint) (err error) {
+	currentGroups, err := syscall.Getgroups()
+	if err != nil {
+		return
+	}
+
+	currentGroups = append(currentGroups, syscall.Getgid())
+
+	for _, currentGid := range currentGroups {
+		if uint(currentGid) == gid {
+			return
+		}
+	}
+
+	err = fmt.Errorf("this process does not belong to group %d", gid)
+	return
 }
 
 func randAddrs() (textAddr, heapAddr uint64) {
@@ -50,9 +70,9 @@ type envFunc struct {
 }
 
 type Environment struct {
-	executor executor
-	funcs    map[string]envFunc
-	pipeGid  uint
+	executor  executor
+	funcs     map[string]envFunc
+	commonGid uint
 }
 
 func NewEnvironment(config *Config) (env *Environment, err error) {
@@ -115,9 +135,19 @@ func NewEnvironment(config *Config) (env *Environment, err error) {
 		}
 	}
 
+	err = cred.ValidateId("group", config.CommonGid)
+	if err != nil {
+		return
+	}
+
+	err = checkCurrentGid(config.CommonGid)
+	if err != nil {
+		return
+	}
+
 	env = &Environment{
-		funcs:   funcs,
-		pipeGid: config.Gids[2],
+		funcs:     funcs,
+		commonGid: config.CommonGid,
 	}
 
 	err = env.executor.init(config)
@@ -328,7 +358,7 @@ func Run(env *Environment, payload *Payload, services ServiceRegistry, debug io.
 	}
 	defer stdinW.Close()
 
-	err = syscall.Fchown(int(stdinR.Fd()), -1, int(env.pipeGid))
+	err = syscall.Fchown(int(stdinR.Fd()), -1, int(env.commonGid))
 	if err != nil {
 		stdinR.Close()
 		return

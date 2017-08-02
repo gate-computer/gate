@@ -4,79 +4,17 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
-
-func uitoa(i uint) string {
-	return strconv.FormatUint(uint64(i), 10)
-}
-
-// validateId makes sure that ids[i] is not root.
-func validateId(name string, ids []uint, i int) (err error) {
-	if ids[i] == 0 {
-		err = fmt.Errorf("configured %s id #%d is 0", name, i)
-	}
-	return
-}
-
-// validateIds makes sure that ids don't conflict between themselves, with the
-// current process, or root.
-func validateIds(name string, ids []uint, untilIndex, currentId int) (err error) {
-	for i, id := range ids[:untilIndex] {
-		err = validateId(name, ids, i)
-		if err != nil {
-			return
-		}
-
-		if id == uint(currentId) {
-			err = fmt.Errorf("configured %s id #%d is same as current %s id (%d)", name, i, name, currentId)
-			return
-		}
-	}
-
-	for i := range ids[:untilIndex] {
-		for j := i + 1; j < len(ids); j++ { // all ids, not just untilIndex
-			if ids[i] == ids[j] {
-				err = fmt.Errorf("configured %s ids #%d and #%d are the same (%d)", name, i, j, ids[i])
-				return
-			}
-		}
-	}
-
-	return
-}
-
-// checkCurrentGid makes sure that this process belongs to group configGids[i].
-func checkCurrentGid(configGids []uint, i int) (err error) {
-	currentGroups, err := syscall.Getgroups()
-	if err != nil {
-		return
-	}
-
-	currentGroups = append(currentGroups, syscall.Getgid())
-
-	for _, currentGid := range currentGroups {
-		if uint(currentGid) == configGids[i] {
-			return
-		}
-	}
-
-	err = fmt.Errorf("current process does not belong to configured group #%d (%d)", i, configGids[i])
-	return
-}
 
 // recvEntry is like send_entry in executor.c
 type recvEntry struct {
@@ -103,75 +41,21 @@ type executor struct {
 }
 
 func (e *executor) init(config *Config) (err error) {
-	err = validateIds("user", config.Uids[:], 2, syscall.Getuid())
+	var (
+		conn *net.UnixConn
+		cmd  *exec.Cmd
+	)
+
+	if config.DaemonSocket != "" {
+		conn, err = dialContainerDaemon(config)
+	} else {
+		cmd, conn, err = startContainer(config)
+	}
 	if err != nil {
 		return
 	}
 
-	err = validateIds("group", config.Gids[:], 2, syscall.Getgid())
-	if err != nil {
-		return
-	}
-
-	err = validateId("group", config.Gids[:], 2)
-	if err != nil {
-		return
-	}
-
-	err = checkCurrentGid(config.Gids[:], 2)
-	if err != nil {
-		return
-	}
-
-	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
-	if err != nil {
-		return
-	}
-
-	fdPair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
-	if err != nil {
-		return
-	}
-
-	controlFile := os.NewFile(uintptr(fdPair[0]), "executor (peer)")
-	defer controlFile.Close()
-
-	connFile := os.NewFile(uintptr(fdPair[1]), "executor")
-	defer connFile.Close()
-
-	netConn, err := net.FileConn(connFile)
-	if err != nil {
-		return
-	}
-
-	cmd := &exec.Cmd{
-		Path: containerPath,
-		Args: []string{
-			containerPath,
-			uitoa(config.Uids[0]),
-			uitoa(config.Gids[0]),
-			uitoa(config.Uids[1]),
-			uitoa(config.Gids[1]),
-			uitoa(config.Gids[2]),
-			config.cgroupTitle(),
-			config.CgroupParent,
-		},
-		Dir:    "/",
-		Stderr: os.Stderr,
-		ExtraFiles: []*os.File{
-			controlFile,
-		},
-		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig: syscall.SIGKILL,
-		},
-	}
-
-	err = cmd.Start()
-	if err != nil {
-		return
-	}
-
-	e.conn = netConn.(*net.UnixConn)
+	e.conn = conn
 	e.execRequests = make(chan execRequest) // no buffering; files must be closed
 	e.killRequests = make(chan int32, 16)   // TODO: how much buffering?
 	e.doneSending = make(chan struct{})
@@ -181,7 +65,10 @@ func (e *executor) init(config *Config) (err error) {
 
 	go e.sender()
 	go e.receiver()
-	go e.waiter(cmd)
+
+	if cmd != nil {
+		go e.waiter(cmd)
+	}
 
 	return
 }

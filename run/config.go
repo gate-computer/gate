@@ -6,13 +6,21 @@ const (
 	DefaultCgroupTitle = "gate-executor"
 )
 
+type Cred struct {
+	Uid uint
+	Gid uint
+}
+
 type Config struct {
-	LibDir string
+	MaxProcs     int
+	DaemonSocket string
+	CommonGid    uint
 
-	Uids [2]uint
-	Gids [3]uint
+	// The rest are only applicable if DaemonSocket is not set:
 
-	MaxProcs int
+	ContainerCred Cred
+	ExecutorCred  Cred
+	LibDir        string
 
 	// These have no effect if container was compiled without cgroup support.
 	CgroupParent string

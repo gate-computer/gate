@@ -9,7 +9,7 @@ The container binary needs capabilities for:
 Things controlled by the user who can execute the container binary:
 
   - Choose any two pairs of the parent namespace's user and group ids to be
-    mapped to the container's user namespace.  The identities are used to (1)
+    mapped to the container's user namespace.  The credentials are used to (1)
     set up the mount namespace, and (2) for the executor process and its
     children.
 
@@ -32,8 +32,8 @@ Environmental factors:
     of the container binary itself: it looks for the "executor" and "loader"
     files in the same directory where it is located.  The write permissions of
     the directory and the binaries should be limited.  (Note that executor and
-    loader don't need capabilities, and should actually be executable by the
-    identity used inside the container.)
+    loader don't need capabilities, and they need to have more relaxed read and
+    execution permissions.)
 
   - Systemd and D-Bus.
 

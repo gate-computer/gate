@@ -13,6 +13,7 @@ TESTS		:= $(dir $(wildcard tests/*/Makefile))
 
 GOPACKAGES := \
 	$(GOPACKAGEPREFIX) \
+	$(GOPACKAGEPREFIX)/cmd/containerd \
 	$(GOPACKAGEPREFIX)/cmd/runner \
 	$(GOPACKAGEPREFIX)/cmd/server \
 	$(GOPACKAGEPREFIX)/cmd/talk \
@@ -26,23 +27,24 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/service/origin \
 	$(GOPACKAGEPREFIX)/service/peer
 
+export GATE_TEST_COMMONGROUP	= $(word 2,$(shell groups))
+export GATE_TEST_CONTAINERUSER	= sys
+export GATE_TEST_EXECUTORUSER	= daemon
 export GATE_TEST_LIBDIR		= $(PWD)/lib
-export GATE_TEST_BOOTUSER	= sys
-export GATE_TEST_EXECUSER	= daemon
-export GATE_TEST_PIPEGROUP	= $(word 2,$(shell groups))
 export GATE_TEST_DIR		= $(PWD)/tests
 
 run = bin/runner \
-	-boot-uid=$(shell id -u $(GATE_TEST_BOOTUSER)) \
-	-boot-gid=$(shell id -g $(GATE_TEST_BOOTUSER)) \
-	-exec-uid=$(shell id -u $(GATE_TEST_EXECUSER)) \
-	-exec-gid=$(shell id -g $(GATE_TEST_EXECUSER)) \
-	-pipe-gid=$(shell getent group $(GATE_TEST_PIPEGROUP) | cut -d: -f3)
+	-common-gid=$(shell getent group $(GATE_TEST_COMMONGROUP) | cut -d: -f3) \
+	-container-uid=$(shell id -u $(GATE_TEST_CONTAINERUSER)) \
+	-container-gid=$(shell id -g $(GATE_TEST_CONTAINERUSER)) \
+	-executor-uid=$(shell id -u $(GATE_TEST_EXECUTORUSER)) \
+	-executor-gid=$(shell id -g $(GATE_TEST_EXECUTORUSER))
 
 build:
 	$(MAKE) -C run/container CGROUP_BACKEND=$(CGROUP_BACKEND)
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
+	$(GO) build $(GOBUILDFLAGS) -o bin/containerd $(GOPACKAGEPREFIX)/cmd/containerd
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/runner
 	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/server
 	$(GO) build $(GOBUILDFLAGS) -o bin/webio $(GOPACKAGEPREFIX)/cmd/webio

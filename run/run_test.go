@@ -7,11 +7,10 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/user"
 	"path"
-	"strconv"
 	"testing"
 
+	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/dewag"
@@ -21,51 +20,6 @@ import (
 type readWriter struct {
 	io.Reader
 	io.Writer
-}
-
-func parseId(s string) uint {
-	n, err := strconv.ParseUint(s, 10, 32)
-	if err != nil {
-		panic(err)
-	}
-	return uint(n)
-}
-
-func newEnvironment() (env *run.Environment) {
-	bootUser, err := user.Lookup(os.Getenv("GATE_TEST_BOOTUSER"))
-	if err != nil {
-		panic(err)
-	}
-
-	execUser, err := user.Lookup(os.Getenv("GATE_TEST_EXECUSER"))
-	if err != nil {
-		panic(err)
-	}
-
-	pipeGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_PIPEGROUP"))
-	if err != nil {
-		panic(err)
-	}
-
-	config := run.Config{
-		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
-		Uids: [2]uint{
-			parseId(bootUser.Uid),
-			parseId(execUser.Uid),
-		},
-		Gids: [3]uint{
-			parseId(bootUser.Gid),
-			parseId(execUser.Gid),
-			parseId(pipeGroup.Gid),
-		},
-	}
-
-	env, err = run.NewEnvironment(&config)
-	if err != nil {
-		panic(err)
-	}
-
-	return
 }
 
 func openProgram(testName string) (f *os.File) {
@@ -102,7 +56,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		stackSize       = 4096
 	)
 
-	env := newEnvironment()
+	env := runtest.NewEnvironment()
 	defer env.Close()
 
 	wasm := openProgram(testName)
