@@ -12,11 +12,11 @@ TESTS		:= $(dir $(wildcard tests/*/Makefile))
 -include config.mk
 
 GOPACKAGES := \
-	$(GOPACKAGEPREFIX)/cmd/containerd \
-	$(GOPACKAGEPREFIX)/cmd/runner \
-	$(GOPACKAGEPREFIX)/cmd/server \
-	$(GOPACKAGEPREFIX)/cmd/talk \
-	$(GOPACKAGEPREFIX)/cmd/webio \
+	$(GOPACKAGEPREFIX)/cmd/gate-containerd \
+	$(GOPACKAGEPREFIX)/cmd/gate-runner \
+	$(GOPACKAGEPREFIX)/cmd/gate-server \
+	$(GOPACKAGEPREFIX)/cmd/gate-talk \
+	$(GOPACKAGEPREFIX)/cmd/gate-webio \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
@@ -44,17 +44,17 @@ build:
 	$(MAKE) -C run/container CGROUP_BACKEND=$(CGROUP_BACKEND)
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
-	$(GO) build $(GOBUILDFLAGS) -o bin/containerd $(GOPACKAGEPREFIX)/cmd/containerd
-	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/runner
-	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/server
-	$(GO) build $(GOBUILDFLAGS) -o bin/webio $(GOPACKAGEPREFIX)/cmd/webio
+	$(GO) build $(GOBUILDFLAGS) -o bin/containerd $(GOPACKAGEPREFIX)/cmd/gate-containerd
+	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/gate-runner
+	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/gate-server
+	$(GO) build $(GOBUILDFLAGS) -o bin/webio $(GOPACKAGEPREFIX)/cmd/gate-webio
 
 all: build
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C run/loader/tests
-	$(MAKE) -C cmd/talk/payload
-	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/cmd/talk
+	$(MAKE) -C cmd/gate-talk/payload
+	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/cmd/gate-talk
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
 capabilities:
@@ -83,7 +83,7 @@ clean:
 	$(MAKE) -C run/loader/tests clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
-	$(MAKE) -C cmd/talk/payload clean
+	$(MAKE) -C cmd/gate-talk/payload clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
 .PHONY: build all capabilities check benchmark clean
