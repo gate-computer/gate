@@ -5,8 +5,9 @@ make:
 - Linux
 - C compiler
 - Go 1.8
+- make
 - pkg-config
-- libcap-dev and libcap2-bin
+- libcap-dev
 - libcapstone-dev
 - libsystemd-dev unless CGROUP_BACKEND=none is specified
 
