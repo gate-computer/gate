@@ -23,13 +23,11 @@ build: malloc.bc morecore.bc wasm.bc
 
 include $(GATEDIR)/crt/rules.mk
 
-LLVMBINDIR	:= $(WAGTOOLCHAIN)/llvm-build/bin
-
 malloc.bc: malloc.c morecore.h $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 morecore.bc: morecore.c morecore.h $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 
 wasm.bc: wasm.ll Makefile $(GATEDIR)/crt/rules.mk
-	$(LLVMBINDIR)/llvm-as -o $@ wasm.ll
+	$(LLVMAS) -o $@ wasm.ll
 
 clean:
 	rm -f *.bc
