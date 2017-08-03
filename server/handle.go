@@ -277,8 +277,12 @@ func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	in, out, originPipe := newPipe()
 
+	ctx, cancel := context.WithCancel(ctx)
+	// don't cancel in request scope
+
 	body := decodeContent(w, r, s)
 	if body == nil {
+		cancel()
 		return
 	}
 
@@ -286,13 +290,15 @@ func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	// uploadAndInstantiate method closes body to check for decoding errors
 
-	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, originPipe)
+	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, originPipe, cancel)
 	if err != nil {
 		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+		cancel()
 		return
 	}
 
 	go func() {
+		defer cancel()
 		defer out.Close()
 		inst.run(ctx, &s.Settings, in, out)
 	}()
@@ -314,6 +320,9 @@ func handleSpawnJSON(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	in, out, originPipe := newPipe()
 
+	ctx, cancel := context.WithCancel(ctx)
+	// don't cancel in request scope
+
 	var (
 		inst   *instance
 		instId uint64
@@ -323,23 +332,27 @@ func handleSpawnJSON(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	if progId, err := strconv.ParseUint(spawn.Program.Id, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(spawn.Program.SHA512); err == nil {
-			inst, instId, valid, found, err = s.instantiate(progId, progHash, originPipe)
+			inst, instId, valid, found, err = s.instantiate(progId, progHash, originPipe, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+				cancel()
 				return
 			}
 		}
 	}
 	if !found {
 		http.NotFound(w, r) // XXX: can't do this
+		cancel()
 		return
 	}
 	if !valid {
 		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		cancel()
 		return
 	}
 
 	go func() {
+		defer cancel()
 		defer out.Close()
 		inst.run(ctx, &s.Settings, in, out)
 	}()
@@ -369,6 +382,9 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 	// TODO: size limit
 
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
 	var (
 		inst   *instance
 		instId uint64
@@ -382,7 +398,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 			progHash []byte
 		)
 
-		inst, instId, progId, progHash, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), nil)
+		inst, instId, progId, progHash, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), nil, cancel)
 		if err != nil {
 			// TODO
 			return
@@ -406,7 +422,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 		if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
 			if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
-				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil)
+				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, cancel)
 				if err != nil {
 					// TODO
 					return
@@ -430,11 +446,11 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		},
 	})
 	if err != nil {
-		s.cancel(inst, instId)
+		s.abortInit(inst, instId)
 		return
 	}
 
-	inst.run(r.Context(), &s.Settings, newWebsocketReader(conn), websocketWriter{conn})
+	inst.run(ctx, &s.Settings, newWebsocketReader(conn), websocketWriter{conn})
 
 	closeMsg := websocketNormalClosure
 
@@ -467,6 +483,9 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
 	var (
 		inst   *instance
 		instId uint64
@@ -476,7 +495,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil)
+			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
@@ -494,7 +513,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	w.Header().Set("X-Gate-Instance-Id", makeHexId(instId))
 
-	inst.run(r.Context(), &s.Settings, r.Body, w)
+	inst.run(ctx, &s.Settings, r.Body, w)
 
 	if result, ok := s.waitInstance(inst, instId); ok {
 		switch {

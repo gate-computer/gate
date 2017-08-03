@@ -130,7 +130,7 @@ func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) uploadAndInstantiate(wasm io.ReadCloser, originPipe *pipe) (inst *instance, instId, progId uint64, progHash []byte, err error) {
+func (s *State) uploadAndInstantiate(wasm io.ReadCloser, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId, progId uint64, progHash []byte, err error) {
 	// TODO: clientHash support
 
 	prog, _, err := loadProgram(wasm, nil, s.Env)
@@ -140,7 +140,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, originPipe *pipe) (inst
 
 	progId = makeId()
 	instId = makeId()
-	inst = newInstance(originPipe)
+	inst = newInstance(originPipe, cancel)
 
 	s.lock.Lock()
 	if existing, found := s.programsByHash[prog.hash]; found {
@@ -159,7 +159,7 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, originPipe *pipe) (inst
 	return
 }
 
-func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe) (inst *instance, instId uint64, valid, found bool, err error) {
+func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId uint64, valid, found bool, err error) {
 	s.lock.Lock()
 	prog, found := s.programs[progId]
 	if found {
@@ -173,13 +173,13 @@ func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe) (i
 	valid = validateHash(prog, progHash)
 	if !valid {
 		s.lock.Lock()
-		prog.instanceCount-- // cancel
+		prog.instanceCount-- // abort init
 		s.lock.Unlock()
 		return
 	}
 
 	instId = makeId()
-	inst = newInstance(originPipe)
+	inst = newInstance(originPipe, cancel)
 	inst.program = prog
 
 	s.lock.Lock()
@@ -188,13 +188,13 @@ func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe) (i
 	return
 }
 
-func (s *State) cancel(inst *instance, instId uint64) {
+func (s *State) abortInit(inst *instance, instId uint64) {
 	s.lock.Lock()
 	delete(s.instances, instId)
 	inst.program.instanceCount--
 	s.lock.Unlock()
 
-	inst.cancel()
+	inst.abortInit()
 }
 
 func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
@@ -232,6 +232,14 @@ func (s *State) waitInstance(inst *instance, instId uint64) (result *api.Result,
 	inst.program.instanceCount--
 	s.lock.Unlock()
 	return
+}
+
+func (s *State) Cancel() {
+	s.lock.Lock()
+	for _, inst := range s.instances {
+		inst.cancel()
+	}
+	s.lock.Unlock()
 }
 
 type program struct {
@@ -294,17 +302,19 @@ type instance struct {
 	program    *program
 	exit       chan *api.Result
 	originPipe *pipe
+	cancel     context.CancelFunc
 }
 
 // newInstance does not set the program field; it must be initialized manually.
-func newInstance(originPipe *pipe) *instance {
+func newInstance(originPipe *pipe, cancel context.CancelFunc) *instance {
 	return &instance{
 		exit:       make(chan *api.Result, 1),
 		originPipe: originPipe,
+		cancel:     cancel,
 	}
 }
 
-func (inst *instance) cancel() {
+func (inst *instance) abortInit() {
 	close(inst.exit)
 }
 
