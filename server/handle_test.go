@@ -218,6 +218,15 @@ func TestRun(t *testing.T) {
 	}
 	defer conn.Close()
 
+	err = conn.WriteJSON(api.Run{
+		Program: api.Program{
+			SHA512: progHash,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	if err := conn.WriteMessage(websocket.BinaryMessage, progData); err != nil {
 		panic(err)
 	}
@@ -226,8 +235,11 @@ func TestRun(t *testing.T) {
 	if err := conn.ReadJSON(&running); err != nil {
 		t.Fatal(err)
 	}
-	if running.Program.Id == "" || running.Program.SHA512 == "" || running.Instance.Id == "" {
-		t.Fatalf("%v", running)
+	if running.Instance.Id == "" {
+		t.Fatalf("%#v", running.Instance)
+	}
+	if running.Program == nil || running.Program.Id == "" || running.Program.SHA512 == "" {
+		t.Fatalf("%#v", running.Program)
 	}
 
 	frameType, data, err := conn.ReadMessage()
@@ -243,6 +255,6 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if finished.Result.Exit != 0 || finished.Result.Trap != "" || finished.Result.Error != "" {
-		t.Fatalf("%v", finished)
+		t.Fatalf("%#v", finished)
 	}
 }

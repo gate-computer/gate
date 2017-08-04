@@ -275,26 +275,46 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
-	// TODO: X-Gate-Program-Sha512 support
+	progHexHash := r.Header.Get("X-Gate-Program-Sha512")
+	if progHexHash == "" {
+		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Sha512 header required")
+		return
+	}
 
 	in, out, originPipe := newPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
 	// don't cancel in request scope
 
-	body := decodeContent(w, r, s)
-	if body == nil {
-		cancel()
-		return
+	var (
+		inst     *instance
+		instId   uint64
+		progId   uint64
+		progHash []byte
+		valid    bool
+		err      error
+	)
+
+	if progHash, err = hex.DecodeString(progHexHash); err == nil {
+		body := decodeContent(w, r, s)
+		if body == nil {
+			cancel()
+			return
+		}
+
+		// TODO: size limit
+
+		// uploadAndInstantiate method closes body to check for decoding errors
+
+		inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(body, progHash, originPipe, cancel)
+		if err != nil {
+			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+			cancel()
+			return
+		}
 	}
-
-	// TODO: size limit
-
-	// uploadAndInstantiate method closes body to check for decoding errors
-
-	inst, instId, progId, progHash, err := s.uploadAndInstantiate(body, originPipe, cancel)
-	if err != nil {
-		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+	if !valid {
+		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
 		cancel()
 		return
 	}
@@ -376,13 +396,16 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 	defer conn.Close()
 
-	frameType, frame, err := conn.NextReader()
+	// TODO: size limit
+
+	var run api.Run
+
+	err = conn.ReadJSON(&run)
 	if err != nil {
+		// TODO
 		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
 		return
 	}
-
-	// TODO: size limit
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
@@ -390,35 +413,13 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	var (
 		inst   *instance
 		instId uint64
+		valid  bool
+
 		loaded api.Loaded
 	)
 
-	switch frameType {
-	case websocket.BinaryMessage:
+	if run.Program.Id != "" {
 		var (
-			progId   uint64
-			progHash []byte
-		)
-
-		inst, instId, progId, progHash, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), nil, cancel)
-		if err != nil {
-			// TODO
-			return
-		}
-
-		loaded.Program = newProgram(progId, progHash)
-
-	case websocket.TextMessage:
-		var run api.Run
-
-		err = json.NewDecoder(frame).Decode(&run)
-		if err != nil {
-			// TODO
-			return
-		}
-
-		var (
-			valid bool
 			found bool
 		)
 
@@ -427,18 +428,49 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, cancel)
 				if err != nil {
 					// TODO
+					s.Log.Printf("%s error: %v", r.RemoteAddr, err)
 					return
 				}
 			}
 		}
 		if !found {
 			// TODO
+			s.Log.Printf("%s error: not found", r.RemoteAddr)
 			return
 		}
-		if !valid {
-			// TODO
+	} else {
+		frameType, frame, err := conn.NextReader()
+		if err != nil {
+			s.Log.Printf("%s error: %v", r.RemoteAddr, err)
 			return
 		}
+		if frameType != websocket.BinaryMessage {
+			conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedData)
+			return
+		}
+
+		// TODO: size limit
+
+		var (
+			progId   uint64
+			progHash []byte
+		)
+
+		if progHash, err = hex.DecodeString(run.Program.SHA512); err == nil {
+			inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), progHash, nil, cancel)
+			if err != nil {
+				// TODO
+				s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+				return
+			}
+		}
+
+		loaded.Program = newProgram(progId, progHash)
+	}
+	if !valid {
+		// TODO
+		s.Log.Printf("%s error: invalid hash", r.RemoteAddr)
+		return
 	}
 
 	err = conn.WriteJSON(&api.Running{
@@ -546,22 +578,11 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 	}
 	defer conn.Close()
 
-	frameType, frame, err := conn.NextReader()
-	if err != nil {
-		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
-		return
-	}
-
-	if frameType != websocket.TextMessage {
-		conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedData)
-		return
-	}
-
 	// TODO: size limit
 
 	var communicate api.Communicate
 
-	err = json.NewDecoder(frame).Decode(&communicate)
+	err = conn.ReadJSON(&communicate)
 	if err != nil {
 		// TODO
 		return
