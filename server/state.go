@@ -43,34 +43,35 @@ func NewState(s Settings) *State {
 }
 
 func (s *State) upload(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
-	if clientHash != nil {
-		var final bool
-
-		progId, progHash, valid, final, err = s.uploadPossiblyKnown(wasm, clientHash)
-		if err != nil {
-			return
-		}
-		if final {
-			return
-		}
-	}
-
-	return s.uploadUnknown(wasm, clientHash)
-}
-
-func (s *State) uploadPossiblyKnown(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid, final bool, err error) {
 	if len(clientHash) != sha512.Size {
-		final = true // avoid processing impossible input
 		return
 	}
 
+	prog, progId, valid, found, err := s.uploadKnown(wasm, clientHash)
+	if err != nil {
+		return
+	}
+	if found {
+		return
+	}
+
+	prog, progId, valid, err = s.uploadUnknown(wasm, clientHash)
+	if err != nil {
+		return
+	}
+
+	progHash = prog.hash[:]
+	return
+}
+
+func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte) (prog *program, progId uint64, valid, found bool, err error) {
 	var key [sha512.Size]byte
 	copy(key[:], clientHash)
 
 	s.lock.Lock()
-	prog, final := s.programsByHash[key]
+	prog, found = s.programsByHash[key]
 	s.lock.Unlock()
-	if !final {
+	if !found {
 		return
 	}
 
@@ -88,13 +89,11 @@ func (s *State) uploadPossiblyKnown(wasm io.ReadCloser, clientHash []byte) (prog
 	prog.ownerCount++
 	s.programs[progId] = prog
 	s.lock.Unlock()
-
-	progHash = prog.hash[:]
 	return
 }
 
-func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
-	prog, valid, err := loadProgram(wasm, clientHash, s.Env)
+func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (prog *program, progId uint64, valid bool, err error) {
+	prog, valid, err = loadProgram(wasm, clientHash, s.Env)
 	if err != nil {
 		return
 	}
@@ -113,8 +112,6 @@ func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (progId uin
 	prog.ownerCount++
 	s.programs[progId] = prog
 	s.lock.Unlock()
-
-	progHash = prog.hash[:]
 	return
 }
 

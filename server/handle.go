@@ -203,32 +203,34 @@ func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 }
 
 func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
+	progHexHash := r.Header.Get("X-Gate-Program-Sha512")
+	if progHexHash == "" {
+		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Sha512 header required")
+		return
+	}
+
 	var (
+		progId   uint64
 		progHash []byte
+		valid    bool
 		err      error
 	)
 
-	if s := r.Header.Get("X-Gate-Program-Sha512"); s != "" {
-		progHash, err = hex.DecodeString(s)
-		if err != nil {
-			writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")
+	if progHash, err = hex.DecodeString(progHexHash); err == nil {
+		body := decodeContent(w, r, s)
+		if body == nil {
 			return
 		}
-	}
 
-	body := decodeContent(w, r, s)
-	if body == nil {
-		return
-	}
+		// TODO: size limit
 
-	// TODO: size limit
+		// upload method closes body to check for decoding errors
 
-	// upload method closes body to check for decoding errors
-
-	progId, progHash, valid, err := s.upload(body, progHash)
-	if err != nil {
-		writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-		return
+		progId, progHash, valid, err = s.upload(body, progHash)
+		if err != nil {
+			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
+			return
+		}
 	}
 	if !valid {
 		writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")

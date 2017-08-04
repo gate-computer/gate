@@ -88,6 +88,7 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 	{
 		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(progData))
 		req.Header.Set("Content-Type", "application/wasm")
+		req.Header.Set("X-Gate-Program-Sha512", progHash)
 
 		resp, content := doJSON(t, req)
 		if resp.StatusCode != http.StatusOK {
