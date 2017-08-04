@@ -15,8 +15,8 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/cmd/gate-containerd \
 	$(GOPACKAGEPREFIX)/cmd/gate-runner \
 	$(GOPACKAGEPREFIX)/cmd/gate-server \
-	$(GOPACKAGEPREFIX)/cmd/gate-talk \
 	$(GOPACKAGEPREFIX)/cmd/gate-webio \
+	$(GOPACKAGEPREFIX)/examples/gate-talk \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
@@ -53,8 +53,8 @@ all: build
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C run/loader/tests
-	$(MAKE) -C cmd/gate-talk/payload
-	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/cmd/gate-talk
+	$(MAKE) -C examples/gate-talk/payload
+	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/examples/gate-talk
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
 capabilities:
@@ -87,7 +87,7 @@ clean:
 	$(MAKE) -C run/loader/tests clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
-	$(MAKE) -C cmd/gate-talk/payload clean
+	$(MAKE) -C examples/gate-talk/payload clean
 	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
