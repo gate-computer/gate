@@ -19,9 +19,14 @@ CPPFLAGS	+= \
 
 CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -ffreestanding -Oz
 
-build: malloc.bc morecore.bc wasm.bc
+OBJECTS		:= malloc.bc morecore.bc wasm.bc
+
+build: all.bc
 
 include $(GATEDIR)/crt/rules.mk
+
+all.bc: $(OBJECTS)
+	$(LLVMLINK) -o $@ $(OBJECTS)
 
 malloc.bc: malloc.c morecore.h $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 morecore.bc: morecore.c morecore.h $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk

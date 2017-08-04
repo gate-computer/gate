@@ -18,6 +18,7 @@ CC		:= $(dockertoolchain) compile
 CXX		:= $(dockertoolchain) compile
 LINKER		:= $(dockertoolchain) link
 LLVMAS		:= $(dockertoolchain) $(LLVMBINDIR)/llvm-as
+LLVMLINK	:= $(dockertoolchain) $(LLVMBINDIR)/llvm-link
 else
 PYTHON		?= python
 
@@ -28,6 +29,7 @@ CC		:= $(TOOLCHAINDIR)/bin/compile
 CXX		:= $(TOOLCHAINDIR)/bin/compile
 LINKER		:= $(TOOLCHAINDIR)/bin/link
 LLVMAS		:= $(LLVMBINDIR)/llvm-as
+LLVMLINK	:= $(LLVMBINDIR)/llvm-link
 endif
 
 CPPFLAGS	+= -isystem $(GATEDIR)/include

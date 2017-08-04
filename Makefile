@@ -71,6 +71,10 @@ check:
 	$(run) -repeat=100 tests/nop/prog.wasm
 	$(run) tests/peer/prog.wasm tests/peer/prog.wasm
 
+check-toolchain:
+	$(MAKE) -C examples/toolchain
+	$(run) examples/toolchain/example.wasm
+
 benchmark:
 	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
 	$(run) -repeat=10000 -dump-time tests/nop/prog.wasm
@@ -84,6 +88,7 @@ clean:
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
 	$(MAKE) -C cmd/gate-talk/payload clean
+	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: build all capabilities check benchmark clean
+.PHONY: build all capabilities check check-toolchain benchmark clean
