@@ -40,29 +40,37 @@ run = bin/runner \
 	-executor-uid=$(shell id -u $(GATE_TEST_EXECUTORUSER)) \
 	-executor-gid=$(shell id -g $(GATE_TEST_EXECUTORUSER))
 
-build:
+lib:
 	$(MAKE) -C run/container CGROUP_BACKEND=$(CGROUP_BACKEND)
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
+
+bin:
 	$(GO) build $(GOBUILDFLAGS) -o bin/containerd $(GOPACKAGEPREFIX)/cmd/gate-containerd
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/gate-runner
 	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/gate-server
 	$(GO) build $(GOBUILDFLAGS) -o bin/webio $(GOPACKAGEPREFIX)/cmd/gate-webio
 
-all: build
+devlibs:
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
+
+tests: devlibs
 	$(MAKE) -C run/loader/tests
 	$(MAKE) -C examples/gate-talk/payload
 	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/examples/gate-talk
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
+
+all: lib bin devlibs tests
 
 capabilities:
 	chmod -R go-w lib
 	chmod go-wx lib/container
 	$(SETCAP) cap_dac_override,cap_setgid,cap_setuid+ep lib/container
 
-check:
+# check and benchmark can't require lib due to the capabilities step
+
+check: bin tests
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
@@ -75,7 +83,7 @@ check-toolchain:
 	$(MAKE) -C examples/toolchain
 	$(run) examples/toolchain/example.wasm
 
-benchmark:
+benchmark: bin tests
 	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
 	$(run) -repeat=10000 -dump-time tests/nop/prog.wasm
 
@@ -91,4 +99,4 @@ clean:
 	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: build all capabilities check check-toolchain benchmark clean
+.PHONY: lib bin devlibs tests all capabilities check check-toolchain benchmark clean
