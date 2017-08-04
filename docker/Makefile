@@ -2,12 +2,12 @@ TAG_PREFIX :=
 
 build:
 	$(MAKE) -C .. all CGROUP_BACKEND=none
-	docker build -f Dockerfile --no-cache -t gate ..
-	docker build -f containerd/Dockerfile --no-cache -t gate-containerd ..
-	docker build -f server/Dockerfile --no-cache -t gate-server ..
-	docker build -f server-unpriv/Dockerfile --no-cache -t gate-server-unpriv ..
-	docker build -f server-priv/Dockerfile --no-cache -t gate-server-priv ..
-	docker build -f toolchain/Dockerfile --no-cache -t gate-toolchain ..
+	docker build -f Dockerfile --no-cache -t $(TAG_PREFIX)gate ..
+	docker build -f containerd/Dockerfile --no-cache -t $(TAG_PREFIX)gate-containerd ..
+	docker build -f server/Dockerfile --no-cache -t $(TAG_PREFIX)gate-server ..
+	docker build -f server-unpriv/Dockerfile --no-cache -t $(TAG_PREFIX)gate-server-unpriv ..
+	docker build -f server-priv/Dockerfile --no-cache -t $(TAG_PREFIX)gate-server-priv ..
+	docker build -f toolchain/Dockerfile --no-cache -t $(TAG_PREFIX)gate-toolchain ..
 
 tag:
 	docker tag gate $(TAG_PREFIX)gate
