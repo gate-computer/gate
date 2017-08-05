@@ -16,6 +16,11 @@ import (
 	api "github.com/tsavola/gate/server/serverapi"
 )
 
+const (
+	wasmRequestMaxSize = 16 * 1024 * 1024 // conservative
+	jsonRequestMaxSize = 1024             // check this when expanding the API
+)
+
 func makeHexId(id uint64) string {
 	return fmt.Sprintf("%016x", id)
 }
@@ -217,12 +222,10 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 	)
 
 	if progHash, err = hex.DecodeString(progHexHash); err == nil {
-		body := decodeContent(w, r, s)
+		body := decodeContent(w, r, s, wasmRequestMaxSize)
 		if body == nil {
 			return
 		}
-
-		// TODO: size limit
 
 		// upload method closes body to check for decoding errors
 
@@ -296,13 +299,11 @@ func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request
 	)
 
 	if progHash, err = hex.DecodeString(progHexHash); err == nil {
-		body := decodeContent(w, r, s)
+		body := decodeContent(w, r, s, wasmRequestMaxSize)
 		if body == nil {
 			cancel()
 			return
 		}
-
-		// TODO: size limit
 
 		// uploadAndInstantiate method closes body to check for decoding errors
 
@@ -622,7 +623,7 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	body := decodeContent(w, r, s)
+	body := decodeUnlimitedContent(w, r, s)
 	if body == nil {
 		return
 	}
@@ -720,7 +721,7 @@ func getContentType(r *http.Request) string {
 	return strings.TrimSpace(tokens[0])
 }
 
-func decodeContent(w http.ResponseWriter, r *http.Request, s *State) io.ReadCloser {
+func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *State) io.ReadCloser {
 	switch r.Header.Get("Content-Encoding") { // non-standard for request
 	case "", "identity":
 		return r.Body
@@ -741,18 +742,27 @@ func decodeContent(w http.ResponseWriter, r *http.Request, s *State) io.ReadClos
 	return nil
 }
 
-func decodeContentJSON(w http.ResponseWriter, r *http.Request, s *State, v interface{}) (ok bool) {
+func decodeContent(w http.ResponseWriter, r *http.Request, s *State, limit int) (cr *contentReader) {
 	if r.ContentLength < 0 {
 		w.WriteHeader(http.StatusLengthRequired)
 		return
 	}
-
-	body := decodeContent(w, r, s)
-	if body == nil {
+	if r.ContentLength > int64(limit) {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		return
 	}
 
-	// TODO: size limit
+	if c := decodeUnlimitedContent(w, r, s); c != nil {
+		cr = newContentReader(c, limit)
+	}
+	return
+}
+
+func decodeContentJSON(w http.ResponseWriter, r *http.Request, s *State, v interface{}) (ok bool) {
+	body := decodeContent(w, r, s, jsonRequestMaxSize)
+	if body == nil {
+		return
+	}
 
 	if err := json.NewDecoder(body).Decode(v); err != nil {
 		writeBadRequest(w, r, err)
