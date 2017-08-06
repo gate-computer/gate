@@ -2,6 +2,7 @@ package run
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -73,23 +74,30 @@ func (e *executor) init(config *Config) (err error) {
 	return
 }
 
-func (e *executor) execute(files []*os.File) (*process, error) {
+func (e *executor) execute(ctx context.Context, files []*os.File) (*process, error) {
 	p := &process{
 		e:      e,
 		events: make(chan recvEntry, 2), // space for reply and status
 	}
+
+	var err error
 
 	select {
 	case e.execRequests <- execRequest{p, files}:
 		return p, nil
 
 	case <-e.doneSending:
+		err = errExecutorDead
 
 	case <-e.doneReceiving:
+		err = errExecutorDead
+
+	case <-ctx.Done():
+		err = ctx.Err()
 	}
 
 	closeExecutionFiles(files)
-	return nil, errExecutorDead
+	return nil, err
 }
 
 func (e *executor) close() error {

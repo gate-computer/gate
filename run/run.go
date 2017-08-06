@@ -401,7 +401,7 @@ func Run(ctx context.Context, env *Environment, payload *Payload, services Servi
 		execFiles = append(execFiles, debugW)
 	}
 
-	p, err := env.executor.execute(execFiles)
+	p, err := env.executor.execute(ctx, execFiles)
 	if err != nil {
 		return
 	}
