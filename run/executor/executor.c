@@ -39,10 +39,10 @@ static void xcloexec(int fd)
 {
 	int flags = fcntl(fd, F_GETFD);
 	if (flags < 0)
-		exit(10);
+		_exit(10);
 
 	if (fcntl(fd, F_SETFD, flags|FD_CLOEXEC) < 0)
-		exit(11);
+		_exit(11);
 }
 
 // Set a resource limit or die.
@@ -54,14 +54,14 @@ static void xlimit(int resource, rlim_t rlim)
 	buf.rlim_max = rlim;
 
 	if (setrlimit(resource, &buf) != 0)
-		exit(12);
+		_exit(12);
 }
 
 // Duplicate a file descriptor or die.
 static void xdup2(int oldfd, int newfd)
 {
 	if (dup2(oldfd, newfd) != newfd)
-		exit(13);
+		_exit(13);
 }
 
 static void sighandler(int signum)
@@ -74,10 +74,10 @@ static void init_sigchld()
 	sigemptyset(&mask);
 	sigaddset(&mask, SIGCHLD);
 	if (sigprocmask(SIG_SETMASK, &mask, NULL) != 0)
-		exit(14);
+		_exit(14);
 
 	if (signal(SIGCHLD, sighandler) == SIG_ERR)
-		exit(15);
+		_exit(15);
 }
 
 __attribute__ ((noreturn))
@@ -95,17 +95,27 @@ static inline void execute_child(const int *fds, int num_fds)
 	xdup2(fds[2], GATE_MAPS_FD);
 
 	if (nice(CHILD_NICE) != CHILD_NICE)
-		exit(16);
+		_exit(16);
 
 	xlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE);
 	xlimit(RLIMIT_NPROC, 0);
 
 	if (prctl(PR_SET_TSC, PR_TSC_SIGSEGV, 0, 0, 0) != 0)
-		exit(17);
+		_exit(17);
 
 	char *empty[] = {NULL};
 	fexecve(GATE_LOADER_FD, empty, empty);
-	exit(18);
+	_exit(18);
+}
+
+__attribute__ ((noinline))
+static pid_t spawn_child(const int *fds, int num_fds)
+{
+	pid_t pid = vfork();
+	if (pid == 0)
+		execute_child(fds, num_fds);
+
+	return pid;
 }
 
 // Set up polling and signal mask according to buffer status and return revents
@@ -138,7 +148,7 @@ static inline int do_ppoll(struct buffer *sending, struct buffer *killed, struct
 		if (errno == EINTR)
 			return -1; // reap
 
-		exit(19);
+		_exit(19);
 	}
 
 	return (unsigned short) pollfd.revents; // zero extension
@@ -160,10 +170,10 @@ static inline ssize_t do_recvmsg(struct msghdr *msg, void *buf, size_t buflen, i
 static inline void handle_control_message(struct buffer *sending, struct cmsghdr *cmsg)
 {
 	if (cmsg->cmsg_level != SOL_SOCKET)
-		exit(20);
+		_exit(20);
 
 	if (cmsg->cmsg_type != SCM_RIGHTS)
-		exit(21);
+		_exit(21);
 
 	int num_fds;
 	if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof (int)))
@@ -171,35 +181,33 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 	else if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof (int)))
 		num_fds = 4;
 	else
-		exit(22);
+		_exit(22);
 
 	const int *fds = (int *) CMSG_DATA(cmsg);
 
-	pid_t pid = fork();
-	if (pid == 0)
-		execute_child(fds, num_fds);
-	if (pid < 0)
-		exit(23);
+	pid_t pid = spawn_child(fds, num_fds);
+	if (pid <= 0)
+		_exit(23);
 
 	for (int i = 0; i < num_fds; i++)
 		close(fds[i]);
 
 	const struct send_entry entry = {-pid, 0};
 	if (buffer_append(sending, &entry, sizeof (entry)) != 0)
-		exit(24);
+		_exit(24);
 }
 
 static inline void handle_pid_message(struct buffer *killed, struct buffer *died, pid_t pid)
 {
 	if (pid <= 1)
-		exit(25);
+		_exit(25);
 
 	if (!buffer_remove_pid(died, pid)) {
 		if (kill(pid, SIGKILL) != 0)
-			exit(26);
+			_exit(26);
 
 		if (buffer_append_pid(killed, pid) != 0)
-			exit(27);
+			_exit(27);
 	}
 }
 
@@ -228,7 +236,7 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 		ssize_t len = do_recvmsg(&msg, receive.buf + receive_len, sizeof (receive.buf) - receive_len, flags);
 		if (len <= 0) {
 			if (len == 0)
-				exit(0);
+				_exit(0);
 
 			if (receive_len == 0) {
 				if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -238,13 +246,13 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 					continue;
 			}
 
-			exit(28);
+			_exit(28);
 		}
 
 		receive_len += len;
 
 		if (msg.msg_flags & MSG_CTRUNC)
-			exit(29);
+			_exit(29);
 
 		struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
 		if (cmsg) {
@@ -253,7 +261,7 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 			// only one message per sizeof (pid_t) bytes, otherwise
 			// we may overflow sending buffer
 			if (CMSG_NXTHDR(&msg, cmsg))
-				exit(30);
+				_exit(30);
 		}
 	}
 
@@ -266,12 +274,12 @@ static inline void handle_sending(struct buffer *sending)
 	ssize_t len = buffer_send(sending, GATE_CONTROL_FD, MSG_DONTWAIT);
 	if (len <= 0) {
 		if (len == 0)
-			exit(0);
+			_exit(0);
 
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
 			return;
 
-		exit(31);
+		_exit(31);
 	}
 }
 
@@ -284,7 +292,7 @@ static inline void handle_reaping(struct buffer *sending, struct buffer *killed,
 			if (pid == 0 || errno == ECHILD)
 				return;
 
-			exit(32);
+			_exit(32);
 		}
 
 		if (WIFSTOPPED(status) || WIFCONTINUED(status))
@@ -292,11 +300,11 @@ static inline void handle_reaping(struct buffer *sending, struct buffer *killed,
 
 		const struct send_entry entry = {pid, status};
 		if (buffer_append(sending, &entry, sizeof (entry)) != 0)
-			exit(33);
+			_exit(33);
 
 		if (!buffer_remove_pid(killed, pid))
 			if (buffer_append_pid(died, pid) != 0)
-				exit(34);
+				_exit(34);
 	}
 }
 
