@@ -242,7 +242,7 @@ func handleLoadId(w http.ResponseWriter, r *http.Request, s *State) {
 		}
 	}
 	if !found {
-		http.NotFound(w, r) // XXX: can't do this
+		http.NotFound(w, r)
 		return
 	}
 	if !valid {
@@ -337,7 +337,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		}
 	}
 	if !found {
-		http.NotFound(w, r) // XXX: can't do this
+		http.NotFound(w, r)
 		cancel()
 		return
 	}
@@ -464,6 +464,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 			switch {
 			case result.err != nil:
+				// don't leak sensitive information
 				doc.Error = result.err.Error()
 				// TODO: f.ErrorId
 
@@ -518,7 +519,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 		}
 	}
 	if !found {
-		http.NotFound(w, r) // XXX: can't do this
+		http.NotFound(w, r)
 		return
 	}
 	if !valid {
@@ -605,7 +606,7 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
 		originPipe, found = s.attachOrigin(instId)
 	}
 	if !found {
-		http.NotFound(w, r) // XXX: can't do this
+		http.NotFound(w, r)
 		return
 	}
 	if originPipe == nil {
@@ -631,7 +632,7 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 		result, found = s.wait(instId)
 	}
 	if !found {
-		http.NotFound(w, r) // XXX: can't do this
+		http.NotFound(w, r)
 		return
 	}
 	if result == nil {
@@ -648,6 +649,7 @@ func setResultHeader(w http.ResponseWriter, prefix string, result *result) {
 		w.Header().Set(prefix+api.HeaderError, `"Internal server error"`)
 
 	case result.err != nil:
+		// don't leak sensitive information
 		w.Header().Set(prefix+api.HeaderError, jsonString(result.err.Error()))
 		// TODO: api.HeaderErrorId
 
