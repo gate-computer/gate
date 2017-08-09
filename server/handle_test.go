@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
-	"encoding/json"
 	"io"
 	"io/ioutil"
 	"log"
@@ -19,16 +18,20 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
-	api "github.com/tsavola/gate/server/serverapi"
 	"github.com/tsavola/gate/service/origin"
+	api "github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag/wasm"
 )
+
+func services(r io.Reader, w io.Writer) run.ServiceRegistry {
+	return origin.CloneRegistryWith(nil, r, w)
+}
 
 var handler = NewHandler(context.Background(), "/", NewState(Settings{
 	MemorySizeLimit: 64 * wasm.Page,
 	StackSize:       65536,
 	Env:             runtest.NewEnvironment(),
-	Services:        func(r io.Reader, w io.Writer) run.ServiceRegistry { return origin.CloneRegistryWith(nil, r, w) },
+	Services:        services,
 	Log:             log.New(os.Stderr, "log: ", 0),
 	Debug:           os.Stdout,
 }))
@@ -51,30 +54,21 @@ func init() {
 	progHash = hex.EncodeToString(hash.Sum(nil))
 }
 
-func do(t *testing.T, req *http.Request) (resp *http.Response, body []byte) {
+func do(t *testing.T, req *http.Request) (resp *http.Response, content []byte) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	resp = w.Result()
-	body, err := ioutil.ReadAll(resp.Body)
+	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return
 }
 
-func doJSON(t *testing.T, req *http.Request) (resp *http.Response, content map[string]map[string]interface{}) {
-	resp, body := do(t, req)
-	if strings.Split(resp.Header.Get("Content-Type"), ";")[0] == "application/json" {
-		if err := json.Unmarshal(body, &content); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return
-}
-
 func TestLoadNotFound(t *testing.T) {
-	req := httptest.NewRequest("POST", "/load", bytes.NewBufferString(`{"program": {"id": "535561601a3a8550", "sha512": "c4d28256984e0fc6cc645ee184a49fbd9efc07d29a07bf43baab07deeac21f255a3796c6d04132a86a141847d118a3e0bf729681ad7910ae2d8e99fec1327430"}}`))
-	req.Header.Set("Content-Type", "application/json")
+	req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(nil))
+	req.Header.Set(api.HeaderProgramId, "535561601a3a8550")
+	req.Header.Set(api.HeaderProgramSHA512, "c4d28256984e0fc6cc645ee184a49fbd9efc07d29a07bf43baab07deeac21f255a3796c6d04132a86a141847d118a3e0bf729681ad7910ae2d8e99fec1327430")
 
 	resp, _ := do(t, req)
 	if resp.StatusCode != http.StatusNotFound {
@@ -88,30 +82,23 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 	{
 		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(progData))
 		req.Header.Set("Content-Type", "application/wasm")
-		req.Header.Set("X-Gate-Program-Sha512", progHash)
+		req.Header.Set(api.HeaderProgramSHA512, progHash)
 
-		resp, content := doJSON(t, req)
+		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatal(resp.StatusCode)
 		}
 
-		if len(content) != 1 || len(content["program"]) != 2 {
-			t.Fatal(content)
-		}
-
-		progId = content["program"]["id"].(string)
+		progId = resp.Header.Get(api.HeaderProgramId)
 		if progId == "" {
 			t.Fatal("no program id")
-		}
-
-		if content["program"]["sha512"].(string) != progHash {
-			t.Fatal("bad program hash")
 		}
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/load", bytes.NewBufferString(`{"program": {"id": "`+progId+`", "sha512": "c4d28256984e0fc6cc645ee184a49fbd9efc07d29a07bf43baab07deeac21f255a3796c6d04132a86a141847d118a3e0bf729681ad7910ae2d8e99fec1327430"}}`))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderProgramId, progId)
+		req.Header.Set(api.HeaderProgramSHA512, "c4d28256984e0fc6cc645ee184a49fbd9efc07d29a07bf43baab07deeac21f255a3796c6d04132a86a141847d118a3e0bf729681ad7910ae2d8e99fec1327430")
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusForbidden {
@@ -119,60 +106,52 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 		}
 	}
 
-	progJSON := `{"program": {"id": "` + progId + `", "sha512": "` + progHash + `"}}`
-
 	{
-		req := httptest.NewRequest("POST", "/load", bytes.NewBufferString(progJSON))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderProgramId, progId)
+		req.Header.Set(api.HeaderProgramSHA512, progHash)
 
-		resp, content := doJSON(t, req)
+		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatal(resp.StatusCode)
-		}
-
-		if len(content) != 0 {
-			t.Fatal(content)
 		}
 	}
 
 	var instId string
 
 	{
-		req := httptest.NewRequest("POST", "/spawn", bytes.NewBufferString(progJSON))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest("POST", "/spawn", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderProgramId, progId)
+		req.Header.Set(api.HeaderProgramSHA512, progHash)
 
-		resp, content := doJSON(t, req)
+		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatal(resp.StatusCode)
 		}
 
-		if len(content) != 1 || len(content["instance"]) != 1 {
-			t.Fatal(content)
-		}
-
-		instId = content["instance"]["id"].(string)
+		instId = resp.Header.Get(api.HeaderInstanceId)
 		if instId == "" {
 			t.Fatal("no instance id")
 		}
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/communicate", bytes.NewBuffer(nil))
-		req.Header.Set("X-Gate-Instance-Id", instId)
+		req := httptest.NewRequest("POST", "/communicate", bytes.NewBufferString(""))
+		req.Header.Set(api.HeaderInstanceId, instId)
 
-		resp, body := do(t, req)
+		resp, content := do(t, req)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatal(resp.StatusCode)
 		}
 
-		if string(body) != "hello world\n" {
-			t.Error(body)
+		if string(content) != "hello world\n" {
+			t.Error(content)
 		}
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/communicate", bytes.NewBuffer(nil))
-		req.Header.Set("X-Gate-Instance-Id", instId)
+		req := httptest.NewRequest("POST", "/communicate", bytes.NewBufferString("garbage"))
+		req.Header.Set(api.HeaderInstanceId, instId)
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusConflict {
@@ -180,25 +159,23 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 		}
 	}
 
-	instJSON := `{"instance": {"id": "` + instId + `"}}`
-
 	{
-		req := httptest.NewRequest("POST", "/wait", bytes.NewBufferString(instJSON))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest("POST", "/wait", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderInstanceId, instId)
 
-		resp, content := doJSON(t, req)
+		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatal(resp.StatusCode)
 		}
 
-		if content["result"]["exit"].(float64) != 0 {
-			t.Error(content)
+		if resp.Header.Get(api.HeaderExitStatus) != "0" {
+			t.Errorf("%#v", resp.Header)
 		}
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/wait", bytes.NewBufferString(instJSON))
-		req.Header.Set("Content-Type", "application/json")
+		req := httptest.NewRequest("POST", "/wait", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderInstanceId, instId)
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusNotFound {
@@ -219,9 +196,7 @@ func TestRun(t *testing.T) {
 	defer conn.Close()
 
 	err = conn.WriteJSON(api.Run{
-		Program: api.Program{
-			SHA512: progHash,
-		},
+		ProgramSHA512: progHash,
 	})
 	if err != nil {
 		panic(err)
@@ -235,11 +210,11 @@ func TestRun(t *testing.T) {
 	if err := conn.ReadJSON(&running); err != nil {
 		t.Fatal(err)
 	}
-	if running.Instance.Id == "" {
-		t.Fatalf("%#v", running.Instance)
+	if running.InstanceId == "" {
+		t.Fatal("no instance id")
 	}
-	if running.Program == nil || running.Program.Id == "" || running.Program.SHA512 == "" {
-		t.Fatalf("%#v", running.Program)
+	if running.ProgramId == "" {
+		t.Fatal("no program id")
 	}
 
 	frameType, data, err := conn.ReadMessage()
@@ -250,11 +225,11 @@ func TestRun(t *testing.T) {
 		t.Fatal(data)
 	}
 
-	var finished api.Finished
-	if err := conn.ReadJSON(&finished); err != nil {
+	var result api.Result
+	if err := conn.ReadJSON(&result); err != nil {
 		t.Fatal(err)
 	}
-	if finished.Result.Exit != 0 || finished.Result.Trap != "" || finished.Result.Error != "" {
-		t.Fatalf("%#v", finished)
+	if result.ExitStatus == nil || *result.ExitStatus != 0 || result.Trap != "" || result.Error != "" {
+		t.Fatalf("result: %#v", result)
 	}
 }

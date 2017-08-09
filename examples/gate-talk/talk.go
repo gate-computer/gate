@@ -11,7 +11,7 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/gate/server/serverapi"
+	"github.com/tsavola/gate/webapi"
 )
 
 const (
@@ -20,8 +20,8 @@ const (
 )
 
 type websocketEvent struct {
-	serverapi.Running
-	serverapi.Finished
+	webapi.Running
+	webapi.Result
 }
 
 func main() {
@@ -127,22 +127,25 @@ func readLoop(conn *websocket.Conn, rl *readline.Instance, exit chan<- bool) {
 			if err == nil {
 				switch state {
 				case websocketStarting:
-					log.Printf("payload running: program %s, instance %s", x.Program.Id, x.Instance.Id)
+					log.Printf("payload running: program %s, instance %s", x.ProgramId, x.InstanceId)
 					state = websocketWaiting
 
 				case websocketWaiting:
 					switch {
-					case x.Result.Error != "":
-						log.Printf("payload error: %s", x.Result.Error)
+					case x.Error != "":
+						log.Printf("payload error: %s", x.Error)
 
-					case x.Result.Trap != "":
-						log.Printf("payload trap: %s", x.Result.Trap)
+					case x.Trap != "":
+						log.Printf("payload trap: %s", x.Trap)
 
-					case x.Result.Exit == 0:
+					case x.ExitStatus == nil:
+						log.Print("payload result is invalid")
+
+					case *x.ExitStatus == 0:
 						ok = true
 						fallthrough
 					default:
-						log.Printf("payload exit: %d", x.Result.Exit)
+						log.Printf("payload exit: %d", *x.ExitStatus)
 					}
 					return
 				}

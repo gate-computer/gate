@@ -20,7 +20,6 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
-	$(GOPACKAGEPREFIX)/server/serverapi \
 	$(GOPACKAGEPREFIX)/service \
 	$(GOPACKAGEPREFIX)/service/defaults \
 	$(GOPACKAGEPREFIX)/service/echo \

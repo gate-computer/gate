@@ -13,30 +13,14 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	api "github.com/tsavola/gate/server/serverapi"
+	api "github.com/tsavola/gate/webapi"
 )
 
 const (
 	wasmRequestMaxSize = 16 * 1024 * 1024 // conservative
-	jsonRequestMaxSize = 1024             // check this when expanding the API
+
+	accessControlMaxAge = "86400"
 )
-
-func makeHexId(id uint64) string {
-	return fmt.Sprintf("%016x", id)
-}
-
-func makeInstance(id uint64) api.Instance {
-	return api.Instance{
-		Id: makeHexId(id),
-	}
-}
-
-func newProgram(id uint64, hash []byte) *api.Program {
-	return &api.Program{
-		Id:     makeHexId(id),
-		SHA512: hex.EncodeToString(hash),
-	}
-}
 
 // NewHandler uses http.Request's context for resources whose lifetimes are
 // tied to requests.  The context specified here is used for other resources,
@@ -49,85 +33,81 @@ func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 
 	{
 		var (
-			path   = prefix + "/load"
-			allow  = joinHeader(http.MethodPost, http.MethodOptions)
-			accept = joinHeader("application/wasm", "application/json")
+			path          = prefix + "/load"
+			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
+			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramId, api.HeaderProgramSHA512)
+			exposeHeaders = joinHeader(api.HeaderProgramId)
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			writeCORS(w, r, allow, "Content-Type, X-Gate-Program-Sha512")
+			writeCORS(w, r, allowMethods, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodPost:
-				if acceptsJSON(r) {
-					switch getContentType(r) {
-					case "application/wasm":
-						handleLoadWasm(w, r, s)
+				switch getContentType(r) {
+				case "application/wasm":
+					handleLoadContent(w, r, s)
 
-					case "application/json":
-						handleLoadJSON(w, r, s)
+				case "":
+					handleLoadId(w, r, s)
 
-					default:
-						writeUnsupportedMediaType(w, accept)
-					}
-				} else {
-					w.WriteHeader(http.StatusNotAcceptable)
+				default:
+					writeUnsupportedMediaType(w)
 				}
 
 			case http.MethodOptions:
-				writeOptionsAccept(w, allow, accept)
+				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allow)
+				writeMethodNotAllowed(w, allowMethods)
 			}
 		})
 	}
 
 	{
 		var (
-			path   = prefix + "/spawn"
-			allow  = joinHeader(http.MethodPost, http.MethodOptions)
-			accept = joinHeader("application/wasm", "application/json")
+			path          = prefix + "/spawn"
+			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
+			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramId, api.HeaderProgramSHA512)
+			exposeHeaders = joinHeader(api.HeaderInstanceId, api.HeaderProgramId)
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			writeCORS(w, r, allow, "Content-Type, X-Gate-Program-Sha512")
+			writeCORS(w, r, allowMethods, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodPost:
-				if acceptsJSON(r) {
-					switch getContentType(r) {
-					case "application/wasm":
-						handleSpawnWasm(ctx, w, r, s)
+				switch getContentType(r) {
+				case "application/wasm":
+					handleSpawnContent(ctx, w, r, s)
 
-					case "application/json":
-						handleSpawnJSON(ctx, w, r, s)
+				case "":
+					handleSpawnId(ctx, w, r, s)
 
-					default:
-						writeUnsupportedMediaType(w, accept)
-					}
-				} else {
-					w.WriteHeader(http.StatusNotAcceptable)
+				default:
+					writeUnsupportedMediaType(w)
 				}
 
 			case http.MethodOptions:
-				writeOptionsAccept(w, allow, accept)
+				writeOptions(w, allowHeaders)
 
 			default:
-				writeMethodNotAllowed(w, allow)
+				writeMethodNotAllowed(w, allowHeaders)
 			}
 		})
 	}
 
 	{
 		var (
-			path      = prefix + "/run"
-			allow     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
-			allowCORS = joinHeader(http.MethodPost, http.MethodOptions) // excluding websocket
+			path             = prefix + "/run"
+			allowMethods     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
+			allowMethodsCORS = joinHeader(http.MethodPost, http.MethodOptions) // exclude websocket
+			allowHeaders     = joinHeader(api.HeaderProgramId, api.HeaderProgramSHA512)
+			exposeHeaders    = joinHeader(api.HeaderInstanceId, api.HeaderProgramId)
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			writeCORSExposeHeaders(w, r, allowCORS, "Content-Type, TE, X-Gate-Program-Id, X-Gate-Program-Sha512", "X-Gate-Instance-Id")
+			writeCORS(w, r, allowMethodsCORS, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodGet:
@@ -137,23 +117,24 @@ func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 				handleRunPost(w, r, s)
 
 			case http.MethodOptions:
-				writeOptions(w, allow)
+				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allow)
+				writeMethodNotAllowed(w, allowMethods)
 			}
 		})
 	}
 
 	{
 		var (
-			path      = prefix + "/communicate"
-			allow     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
-			allowCORS = joinHeader(http.MethodPost, http.MethodOptions) // excluding websocket
+			path             = prefix + "/communicate"
+			allowMethods     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
+			allowMethodsCORS = joinHeader(http.MethodPost, http.MethodOptions) // exclude websocket
+			allowHeaders     = joinHeader(api.HeaderInstanceId)
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			writeCORS(w, r, allowCORS, "Content-Type, X-Gate-Instance-Id")
+			writeCORSWithoutExposeHeaders(w, r, allowMethodsCORS, allowHeaders)
 
 			switch r.Method {
 			case http.MethodGet:
@@ -163,43 +144,40 @@ func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 				handleCommunicatePost(w, r, s)
 
 			case http.MethodOptions:
-				writeOptions(w, allow)
+				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allow)
+				writeMethodNotAllowed(w, allowMethods)
 			}
 		})
 	}
 
 	{
 		var (
-			path   = prefix + "/wait"
-			allow  = joinHeader(http.MethodPost, http.MethodOptions)
-			accept = "application/json"
+			path          = prefix + "/wait"
+			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
+			allowHeaders  = joinHeader(api.HeaderInstanceId)
+			exposeHeaders = joinHeader(api.HeaderError, api.HeaderExitStatus, api.HeaderTrap, api.HeaderTrapId)
 		)
 
 		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-			writeCORS(w, r, allow, "Content-Type")
+			writeCORS(w, r, allowMethods, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodPost:
-				if acceptsJSON(r) {
-					switch getContentType(r) {
-					case "application/json":
-						handleWait(w, r, s)
+				switch getContentType(r) {
+				case "":
+					handleWait(w, r, s)
 
-					default:
-						writeUnsupportedMediaType(w, accept)
-					}
-				} else {
-					w.WriteHeader(http.StatusNotAcceptable)
+				default:
+					writeUnsupportedMediaType(w)
 				}
 
 			case http.MethodOptions:
-				writeOptionsAccept(w, allow, accept)
+				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allow)
+				writeMethodNotAllowed(w, allowMethods)
 			}
 		})
 	}
@@ -207,16 +185,15 @@ func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 	return mux
 }
 
-func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
-	progHexHash := r.Header.Get("X-Gate-Program-Sha512")
-	if progHexHash == "" {
-		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Sha512 header required")
+func handleLoadContent(w http.ResponseWriter, r *http.Request, s *State) {
+	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	if !ok {
 		return
 	}
 
 	var (
-		progId   uint64
 		progHash []byte
+		progId   uint64
 		valid    bool
 		err      error
 	)
@@ -240,18 +217,17 @@ func handleLoadWasm(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	writeJSON(w, &api.Loaded{
-		Program: &api.Program{
-			Id:     fmt.Sprintf("%016x", progId),
-			SHA512: hex.EncodeToString(progHash),
-		},
-	})
+	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
 }
 
-func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
-	var load api.Load
+func handleLoadId(w http.ResponseWriter, r *http.Request, s *State) {
+	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
+	if !ok {
+		return
+	}
 
-	if !decodeContentJSON(w, r, s, &load) {
+	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	if !ok {
 		return
 	}
 
@@ -260,8 +236,8 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 		found bool
 	)
 
-	if progId, err := strconv.ParseUint(load.Program.Id, 16, 64); err == nil {
-		if progHash, err := hex.DecodeString(load.Program.SHA512); err == nil {
+	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
+		if progHash, err := hex.DecodeString(progHexHash); err == nil {
 			valid, found = s.check(progId, progHash)
 		}
 	}
@@ -273,14 +249,11 @@ func handleLoadJSON(w http.ResponseWriter, r *http.Request, s *State) {
 		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
 		return
 	}
-
-	writeJSON(w, &api.Loaded{})
 }
 
-func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
-	progHexHash := r.Header.Get("X-Gate-Program-Sha512")
-	if progHexHash == "" {
-		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Sha512 header required")
+func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
+	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	if !ok {
 		return
 	}
 
@@ -326,18 +299,18 @@ func handleSpawnWasm(ctx context.Context, w http.ResponseWriter, r *http.Request
 		inst.run(ctx, &s.Settings, in, out)
 	}()
 
-	writeJSON(w, &api.Spawned{
-		Loaded: api.Loaded{
-			Program: newProgram(progId, progHash),
-		},
-		Instance: makeInstance(instId),
-	})
+	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
+	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
 }
 
-func handleSpawnJSON(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
-	var spawn api.Spawn
+func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
+	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
+	if !ok {
+		return
+	}
 
-	if !decodeContentJSON(w, r, s, &spawn) {
+	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	if !ok {
 		return
 	}
 
@@ -353,8 +326,8 @@ func handleSpawnJSON(ctx context.Context, w http.ResponseWriter, r *http.Request
 		found  bool
 	)
 
-	if progId, err := strconv.ParseUint(spawn.Program.Id, 16, 64); err == nil {
-		if progHash, err := hex.DecodeString(spawn.Program.SHA512); err == nil {
+	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
+		if progHash, err := hex.DecodeString(progHexHash); err == nil {
 			inst, instId, valid, found, err = s.instantiate(progId, progHash, originPipe, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
@@ -380,9 +353,7 @@ func handleSpawnJSON(ctx context.Context, w http.ResponseWriter, r *http.Request
 		inst.run(ctx, &s.Settings, in, out)
 	}()
 
-	writeJSON(w, &api.Spawned{
-		Instance: makeInstance(instId),
-	})
+	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
 }
 
 func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
@@ -416,16 +387,16 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		instId uint64
 		valid  bool
 
-		loaded api.Loaded
+		progHexId string
 	)
 
-	if run.Program.Id != "" {
+	if run.ProgramId != "" {
 		var (
 			found bool
 		)
 
-		if progId, err := strconv.ParseUint(run.Program.Id, 16, 64); err == nil {
-			if progHash, err := hex.DecodeString(run.Program.SHA512); err == nil {
+		if progId, err := strconv.ParseUint(run.ProgramId, 16, 64); err == nil {
+			if progHash, err := hex.DecodeString(run.ProgramSHA512); err == nil {
 				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, cancel)
 				if err != nil {
 					// TODO
@@ -457,7 +428,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 			progHash []byte
 		)
 
-		if progHash, err = hex.DecodeString(run.Program.SHA512); err == nil {
+		if progHash, err = hex.DecodeString(run.ProgramSHA512); err == nil {
 			inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), progHash, nil, cancel)
 			if err != nil {
 				// TODO
@@ -466,7 +437,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 			}
 		}
 
-		loaded.Program = newProgram(progId, progHash)
+		progHexId = makeHexId(progId)
 	}
 	if !valid {
 		// TODO
@@ -475,10 +446,8 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 
 	err = conn.WriteJSON(&api.Running{
-		Spawned: api.Spawned{
-			Loaded:   loaded,
-			Instance: makeInstance(instId),
-		},
+		InstanceId: makeHexId(instId),
+		ProgramId:  progHexId,
 	})
 	if err != nil {
 		s.abortInit(inst, instId)
@@ -491,9 +460,22 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if result, ok := s.waitInstance(inst, instId); ok {
 		if result != nil {
-			err = conn.WriteJSON(&api.Finished{
-				Result: *result,
-			})
+			var doc api.Result
+
+			switch {
+			case result.err != nil:
+				doc.Error = result.err.Error()
+				// TODO: f.ErrorId
+
+			case result.trap != 0:
+				doc.Trap = result.trap.String()
+				doc.TrapId = int(result.trap)
+
+			default:
+				doc.ExitStatus = &result.status
+			}
+
+			err = conn.WriteJSON(&doc)
 			if err != nil {
 				return
 			}
@@ -506,15 +488,13 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
-	progHexId := r.Header.Get("X-Gate-Program-Id")
-	if progHexId == "" {
-		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Id header required")
+	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
+	if !ok {
 		return
 	}
 
-	progHexHash := r.Header.Get("X-Gate-Program-Sha512")
-	if progHexHash == "" {
-		writeText(w, r, http.StatusBadRequest, "X-Gate-Program-Sha512 header required")
+	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	if !ok {
 		return
 	}
 
@@ -546,24 +526,12 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	w.Header().Set("X-Gate-Instance-Id", makeHexId(instId))
+	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
 
 	inst.run(ctx, &s.Settings, r.Body, w)
 
 	if result, ok := s.waitInstance(inst, instId); ok {
-		switch {
-		case result == nil:
-			w.Header().Set(http.TrailerPrefix+"X-Gate-Internal-Error", "1")
-
-		case result.Error != "":
-			w.Header().Set(http.TrailerPrefix+"X-Gate-Result-Error", result.Error)
-
-		case result.Trap != "":
-			w.Header().Set(http.TrailerPrefix+"X-Gate-Result-Trap", result.Trap)
-
-		default:
-			w.Header().Set(http.TrailerPrefix+"X-Gate-Result-Exit", strconv.Itoa(result.Exit))
-		}
+		setResultHeader(w, http.TrailerPrefix, result)
 	}
 }
 
@@ -594,7 +562,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 		found      bool
 	)
 
-	if instId, err := strconv.ParseUint(communicate.Instance.Id, 16, 64); err == nil {
+	if instId, err := strconv.ParseUint(communicate.InstanceId, 16, 64); err == nil {
 		originPipe, found = s.attachOrigin(instId)
 	}
 	if !found {
@@ -617,9 +585,8 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 }
 
 func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
-	instHexId := r.Header.Get("X-Gate-Instance-Id")
-	if instHexId == "" {
-		writeText(w, r, http.StatusBadRequest, "X-Gate-Instance-Id header required")
+	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
+	if !ok {
 		return
 	}
 
@@ -650,18 +617,17 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
-	var wait api.Wait
-
-	if !decodeContentJSON(w, r, s, &wait) {
+	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
+	if !ok {
 		return
 	}
 
 	var (
-		result *api.Result
+		result *result
 		found  bool
 	)
 
-	if instId, err := strconv.ParseUint(wait.Instance.Id, 16, 64); err == nil {
+	if instId, err := strconv.ParseUint(instHexId, 16, 64); err == nil {
 		result, found = s.wait(instId)
 	}
 	if !found {
@@ -673,24 +639,32 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	writeJSON(w, &api.Finished{
-		Result: *result,
-	})
+	setResultHeader(w, "", result)
+}
+
+func setResultHeader(w http.ResponseWriter, prefix string, result *result) {
+	switch {
+	case result == nil:
+		w.Header().Set(prefix+api.HeaderError, `"Internal server error"`)
+
+	case result.err != nil:
+		w.Header().Set(prefix+api.HeaderError, jsonString(result.err.Error()))
+		// TODO: api.HeaderErrorId
+
+	case result.trap != 0:
+		w.Header().Set(prefix+api.HeaderTrap, jsonString(result.trap.String()))
+		w.Header().Set(prefix+api.HeaderTrapId, strconv.Itoa(int(result.trap)))
+
+	default:
+		w.Header().Set(prefix+api.HeaderExitStatus, strconv.Itoa(result.status))
+	}
 }
 
 func joinHeader(fields ...string) string {
 	return strings.Join(fields, ", ")
 }
 
-func acceptsJSON(r *http.Request) bool {
-	return acceptsMediaType(r, "application/", "json")
-}
-
 func acceptsText(r *http.Request) bool {
-	return acceptsMediaType(r, "text/", "plain")
-}
-
-func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
 	fields := r.Header["Accept"]
 	if len(fields) == 0 {
 		return true
@@ -700,29 +674,50 @@ func acceptsMediaType(r *http.Request, prefix, subtype string) bool {
 		tokens := strings.SplitN(field, ";", 2)
 		mediaType := strings.TrimSpace(tokens[0])
 
-		if mediaType == "*/*" {
+		switch mediaType {
+		case "*/*", "text/plain", "text/*":
 			return true
-		}
-
-		if strings.HasPrefix(mediaType, prefix) {
-			tail := mediaType[len(prefix):]
-			if tail == subtype || tail == "*" {
-				return true
-			}
 		}
 	}
 
 	return false
 }
 
-func getContentType(r *http.Request) string {
-	header := r.Header.Get("Content-Type")
-	tokens := strings.SplitN(header, ";", 2)
-	return strings.TrimSpace(tokens[0])
+func getContentType(r *http.Request) (value string) {
+	if fields := r.Header["Content-Type"]; len(fields) > 0 {
+		tokens := strings.SplitN(fields[0], ";", 2)
+		value = strings.TrimSpace(tokens[0])
+	}
+	return
+}
+
+func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string) (value string, ok bool) {
+	fields := r.Header[canonicalKey]
+
+	switch len(fields) {
+	case 1:
+		return fields[0], true
+
+	case 0:
+		writeText(w, r, http.StatusBadRequest, canonicalKey, " header is missing")
+		return "", false
+
+	default:
+		writeText(w, r, http.StatusBadRequest, canonicalKey, " header is invalid")
+		return "", false
+	}
 }
 
 func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *State) io.ReadCloser {
-	switch r.Header.Get("Content-Encoding") { // non-standard for request
+	// TODO: support nested encodings
+
+	var encoding string
+
+	if fields := r.Header["Content-Encoding"]; len(fields) > 0 {
+		encoding = fields[0]
+	}
+
+	switch encoding { // non-standard for request
 	case "", "identity":
 		return r.Body
 
@@ -758,40 +753,19 @@ func decodeContent(w http.ResponseWriter, r *http.Request, s *State, limit int) 
 	return
 }
 
-func decodeContentJSON(w http.ResponseWriter, r *http.Request, s *State, v interface{}) (ok bool) {
-	body := decodeContent(w, r, s, jsonRequestMaxSize)
-	if body == nil {
-		return
-	}
-
-	if err := json.NewDecoder(body).Decode(v); err != nil {
-		writeBadRequest(w, r, err)
-		body.Close()
-		return
-	}
-
-	if err := body.Close(); err != nil {
-		writeBadRequest(w, r, err)
-		return
-	}
-
-	ok = true
-	return
-}
-
-func writeCORS(w http.ResponseWriter, r *http.Request, methods, headers string) (origin bool) {
+func writeCORSWithoutExposeHeaders(w http.ResponseWriter, r *http.Request, allowMethods, allowHeaders string) (origin bool) {
 	_, origin = r.Header["Origin"]
 	if origin {
-		w.Header().Set("Access-Control-Allow-Headers", headers)
-		w.Header().Set("Access-Control-Allow-Methods", methods)
+		w.Header().Set("Access-Control-Allow-Headers", allowHeaders)
+		w.Header().Set("Access-Control-Allow-Methods", allowMethods)
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Max-Age", "86400")
+		w.Header().Set("Access-Control-Max-Age", accessControlMaxAge)
 	}
 	return
 }
 
-func writeCORSExposeHeaders(w http.ResponseWriter, r *http.Request, allowMethods, allowHeaders, exposeHeaders string) {
-	if writeCORS(w, r, allowMethods, allowHeaders) {
+func writeCORS(w http.ResponseWriter, r *http.Request, allowMethods, allowHeaders, exposeHeaders string) {
+	if writeCORSWithoutExposeHeaders(w, r, allowMethods, allowHeaders) {
 		w.Header().Set("Access-Control-Expose-Headers", exposeHeaders)
 	}
 }
@@ -812,20 +786,12 @@ func writeOptions(w http.ResponseWriter, allow string) {
 	w.Header().Set("Allow", allow)
 }
 
-func writeOptionsAccept(w http.ResponseWriter, allow, accept string) {
-	w.Header().Set("Accept", accept)          // non-standard for response
-	w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
-	writeOptions(w, allow)
-}
-
 func writeMethodNotAllowed(w http.ResponseWriter, allow string) {
 	w.Header().Set("Allow", allow)
 	w.WriteHeader(http.StatusMethodNotAllowed)
 }
 
-func writeUnsupportedMediaType(w http.ResponseWriter, accept string) {
-	w.Header().Set("Accept", accept)          // non-standard for response
-	w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
+func writeUnsupportedMediaType(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusUnsupportedMediaType)
 }
 
@@ -841,4 +807,16 @@ func writeText(w http.ResponseWriter, r *http.Request, status int, v ...interfac
 	} else {
 		w.WriteHeader(status)
 	}
+}
+
+func makeHexId(id uint64) string {
+	return fmt.Sprintf("%016x", id)
+}
+
+func jsonString(s string) string {
+	data, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
 }

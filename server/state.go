@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/tsavola/gate/run"
-	api "github.com/tsavola/gate/server/serverapi"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
 )
@@ -255,7 +254,7 @@ func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
 	return
 }
 
-func (s *State) wait(instId uint64) (result *api.Result, found bool) {
+func (s *State) wait(instId uint64) (result *result, found bool) {
 	s.lock.Lock()
 	inst, found := s.instances[instId]
 	s.lock.Unlock()
@@ -267,7 +266,7 @@ func (s *State) wait(instId uint64) (result *api.Result, found bool) {
 	return
 }
 
-func (s *State) waitInstance(inst *instance, instId uint64) (result *api.Result, found bool) {
+func (s *State) waitInstance(inst *instance, instId uint64) (result *result, found bool) {
 	result, found = <-inst.exit
 	if !found {
 		return
@@ -337,9 +336,15 @@ func validateReadHash(p *program, r io.ReadCloser) (valid bool, err error) {
 	return
 }
 
+type result struct {
+	status int
+	trap   traps.Id
+	err    error
+}
+
 type instance struct {
 	program    *program
-	exit       chan *api.Result
+	exit       chan *result
 	originPipe *pipe
 	cancel     context.CancelFunc
 }
@@ -347,7 +352,7 @@ type instance struct {
 // newInstance does not set the program field; it must be initialized manually.
 func newInstance(originPipe *pipe, cancel context.CancelFunc) *instance {
 	return &instance{
-		exit:       make(chan *api.Result, 1),
+		exit:       make(chan *result, 1),
 		originPipe: originPipe,
 		cancel:     cancel,
 	}
@@ -366,14 +371,14 @@ func (inst *instance) attachOrigin() (pipe *pipe) {
 
 func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Writer) {
 	var (
-		exit     int
+		status   int
 		trap     traps.Id
 		err      error
 		internal bool
 	)
 
 	defer func() {
-		var r *api.Result
+		var r *result
 
 		defer func() {
 			defer close(inst.exit)
@@ -384,17 +389,17 @@ func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Wr
 			return
 		}
 
-		r = new(api.Result)
+		r = new(result)
 
 		switch {
 		case err != nil:
-			r.Error = err.Error()
+			r.err = err
 
 		case trap != 0:
-			r.Trap = trap.String()
+			r.trap = trap
 
 		default:
-			r.Exit = exit
+			r.status = status
 		}
 	}()
 
@@ -411,7 +416,7 @@ func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Wr
 
 	internal = true
 
-	exit, trap, err = run.Run(ctx, s.Env, payload, s.Services(r, w), s.Debug)
+	status, trap, err = run.Run(ctx, s.Env, payload, s.Services(r, w), s.Debug)
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
 		return
