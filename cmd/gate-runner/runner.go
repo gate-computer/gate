@@ -156,6 +156,15 @@ func execute(ctx context.Context, env *run.Environment, filename string, service
 	}()
 
 	tBegin := time.Now()
+
+	var payload run.Payload
+
+	err := payload.Init()
+	if err != nil {
+		log.Fatalf("payload: %v", err)
+	}
+	defer payload.Close()
+
 	tLoadBegin := tBegin
 
 	var ns sections.NameSection
@@ -165,7 +174,7 @@ func execute(ctx context.Context, env *run.Environment, filename string, service
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err := load(&m, filename, env)
+	err = load(&m, filename, env)
 	if err != nil {
 		log.Fatalf("module: %v", err)
 	}
@@ -174,11 +183,10 @@ func execute(ctx context.Context, env *run.Environment, filename string, service
 
 	_, memorySize := m.MemoryLimits()
 
-	payload, err := run.NewPayload(&m, memorySize, int32(stackSize))
+	err = payload.Populate(&m, memorySize, int32(stackSize))
 	if err != nil {
 		log.Fatalf("payload: %v", err)
 	}
-	defer payload.Close()
 
 	if dumpText {
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
@@ -188,13 +196,13 @@ func execute(ctx context.Context, env *run.Environment, filename string, service
 
 	var proc run.Process
 
-	err = proc.Init(ctx, env, payload, os.Stderr)
+	err = proc.Init(ctx, env, &payload, os.Stderr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer proc.Close()
 
-	exit, trap, err := run.Run(ctx, env, &proc, payload, services)
+	exit, trap, err := run.Run(ctx, env, &proc, &payload, services)
 	if err != nil {
 		log.Fatal(err)
 	}

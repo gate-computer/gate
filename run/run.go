@@ -211,7 +211,27 @@ type Payload struct {
 	info payloadInfo
 }
 
-func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (payload *Payload, err error) {
+func (p *Payload) Init() (err error) {
+	mapsFd, err := memfd.Create("maps", memfd.CLOEXEC|memfd.ALLOW_SEALING)
+	if err != nil {
+		return
+	}
+
+	p.maps = os.NewFile(uintptr(mapsFd), "maps")
+	return
+}
+
+func (p *Payload) Close() (err error) {
+	if p.maps == nil {
+		return
+	}
+
+	err = p.maps.Close()
+	p.maps = nil
+	return
+}
+
+func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (err error) {
 	initMemorySize, _ := m.MemoryLimits()
 
 	if initMemorySize > growMemorySize {
@@ -223,73 +243,52 @@ func NewPayload(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) 
 	text := m.Text()
 	data, memoryOffset := m.Data()
 
-	mapsFd, err := memfd.Create("maps", memfd.CLOEXEC|memfd.ALLOW_SEALING)
+	_, err = p.maps.Write(roData)
 	if err != nil {
-		return
-	}
-
-	maps := os.NewFile(uintptr(mapsFd), "maps")
-
-	_, err = maps.Write(roData)
-	if err != nil {
-		maps.Close()
 		return
 	}
 
 	roDataSize := roundToPage(len(roData))
 
-	_, err = maps.WriteAt(text, int64(roDataSize))
+	_, err = p.maps.WriteAt(text, int64(roDataSize))
 	if err != nil {
-		maps.Close()
 		return
 	}
 
 	textSize := roundToPage(len(text))
 
-	_, err = maps.WriteAt(data, int64(roDataSize)+int64(textSize))
+	_, err = p.maps.WriteAt(data, int64(roDataSize)+int64(textSize))
 	if err != nil {
-		maps.Close()
 		return
 	}
 
 	globalsMemorySize := roundToPage(memoryOffset + int(growMemorySize))
 	totalSize := int64(roDataSize) + int64(textSize) + int64(globalsMemorySize) + int64(stackSize)
 
-	err = maps.Truncate(totalSize)
+	err = p.maps.Truncate(totalSize)
 	if err != nil {
-		maps.Close()
 		return
 	}
 
-	_, err = memfd.Fcntl(mapsFd, memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
+	_, err = memfd.Fcntl(int(p.maps.Fd()), memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
 	if err != nil {
-		maps.Close()
 		return
 	}
 
 	textAddr, heapAddr := randAddrs()
 
-	payload = &Payload{
-		maps: maps,
-		info: payloadInfo{
-			TextAddr:       textAddr,
-			HeapAddr:       heapAddr,
-			PageSize:       uint32(pageSize),
-			RODataSize:     roDataSize,
-			TextSize:       textSize,
-			MemoryOffset:   uint32(memoryOffset),
-			InitMemorySize: uint32(initMemorySize),
-			GrowMemorySize: uint32(growMemorySize),
-			StackSize:      uint32(stackSize),
-			MagicNumber:    magicNumber,
-		},
+	p.info = payloadInfo{
+		TextAddr:       textAddr,
+		HeapAddr:       heapAddr,
+		PageSize:       uint32(pageSize),
+		RODataSize:     roDataSize,
+		TextSize:       textSize,
+		MemoryOffset:   uint32(memoryOffset),
+		InitMemorySize: uint32(initMemorySize),
+		GrowMemorySize: uint32(growMemorySize),
+		StackSize:      uint32(stackSize),
+		MagicNumber:    magicNumber,
 	}
-	return
-}
-
-func (payload *Payload) Close() (err error) {
-	err = payload.maps.Close()
-	payload.maps = nil
 	return
 }
 

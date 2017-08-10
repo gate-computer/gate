@@ -81,21 +81,29 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		memorySize = memorySizeLimit
 	}
 
-	payload, err := run.NewPayload(&m, memorySize, stackSize)
+	var (
+		payload run.Payload
+		proc    run.Process
+	)
+	defer payload.Close()
+	defer proc.Close()
+
+	err = payload.Init()
 	if err != nil {
 		t.Fatalf("payload error: %v", err)
 	}
-	defer payload.Close()
 
-	var proc run.Process
-
-	err = proc.Init(context.Background(), env, payload, os.Stdout)
+	err = proc.Init(context.Background(), env, &payload, os.Stdout)
 	if err != nil {
 		return
 	}
-	defer proc.Close()
 
-	exit, trap, err := run.Run(context.Background(), env, &proc, payload, &testServiceRegistry{origin: &output})
+	err = payload.Populate(&m, memorySize, stackSize)
+	if err != nil {
+		t.Fatalf("payload error: %v", err)
+	}
+
+	exit, trap, err := run.Run(context.Background(), env, &proc, &payload, &testServiceRegistry{origin: &output})
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {

@@ -52,12 +52,18 @@ func compileBenchmark(prog []byte) (m *wag.Module) {
 }
 
 func prepareBenchmark(m *wag.Module) (p *run.Payload) {
-	_, memorySize := m.MemoryLimits()
+	p = new(run.Payload)
 
-	p, err := run.NewPayload(m, memorySize, benchStackSize)
-	if err != nil {
+	if err := p.Init(); err != nil {
 		panic(err)
 	}
+
+	_, memorySize := m.MemoryLimits()
+
+	if err := p.Populate(m, memorySize, benchStackSize); err != nil {
+		panic(err)
+	}
+
 	return
 }
 

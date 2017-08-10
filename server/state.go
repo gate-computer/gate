@@ -408,24 +408,32 @@ func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Wr
 		memorySize = s.MemorySizeLimit
 	}
 
-	payload, err := run.NewPayload(&inst.program.module, memorySize, s.StackSize)
+	var payload run.Payload
+
+	err = payload.Init()
 	if err != nil {
+		internal = true
 		return
 	}
 	defer payload.Close()
+
+	err = payload.Populate(&inst.program.module, memorySize, s.StackSize)
+	if err != nil {
+		return
+	}
 
 	internal = true
 
 	var proc run.Process
 
-	err = proc.Init(ctx, s.Env, payload, s.Debug)
+	err = proc.Init(ctx, s.Env, &payload, s.Debug)
 	if err != nil {
 		s.Log.Printf("process error: %v", err)
 		return
 	}
 	defer proc.Close()
 
-	status, trap, err = run.Run(ctx, s.Env, &proc, payload, s.Services(r, w))
+	status, trap, err = run.Run(ctx, s.Env, &proc, &payload, s.Services(r, w))
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
 		return
