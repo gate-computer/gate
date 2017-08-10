@@ -26,19 +26,24 @@ func makeId() (id uint64) {
 type State struct {
 	Settings
 
+	instanceFactory <-chan *instance
+
 	lock           sync.Mutex
 	programsByHash map[[sha512.Size]byte]*program
 	programs       map[uint64]*program
 	instances      map[uint64]*instance
 }
 
-func NewState(s Settings) *State {
-	return &State{
-		Settings:       s,
+func NewState(ctx context.Context, settings Settings) (s *State) {
+	s = &State{
+		Settings:       settings,
 		programsByHash: make(map[[sha512.Size]byte]*program),
 		programs:       make(map[uint64]*program),
 		instances:      make(map[uint64]*instance),
 	}
+
+	s.instanceFactory = makeInstanceFactory(ctx, &s.Settings)
+	return
 }
 
 func (s *State) getProgramByHash(hash []byte) (prog *program, found bool) {
@@ -135,22 +140,30 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, clientHash []byte, orig
 		return
 	}
 
-	inst = newInstance(originPipe, cancel)
+	inst = <-s.instanceFactory
+	if inst == nil {
+		err = context.Canceled
+		return
+	}
 
 	instId, prog, progId, valid, found, err := s.uploadAndInstantiateKnown(wasm, clientHash, inst)
 	if err != nil {
+		inst.close()
 		return
 	}
 
 	if !found {
 		instId, prog, progId, valid, err = s.uploadAndInstantiateUnknown(wasm, clientHash, inst)
 		if err != nil {
+			inst.close()
 			return
 		}
 	}
 
-	err = inst.setup(&prog.module, s)
+	err = inst.populate(&prog.module, &s.Settings, originPipe, cancel)
 	if err != nil {
+		inst.close()
+
 		s.lock.Lock()
 		delete(s.instances, instId)
 		delete(s.programs, progId)
@@ -234,11 +247,22 @@ func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe, ca
 		return
 	}
 
-	inst = newInstance(originPipe, cancel)
+	inst = <-s.instanceFactory
+	if inst == nil {
+		s.lock.Lock()
+		prog.instanceCount--
+		s.lock.Unlock()
+
+		err = context.Canceled
+		return
+	}
+
 	inst.program = prog
 
-	err = inst.setup(&prog.module, s)
+	err = inst.populate(&prog.module, &s.Settings, originPipe, cancel)
 	if err != nil {
+		inst.close()
+
 		s.lock.Lock()
 		prog.instanceCount--
 		s.lock.Unlock()
@@ -363,38 +387,81 @@ type instance struct {
 	program *program // initialized and used only by State
 }
 
-func newInstance(originPipe *pipe, cancel context.CancelFunc) *instance {
-	return &instance{
-		exit:       make(chan *result, 1),
-		originPipe: originPipe,
-		cancel:     cancel,
+func makeInstanceFactory(ctx context.Context, s *Settings) <-chan *instance {
+	size := s.ProcessPreforkNum - 1
+	if size < 0 {
+		size = 0
 	}
+
+	channel := make(chan *instance, size)
+
+	go func() {
+		defer func() {
+			close(channel)
+
+			for inst := range channel {
+				inst.close()
+			}
+		}()
+
+		for {
+			inst := newInstance(ctx, s)
+			if inst == nil {
+				return
+			}
+
+			select {
+			case channel <- inst:
+
+			case <-ctx.Done():
+				inst.close()
+				return
+			}
+		}
+	}()
+
+	return channel
 }
 
-func (inst *instance) setup(m *wag.Module, s *State) (err error) {
+func newInstance(ctx context.Context, s *Settings) *instance {
+	inst := new(instance)
+
+	err := inst.payload.Init()
+	if err != nil {
+		s.Log.Printf("payload init: %v", err)
+		return nil
+	}
+
+	err = inst.process.Init(ctx, s.Env, &inst.payload, s.Debug)
+	if err != nil {
+		s.Log.Printf("process init: %v", err)
+		inst.payload.Close()
+		return nil
+	}
+
+	return inst
+}
+
+func (inst *instance) close() {
+	inst.payload.Close()
+	inst.process.Close()
+}
+
+func (inst *instance) populate(m *wag.Module, s *Settings, originPipe *pipe, cancel context.CancelFunc) (err error) {
 	_, memorySize := m.MemoryLimits()
 	if memorySize > s.MemorySizeLimit {
 		memorySize = s.MemorySizeLimit
 	}
 
-	err = inst.payload.Init()
-	if err != nil {
-		return
-	}
-
-	err = inst.process.Init(context.TODO(), s.Env, &inst.payload, s.Debug)
-	if err != nil {
-		inst.payload.Close()
-		return
-	}
-
 	err = inst.payload.Populate(m, memorySize, s.StackSize)
 	if err != nil {
-		inst.process.Close()
-		inst.payload.Close()
+		inst.close()
 		return
 	}
 
+	inst.exit = make(chan *result, 1)
+	inst.originPipe = originPipe
+	inst.cancel = cancel
 	return
 }
 
@@ -406,8 +473,7 @@ func (inst *instance) attachOrigin() (pipe *pipe) {
 }
 
 func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Writer) {
-	defer inst.payload.Close()
-	defer inst.process.Close()
+	defer inst.close()
 
 	var (
 		status int

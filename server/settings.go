@@ -9,10 +9,11 @@ import (
 )
 
 type Settings struct {
-	MemorySizeLimit wasm.MemorySize
-	StackSize       int32
-	Env             *run.Environment
-	Services        func(io.Reader, io.Writer) run.ServiceRegistry
-	Log             Logger
-	Debug           io.Writer
+	Env               *run.Environment
+	Services          func(io.Reader, io.Writer) run.ServiceRegistry
+	MemorySizeLimit   wasm.MemorySize
+	StackSize         int32
+	ProcessPreforkNum int
+	Log               Logger
+	Debug             io.Writer
 }

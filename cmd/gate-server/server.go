@@ -36,6 +36,7 @@ func main() {
 			CgroupTitle: run.DefaultCgroupTitle,
 		}
 		addr         = "localhost:8888"
+		prefork      = 1
 		letsencrypt  = false
 		email        = ""
 		acceptTOS    = false
@@ -60,6 +61,7 @@ func main() {
 	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
 	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
+	flag.IntVar(&prefork, "prefork", prefork, "number of processes to create in advance")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
 	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
@@ -104,18 +106,19 @@ func main() {
 	defer env.Close()
 
 	settings := server.Settings{
-		MemorySizeLimit: memorySizeLimit,
-		StackSize:       stackSize,
-		Env:             env,
-		Services:        services,
-		Log:             infoLog,
+		Env:               env,
+		Services:          services,
+		MemorySizeLimit:   memorySizeLimit,
+		StackSize:         stackSize,
+		ProcessPreforkNum: prefork,
+		Log:               infoLog,
 	}
 
 	if debug {
 		settings.Debug = os.Stderr
 	}
 
-	state := server.NewState(settings)
+	state := server.NewState(ctx, settings)
 	handler := server.NewHandler(ctx, "/", state)
 
 	if letsencrypt {

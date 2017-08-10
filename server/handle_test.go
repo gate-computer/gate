@@ -27,7 +27,7 @@ func services(r io.Reader, w io.Writer) run.ServiceRegistry {
 	return origin.CloneRegistryWith(nil, r, w)
 }
 
-var handler = NewHandler(context.Background(), "/", NewState(Settings{
+var handler = NewHandler(context.Background(), "/", NewState(context.Background(), Settings{
 	MemorySizeLimit: 64 * wasm.Page,
 	StackSize:       65536,
 	Env:             runtest.NewEnvironment(),
