@@ -148,11 +148,8 @@ func readLoop(conn *websocket.Conn, rl *readline.Instance, exit chan<- bool) {
 
 				case websocketWaiting:
 					switch {
-					case x.Error != "":
-						log.Printf("payload error: %s", x.Error)
-
-					case x.Trap != "":
-						log.Printf("payload trap: %s", x.Trap)
+					case x.TrapId != 0:
+						log.Printf("payload trap: %s (%d)", x.Trap, x.TrapId)
 
 					case x.ExitStatus == nil:
 						log.Print("payload result is invalid")

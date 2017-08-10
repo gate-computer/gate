@@ -229,7 +229,7 @@ func TestRun(t *testing.T) {
 	if err := conn.ReadJSON(&result); err != nil {
 		t.Fatal(err)
 	}
-	if result.ExitStatus == nil || *result.ExitStatus != 0 || result.Trap != "" || result.Error != "" {
+	if result.ExitStatus == nil || *result.ExitStatus != 0 || result.TrapId != 0 {
 		t.Fatalf("result: %#v", result)
 	}
 }

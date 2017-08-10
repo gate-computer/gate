@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	api "github.com/tsavola/gate/webapi"
+	"github.com/tsavola/wag/traps"
 )
 
 const (
@@ -449,12 +450,12 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		InstanceId: makeHexId(instId),
 		ProgramId:  progHexId,
 	})
-	if err != nil {
-		s.abortInit(inst, instId)
-		return
-	}
 
 	inst.run(ctx, &s.Settings, newWebsocketReader(conn), websocketWriter{conn})
+
+	if err != nil {
+		return
+	}
 
 	closeMsg := websocketNormalClosure
 
@@ -462,18 +463,11 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		if result != nil {
 			var doc api.Result
 
-			switch {
-			case result.err != nil:
-				// don't leak sensitive information
-				doc.Error = result.err.Error()
-				// TODO: f.ErrorId
-
-			case result.trap != 0:
-				doc.Trap = result.trap.String()
-				doc.TrapId = int(result.trap)
-
-			default:
+			if result.trap == traps.Exit {
 				doc.ExitStatus = &result.status
+			} else {
+				doc.TrapId = int(result.trap)
+				doc.Trap = result.trap.String()
 			}
 
 			err = conn.WriteJSON(&doc)
@@ -532,7 +526,11 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 	inst.run(ctx, &s.Settings, r.Body, w)
 
 	if result, ok := s.waitInstance(inst, instId); ok {
-		setResultHeader(w, http.TrailerPrefix, result)
+		if result != nil {
+			setResultHeader(w, http.TrailerPrefix, result)
+		} else {
+			w.Header().Set(http.TrailerPrefix+api.HeaderError, "internal server error")
+		}
 	}
 }
 
@@ -644,21 +642,11 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 }
 
 func setResultHeader(w http.ResponseWriter, prefix string, result *result) {
-	switch {
-	case result == nil:
-		w.Header().Set(prefix+api.HeaderError, `"Internal server error"`)
-
-	case result.err != nil:
-		// don't leak sensitive information
-		w.Header().Set(prefix+api.HeaderError, jsonString(result.err.Error()))
-		// TODO: api.HeaderErrorId
-
-	case result.trap != 0:
-		w.Header().Set(prefix+api.HeaderTrap, jsonString(result.trap.String()))
-		w.Header().Set(prefix+api.HeaderTrapId, strconv.Itoa(int(result.trap)))
-
-	default:
+	if result.trap == traps.Exit {
 		w.Header().Set(prefix+api.HeaderExitStatus, strconv.Itoa(result.status))
+	} else {
+		w.Header().Set(prefix+api.HeaderTrapId, strconv.Itoa(int(result.trap)))
+		w.Header().Set(prefix+api.HeaderTrap, result.trap.String())
 	}
 }
 
@@ -813,12 +801,4 @@ func writeText(w http.ResponseWriter, r *http.Request, status int, v ...interfac
 
 func makeHexId(id uint64) string {
 	return fmt.Sprintf("%016x", id)
-}
-
-func jsonString(s string) string {
-	data, err := json.Marshal(s)
-	if err != nil {
-		panic(err)
-	}
-	return string(data)
 }

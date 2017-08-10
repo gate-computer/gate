@@ -5,10 +5,9 @@ const (
 	HeaderProgramSHA512 = "X-Gate-Program-Sha512" // hexadecimal
 	HeaderInstanceId    = "X-Gate-Instance-Id"    // opaque
 	HeaderExitStatus    = "X-Gate-Exit-Status"    // non-negative integer
-	HeaderTrap          = "X-Gate-Trap"           // human-readable JSON
 	HeaderTrapId        = "X-Gate-Trap-Id"        // positive integer
-	HeaderError         = "X-Gate-Error"          // human-readable JSON
-	HeaderErrorId       = "X-Gate-Error-Id"       // positive integer
+	HeaderTrap          = "X-Gate-Trap"           // human-readable string
+	HeaderError         = "X-Gate-Error"          // human-readable string
 )
 
 type Run struct {
@@ -30,8 +29,6 @@ type Communicating struct {
 
 type Result struct {
 	ExitStatus *int   `json:"exit_status,omitempty"`
-	Trap       string `json:"trap,omitempty"`
 	TrapId     int    `json:"trap_id,omitempty"`
-	Error      string `json:"error,omitempty"`
-	ErrorId    int    `json:"error_id,omitempty"`
+	Trap       string `json:"trap,omitempty"`
 }

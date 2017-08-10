@@ -137,20 +137,35 @@ func (s *State) uploadAndInstantiate(wasm io.ReadCloser, clientHash []byte, orig
 
 	inst = newInstance(originPipe, cancel)
 
-	instId, progId, progHash, valid, found, err := s.uploadAndInstantiateKnown(wasm, clientHash, inst)
+	instId, prog, progId, valid, found, err := s.uploadAndInstantiateKnown(wasm, clientHash, inst)
 	if err != nil {
 		return
 	}
-	if found {
+
+	if !found {
+		instId, prog, progId, valid, err = s.uploadAndInstantiateUnknown(wasm, clientHash, inst)
+		if err != nil {
+			return
+		}
+	}
+
+	err = inst.setup(&prog.module, s)
+	if err != nil {
+		s.lock.Lock()
+		delete(s.instances, instId)
+		delete(s.programs, progId)
+		prog.instanceCount--
+		prog.ownerCount--
+		s.lock.Unlock()
 		return
 	}
 
-	instId, progId, progHash, valid, err = s.uploadAndInstantiateUnknown(wasm, clientHash, inst)
+	progHash = prog.hash[:]
 	return
 }
 
-func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *instance) (instId, progId uint64, progHash []byte, valid, found bool, err error) {
-	prog, found := s.getProgramByHash(clientHash)
+func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *instance) (instId uint64, prog *program, progId uint64, valid, found bool, err error) {
+	prog, found = s.getProgramByHash(clientHash)
 	if !found {
 		return
 	}
@@ -173,13 +188,11 @@ func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte,
 	inst.program = prog
 	s.instances[instId] = inst
 	s.lock.Unlock()
-
-	progHash = prog.hash[:]
 	return
 }
 
-func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *instance) (instId, progId uint64, progHash []byte, valid bool, err error) {
-	prog, valid, err := loadProgram(wasm, clientHash, s.Env)
+func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *instance) (instId uint64, prog *program, progId uint64, valid bool, err error) {
+	prog, valid, err = loadProgram(wasm, clientHash, s.Env)
 	if err != nil {
 		return
 	}
@@ -199,8 +212,6 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 	inst.program = prog
 	s.instances[instId] = inst
 	s.lock.Unlock()
-
-	progHash = prog.hash[:]
 	return
 }
 
@@ -218,28 +229,28 @@ func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe, ca
 	valid = validateHash(prog, progHash)
 	if !valid {
 		s.lock.Lock()
-		prog.instanceCount-- // abort init
+		prog.instanceCount--
+		s.lock.Unlock()
+		return
+	}
+
+	inst = newInstance(originPipe, cancel)
+	inst.program = prog
+
+	err = inst.setup(&prog.module, s)
+	if err != nil {
+		s.lock.Lock()
+		prog.instanceCount--
 		s.lock.Unlock()
 		return
 	}
 
 	instId = makeId()
-	inst = newInstance(originPipe, cancel)
-	inst.program = prog
 
 	s.lock.Lock()
 	s.instances[instId] = inst
 	s.lock.Unlock()
 	return
-}
-
-func (s *State) abortInit(inst *instance, instId uint64) {
-	s.lock.Lock()
-	delete(s.instances, instId)
-	inst.program.instanceCount--
-	s.lock.Unlock()
-
-	inst.abortInit()
 }
 
 func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
@@ -343,13 +354,15 @@ type result struct {
 }
 
 type instance struct {
-	program    *program
+	payload    run.Payload
+	process    run.Process
 	exit       chan *result
 	originPipe *pipe
 	cancel     context.CancelFunc
+
+	program *program // initialized and used only by State
 }
 
-// newInstance does not set the program field; it must be initialized manually.
 func newInstance(originPipe *pipe, cancel context.CancelFunc) *instance {
 	return &instance{
 		exit:       make(chan *result, 1),
@@ -358,8 +371,31 @@ func newInstance(originPipe *pipe, cancel context.CancelFunc) *instance {
 	}
 }
 
-func (inst *instance) abortInit() {
-	close(inst.exit)
+func (inst *instance) setup(m *wag.Module, s *State) (err error) {
+	_, memorySize := m.MemoryLimits()
+	if memorySize > s.MemorySizeLimit {
+		memorySize = s.MemorySizeLimit
+	}
+
+	err = inst.payload.Init()
+	if err != nil {
+		return
+	}
+
+	err = inst.process.Init(context.TODO(), s.Env, &inst.payload, s.Debug)
+	if err != nil {
+		inst.payload.Close()
+		return
+	}
+
+	err = inst.payload.Populate(m, memorySize, s.StackSize)
+	if err != nil {
+		inst.process.Close()
+		inst.payload.Close()
+		return
+	}
+
+	return
 }
 
 func (inst *instance) attachOrigin() (pipe *pipe) {
@@ -370,11 +406,13 @@ func (inst *instance) attachOrigin() (pipe *pipe) {
 }
 
 func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Writer) {
+	defer inst.payload.Close()
+	defer inst.process.Close()
+
 	var (
-		status   int
-		trap     traps.Id
-		err      error
-		internal bool
+		status int
+		trap   traps.Id
+		err    error
 	)
 
 	defer func() {
@@ -385,58 +423,22 @@ func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Wr
 			inst.exit <- r
 		}()
 
-		if err != nil && internal {
+		if err != nil {
 			return
 		}
 
 		r = new(result)
 
-		switch {
-		case err != nil:
-			r.err = err
-
-		case trap != 0:
+		if trap != 0 {
 			r.trap = trap
-
-		default:
+		} else {
 			r.status = status
 		}
 	}()
 
-	_, memorySize := inst.program.module.MemoryLimits()
-	if memorySize > s.MemorySizeLimit {
-		memorySize = s.MemorySizeLimit
-	}
-
-	var payload run.Payload
-
-	err = payload.Init()
-	if err != nil {
-		internal = true
-		return
-	}
-	defer payload.Close()
-
-	err = payload.Populate(&inst.program.module, memorySize, s.StackSize)
-	if err != nil {
-		return
-	}
-
-	internal = true
-
-	var proc run.Process
-
-	err = proc.Init(ctx, s.Env, &payload, s.Debug)
-	if err != nil {
-		s.Log.Printf("process error: %v", err)
-		return
-	}
-	defer proc.Close()
-
-	status, trap, err = run.Run(ctx, s.Env, &proc, &payload, s.Services(r, w))
+	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, s.Services(r, w))
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
-		return
 	}
 }
 
