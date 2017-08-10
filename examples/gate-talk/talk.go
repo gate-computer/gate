@@ -1,10 +1,12 @@
 package main
 
 import (
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -38,7 +40,7 @@ func mainResult() (ok bool) {
 		log.Fatal(err)
 	}
 
-	wasm := path.Join(dir, "cmd/talk/payload/prog.wasm")
+	wasm := path.Join(dir, "examples/gate-talk/payload/prog.wasm")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] url\n\nOptions:\n", os.Args[0])
@@ -55,6 +57,15 @@ func mainResult() (ok bool) {
 
 	url := flag.Arg(0)
 
+	wasmData, err := ioutil.ReadFile(wasm)
+	if err != nil {
+		return
+	}
+
+	hash := sha512.New()
+	hash.Write(wasmData)
+	wasmHash := hex.EncodeToString(hash.Sum(nil))
+
 	var d websocket.Dialer
 
 	conn, _, err := d.Dial(url+"/run", nil)
@@ -63,7 +74,12 @@ func mainResult() (ok bool) {
 	}
 	defer conn.Close()
 
-	err = sendFile(conn, wasm)
+	err = conn.WriteJSON(webapi.Run{ProgramSHA512: wasmHash})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = conn.WriteMessage(websocket.BinaryMessage, wasmData)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -158,21 +174,4 @@ func readLoop(conn *websocket.Conn, rl *readline.Instance, exit chan<- bool) {
 			log.Printf("%s", data)
 		}
 	}
-}
-
-func sendFile(conn *websocket.Conn, filename string) (err error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-
-	w, err := conn.NextWriter(websocket.BinaryMessage)
-	if err != nil {
-		return
-	}
-	defer w.Close()
-
-	_, err = io.Copy(w, f)
-	return
 }
