@@ -1,7 +1,6 @@
 package run
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -22,7 +21,7 @@ func findCaller(funcMap []byte, retAddr uint32) (num int, initial, ok bool) {
 		return
 	}
 
-	firstFuncAddr := binary.LittleEndian.Uint32(funcMap[:4])
+	firstFuncAddr := endian.Uint32(funcMap[:4])
 	if retAddr > 0 && retAddr < firstFuncAddr {
 		initial = true
 		ok = true
@@ -34,7 +33,7 @@ func findCaller(funcMap []byte, retAddr uint32) (num int, initial, ok bool) {
 		if i == count {
 			return true
 		} else {
-			return retAddr <= binary.LittleEndian.Uint32(funcMap[i*4:(i+1)*4])
+			return retAddr <= endian.Uint32(funcMap[i*4:(i+1)*4])
 		}
 	})
 
@@ -48,7 +47,7 @@ func getCallSites(callMap []byte) (callSites map[int]callSite) {
 	callSites = make(map[int]callSite)
 
 	for i := 0; len(callMap) > 0; i++ {
-		entry := binary.LittleEndian.Uint64(callMap[:8])
+		entry := endian.Uint64(callMap[:8])
 		callMap = callMap[8:]
 
 		addr := int(uint32(entry))
@@ -61,7 +60,7 @@ func getCallSites(callMap []byte) (callSites map[int]callSite) {
 }
 
 func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
-	unused := binary.LittleEndian.Uint64(stack)
+	unused := endian.Uint64(stack)
 	if unused == 0 {
 		err = errors.New("no stack")
 		return
@@ -77,7 +76,7 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []b
 	depth := 1
 
 	for ; len(stack) > 0; depth++ {
-		absoluteRetAddr := binary.LittleEndian.Uint64(stack[:8])
+		absoluteRetAddr := endian.Uint64(stack[:8])
 
 		retAddr := absoluteRetAddr - textAddr
 		if retAddr > 0x7ffffffe {

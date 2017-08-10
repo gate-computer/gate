@@ -159,7 +159,7 @@ func (e *executor) sender() {
 				return
 			}
 
-			binary.LittleEndian.PutUint32(buf, uint32(pid)) // sizeof (pid_t)
+			endian.PutUint32(buf, uint32(pid)) // sizeof (pid_t)
 		}
 
 		_, _, err := e.conn.WriteMsgUnix(buf, cmsg, nil)
@@ -182,7 +182,7 @@ func (e *executor) receiver() {
 	var buf recvEntry
 
 	for {
-		if err := binary.Read(r, binary.LittleEndian, &buf); err != nil {
+		if err := binary.Read(r, endian, &buf); err != nil {
 			if err != io.EOF {
 				log.Printf("executor socket: %v", err)
 			}
