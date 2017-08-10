@@ -39,7 +39,7 @@ func init() {
 }
 
 var (
-	stackSize = 16 * 1024 * 1024
+	stackSize = 65536
 	dumpTime  = false
 	dumpText  = false
 	dumpStack = false

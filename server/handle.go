@@ -297,7 +297,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	go func() {
 		defer cancel()
 		defer out.Close()
-		inst.run(ctx, &s.Settings, in, out)
+		inst.run(ctx, &s.Options, in, out)
 	}()
 
 	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
@@ -351,7 +351,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	go func() {
 		defer cancel()
 		defer out.Close()
-		inst.run(ctx, &s.Settings, in, out)
+		inst.run(ctx, &s.Options, in, out)
 	}()
 
 	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
@@ -451,7 +451,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		ProgramId:  progHexId,
 	})
 
-	inst.run(ctx, &s.Settings, newWebsocketReader(conn), websocketWriter{conn})
+	inst.run(ctx, &s.Options, newWebsocketReader(conn), websocketWriter{conn})
 
 	if err != nil {
 		return
@@ -523,7 +523,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
 
-	inst.run(ctx, &s.Settings, r.Body, w)
+	inst.run(ctx, &s.Options, r.Body, w)
 
 	if result, ok := s.waitInstance(inst, instId); ok {
 		if result != nil {

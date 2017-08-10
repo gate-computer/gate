@@ -16,15 +16,16 @@ import (
 	"github.com/tsavola/wag/traps"
 )
 
-func makeId() (id uint64) {
-	if err := binary.Read(rand.Reader, binary.LittleEndian, &id); err != nil {
-		panic(err)
-	}
-	return
+type Options struct {
+	Env      *run.Environment
+	Services func(io.Reader, io.Writer) run.ServiceRegistry
+	Log      Logger
+	Debug    io.Writer
 }
 
 type State struct {
 	Settings
+	Options
 
 	instanceFactory <-chan *instance
 
@@ -34,15 +35,16 @@ type State struct {
 	instances      map[uint64]*instance
 }
 
-func NewState(ctx context.Context, settings Settings) (s *State) {
+func NewState(ctx context.Context, settings Settings, opt Options) (s *State) {
 	s = &State{
 		Settings:       settings,
+		Options:        opt,
 		programsByHash: make(map[[sha512.Size]byte]*program),
 		programs:       make(map[uint64]*program),
 		instances:      make(map[uint64]*instance),
 	}
 
-	s.instanceFactory = makeInstanceFactory(ctx, &s.Settings)
+	s.instanceFactory = makeInstanceFactory(ctx, s)
 	return
 }
 
@@ -387,13 +389,8 @@ type instance struct {
 	program *program // initialized and used only by State
 }
 
-func makeInstanceFactory(ctx context.Context, s *Settings) <-chan *instance {
-	size := s.ProcessPreforkNum - 1
-	if size < 0 {
-		size = 0
-	}
-
-	channel := make(chan *instance, size)
+func makeInstanceFactory(ctx context.Context, s *State) <-chan *instance {
+	channel := make(chan *instance, s.preforkProcs()-1)
 
 	go func() {
 		defer func() {
@@ -423,7 +420,7 @@ func makeInstanceFactory(ctx context.Context, s *Settings) <-chan *instance {
 	return channel
 }
 
-func newInstance(ctx context.Context, s *Settings) *instance {
+func newInstance(ctx context.Context, s *State) *instance {
 	inst := new(instance)
 
 	err := inst.payload.Init()
@@ -449,11 +446,11 @@ func (inst *instance) close() {
 
 func (inst *instance) populate(m *wag.Module, s *Settings, originPipe *pipe, cancel context.CancelFunc) (err error) {
 	_, memorySize := m.MemoryLimits()
-	if memorySize > s.MemorySizeLimit {
-		memorySize = s.MemorySizeLimit
+	if limit := s.memorySizeLimit(); memorySize > limit {
+		memorySize = limit
 	}
 
-	err = inst.payload.Populate(m, memorySize, s.StackSize)
+	err = inst.payload.Populate(m, memorySize, s.stackSize())
 	if err != nil {
 		inst.close()
 		return
@@ -472,7 +469,7 @@ func (inst *instance) attachOrigin() (pipe *pipe) {
 	return
 }
 
-func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Writer) {
+func (inst *instance) run(ctx context.Context, opt *Options, r io.Reader, w io.Writer) {
 	defer inst.close()
 
 	var (
@@ -502,9 +499,9 @@ func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Wr
 		}
 	}()
 
-	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, s.Services(r, w))
+	status, trap, err = run.Run(ctx, opt.Env, &inst.process, &inst.payload, opt.Services(r, w))
 	if err != nil {
-		s.Log.Printf("run error: %v", err)
+		opt.Log.Printf("run error: %v", err)
 	}
 }
 
@@ -555,4 +552,11 @@ func (p *pipe) io(in io.Reader, out io.Writer) {
 
 	<-inDone
 	<-outDone
+}
+
+func makeId() (id uint64) {
+	if err := binary.Read(rand.Reader, binary.LittleEndian, &id); err != nil {
+		panic(err)
+	}
+	return
 }

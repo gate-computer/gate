@@ -11,21 +11,22 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
-	"github.com/tsavola/wag/wasm"
 	"golang.org/x/crypto/acme/autocert"
 )
 
 const (
 	renewCertBefore = 30 * 24 * time.Hour
+)
 
-	memorySizeLimit = 256 * wasm.Page
-	stackSize       = 16 * 4096
+var (
+	sysPageSize = syscall.Getpagesize()
 )
 
 func main() {
@@ -35,8 +36,12 @@ func main() {
 			LibDir:      "lib",
 			CgroupTitle: run.DefaultCgroupTitle,
 		}
+		settings = server.Settings{
+			MemorySizeLimit: server.DefaultMemorySizeLimit,
+			StackSize:       server.DefaultStackSize,
+			PreforkProcs:    server.DefaultPreforkProcs,
+		}
 		addr         = "localhost:8888"
-		prefork      = 1
 		letsencrypt  = false
 		email        = ""
 		acceptTOS    = false
@@ -60,8 +65,10 @@ func main() {
 	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
 	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
 	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
+	flag.IntVar(&settings.MemorySizeLimit, "memory-size-limit", settings.MemorySizeLimit, "memory size limit")
+	flag.IntVar(&settings.StackSize, "stack-size", settings.StackSize, "stack size")
+	flag.IntVar(&settings.PreforkProcs, "prefork-procs", settings.PreforkProcs, "number of processes to create in advance")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
-	flag.IntVar(&prefork, "prefork", prefork, "number of processes to create in advance")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
 	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
@@ -105,20 +112,17 @@ func main() {
 	}
 	defer env.Close()
 
-	settings := server.Settings{
-		Env:               env,
-		Services:          services,
-		MemorySizeLimit:   memorySizeLimit,
-		StackSize:         stackSize,
-		ProcessPreforkNum: prefork,
-		Log:               infoLog,
+	opt := server.Options{
+		Env:      env,
+		Services: services,
+		Log:      infoLog,
 	}
 
 	if debug {
-		settings.Debug = os.Stderr
+		opt.Debug = os.Stderr
 	}
 
-	state := server.NewState(ctx, settings)
+	state := server.NewState(ctx, settings, opt)
 	handler := server.NewHandler(ctx, "/", state)
 
 	if letsencrypt {

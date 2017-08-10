@@ -20,20 +20,17 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/service/origin"
 	api "github.com/tsavola/gate/webapi"
-	"github.com/tsavola/wag/wasm"
 )
 
 func services(r io.Reader, w io.Writer) run.ServiceRegistry {
 	return origin.CloneRegistryWith(nil, r, w)
 }
 
-var handler = NewHandler(context.Background(), "/", NewState(context.Background(), Settings{
-	MemorySizeLimit: 64 * wasm.Page,
-	StackSize:       65536,
-	Env:             runtest.NewEnvironment(),
-	Services:        services,
-	Log:             log.New(os.Stderr, "log: ", 0),
-	Debug:           os.Stdout,
+var handler = NewHandler(context.Background(), "/", NewState(context.Background(), Settings{}, Options{
+	Env:      runtest.NewEnvironment(),
+	Services: services,
+	Log:      log.New(os.Stderr, "log: ", 0),
+	Debug:    os.Stdout,
 }))
 
 var (
