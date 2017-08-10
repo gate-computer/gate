@@ -348,71 +348,143 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	return writeStacktraceTo(w, payload.info.TextAddr, stack, funcMap, callMap, funcSigs, ns)
 }
 
-func Run(ctx context.Context, env *Environment, payload *Payload, services ServiceRegistry, debug io.Writer) (exit int, trap traps.Id, err error) {
-	if services == nil {
-		services = noServices{}
-	}
+type Process struct {
+	process
+	stdin  *os.File // writer
+	stdout *os.File // reader
+}
 
-	stdinR, stdinW, err := os.Pipe()
+func (p *Process) Init(ctx context.Context, env *Environment, payload *Payload, debug io.Writer) (err error) {
+	var (
+		stdinR  *os.File
+		stdinW  *os.File
+		stdoutR *os.File
+		stdoutW *os.File
+		debugR  *os.File
+		debugW  *os.File
+	)
+
+	defer func() {
+		if stdinR != nil {
+			stdinR.Close()
+		}
+		if stdinW != nil {
+			stdinW.Close()
+		}
+		if stdoutR != nil {
+			stdoutR.Close()
+		}
+		if stdoutW != nil {
+			stdoutW.Close()
+		}
+		if debugR != nil {
+			debugR.Close()
+		}
+		if debugW != nil {
+			debugW.Close()
+		}
+	}()
+
+	stdinR, stdinW, err = os.Pipe()
 	if err != nil {
 		return
 	}
-	defer stdinW.Close()
 
 	err = syscall.Fchown(int(stdinR.Fd()), -1, int(env.commonGid))
 	if err != nil {
-		stdinR.Close()
 		return
 	}
 
 	err = syscall.Fchmod(int(stdinR.Fd()), 0640)
 	if err != nil {
-		stdinR.Close()
 		return
 	}
 
-	stdoutR, stdoutW, err := os.Pipe()
+	stdoutR, stdoutW, err = os.Pipe()
 	if err != nil {
-		stdinR.Close()
 		return
 	}
-	defer stdoutR.Close()
 
-	execFiles := []*os.File{stdinR, stdoutW, payload.maps}
+	execFiles := execFiles{stdinR, stdoutW, payload.maps}
 
 	if debug != nil {
-		var (
-			debugR *os.File
-			debugW *os.File
-		)
-
 		debugR, debugW, err = os.Pipe()
 		if err != nil {
-			stdinR.Close()
-			stdoutW.Close()
 			return
 		}
-
-		go func() {
-			defer debugR.Close()
-			io.Copy(debug, debugR)
-		}()
 
 		execFiles = append(execFiles, debugW)
 	}
 
-	p, err := env.executor.execute(ctx, execFiles)
-	if err != nil {
-		return
-	}
-	defer p.kill()
-
-	err = runIO(ctx, services, readWriteKiller{stdoutR, stdinW, p}, &payload.info)
+	err = env.executor.execute(ctx, &p.process, execFiles)
 	if err != nil {
 		return
 	}
 
-	status, err := p.killWait()
+	if debugR != nil {
+		go copyClose(debug, debugR)
+	}
+
+	p.stdin = stdinW
+	p.stdout = stdoutR
+
+	stdinR = nil
+	stdinW = nil
+	stdoutR = nil
+	stdoutW = nil
+	debugR = nil
+	debugW = nil
+	return
+}
+
+func (p *Process) Close() (err error) {
+	if p.stdin == nil {
+		return
+	}
+
+	p.process.kill()
+	p.stdin.Close()
+	p.stdout.Close()
+
+	p.stdin = nil
+	p.stdout = nil
+	return
+}
+
+type execFiles []*os.File // stdin stdout maps [debug]
+
+func (files execFiles) close() {
+	files[0].Close() // stdin
+	files[1].Close() // stdout
+
+	// don't close maps
+
+	if len(files) > 3 {
+		files[3].Close() // debug
+	}
+}
+
+func copyClose(w io.Writer, r *os.File) {
+	defer r.Close()
+	io.Copy(w, r)
+}
+
+func Run(ctx context.Context, env *Environment, proc *Process, payload *Payload, services ServiceRegistry) (exit int, trap traps.Id, err error) {
+	if services == nil {
+		services = noServices{}
+	}
+
+	err = binary.Write(proc.stdin, endian, &payload.info)
+	if err != nil {
+		return
+	}
+
+	err = ioLoop(ctx, services, proc)
+	if err != nil {
+		return
+	}
+
+	status, err := proc.killWait()
 	if err != nil {
 		return
 	}
@@ -443,22 +515,4 @@ func Run(ctx context.Context, env *Environment, payload *Payload, services Servi
 		err = fmt.Errorf("unknown process status: %d", status)
 		return
 	}
-}
-
-func closeExecutionFiles(execFiles []*os.File) {
-	execFiles[0].Close() // stdinR
-	execFiles[1].Close() // stdoutW
-
-	if len(execFiles) > 3 {
-		execFiles[3].Close() // debugW
-	}
-}
-
-func runIO(ctx context.Context, services ServiceRegistry, subject readWriteKiller, info *payloadInfo) (err error) {
-	err = binary.Write(subject, endian, info)
-	if err != nil {
-		return
-	}
-
-	return ioLoop(ctx, services, subject)
 }

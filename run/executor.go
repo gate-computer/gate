@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"os/exec"
 	"sync"
 	"sync/atomic"
@@ -25,7 +24,7 @@ type recvEntry struct {
 
 type execRequest struct {
 	p     *process
-	files []*os.File
+	files execFiles
 }
 
 type executor struct {
@@ -74,30 +73,22 @@ func (e *executor) init(config *Config) (err error) {
 	return
 }
 
-func (e *executor) execute(ctx context.Context, files []*os.File) (*process, error) {
-	p := &process{
-		e:      e,
-		events: make(chan recvEntry, 2), // space for reply and status
-	}
-
-	var err error
+func (e *executor) execute(ctx context.Context, p *process, files execFiles) error {
+	p.init(e)
 
 	select {
 	case e.execRequests <- execRequest{p, files}:
-		return p, nil
+		return nil
 
 	case <-e.doneSending:
-		err = errExecutorDead
+		return errExecutorDead
 
 	case <-e.doneReceiving:
-		err = errExecutorDead
+		return errExecutorDead
 
 	case <-ctx.Done():
-		err = ctx.Err()
+		return ctx.Err()
 	}
-
-	closeExecutionFiles(files)
-	return nil, err
 }
 
 func (e *executor) close() error {
@@ -129,7 +120,7 @@ func (e *executor) sender() {
 		var (
 			execRequests <-chan execRequest
 			buf          = make([]byte, 4) // sizeof (pid_t)
-			files        []*os.File
+			files        execFiles
 			cmsg         []byte
 		)
 
@@ -173,7 +164,7 @@ func (e *executor) sender() {
 
 		_, _, err := e.conn.WriteMsgUnix(buf, cmsg, nil)
 		if files != nil {
-			closeExecutionFiles(files)
+			files.close()
 		}
 		if err != nil {
 			log.Printf("executor socket: %v", err)
@@ -249,6 +240,11 @@ type process struct {
 	events chan recvEntry
 	pid    int32 // in another namespace
 	killed bool
+}
+
+func (p *process) init(e *executor) {
+	p.e = e
+	p.events = make(chan recvEntry, 2) // space for reply and status
 }
 
 func (p *process) initPid() {

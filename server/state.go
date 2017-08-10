@@ -416,7 +416,16 @@ func (inst *instance) run(ctx context.Context, s *Settings, r io.Reader, w io.Wr
 
 	internal = true
 
-	status, trap, err = run.Run(ctx, s.Env, payload, s.Services(r, w), s.Debug)
+	var proc run.Process
+
+	err = proc.Init(ctx, s.Env, payload, s.Debug)
+	if err != nil {
+		s.Log.Printf("process error: %v", err)
+		return
+	}
+	defer proc.Close()
+
+	status, trap, err = run.Run(ctx, s.Env, &proc, payload, s.Services(r, w))
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
 		return

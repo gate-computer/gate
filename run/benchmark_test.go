@@ -61,8 +61,17 @@ func prepareBenchmark(m *wag.Module) (p *run.Payload) {
 	return
 }
 
-func executeBenchmark(p *run.Payload, output io.Writer) (int, traps.Id, error) {
-	return run.Run(context.Background(), benchEnv, p, &testServiceRegistry{output}, nil)
+func executeBenchmark(payload *run.Payload, output io.Writer) (exit int, trap traps.Id, err error) {
+	var proc run.Process
+
+	err = proc.Init(context.Background(), benchEnv, payload, nil)
+	if err != nil {
+		return
+	}
+	defer proc.Close()
+
+	exit, trap, err = run.Run(context.Background(), benchEnv, &proc, payload, &testServiceRegistry{output})
+	return
 }
 
 func BenchmarkCompileNop(b *testing.B)   { benchmarkCompile(b, benchProgNop) }

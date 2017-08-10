@@ -5,19 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/tsavola/wag/traps"
 )
-
-type readWriteKiller struct {
-	io.Reader
-	io.Writer
-	p *process
-}
-
-func (rwk *readWriteKiller) kill() {
-	rwk.p.kill()
-}
 
 type read struct {
 	buf []byte
@@ -31,7 +22,7 @@ const (
 	packetFlagsMask = packetFlagPollout | packetFlagTrap
 )
 
-func ioLoop(ctx context.Context, services ServiceRegistry, subject readWriteKiller) (err error) {
+func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
 	var (
 		messageInput  = make(chan []byte)
 		messageOutput = make(chan []byte)
@@ -53,13 +44,13 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject readWriteKill
 	}()
 	defer close(messageOutput)
 
-	subjectInput := subjectReadLoop(subject)
+	subjectInput := subjectReadLoop(subject.stdout)
 	defer func() {
 		for range subjectInput {
 		}
 	}()
 
-	subjectOutput, subjectOutputEnd := subjectWriteLoop(subject)
+	subjectOutput, subjectOutputEnd := subjectWriteLoop(subject.stdin)
 	defer func() {
 		<-subjectOutputEnd
 	}()
@@ -155,7 +146,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject readWriteKill
 	}
 }
 
-func subjectReadLoop(r io.Reader) <-chan read {
+func subjectReadLoop(r *os.File) <-chan read {
 	reads := make(chan read)
 
 	go func() {
@@ -192,7 +183,7 @@ func subjectReadLoop(r io.Reader) <-chan read {
 	return reads
 }
 
-func subjectWriteLoop(w io.Writer) (chan<- []byte, <-chan struct{}) {
+func subjectWriteLoop(w *os.File) (chan<- []byte, <-chan struct{}) {
 	writes := make(chan []byte)
 	end := make(chan struct{})
 

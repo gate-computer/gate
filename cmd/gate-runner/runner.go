@@ -186,7 +186,15 @@ func execute(ctx context.Context, env *run.Environment, filename string, service
 
 	tRunBegin := time.Now()
 
-	exit, trap, err := run.Run(ctx, env, payload, services, os.Stderr)
+	var proc run.Process
+
+	err = proc.Init(ctx, env, payload, os.Stderr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer proc.Close()
+
+	exit, trap, err := run.Run(ctx, env, &proc, payload, services)
 	if err != nil {
 		log.Fatal(err)
 	}

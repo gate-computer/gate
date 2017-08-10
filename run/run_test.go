@@ -87,7 +87,15 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 	defer payload.Close()
 
-	exit, trap, err := run.Run(context.Background(), env, payload, &testServiceRegistry{origin: &output}, os.Stdout)
+	var proc run.Process
+
+	err = proc.Init(context.Background(), env, payload, os.Stdout)
+	if err != nil {
+		return
+	}
+	defer proc.Close()
+
+	exit, trap, err := run.Run(context.Background(), env, &proc, payload, &testServiceRegistry{origin: &output})
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
