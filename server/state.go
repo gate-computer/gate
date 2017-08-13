@@ -48,10 +48,15 @@ func NewState(ctx context.Context, settings Settings, opt Options) (s *State) {
 	return
 }
 
-func (s *State) newInstance() (inst *instance, err error) {
-	inst = <-s.instanceFactory
-	if inst == nil {
-		err = context.Canceled
+func (s *State) newInstance(ctx context.Context) (inst *instance, err error) {
+	select {
+	case inst = <-s.instanceFactory:
+		if inst == nil {
+			err = context.Canceled
+		}
+
+	case <-ctx.Done():
+		err = ctx.Err()
 	}
 	return
 }
@@ -182,12 +187,12 @@ func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) uploadAndInstantiate(wasm io.ReadCloser, clientHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId, progId uint64, progHash []byte, valid bool, err error) {
+func (s *State) uploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId, progId uint64, progHash []byte, valid bool, err error) {
 	if len(clientHash) != sha512.Size {
 		return
 	}
 
-	inst, err = s.newInstance()
+	inst, err = s.newInstance(ctx)
 	if err != nil {
 		return
 	}
@@ -286,7 +291,7 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 	return
 }
 
-func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId uint64, valid, found bool, err error) {
+func (s *State) instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId uint64, valid, found bool, err error) {
 	prog, found := s.getProgramForInstance(progId)
 	if !found {
 		return
@@ -304,7 +309,7 @@ func (s *State) instantiate(progId uint64, progHash []byte, originPipe *pipe, ca
 		return
 	}
 
-	inst, err = s.newInstance()
+	inst, err = s.newInstance(ctx)
 	if err != nil {
 		return
 	}

@@ -284,7 +284,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 		// uploadAndInstantiate method closes body to check for decoding errors
 
-		inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(body, progHash, originPipe, cancel)
+		inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(r.Context(), body, progHash, originPipe, cancel)
 		if err != nil {
 			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 			return
@@ -335,7 +335,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 
 	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.instantiate(progId, progHash, originPipe, cancel)
+			inst, instId, valid, found, err = s.instantiate(r.Context(), progId, progHash, originPipe, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
@@ -402,7 +402,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 		if progId, err := strconv.ParseUint(run.ProgramId, 16, 64); err == nil {
 			if progHash, err := hex.DecodeString(run.ProgramSHA512); err == nil {
-				inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, cancel)
+				inst, instId, valid, found, err = s.instantiate(ctx, progId, progHash, nil, cancel)
 				if err != nil {
 					// TODO
 					s.Log.Printf("%s error: %v", r.RemoteAddr, err)
@@ -434,7 +434,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		)
 
 		if progHash, err = hex.DecodeString(run.ProgramSHA512); err == nil {
-			inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(ioutil.NopCloser(frame), progHash, nil, cancel)
+			inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(ctx, ioutil.NopCloser(frame), progHash, nil, cancel)
 			if err != nil {
 				// TODO
 				s.Log.Printf("%s error: %v", r.RemoteAddr, err)
@@ -509,7 +509,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.instantiate(progId, progHash, nil, cancel)
+			inst, instId, valid, found, err = s.instantiate(ctx, progId, progHash, nil, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
