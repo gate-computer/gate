@@ -201,7 +201,7 @@ func (s *State) Check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *Pipe, cancel context.CancelFunc) (inst *Instance, instId, progId uint64, progHash []byte, valid bool, err error) {
+func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *Pipe) (inst *Instance, instId, progId uint64, progHash []byte, valid bool, err error) {
 	if len(clientHash) != sha512.Size {
 		return
 	}
@@ -242,7 +242,7 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 		}
 	}()
 
-	err = inst.populate(&prog.module, originPipe, cancel, s)
+	err = inst.populate(&prog.module, originPipe, s)
 	if err != nil {
 		return
 	}
@@ -305,7 +305,7 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 	return
 }
 
-func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *Pipe, cancel context.CancelFunc) (inst *Instance, instId uint64, valid, found bool, err error) {
+func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *Pipe) (inst *Instance, instId uint64, valid, found bool, err error) {
 	prog, found := s.getProgramForInstance(progId)
 	if !found {
 		return
@@ -336,7 +336,7 @@ func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte,
 	}()
 
 	inst.program = prog
-	err = inst.populate(&prog.module, originPipe, cancel, s)
+	err = inst.populate(&prog.module, originPipe, s)
 	if err != nil {
 		return
 	}
@@ -380,14 +380,6 @@ func (s *State) WaitInstance(inst *Instance, instId uint64) (result *Result, fou
 	delete(s.instances, instId)
 	inst.program.instanceCount--
 	return
-}
-
-func (s *State) Cancel() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	for _, inst := range s.instances {
-		inst.cancel()
-	}
 }
 
 type program struct {
@@ -450,7 +442,6 @@ type Instance struct {
 	process    run.Process
 	exit       chan *Result
 	originPipe *Pipe
-	cancel     context.CancelFunc
 
 	program *program // initialized and used only by State
 }
@@ -520,7 +511,7 @@ func (inst *Instance) close() {
 	inst.process.Close()
 }
 
-func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, cancel context.CancelFunc, s *State) (err error) {
+func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err error) {
 	_, memorySize := m.MemoryLimits()
 	if memorySize > s.memorySizeLimit {
 		memorySize = s.memorySizeLimit
@@ -533,7 +524,6 @@ func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, cancel context.C
 
 	inst.exit = make(chan *Result, 1)
 	inst.originPipe = originPipe
-	inst.cancel = cancel
 	return
 }
 

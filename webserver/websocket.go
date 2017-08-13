@@ -1,6 +1,7 @@
 package webserver
 
 import (
+	"context"
 	"io"
 
 	"github.com/gorilla/websocket"
@@ -43,6 +44,28 @@ func (r *websocketReader) Read(buf []byte) (n int, err error) {
 			return
 		}
 	}
+}
+
+type websocketReadCanceler struct {
+	reader websocketReader
+	cancel context.CancelFunc
+}
+
+func newWebsocketReadCanceler(conn *websocket.Conn, cancel context.CancelFunc) *websocketReadCanceler {
+	return &websocketReadCanceler{
+		reader: websocketReader{
+			conn: conn,
+		},
+		cancel: cancel,
+	}
+}
+
+func (r *websocketReadCanceler) Read(buf []byte) (n int, err error) {
+	n, err = r.reader.Read(buf)
+	if err != nil {
+		r.cancel()
+	}
+	return
 }
 
 type websocketWriter struct {
