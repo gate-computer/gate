@@ -27,12 +27,12 @@ type State struct {
 	Settings
 	Options
 
-	instanceFactory <-chan *instance
+	instanceFactory <-chan *Instance
 
 	lock           sync.Mutex
 	programsByHash map[[sha512.Size]byte]*program
 	programs       map[uint64]*program
-	instances      map[uint64]*instance
+	instances      map[uint64]*Instance
 }
 
 func NewState(ctx context.Context, settings Settings, opt Options) (s *State) {
@@ -41,14 +41,14 @@ func NewState(ctx context.Context, settings Settings, opt Options) (s *State) {
 		Options:        opt,
 		programsByHash: make(map[[sha512.Size]byte]*program),
 		programs:       make(map[uint64]*program),
-		instances:      make(map[uint64]*instance),
+		instances:      make(map[uint64]*Instance),
 	}
 
 	s.instanceFactory = makeInstanceFactory(ctx, s)
 	return
 }
 
-func (s *State) newInstance(ctx context.Context) (inst *instance, err error) {
+func (s *State) newInstance(ctx context.Context) (inst *Instance, err error) {
 	select {
 	case inst = <-s.instanceFactory:
 		if inst == nil {
@@ -101,20 +101,20 @@ func (s *State) getProgramByHash(hash []byte) (prog *program, found bool) {
 	return
 }
 
-func (s *State) getInstance(instId uint64) (inst *instance, found bool) {
+func (s *State) getInstance(instId uint64) (inst *Instance, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	inst, found = s.instances[instId]
 	return
 }
 
-func (s *State) setInstance(instId uint64, inst *instance) {
+func (s *State) setInstance(instId uint64, inst *Instance) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.instances[instId] = inst
 }
 
-func (s *State) upload(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
+func (s *State) Upload(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
 	if len(clientHash) != sha512.Size {
 		return
 	}
@@ -177,7 +177,7 @@ func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (prog *prog
 	return
 }
 
-func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
+func (s *State) Check(progId uint64, progHash []byte) (valid, found bool) {
 	prog, found := s.getProgram(progId)
 	if !found {
 		return
@@ -187,7 +187,7 @@ func (s *State) check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) uploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId, progId uint64, progHash []byte, valid bool, err error) {
+func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *Pipe, cancel context.CancelFunc) (inst *Instance, instId, progId uint64, progHash []byte, valid bool, err error) {
 	if len(clientHash) != sha512.Size {
 		return
 	}
@@ -240,7 +240,7 @@ func (s *State) uploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 	return
 }
 
-func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *instance) (instId uint64, prog *program, progId uint64, valid, found bool, err error) {
+func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *Instance) (instId uint64, prog *program, progId uint64, valid, found bool, err error) {
 	prog, found = s.getProgramByHash(clientHash)
 	if !found {
 		return
@@ -267,7 +267,7 @@ func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte,
 	return
 }
 
-func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *instance) (instId uint64, prog *program, progId uint64, valid bool, err error) {
+func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *Instance) (instId uint64, prog *program, progId uint64, valid bool, err error) {
 	prog, valid, err = loadProgram(wasm, clientHash, s.Env)
 	if err != nil {
 		return
@@ -291,7 +291,7 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 	return
 }
 
-func (s *State) instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *pipe, cancel context.CancelFunc) (inst *instance, instId uint64, valid, found bool, err error) {
+func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *Pipe, cancel context.CancelFunc) (inst *Instance, instId uint64, valid, found bool, err error) {
 	prog, found := s.getProgramForInstance(progId)
 	if !found {
 		return
@@ -335,7 +335,7 @@ func (s *State) instantiate(ctx context.Context, progId uint64, progHash []byte,
 	return
 }
 
-func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
+func (s *State) AttachOrigin(instId uint64) (pipe *Pipe, found bool) {
 	inst, found := s.getInstance(instId)
 	if !found {
 		return
@@ -345,17 +345,17 @@ func (s *State) attachOrigin(instId uint64) (pipe *pipe, found bool) {
 	return
 }
 
-func (s *State) wait(instId uint64) (result *result, found bool) {
+func (s *State) Wait(instId uint64) (result *Result, found bool) {
 	inst, found := s.getInstance(instId)
 	if !found {
 		return
 	}
 
-	result, found = s.waitInstance(inst, instId)
+	result, found = s.WaitInstance(inst, instId)
 	return
 }
 
-func (s *State) waitInstance(inst *instance, instId uint64) (result *result, found bool) {
+func (s *State) WaitInstance(inst *Instance, instId uint64) (result *Result, found bool) {
 	result, found = <-inst.exit
 	if !found {
 		return
@@ -425,24 +425,24 @@ func validateReadHash(p *program, r io.ReadCloser) (valid bool, err error) {
 	return
 }
 
-type result struct {
-	status int
-	trap   traps.Id
-	err    error
+type Result struct {
+	Status int
+	Trap   traps.Id
+	Err    error
 }
 
-type instance struct {
+type Instance struct {
 	payload    run.Payload
 	process    run.Process
-	exit       chan *result
-	originPipe *pipe
+	exit       chan *Result
+	originPipe *Pipe
 	cancel     context.CancelFunc
 
 	program *program // initialized and used only by State
 }
 
-func makeInstanceFactory(ctx context.Context, s *State) <-chan *instance {
-	channel := make(chan *instance, s.preforkProcs()-1)
+func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
+	channel := make(chan *Instance, s.preforkProcs()-1)
 
 	go func() {
 		defer func() {
@@ -472,8 +472,8 @@ func makeInstanceFactory(ctx context.Context, s *State) <-chan *instance {
 	return channel
 }
 
-func newInstance(ctx context.Context, s *State) *instance {
-	inst := new(instance)
+func newInstance(ctx context.Context, s *State) *Instance {
+	inst := new(Instance)
 
 	if err := inst.payload.Init(); err != nil {
 		s.Log.Printf("payload init: %v", err)
@@ -496,12 +496,12 @@ func newInstance(ctx context.Context, s *State) *instance {
 	return inst
 }
 
-func (inst *instance) close() {
+func (inst *Instance) close() {
 	inst.payload.Close()
 	inst.process.Close()
 }
 
-func (inst *instance) populate(m *wag.Module, s *Settings, originPipe *pipe, cancel context.CancelFunc) (err error) {
+func (inst *Instance) populate(m *wag.Module, s *Settings, originPipe *Pipe, cancel context.CancelFunc) (err error) {
 	_, memorySize := m.MemoryLimits()
 	if limit := s.memorySizeLimit(); memorySize > limit {
 		memorySize = limit
@@ -512,20 +512,20 @@ func (inst *instance) populate(m *wag.Module, s *Settings, originPipe *pipe, can
 		return
 	}
 
-	inst.exit = make(chan *result, 1)
+	inst.exit = make(chan *Result, 1)
 	inst.originPipe = originPipe
 	inst.cancel = cancel
 	return
 }
 
-func (inst *instance) attachOrigin() (pipe *pipe) {
+func (inst *Instance) attachOrigin() (pipe *Pipe) {
 	if inst.originPipe != nil && inst.originPipe.allocate() {
 		pipe = inst.originPipe
 	}
 	return
 }
 
-func (inst *instance) run(ctx context.Context, opt *Options, r io.Reader, w io.Writer) {
+func (inst *Instance) Run(ctx context.Context, opt *Options, r io.Reader, w io.Writer) {
 	defer inst.close()
 
 	var (
@@ -535,7 +535,7 @@ func (inst *instance) run(ctx context.Context, opt *Options, r io.Reader, w io.W
 	)
 
 	defer func() {
-		var r *result
+		var r *Result
 
 		defer func() {
 			defer close(inst.exit)
@@ -546,12 +546,12 @@ func (inst *instance) run(ctx context.Context, opt *Options, r io.Reader, w io.W
 			return
 		}
 
-		r = new(result)
+		r = new(Result)
 
 		if trap != 0 {
-			r.trap = trap
+			r.Trap = trap
 		} else {
-			r.status = status
+			r.Status = status
 		}
 	}()
 
@@ -561,25 +561,25 @@ func (inst *instance) run(ctx context.Context, opt *Options, r io.Reader, w io.W
 	}
 }
 
-type pipe struct {
+type Pipe struct {
 	lock     sync.Mutex
 	in       *io.PipeWriter
 	out      *io.PipeReader
 	attached bool
 }
 
-func newPipe() (inR *io.PipeReader, outW *io.PipeWriter, p *pipe) {
+func NewPipe() (inR *io.PipeReader, outW *io.PipeWriter, p *Pipe) {
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 
-	p = &pipe{
+	p = &Pipe{
 		in:  inW,
 		out: outR,
 	}
 	return
 }
 
-func (p *pipe) allocate() (ok bool) {
+func (p *Pipe) allocate() (ok bool) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	ok = !p.attached
@@ -589,7 +589,7 @@ func (p *pipe) allocate() (ok bool) {
 	return
 }
 
-func (p *pipe) io(in io.Reader, out io.Writer) {
+func (p *Pipe) IO(in io.Reader, out io.Writer) {
 	var (
 		inDone  = make(chan struct{})
 		outDone = make(chan struct{})

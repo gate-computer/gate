@@ -14,10 +14,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tsavola/gate/internal/server"
 	"github.com/tsavola/gate/run"
-	"github.com/tsavola/gate/server"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
+	"github.com/tsavola/gate/webserver"
 	"golang.org/x/crypto/acme/autocert"
 )
 
@@ -123,7 +124,7 @@ func main() {
 	}
 
 	state := server.NewState(ctx, settings, opt)
-	handler := server.NewHandler(ctx, "/", state)
+	handler := webserver.NewHandler(ctx, "/", state)
 
 	if letsencrypt {
 		if !acceptTOS {

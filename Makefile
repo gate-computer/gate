@@ -17,14 +17,17 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/cmd/gate-server \
 	$(GOPACKAGEPREFIX)/cmd/gate-webio \
 	$(GOPACKAGEPREFIX)/examples/gate-talk \
+	$(GOPACKAGEPREFIX)/internal/cred \
 	$(GOPACKAGEPREFIX)/internal/memfd \
+	$(GOPACKAGEPREFIX)/internal/server \
 	$(GOPACKAGEPREFIX)/run \
-	$(GOPACKAGEPREFIX)/server \
 	$(GOPACKAGEPREFIX)/service \
 	$(GOPACKAGEPREFIX)/service/defaults \
 	$(GOPACKAGEPREFIX)/service/echo \
 	$(GOPACKAGEPREFIX)/service/origin \
-	$(GOPACKAGEPREFIX)/service/peer
+	$(GOPACKAGEPREFIX)/service/peer \
+	$(GOPACKAGEPREFIX)/webapi \
+	$(GOPACKAGEPREFIX)/webserver
 
 export GATE_TEST_COMMONGROUP	= $(word 2,$(shell groups))
 export GATE_TEST_CONTAINERUSER	= sys

@@ -1,4 +1,4 @@
-package server
+package webserver
 
 import (
 	"compress/gzip"
@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/tsavola/gate/internal/server"
 	api "github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag/traps"
 )
@@ -26,7 +27,7 @@ const (
 // NewHandler uses http.Request's context for resources whose lifetimes are
 // tied to requests.  The context specified here is used for other resources,
 // which are merely created by requests.
-func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
+func NewHandler(ctx context.Context, pattern string, s *server.State) http.Handler {
 	var (
 		prefix = strings.TrimRight(pattern, "/")
 		mux    = http.NewServeMux()
@@ -186,7 +187,7 @@ func NewHandler(ctx context.Context, pattern string, s *State) http.Handler {
 	return mux
 }
 
-func handleLoadContent(w http.ResponseWriter, r *http.Request, s *State) {
+func handleLoadContent(w http.ResponseWriter, r *http.Request, s *server.State) {
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
 	if !ok {
 		return
@@ -207,7 +208,7 @@ func handleLoadContent(w http.ResponseWriter, r *http.Request, s *State) {
 
 		// upload method closes body to check for decoding errors
 
-		progId, progHash, valid, err = s.upload(body, progHash)
+		progId, progHash, valid, err = s.Upload(body, progHash)
 		if err != nil {
 			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 			return
@@ -221,7 +222,7 @@ func handleLoadContent(w http.ResponseWriter, r *http.Request, s *State) {
 	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
 }
 
-func handleLoadId(w http.ResponseWriter, r *http.Request, s *State) {
+func handleLoadId(w http.ResponseWriter, r *http.Request, s *server.State) {
 	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
 	if !ok {
 		return
@@ -239,7 +240,7 @@ func handleLoadId(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			valid, found = s.check(progId, progHash)
+			valid, found = s.Check(progId, progHash)
 		}
 	}
 	if !found {
@@ -252,13 +253,13 @@ func handleLoadId(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 }
 
-func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
+func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *server.State) {
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
 	if !ok {
 		return
 	}
 
-	in, out, originPipe := newPipe()
+	in, out, originPipe := server.NewPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -268,7 +269,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}()
 
 	var (
-		inst     *instance
+		inst     *server.Instance
 		instId   uint64
 		progId   uint64
 		progHash []byte
@@ -284,7 +285,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 		// uploadAndInstantiate method closes body to check for decoding errors
 
-		inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(r.Context(), body, progHash, originPipe, cancel)
+		inst, instId, progId, progHash, valid, err = s.UploadAndInstantiate(r.Context(), body, progHash, originPipe, cancel)
 		if err != nil {
 			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 			return
@@ -301,12 +302,12 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	go func(cancel context.CancelFunc) {
 		defer cancel()
 		defer out.Close()
-		inst.run(ctx, &s.Options, in, out)
+		inst.Run(ctx, &s.Options, in, out)
 	}(cancel)
 	cancel = nil
 }
 
-func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
+func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *server.State) {
 	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
 	if !ok {
 		return
@@ -317,7 +318,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	in, out, originPipe := newPipe()
+	in, out, originPipe := server.NewPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -327,7 +328,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	}()
 
 	var (
-		inst   *instance
+		inst   *server.Instance
 		instId uint64
 		valid  bool
 		found  bool
@@ -335,7 +336,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 
 	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.instantiate(r.Context(), progId, progHash, originPipe, cancel)
+			inst, instId, valid, found, err = s.Instantiate(r.Context(), progId, progHash, originPipe, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
@@ -356,12 +357,12 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	go func(cancel context.CancelFunc) {
 		defer cancel()
 		defer out.Close()
-		inst.run(ctx, &s.Options, in, out)
+		inst.Run(ctx, &s.Options, in, out)
 	}(cancel)
 	cancel = nil
 }
 
-func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
+func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *server.State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -388,7 +389,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	defer cancel()
 
 	var (
-		inst   *instance
+		inst   *server.Instance
 		instId uint64
 		valid  bool
 
@@ -402,7 +403,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 		if progId, err := strconv.ParseUint(run.ProgramId, 16, 64); err == nil {
 			if progHash, err := hex.DecodeString(run.ProgramSHA512); err == nil {
-				inst, instId, valid, found, err = s.instantiate(ctx, progId, progHash, nil, cancel)
+				inst, instId, valid, found, err = s.Instantiate(ctx, progId, progHash, nil, cancel)
 				if err != nil {
 					// TODO
 					s.Log.Printf("%s error: %v", r.RemoteAddr, err)
@@ -434,7 +435,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		)
 
 		if progHash, err = hex.DecodeString(run.ProgramSHA512); err == nil {
-			inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(ctx, ioutil.NopCloser(frame), progHash, nil, cancel)
+			inst, instId, progId, progHash, valid, err = s.UploadAndInstantiate(ctx, ioutil.NopCloser(frame), progHash, nil, cancel)
 			if err != nil {
 				// TODO
 				s.Log.Printf("%s error: %v", r.RemoteAddr, err)
@@ -455,7 +456,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 		ProgramId:  progHexId,
 	})
 
-	inst.run(ctx, &s.Options, newWebsocketReader(conn), websocketWriter{conn})
+	inst.Run(ctx, &s.Options, newWebsocketReader(conn), websocketWriter{conn})
 
 	if err != nil {
 		return
@@ -463,15 +464,15 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 
 	closeMsg := websocketNormalClosure
 
-	if result, ok := s.waitInstance(inst, instId); ok {
+	if result, ok := s.WaitInstance(inst, instId); ok {
 		if result != nil {
 			var doc api.Result
 
-			if result.trap == traps.Exit {
-				doc.ExitStatus = &result.status
+			if result.Trap == traps.Exit {
+				doc.ExitStatus = &result.Status
 			} else {
-				doc.TrapId = int(result.trap)
-				doc.Trap = result.trap.String()
+				doc.TrapId = int(result.Trap)
+				doc.Trap = result.Trap.String()
 			}
 
 			err = conn.WriteJSON(&doc)
@@ -486,7 +487,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
 	conn.WriteMessage(websocket.CloseMessage, closeMsg)
 }
 
-func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
+func handleRunPost(w http.ResponseWriter, r *http.Request, s *server.State) {
 	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
 	if !ok {
 		return
@@ -501,7 +502,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 	defer cancel()
 
 	var (
-		inst   *instance
+		inst   *server.Instance
 		instId uint64
 		valid  bool
 		found  bool
@@ -509,7 +510,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.instantiate(ctx, progId, progHash, nil, cancel)
+			inst, instId, valid, found, err = s.Instantiate(ctx, progId, progHash, nil, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
 				return
@@ -527,9 +528,9 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 
 	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
 
-	inst.run(ctx, &s.Options, r.Body, w)
+	inst.Run(ctx, &s.Options, r.Body, w)
 
-	if result, ok := s.waitInstance(inst, instId); ok {
+	if result, ok := s.WaitInstance(inst, instId); ok {
 		if result != nil {
 			setResultHeader(w, http.TrailerPrefix, result)
 		} else {
@@ -538,7 +539,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *State) {
 	}
 }
 
-func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
+func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *server.State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -561,12 +562,12 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 	}
 
 	var (
-		originPipe *pipe
+		originPipe *server.Pipe
 		found      bool
 	)
 
 	if instId, err := strconv.ParseUint(communicate.InstanceId, 16, 64); err == nil {
-		originPipe, found = s.attachOrigin(instId)
+		originPipe, found = s.AttachOrigin(instId)
 	}
 	if !found {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
@@ -582,12 +583,12 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *State
 		return
 	}
 
-	originPipe.io(newWebsocketReader(conn), websocketWriter{conn})
+	originPipe.IO(newWebsocketReader(conn), websocketWriter{conn})
 
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 }
 
-func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
+func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *server.State) {
 	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
 	if !ok {
 		return
@@ -600,12 +601,12 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
 	defer body.Close()
 
 	var (
-		originPipe *pipe
+		originPipe *server.Pipe
 		found      bool
 	)
 
 	if instId, err := strconv.ParseUint(instHexId, 16, 64); err == nil {
-		originPipe, found = s.attachOrigin(instId)
+		originPipe, found = s.AttachOrigin(instId)
 	}
 	if !found {
 		http.NotFound(w, r)
@@ -616,22 +617,22 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *State) {
 		return
 	}
 
-	originPipe.io(body, w)
+	originPipe.IO(body, w)
 }
 
-func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
+func handleWait(w http.ResponseWriter, r *http.Request, s *server.State) {
 	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
 	if !ok {
 		return
 	}
 
 	var (
-		result *result
+		result *server.Result
 		found  bool
 	)
 
 	if instId, err := strconv.ParseUint(instHexId, 16, 64); err == nil {
-		result, found = s.wait(instId)
+		result, found = s.Wait(instId)
 	}
 	if !found {
 		http.NotFound(w, r)
@@ -645,12 +646,12 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *State) {
 	setResultHeader(w, "", result)
 }
 
-func setResultHeader(w http.ResponseWriter, prefix string, result *result) {
-	if result.trap == traps.Exit {
-		w.Header().Set(prefix+api.HeaderExitStatus, strconv.Itoa(result.status))
+func setResultHeader(w http.ResponseWriter, prefix string, result *server.Result) {
+	if result.Trap == traps.Exit {
+		w.Header().Set(prefix+api.HeaderExitStatus, strconv.Itoa(result.Status))
 	} else {
-		w.Header().Set(prefix+api.HeaderTrapId, strconv.Itoa(int(result.trap)))
-		w.Header().Set(prefix+api.HeaderTrap, result.trap.String())
+		w.Header().Set(prefix+api.HeaderTrapId, strconv.Itoa(int(result.Trap)))
+		w.Header().Set(prefix+api.HeaderTrap, result.Trap.String())
 	}
 }
 
@@ -702,7 +703,7 @@ func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string) 
 	}
 }
 
-func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *State) io.ReadCloser {
+func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *server.State) io.ReadCloser {
 	// TODO: support nested encodings
 
 	var encoding string
@@ -731,7 +732,7 @@ func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *State) io
 	return nil
 }
 
-func decodeContent(w http.ResponseWriter, r *http.Request, s *State, limit int) (cr *contentReader) {
+func decodeContent(w http.ResponseWriter, r *http.Request, s *server.State, limit int) (cr *contentReader) {
 	if r.ContentLength < 0 {
 		w.WriteHeader(http.StatusLengthRequired)
 		return
