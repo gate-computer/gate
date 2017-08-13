@@ -14,8 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tsavola/gate/internal/server"
 	"github.com/tsavola/gate/run"
+	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/serverconfig"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/webserver"
@@ -37,10 +38,10 @@ func main() {
 			LibDir:      "lib",
 			CgroupTitle: run.DefaultCgroupTitle,
 		}
-		settings = server.Settings{
-			MemorySizeLimit: server.DefaultMemorySizeLimit,
-			StackSize:       server.DefaultStackSize,
-			PreforkProcs:    server.DefaultPreforkProcs,
+		settings = serverconfig.Settings{
+			MemorySizeLimit: serverconfig.DefaultMemorySizeLimit,
+			StackSize:       serverconfig.DefaultStackSize,
+			PreforkProcs:    serverconfig.DefaultPreforkProcs,
 		}
 		addr         = "localhost:8888"
 		letsencrypt  = false
@@ -85,7 +86,7 @@ func main() {
 
 	var (
 		critLog *log.Logger
-		infoLog server.Logger
+		infoLog serverconfig.Logger
 	)
 
 	if syslogging {
@@ -113,7 +114,7 @@ func main() {
 	}
 	defer env.Close()
 
-	opt := server.Options{
+	opt := serverconfig.Options{
 		Env:      env,
 		Services: services,
 		Log:      infoLog,
@@ -123,7 +124,7 @@ func main() {
 		opt.Debug = os.Stderr
 	}
 
-	state := server.NewState(ctx, settings, opt)
+	state := server.NewState(ctx, opt, settings)
 	handler := webserver.NewHandler(ctx, "/", state)
 
 	if letsencrypt {

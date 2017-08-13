@@ -12,20 +12,21 @@ import (
 	"sync"
 
 	"github.com/tsavola/gate/run"
+	config "github.com/tsavola/gate/server/serverconfig"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
+	"github.com/tsavola/wag/wasm"
 )
 
-type Options struct {
-	Env      *run.Environment
-	Services func(io.Reader, io.Writer) run.ServiceRegistry
-	Log      Logger
-	Debug    io.Writer
-}
+const (
+	maxStackSize = 0x40000000 // crazy but valid
+)
 
 type State struct {
-	Settings
-	Options
+	config.Options
+
+	memorySizeLimit wasm.MemorySize
+	stackSize       int32
 
 	instanceFactory <-chan *Instance
 
@@ -35,17 +36,30 @@ type State struct {
 	instances      map[uint64]*Instance
 }
 
-func NewState(ctx context.Context, settings Settings, opt Options) (s *State) {
-	s = &State{
-		Settings:       settings,
-		Options:        opt,
-		programsByHash: make(map[[sha512.Size]byte]*program),
-		programs:       make(map[uint64]*program),
-		instances:      make(map[uint64]*Instance),
+func (s *State) Init(ctx context.Context, opt config.Options, set config.Settings) {
+	s.Options = opt
+
+	if set.MemorySizeLimit > 0 {
+		s.memorySizeLimit = (wasm.MemorySize(set.MemorySizeLimit) + (wasm.Page - 1)) &^ (wasm.Page - 1)
+	} else {
+		s.memorySizeLimit = wasm.MemorySize(config.DefaultMemorySizeLimit)
 	}
 
-	s.instanceFactory = makeInstanceFactory(ctx, s)
-	return
+	switch {
+	case set.StackSize > maxStackSize:
+		s.stackSize = maxStackSize
+
+	case set.StackSize > 0:
+		s.stackSize = int32(set.StackSize)
+
+	default:
+		s.stackSize = config.DefaultStackSize
+	}
+
+	s.instanceFactory = makeInstanceFactory(ctx, set.PreforkProcs, s)
+	s.programsByHash = make(map[[sha512.Size]byte]*program)
+	s.programs = make(map[uint64]*program)
+	s.instances = make(map[uint64]*Instance)
 }
 
 func (s *State) newInstance(ctx context.Context) (inst *Instance, err error) {
@@ -228,7 +242,7 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 		}
 	}()
 
-	err = inst.populate(&prog.module, &s.Settings, originPipe, cancel)
+	err = inst.populate(&prog.module, originPipe, cancel, s)
 	if err != nil {
 		return
 	}
@@ -322,7 +336,7 @@ func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte,
 	}()
 
 	inst.program = prog
-	err = inst.populate(&prog.module, &s.Settings, originPipe, cancel)
+	err = inst.populate(&prog.module, originPipe, cancel, s)
 	if err != nil {
 		return
 	}
@@ -441,8 +455,13 @@ type Instance struct {
 	program *program // initialized and used only by State
 }
 
-func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
-	channel := make(chan *Instance, s.preforkProcs()-1)
+func makeInstanceFactory(ctx context.Context, preforkProcs int, s *State) <-chan *Instance {
+	chanSize := preforkProcs - 1
+	if chanSize < 0 {
+		chanSize = config.DefaultPreforkProcs - 1
+	}
+
+	channel := make(chan *Instance, chanSize)
 
 	go func() {
 		defer func() {
@@ -501,13 +520,13 @@ func (inst *Instance) close() {
 	inst.process.Close()
 }
 
-func (inst *Instance) populate(m *wag.Module, s *Settings, originPipe *Pipe, cancel context.CancelFunc) (err error) {
+func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, cancel context.CancelFunc, s *State) (err error) {
 	_, memorySize := m.MemoryLimits()
-	if limit := s.memorySizeLimit(); memorySize > limit {
-		memorySize = limit
+	if memorySize > s.memorySizeLimit {
+		memorySize = s.memorySizeLimit
 	}
 
-	err = inst.payload.Populate(m, memorySize, s.stackSize())
+	err = inst.payload.Populate(m, memorySize, s.stackSize)
 	if err != nil {
 		return
 	}
@@ -525,7 +544,7 @@ func (inst *Instance) attachOrigin() (pipe *Pipe) {
 	return
 }
 
-func (inst *Instance) Run(ctx context.Context, opt *Options, r io.Reader, w io.Writer) {
+func (inst *Instance) Run(ctx context.Context, opt *config.Options, r io.Reader, w io.Writer) {
 	defer inst.close()
 
 	var (

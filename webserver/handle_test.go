@@ -17,8 +17,9 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/tsavola/gate/internal/runtest"
-	"github.com/tsavola/gate/internal/server"
 	"github.com/tsavola/gate/run"
+	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/serverconfig"
 	"github.com/tsavola/gate/service/origin"
 	api "github.com/tsavola/gate/webapi"
 )
@@ -27,12 +28,12 @@ func services(r io.Reader, w io.Writer) run.ServiceRegistry {
 	return origin.CloneRegistryWith(nil, r, w)
 }
 
-var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), server.Settings{}, server.Options{
+var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), serverconfig.Options{
 	Env:      runtest.NewEnvironment(),
 	Services: services,
 	Log:      log.New(os.Stderr, "log: ", 0),
 	Debug:    os.Stdout,
-}))
+}, serverconfig.Settings{}))
 
 var (
 	progData []byte

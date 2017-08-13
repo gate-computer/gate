@@ -13,7 +13,8 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/gate/internal/server"
+	internal "github.com/tsavola/gate/internal/server"
+	"github.com/tsavola/gate/server"
 	api "github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag/traps"
 )
@@ -27,8 +28,9 @@ const (
 // NewHandler uses http.Request's context for resources whose lifetimes are
 // tied to requests.  The context specified here is used for other resources,
 // which are merely created by requests.
-func NewHandler(ctx context.Context, pattern string, s *server.State) http.Handler {
+func NewHandler(ctx context.Context, pattern string, state *server.State) http.Handler {
 	var (
+		s      = &state.Internal
 		prefix = strings.TrimRight(pattern, "/")
 		mux    = http.NewServeMux()
 	)
@@ -187,7 +189,7 @@ func NewHandler(ctx context.Context, pattern string, s *server.State) http.Handl
 	return mux
 }
 
-func handleLoadContent(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleLoadContent(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
 	if !ok {
 		return
@@ -222,7 +224,7 @@ func handleLoadContent(w http.ResponseWriter, r *http.Request, s *server.State) 
 	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
 }
 
-func handleLoadId(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleLoadId(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
 	if !ok {
 		return
@@ -253,13 +255,13 @@ func handleLoadId(w http.ResponseWriter, r *http.Request, s *server.State) {
 	}
 }
 
-func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
 	if !ok {
 		return
 	}
 
-	in, out, originPipe := server.NewPipe()
+	in, out, originPipe := internal.NewPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -269,7 +271,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}()
 
 	var (
-		inst     *server.Instance
+		inst     *internal.Instance
 		instId   uint64
 		progId   uint64
 		progHash []byte
@@ -307,7 +309,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	cancel = nil
 }
 
-func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
 	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
 	if !ok {
 		return
@@ -318,7 +320,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	in, out, originPipe := server.NewPipe()
+	in, out, originPipe := internal.NewPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
@@ -328,7 +330,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	}()
 
 	var (
-		inst   *server.Instance
+		inst   *internal.Instance
 		instId uint64
 		valid  bool
 		found  bool
@@ -362,7 +364,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	cancel = nil
 }
 
-func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -389,7 +391,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *server.State)
 	defer cancel()
 
 	var (
-		inst   *server.Instance
+		inst   *internal.Instance
 		instId uint64
 		valid  bool
 
@@ -487,7 +489,7 @@ func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *server.State)
 	conn.WriteMessage(websocket.CloseMessage, closeMsg)
 }
 
-func handleRunPost(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleRunPost(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
 	if !ok {
 		return
@@ -502,7 +504,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *server.State) {
 	defer cancel()
 
 	var (
-		inst   *server.Instance
+		inst   *internal.Instance
 		instId uint64
 		valid  bool
 		found  bool
@@ -539,7 +541,7 @@ func handleRunPost(w http.ResponseWriter, r *http.Request, s *server.State) {
 	}
 }
 
-func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	u := websocket.Upgrader{
 		CheckOrigin: func(*http.Request) bool { return true },
 	}
@@ -562,7 +564,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *serve
 	}
 
 	var (
-		originPipe *server.Pipe
+		originPipe *internal.Pipe
 		found      bool
 	)
 
@@ -588,7 +590,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *serve
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 }
 
-func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
 	if !ok {
 		return
@@ -601,7 +603,7 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *server.Sta
 	defer body.Close()
 
 	var (
-		originPipe *server.Pipe
+		originPipe *internal.Pipe
 		found      bool
 	)
 
@@ -620,14 +622,14 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *server.Sta
 	originPipe.IO(body, w)
 }
 
-func handleWait(w http.ResponseWriter, r *http.Request, s *server.State) {
+func handleWait(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
 	if !ok {
 		return
 	}
 
 	var (
-		result *server.Result
+		result *internal.Result
 		found  bool
 	)
 
@@ -646,7 +648,7 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *server.State) {
 	setResultHeader(w, "", result)
 }
 
-func setResultHeader(w http.ResponseWriter, prefix string, result *server.Result) {
+func setResultHeader(w http.ResponseWriter, prefix string, result *internal.Result) {
 	if result.Trap == traps.Exit {
 		w.Header().Set(prefix+api.HeaderExitStatus, strconv.Itoa(result.Status))
 	} else {
@@ -703,7 +705,7 @@ func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string) 
 	}
 }
 
-func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *server.State) io.ReadCloser {
+func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.State) io.ReadCloser {
 	// TODO: support nested encodings
 
 	var encoding string
@@ -732,7 +734,7 @@ func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *server.St
 	return nil
 }
 
-func decodeContent(w http.ResponseWriter, r *http.Request, s *server.State, limit int) (cr *contentReader) {
+func decodeContent(w http.ResponseWriter, r *http.Request, s *internal.State, limit int) (cr *contentReader) {
 	if r.ContentLength < 0 {
 		w.WriteHeader(http.StatusLengthRequired)
 		return
