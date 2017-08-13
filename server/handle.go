@@ -261,7 +261,11 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	in, out, originPipe := newPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
-	// don't cancel in request scope
+	defer func() {
+		if cancel != nil {
+			cancel()
+		}
+	}()
 
 	var (
 		inst     *instance
@@ -275,7 +279,6 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	if progHash, err = hex.DecodeString(progHexHash); err == nil {
 		body := decodeContent(w, r, s, wasmRequestMaxSize)
 		if body == nil {
-			cancel()
 			return
 		}
 
@@ -284,24 +287,23 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		inst, instId, progId, progHash, valid, err = s.uploadAndInstantiate(body, progHash, originPipe, cancel)
 		if err != nil {
 			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-			cancel()
 			return
 		}
 	}
 	if !valid {
 		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
-		cancel()
 		return
 	}
 
-	go func() {
+	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
+	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
+
+	go func(cancel context.CancelFunc) {
 		defer cancel()
 		defer out.Close()
 		inst.run(ctx, &s.Options, in, out)
-	}()
-
-	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
-	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
+	}(cancel)
+	cancel = nil
 }
 
 func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *State) {
@@ -318,7 +320,11 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	in, out, originPipe := newPipe()
 
 	ctx, cancel := context.WithCancel(ctx)
-	// don't cancel in request scope
+	defer func() {
+		if cancel != nil {
+			cancel()
+		}
+	}()
 
 	var (
 		inst   *instance
@@ -332,29 +338,27 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 			inst, instId, valid, found, err = s.instantiate(progId, progHash, originPipe, cancel)
 			if err != nil {
 				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-				cancel()
 				return
 			}
 		}
 	}
 	if !found {
 		http.NotFound(w, r)
-		cancel()
 		return
 	}
 	if !valid {
 		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
-		cancel()
 		return
 	}
 
-	go func() {
+	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
+
+	go func(cancel context.CancelFunc) {
 		defer cancel()
 		defer out.Close()
 		inst.run(ctx, &s.Options, in, out)
-	}()
-
-	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
+	}(cancel)
+	cancel = nil
 }
 
 func handleRunWebsocket(w http.ResponseWriter, r *http.Request, s *State) {
