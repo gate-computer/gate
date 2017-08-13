@@ -36,8 +36,14 @@ type State struct {
 	instances      map[uint64]*Instance
 }
 
-func (s *State) Init(ctx context.Context, opt config.Options, set config.Settings) {
-	s.Options = opt
+func (s *State) Init(ctx context.Context, opt *config.Options, set *config.Settings) {
+	if opt != nil {
+		s.Options = *opt
+	}
+
+	if set == nil {
+		set = new(config.Settings)
+	}
 
 	if set.MemorySizeLimit > 0 {
 		s.memorySizeLimit = (wasm.MemorySize(set.MemorySizeLimit) + (wasm.Page - 1)) &^ (wasm.Page - 1)

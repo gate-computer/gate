@@ -43,6 +43,9 @@ func main() {
 			StackSize:       serverconfig.DefaultStackSize,
 			PreforkProcs:    serverconfig.DefaultPreforkProcs,
 		}
+		websettings = webserver.Settings{
+			MaxProgramSize: webserver.DefaultMaxProgramSize,
+		}
 		addr         = "localhost:8888"
 		letsencrypt  = false
 		email        = ""
@@ -70,6 +73,7 @@ func main() {
 	flag.IntVar(&settings.MemorySizeLimit, "memory-size-limit", settings.MemorySizeLimit, "memory size limit")
 	flag.IntVar(&settings.StackSize, "stack-size", settings.StackSize, "stack size")
 	flag.IntVar(&settings.PreforkProcs, "prefork-procs", settings.PreforkProcs, "number of processes to create in advance")
+	flag.IntVar(&websettings.MaxProgramSize, "max-program-size", websettings.MaxProgramSize, "maximum accepted WebAssembly module upload size")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
@@ -124,8 +128,8 @@ func main() {
 		opt.Debug = os.Stderr
 	}
 
-	state := server.NewState(ctx, opt, settings)
-	handler := webserver.NewHandler(ctx, "/", state)
+	state := server.NewState(ctx, &opt, &settings)
+	handler := webserver.NewHandler(ctx, "/", state, &websettings)
 
 	if letsencrypt {
 		if !acceptTOS {

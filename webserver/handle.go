@@ -20,14 +20,17 @@ import (
 )
 
 const (
-	wasmRequestMaxSize = 16 * 1024 * 1024 // conservative
-
 	accessControlMaxAge = "86400"
 )
 
 // NewHandler should be called with the same context that was passed to
 // server.NewState(), or its subcontext.
-func NewHandler(ctx context.Context, pattern string, state *server.State) http.Handler {
+func NewHandler(ctx context.Context, pattern string, state *server.State, set *Settings) http.Handler {
+	maxProgramSize := DefaultMaxProgramSize
+	if set != nil && set.MaxProgramSize != 0 {
+		maxProgramSize = set.MaxProgramSize
+	}
+
 	var (
 		s      = &state.Internal
 		prefix = strings.TrimRight(pattern, "/")
@@ -49,7 +52,7 @@ func NewHandler(ctx context.Context, pattern string, state *server.State) http.H
 			case http.MethodPost:
 				switch getContentType(r) {
 				case "application/wasm":
-					handleLoadContent(w, r, s)
+					handleLoadContent(w, r, s, maxProgramSize)
 
 				case "":
 					handleLoadId(w, r, s)
@@ -82,7 +85,7 @@ func NewHandler(ctx context.Context, pattern string, state *server.State) http.H
 			case http.MethodPost:
 				switch getContentType(r) {
 				case "application/wasm":
-					handleSpawnContent(ctx, w, r, s)
+					handleSpawnContent(ctx, w, r, s, maxProgramSize)
 
 				case "":
 					handleSpawnId(ctx, w, r, s)
@@ -188,7 +191,7 @@ func NewHandler(ctx context.Context, pattern string, state *server.State) http.H
 	return mux
 }
 
-func handleLoadContent(w http.ResponseWriter, r *http.Request, s *internal.State) {
+func handleLoadContent(w http.ResponseWriter, r *http.Request, s *internal.State, maxProgramSize int) {
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
 	if !ok {
 		return
@@ -202,7 +205,7 @@ func handleLoadContent(w http.ResponseWriter, r *http.Request, s *internal.State
 	)
 
 	if progHash, err = hex.DecodeString(progHexHash); err == nil {
-		body := decodeContent(w, r, s, wasmRequestMaxSize)
+		body := decodeContent(w, r, s, maxProgramSize)
 		if body == nil {
 			return
 		}
@@ -254,7 +257,7 @@ func handleLoadId(w http.ResponseWriter, r *http.Request, s *internal.State) {
 	}
 }
 
-func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, maxProgramSize int) {
 	r = r.WithContext(ctx)
 
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
@@ -274,7 +277,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	)
 
 	if progHash, err = hex.DecodeString(progHexHash); err == nil {
-		body := decodeContent(w, r, s, wasmRequestMaxSize)
+		body := decodeContent(w, r, s, maxProgramSize)
 		if body == nil {
 			return
 		}
