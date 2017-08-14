@@ -1,5 +1,9 @@
 PWD		:= $(shell pwd)
 
+ifeq ($(GOPATH),)
+GOPATH		:= $(HOME)/go
+endif
+
 GO		?= go
 SETCAP		?= setcap
 
@@ -47,7 +51,10 @@ lib:
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 
-bin:
+get:
+	test $(PWD) = $(GOPATH)/src/$(GOPACKAGEPREFIX) && $(GO) get -d $(GOPACKAGES)
+
+bin: get
 	$(GO) build $(GOBUILDFLAGS) -o bin/containerd $(GOPACKAGEPREFIX)/cmd/gate-containerd
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/gate-runner
 	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/gate-server
@@ -101,4 +108,4 @@ clean:
 	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: lib bin devlibs tests all capabilities check check-toolchain benchmark clean
+.PHONY: lib get bin devlibs tests all capabilities check check-toolchain benchmark clean
