@@ -4,6 +4,6 @@ const (
 	DefaultMaxProgramSize = 16777216
 )
 
-type Settings struct {
+type Config struct {
 	MaxProgramSize int
 }

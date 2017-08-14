@@ -12,8 +12,8 @@ type State struct {
 }
 
 // NewState retains significant resources until the context is canceled.
-func NewState(ctx context.Context, opt *serverconfig.Options, set *serverconfig.Settings) *State {
+func NewState(ctx context.Context, config *serverconfig.Config) *State {
 	s := new(State)
-	s.Internal.Init(ctx, opt, set)
+	s.Internal.Init(ctx, *config)
 	return s
 }

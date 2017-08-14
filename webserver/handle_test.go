@@ -28,12 +28,12 @@ func services(r io.Reader, w io.Writer) run.ServiceRegistry {
 	return origin.CloneRegistryWith(nil, r, w)
 }
 
-var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &serverconfig.Options{
+var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &serverconfig.Config{
 	Env:      runtest.NewEnvironment(),
 	Services: services,
 	Log:      log.New(os.Stderr, "log: ", 0),
 	Debug:    os.Stdout,
-}, nil), nil)
+}), nil)
 
 var (
 	progData []byte

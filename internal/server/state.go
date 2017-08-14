@@ -23,10 +23,7 @@ const (
 )
 
 type State struct {
-	config.Options
-
-	memorySizeLimit wasm.MemorySize
-	stackSize       int32
+	config.Config
 
 	instanceFactory <-chan *Instance
 
@@ -36,33 +33,25 @@ type State struct {
 	instances      map[uint64]*Instance
 }
 
-func (s *State) Init(ctx context.Context, opt *config.Options, set *config.Settings) {
-	if opt != nil {
-		s.Options = *opt
-	}
-
-	if set == nil {
-		set = new(config.Settings)
-	}
-
-	if set.MemorySizeLimit > 0 {
-		s.memorySizeLimit = (wasm.MemorySize(set.MemorySizeLimit) + (wasm.Page - 1)) &^ (wasm.Page - 1)
+func (s *State) Init(ctx context.Context, conf config.Config) {
+	if conf.MemorySizeLimit > 0 {
+		conf.MemorySizeLimit = (conf.MemorySizeLimit + int(wasm.Page-1)) &^ int(wasm.Page-1)
 	} else {
-		s.memorySizeLimit = wasm.MemorySize(config.DefaultMemorySizeLimit)
+		conf.MemorySizeLimit = config.DefaultMemorySizeLimit
 	}
 
-	switch {
-	case set.StackSize > maxStackSize:
-		s.stackSize = maxStackSize
-
-	case set.StackSize > 0:
-		s.stackSize = int32(set.StackSize)
-
-	default:
-		s.stackSize = config.DefaultStackSize
+	if conf.StackSize > maxStackSize {
+		conf.StackSize = maxStackSize
+	} else if conf.StackSize <= 0 {
+		conf.StackSize = config.DefaultStackSize
 	}
 
-	s.instanceFactory = makeInstanceFactory(ctx, set.PreforkProcs, s)
+	if conf.PreforkProcs <= 0 {
+		conf.PreforkProcs = config.DefaultPreforkProcs
+	}
+
+	s.Config = conf
+	s.instanceFactory = makeInstanceFactory(ctx, s)
 	s.programsByHash = make(map[[sha512.Size]byte]*program)
 	s.programs = make(map[uint64]*program)
 	s.instances = make(map[uint64]*Instance)
@@ -452,13 +441,8 @@ type Instance struct {
 	program *program // initialized and used only by State
 }
 
-func makeInstanceFactory(ctx context.Context, preforkProcs int, s *State) <-chan *Instance {
-	chanSize := preforkProcs - 1
-	if chanSize < 0 {
-		chanSize = config.DefaultPreforkProcs - 1
-	}
-
-	channel := make(chan *Instance, chanSize)
+func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
+	channel := make(chan *Instance, s.PreforkProcs-1)
 
 	go func() {
 		defer func() {
@@ -519,11 +503,11 @@ func (inst *Instance) close() {
 
 func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err error) {
 	_, memorySize := m.MemoryLimits()
-	if memorySize > s.memorySizeLimit {
-		memorySize = s.memorySizeLimit
+	if limit := wasm.MemorySize(s.MemorySizeLimit); memorySize > limit {
+		memorySize = limit
 	}
 
-	err = inst.payload.Populate(m, memorySize, s.stackSize)
+	err = inst.payload.Populate(m, memorySize, int32(s.StackSize))
 	if err != nil {
 		return
 	}
@@ -540,7 +524,7 @@ func (inst *Instance) attachOrigin() (pipe *Pipe) {
 	return
 }
 
-func (inst *Instance) Run(ctx context.Context, opt *config.Options, r io.Reader, w io.Writer) {
+func (inst *Instance) Run(ctx context.Context, s *State, r io.Reader, w io.Writer) {
 	defer inst.close()
 
 	var (
@@ -570,9 +554,9 @@ func (inst *Instance) Run(ctx context.Context, opt *config.Options, r io.Reader,
 		}
 	}()
 
-	status, trap, err = run.Run(ctx, opt.Env, &inst.process, &inst.payload, opt.Services(r, w))
+	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, s.Services(r, w))
 	if err != nil {
-		opt.Log.Printf("run error: %v", err)
+		s.Log.Printf("run error: %v", err)
 	}
 }
 

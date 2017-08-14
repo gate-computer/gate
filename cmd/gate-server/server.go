@@ -33,17 +33,17 @@ var (
 
 func main() {
 	var (
-		config = run.Config{
+		runconf = run.Config{
 			MaxProcs:    run.DefaultMaxProcs,
 			LibDir:      "lib",
 			CgroupTitle: run.DefaultCgroupTitle,
 		}
-		settings = serverconfig.Settings{
+		serverconf = serverconfig.Config{
 			MemorySizeLimit: serverconfig.DefaultMemorySizeLimit,
 			StackSize:       serverconfig.DefaultStackSize,
 			PreforkProcs:    serverconfig.DefaultPreforkProcs,
 		}
-		websettings = webserver.Settings{
+		webconf = webserver.Config{
 			MaxProgramSize: webserver.DefaultMaxProgramSize,
 		}
 		addr         = "localhost:8888"
@@ -60,20 +60,20 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
-	flag.StringVar(&config.DaemonSocket, "daemon-socket", config.DaemonSocket, "use containerd via unix socket")
-	flag.UintVar(&config.CommonGid, "common-gid", config.CommonGid, "group id for file descriptor sharing")
-	flag.UintVar(&config.ContainerCred.Uid, "container-uid", config.ContainerCred.Uid, "user id for bootstrapping executor")
-	flag.UintVar(&config.ContainerCred.Gid, "container-gid", config.ContainerCred.Gid, "group id for bootstrapping executor")
-	flag.UintVar(&config.ExecutorCred.Uid, "executor-uid", config.ExecutorCred.Uid, "user id for executing code")
-	flag.UintVar(&config.ExecutorCred.Gid, "executor-gid", config.ExecutorCred.Gid, "group id for executing code")
-	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
-	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
-	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
-	flag.IntVar(&settings.MemorySizeLimit, "memory-size-limit", settings.MemorySizeLimit, "memory size limit")
-	flag.IntVar(&settings.StackSize, "stack-size", settings.StackSize, "stack size")
-	flag.IntVar(&settings.PreforkProcs, "prefork-procs", settings.PreforkProcs, "number of processes to create in advance")
-	flag.IntVar(&websettings.MaxProgramSize, "max-program-size", websettings.MaxProgramSize, "maximum accepted WebAssembly module upload size")
+	flag.IntVar(&runconf.MaxProcs, "max-procs", runconf.MaxProcs, "limit number of simultaneous programs")
+	flag.StringVar(&runconf.DaemonSocket, "daemon-socket", runconf.DaemonSocket, "use containerd via unix socket")
+	flag.UintVar(&runconf.CommonGid, "common-gid", runconf.CommonGid, "group id for file descriptor sharing")
+	flag.UintVar(&runconf.ContainerCred.Uid, "container-uid", runconf.ContainerCred.Uid, "user id for bootstrapping executor")
+	flag.UintVar(&runconf.ContainerCred.Gid, "container-gid", runconf.ContainerCred.Gid, "group id for bootstrapping executor")
+	flag.UintVar(&runconf.ExecutorCred.Uid, "executor-uid", runconf.ExecutorCred.Uid, "user id for executing code")
+	flag.UintVar(&runconf.ExecutorCred.Gid, "executor-gid", runconf.ExecutorCred.Gid, "group id for executing code")
+	flag.StringVar(&runconf.LibDir, "libdir", runconf.LibDir, "path")
+	flag.StringVar(&runconf.CgroupParent, "cgroup-parent", runconf.CgroupParent, "slice")
+	flag.StringVar(&runconf.CgroupTitle, "cgroup-title", runconf.CgroupTitle, "prefix of dynamic name")
+	flag.IntVar(&serverconf.MemorySizeLimit, "memory-size-limit", serverconf.MemorySizeLimit, "memory size limit")
+	flag.IntVar(&serverconf.StackSize, "stack-size", serverconf.StackSize, "stack size")
+	flag.IntVar(&serverconf.PreforkProcs, "prefork-procs", serverconf.PreforkProcs, "number of processes to create in advance")
+	flag.IntVar(&webconf.MaxProgramSize, "max-program-size", webconf.MaxProgramSize, "maximum accepted WebAssembly module upload size")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
@@ -112,24 +112,22 @@ func main() {
 		infoLog = critLog
 	}
 
-	env, err := run.NewEnvironment(&config)
+	env, err := run.NewEnvironment(&runconf)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 	defer env.Close()
 
-	opt := serverconfig.Options{
-		Env:      env,
-		Services: services,
-		Log:      infoLog,
-	}
+	serverconf.Env = env
+	serverconf.Services = services
+	serverconf.Log = infoLog
 
 	if debug {
-		opt.Debug = os.Stderr
+		serverconf.Debug = os.Stderr
 	}
 
-	state := server.NewState(ctx, &opt, &settings)
-	handler := webserver.NewHandler(ctx, "/", state, &websettings)
+	state := server.NewState(ctx, &serverconf)
+	handler := webserver.NewHandler(ctx, "/", state, &webconf)
 
 	if letsencrypt {
 		if !acceptTOS {

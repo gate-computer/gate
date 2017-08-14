@@ -1,8 +1,7 @@
 package run
 
 const (
-	DefaultMaxProcs = 32767 - 1 // practical maximum (minus init process)
-
+	DefaultMaxProcs    = 32767 - 1 // practical maximum (minus init process)
 	DefaultCgroupTitle = "gate-executor"
 )
 
@@ -17,12 +16,11 @@ type Config struct {
 	CommonGid    uint
 
 	// The rest are only applicable if DaemonSocket is not set:
-
 	ContainerCred Cred
 	ExecutorCred  Cred
 	LibDir        string
 
-	// These have no effect if container was compiled without cgroup support.
+	// These have no effect if container was compiled without cgroup support:
 	CgroupParent string
 	CgroupTitle  string
 }

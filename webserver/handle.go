@@ -25,10 +25,10 @@ const (
 
 // NewHandler should be called with the same context that was passed to
 // server.NewState(), or its subcontext.
-func NewHandler(ctx context.Context, pattern string, state *server.State, set *Settings) http.Handler {
+func NewHandler(ctx context.Context, pattern string, state *server.State, conf *Config) http.Handler {
 	maxProgramSize := DefaultMaxProgramSize
-	if set != nil && set.MaxProgramSize != 0 {
-		maxProgramSize = set.MaxProgramSize
+	if conf != nil && conf.MaxProgramSize != 0 {
+		maxProgramSize = conf.MaxProgramSize
 	}
 
 	var (
@@ -300,7 +300,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 	go func() {
 		defer out.Close()
-		inst.Run(ctx, &s.Options, in, out)
+		inst.Run(ctx, s, in, out)
 	}()
 }
 
@@ -348,7 +348,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 
 	go func() {
 		defer out.Close()
-		inst.Run(ctx, &s.Options, in, out)
+		inst.Run(ctx, s, in, out)
 	}()
 }
 
@@ -455,7 +455,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		cancel()
 	}
 
-	inst.Run(ctx, &s.Options, newWebsocketReadCanceler(conn, cancel), websocketWriter{conn})
+	inst.Run(ctx, s, newWebsocketReadCanceler(conn, cancel), websocketWriter{conn})
 
 	closeMsg := websocketNormalClosure
 
@@ -522,7 +522,7 @@ func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 
 	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
 
-	inst.Run(r.Context(), &s.Options, r.Body, w)
+	inst.Run(r.Context(), s, r.Body, w)
 
 	if result, ok := s.WaitInstance(inst, instId); ok {
 		if result != nil {
