@@ -136,7 +136,7 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 		// replace stack
 		"        mov     %%rsp, %%rdi                            \n"
 		"        mov     %%rax, %%rsp                            \n"
-		// unmap old stack (hoping that stack pointer was somewhere in the last frame)
+		// unmap old stack (hoping that stack pointer was somewhere in the initial page)
 		"        dec     %%r11                                   \n"
 		"        add     %%r11, %%rdi                            \n"
 		"        not     %%r11                                   \n"
