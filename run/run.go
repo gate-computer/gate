@@ -48,13 +48,14 @@ func checkCurrentGid(gid uint) (err error) {
 	return
 }
 
-func randAddrs() (textAddr, heapAddr uint64) {
-	b := make([]byte, 8)
+func randAddrs() (textAddr, heapAddr, stackAddr uint64) {
+	b := make([]byte, 12)
 	if _, err := rand.Read(b); err != nil {
 		panic(err)
 	}
 	textAddr = randAddr(minTextAddr, maxTextAddr, b[0:4])
 	heapAddr = randAddr(minHeapAddr, maxHeapAddr, b[4:8])
+	stackAddr = randAddr(minStackAddr, maxStackAddr, b[8:12])
 	return
 }
 
@@ -193,9 +194,11 @@ func (env *Environment) Close() error {
 	return env.executor.close()
 }
 
+// payloadInfo is like the info object in loader.c
 type payloadInfo struct {
 	TextAddr       uint64
 	HeapAddr       uint64
+	StackAddr      uint64
 	PageSize       uint32
 	RODataSize     uint32
 	TextSize       uint32
@@ -275,11 +278,12 @@ func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackS
 		return
 	}
 
-	textAddr, heapAddr := randAddrs()
+	textAddr, heapAddr, stackAddr := randAddrs()
 
 	p.info = payloadInfo{
 		TextAddr:       textAddr,
 		HeapAddr:       heapAddr,
+		StackAddr:      stackAddr,
 		PageSize:       uint32(pageSize),
 		RODataSize:     roDataSize,
 		TextSize:       textSize,

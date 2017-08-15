@@ -168,9 +168,11 @@ int main(int argc, char **argv, char **envp)
 	if (block_path == NULL)
 		return 49;
 
+	// this is like payloadInfo in run.go
 	struct __attribute__ ((packed)) {
 		uint64_t text_addr;
 		uint64_t heap_addr;
+		uint64_t stack_addr;
 		uint32_t page_size;
 		uint32_t rodata_size;
 		uint32_t text_size;
@@ -215,8 +217,8 @@ int main(int argc, char **argv, char **envp)
 
 	size_t stack_offset = globals_memory_offset + globals_memory_size;
 
-	void *stack_buf = sys_mmap(NULL, info.stack_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE|MAP_STACK, GATE_MAPS_FD, stack_offset);
-	if (stack_buf == MAP_FAILED)
+	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, stack_offset);
+	if (stack_buf != (void *) info.stack_addr)
 		return 55;
 
 	void *stack_limit = stack_buf + GATE_SIGNAL_STACK_RESERVE;

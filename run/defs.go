@@ -9,11 +9,12 @@ import (
 const (
 	RODataAddr = 0x10000
 
-	minTextAddr = 0x000300000000 + 0x100000000
-	maxTextAddr = 0x400000000000 - 0x100000000
-
-	minHeapAddr = 0x400000000000 + 0x100000000
-	maxHeapAddr = 0x7f0000000000 - 0x200000000
+	minTextAddr  = 0x000400000000
+	maxTextAddr  = 0x2aa700000000
+	minHeapAddr  = 0x2aa900000000
+	maxHeapAddr  = 0x554b00000000
+	minStackAddr = 0x554d00000000
+	maxStackAddr = 0x7ff000000000
 )
 
 const (
