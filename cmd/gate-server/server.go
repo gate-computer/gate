@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"log/syslog"
+	"net"
 	"net/http"
 	"os"
 	"path"
@@ -21,17 +22,19 @@ import (
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/webserver"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/net/netutil"
 )
 
 const (
 	renewCertBefore = 30 * 24 * time.Hour
 )
 
-var (
-	sysPageSize = syscall.Getpagesize()
-)
-
 func main() {
+	var nofile syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &nofile); err != nil {
+		log.Fatal(err)
+	}
+
 	var (
 		runconf = run.Config{
 			MaxProcs:    run.DefaultMaxProcs,
@@ -47,6 +50,7 @@ func main() {
 			MaxProgramSize: webserver.DefaultMaxProgramSize,
 		}
 		addr         = "localhost:8888"
+		maxConns     = int(nofile.Cur/8 - 10)
 		letsencrypt  = false
 		email        = ""
 		acceptTOS    = false
@@ -75,6 +79,7 @@ func main() {
 	flag.IntVar(&serverconf.PreforkProcs, "prefork-procs", serverconf.PreforkProcs, "number of processes to create in advance")
 	flag.IntVar(&webconf.MaxProgramSize, "max-program-size", webconf.MaxProgramSize, "maximum accepted WebAssembly module upload size")
 	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
+	flag.IntVar(&maxConns, "max-conns", maxConns, "limit number of simultaneous connections")
 	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
 	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
 	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
@@ -116,7 +121,6 @@ func main() {
 	if err != nil {
 		critLog.Fatal(err)
 	}
-	defer env.Close()
 
 	serverconf.Env = env
 	serverconf.Services = services
@@ -128,6 +132,15 @@ func main() {
 
 	state := server.NewState(ctx, &serverconf)
 	handler := webserver.NewHandler(ctx, "/", state, &webconf)
+
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		critLog.Fatal(err)
+	}
+
+	if maxConns > 0 {
+		l = netutil.LimitListener(l, maxConns)
+	}
 
 	if letsencrypt {
 		if !acceptTOS {
@@ -142,20 +155,15 @@ func main() {
 			Email:       email,
 		}
 
-		s := http.Server{
-			Addr:    addr,
-			Handler: handler,
-			TLSConfig: &tls.Config{
-				GetCertificate: m.GetCertificate,
-			},
-		}
-
-		err = s.ListenAndServeTLS("", "")
-	} else {
-		err = http.ListenAndServe(addr, handler)
+		l = tls.NewListener(l, &tls.Config{
+			GetCertificate: m.GetCertificate,
+		})
 	}
 
-	critLog.Fatal(err)
+	s := http.Server{
+		Handler: handler,
+	}
+	critLog.Fatal(s.Serve(l))
 }
 
 func services(r io.Reader, w io.Writer) run.ServiceRegistry {
