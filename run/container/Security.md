@@ -1,3 +1,6 @@
+# Installation security notes
+
+
 The container binary needs capabilities for:
 
   - Configuring namespaces.
@@ -5,6 +8,7 @@ The container binary needs capabilities for:
   - Configuring cgroup via systemd.  Effective uid is temporarily set to root.
 
   - Setting supplementary groups in user namespace.
+
 
 Things controlled by the user who can execute the container binary:
 
@@ -23,6 +27,7 @@ Things controlled by the user who can execute the container binary:
     inside the container.  It can be used to spawn and kill processes inside
     the container, and execute arbitrary code in the processes.
 
+
 Environmental factors:
 
   - The container binary needs CAP_DAC_OVERRIDE, CAP_SETGID, and CAP_SETUID
@@ -35,5 +40,6 @@ Environmental factors:
     loader don't need capabilities, and they need to have more relaxed read and
     execution permissions.)
 
-  - Systemd and D-Bus.
+  - Cgroup configuration needs to be via systemd.  By default a container
+    instance gets its own cgroup under system.slice, but that's it.
 
