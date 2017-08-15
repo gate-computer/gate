@@ -8,6 +8,7 @@
 
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/personality.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -103,6 +104,12 @@ static inline void execute_child(char *loader, const int *fds, int num_fds)
 
 	if (prctl(PR_SET_TSC, PR_TSC_SIGSEGV, 0, 0, 0) != 0)
 		_exit(17);
+
+	// ASLR makes stack size and stack pointer position unpredictable, so
+	// it's hard to unmap the initial stack.  The user program's text, data
+	// and stack addresses are randomized manually.
+	if (personality(ADDR_NO_RANDOMIZE) < 0)
+		_exit(37);
 
 	char *envp[] = {loader, NULL};
 	char **empty = envp + 1;

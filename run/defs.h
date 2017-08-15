@@ -1,4 +1,4 @@
-// some of these are also defined in defs.go, run.js and work.js
+// some of these are also defined in defs.go, run.js, work.js and loader/tests/stack.py
 
 #define GATE_RODATA_ADDR 0x10000
 

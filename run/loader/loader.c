@@ -24,6 +24,20 @@ extern int signal_handler;
 extern int signal_restorer;
 extern int trap_handler;
 
+static int sys_personality(unsigned long persona)
+{
+	int retval;
+
+	asm volatile (
+		"syscall"
+		: "=a" (retval)
+		: "a" (SYS_personality), "D" (persona)
+		: "cc", "rcx", "r11", "memory"
+	);
+
+	return retval;
+}
+
 static ssize_t sys_read(int fd, void *buf, size_t count)
 {
 	ssize_t retval;
@@ -119,18 +133,18 @@ static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_me
 	register void *r15 asm ("r15") = init_memory_limit;
 
 	asm volatile (
-		// MMX registers
+		// runtime MMX registers
 		"        movq    %%rdx, %%mm0                            \n"
 		"        movq    %%rcx, %%mm1                            \n"
 		// replace stack
-		"        mov     %%rsp, %%rdi                            \n"
 		"        mov     %%rax, %%rsp                            \n"
-		// unmap old stack (hoping that stack pointer was somewhere in the initial page)
-		"        dec     %%r11                                   \n"
-		"        add     %%r11, %%rdi                            \n"
-		"        not     %%r11                                   \n"
-		"        and     %%r11, %%rdi                            \n"
-		"        sub     %%rsi, %%rdi                            \n"
+		// load the stack ptr saved in _start, and unmap old stack (ASLR breaks this)
+		"        movq    %%mm7, %%rdi                            \n" // ptr = stack top
+		"        dec     %%r11                                   \n" // page-1
+		"        add     %%r11, %%rdi                            \n" // ptr += page-1
+		"        not     %%r11                                   \n" // ~(page-1)
+		"        and     %%r11, %%rdi                            \n" // ptr &= ~(page-1)
+		"        sub     %%rsi, %%rdi                            \n" // ptr -= stack size
 		"        mov     $"xstr(SYS_munmap)", %%eax              \n"
 		"        syscall                                         \n"
 		"        mov     $58, %%edi                              \n"
@@ -164,6 +178,10 @@ static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_me
 
 int main(int argc, char **argv, char **envp)
 {
+	// undo the personality change by executor.c
+	if (sys_personality(0) < 0)
+		return 47;
+
 	const char *block_path = get_fd_path(GATE_BLOCK_FD, envp);
 	if (block_path == NULL)
 		return 49;

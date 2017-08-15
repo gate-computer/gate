@@ -17,6 +17,11 @@ _start:
 
 	mov	%rsp, %rdx		// envp
 
+	// Store stack pointer for unmapping in the enter function.  At this
+	// point it should be well within the highest stack page (determined
+	// experimentally using tests/stack.c).
+	movq	%rsp, %mm7
+
 	mov	%rax, %rsp		// restore stack top for main
 	call	main
 	mov	%eax, %edi		// exit status
