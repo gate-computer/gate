@@ -9,6 +9,7 @@
 #include <sys/types.h>
 
 #include "../defs.h"
+#include "../fdpath.h"
 
 #define xstr(s) str(s)
 #define str(s)  #s
@@ -22,18 +23,6 @@ extern int runtime_start_with_syscall;
 extern int signal_handler;
 extern int signal_restorer;
 extern int trap_handler;
-
-__attribute__ ((noreturn))
-static void sys_exit(int status)
-{
-	asm volatile (
-		" syscall \n"
-		" int3    \n"
-		:
-		: "a" (SYS_exit), "D" (status)
-	);
-	__builtin_unreachable();
-}
 
 static ssize_t sys_read(int fd, void *buf, size_t count)
 {
@@ -173,8 +162,12 @@ static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *in
 	__builtin_unreachable();
 }
 
-static int main()
+int main(int argc, char **argv, char **envp)
 {
+	const char *block_path = get_fd_path(GATE_BLOCK_FD, envp);
+	if (block_path == NULL)
+		return 49;
+
 	struct __attribute__ ((packed)) {
 		uint64_t text_addr;
 		uint64_t heap_addr;
@@ -232,15 +225,9 @@ static int main()
 	if (sys_close(GATE_MAPS_FD) != 0)
 		return 56;
 
-	int nonblock_fd = sys_open(GATE_BLOCK_PATH, O_RDONLY|O_CLOEXEC|O_NONBLOCK, 0);
+	int nonblock_fd = sys_open(block_path, O_RDONLY|O_CLOEXEC|O_NONBLOCK, 0);
 	if (nonblock_fd != GATE_NONBLOCK_FD)
 		return 57;
 
 	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit);
-}
-
-__attribute__ ((noreturn))
-void _start()
-{
-	sys_exit(main());
 }

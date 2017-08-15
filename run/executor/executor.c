@@ -17,6 +17,7 @@
 #include <unistd.h>
 
 #include "../defs.h"
+#include "../fdpath.h"
 #include "buffer.h"
 
 #define CHILD_NICE 19
@@ -81,7 +82,7 @@ static void init_sigchld()
 }
 
 __attribute__ ((noreturn))
-static inline void execute_child(const int *fds, int num_fds)
+static inline void execute_child(char *loader, const int *fds, int num_fds)
 {
 	// file descriptor duplication order is fragile
 
@@ -103,17 +104,18 @@ static inline void execute_child(const int *fds, int num_fds)
 	if (prctl(PR_SET_TSC, PR_TSC_SIGSEGV, 0, 0, 0) != 0)
 		_exit(17);
 
-	char *empty[] = {NULL};
-	fexecve(GATE_LOADER_FD, empty, empty);
+	char *envp[] = {loader, NULL};
+	char **empty = envp + 1;
+	execve(loader, empty, envp);
 	_exit(18);
 }
 
 __attribute__ ((noinline))
-static pid_t spawn_child(const int *fds, int num_fds)
+static pid_t spawn_child(char *loader, const int *fds, int num_fds)
 {
 	pid_t pid = vfork();
 	if (pid == 0)
-		execute_child(fds, num_fds);
+		execute_child(loader, fds, num_fds);
 
 	return pid;
 }
@@ -167,7 +169,7 @@ static inline ssize_t do_recvmsg(struct msghdr *msg, void *buf, size_t buflen, i
 	return recvmsg(GATE_CONTROL_FD, msg, flags);
 }
 
-static inline void handle_control_message(struct buffer *sending, struct cmsghdr *cmsg)
+static inline void handle_control_message(struct buffer *sending, struct cmsghdr *cmsg, char *loader)
 {
 	if (cmsg->cmsg_level != SOL_SOCKET)
 		_exit(20);
@@ -185,7 +187,7 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 
 	const int *fds = (int *) CMSG_DATA(cmsg);
 
-	pid_t pid = spawn_child(fds, num_fds);
+	pid_t pid = spawn_child(loader, fds, num_fds);
 	if (pid <= 0)
 		_exit(23);
 
@@ -211,7 +213,7 @@ static inline void handle_pid_message(struct buffer *killed, struct buffer *died
 	}
 }
 
-static inline void handle_receiving(struct buffer *sending, struct buffer *killed, struct buffer *died)
+static inline void handle_receiving(struct buffer *sending, struct buffer *killed, struct buffer *died, char *loader)
 {
 	union {
 		char buf[sizeof (pid_t)];
@@ -256,7 +258,7 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 
 		struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
 		if (cmsg) {
-			handle_control_message(sending, cmsg);
+			handle_control_message(sending, cmsg, loader);
 
 			// only one message per sizeof (pid_t) bytes, otherwise
 			// we may overflow sending buffer
@@ -308,7 +310,7 @@ static inline void handle_reaping(struct buffer *sending, struct buffer *killed,
 	}
 }
 
-int main()
+int main(int argc, char **argv, char **envp)
 {
 	xlimit(RLIMIT_DATA, 0);
 
@@ -316,6 +318,10 @@ int main()
 	xcloexec(GATE_LOADER_FD);
 
 	init_sigchld();
+
+	char *loader = get_fd_path(GATE_LOADER_FD, envp);
+	if (loader == NULL)
+		_exit(35);
 
 	char buffers[BUFFER_STORAGE_SIZE(SENDING_CAPACITY + KILLED_CAPACITY + DIED_CAPACITY)];
 	struct buffer sending = BUFFER_INITIALIZER(buffers, 0);
@@ -331,7 +337,7 @@ int main()
 				handle_sending(&sending);
 
 			if (revents & POLLIN)
-				handle_receiving(&sending, &killed, &died);
+				handle_receiving(&sending, &killed, &died, loader);
 		}
 	}
 }

@@ -5,7 +5,7 @@
 
 #define INT3 0xcc
 
-.section .runtime,"ax",%progbits
+	.section .runtime,"ax",%progbits
 
 	.align	16,INT3
 
@@ -254,7 +254,7 @@ __gate_exit:
 	.globl	runtime_exit
 	.type	runtime_exit,@function
 
-// ecx = status code
+// edi = status code
 runtime_exit:
 .Lexit:
 	sub	$8+128, %r13		// stack reserve
@@ -304,6 +304,3 @@ __gate_debug_write:
 	mov	$SYS_write, %ebp
 	mov	$GATE_DEBUG_FD, %edi	// fd (1st syscall arg)
 	jmp	.Lio
-
-// don't want executable stack
-.section .note.GNU-stack,"",%progbits

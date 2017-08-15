@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <libgen.h>
+#include <linux/random.h>
 #include <sched.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
@@ -55,6 +56,25 @@ static void xerror(const char *s)
 {
 	perror(s);
 	exit(1);
+}
+
+// Get random bytes or die.
+static void xgetentropy(void *buf, size_t buflen)
+{
+	for (size_t got = 0; got < buflen; ) {
+		ssize_t len = syscall(SYS_getrandom, buf + got, buflen - got, 0);
+		if (len <= 0) {
+			if (len == 0)
+				errno = EIO;
+
+			if (errno == EINTR)
+				continue;
+
+			xerror("getentropy");
+		}
+
+		got += len;
+	}
 }
 
 // Close a file descriptor or die.
@@ -336,6 +356,14 @@ static int child_main(void *dummy_arg)
 
 	int executor_fd = xopenbinaries();
 
+	uint64_t rand;
+	xgetentropy(&rand, sizeof (rand));
+
+	char tmp_proc[strlen("/tmp/.") + 16 + 1];
+	int len = snprintf(tmp_proc, sizeof (tmp_proc), "/tmp/.%016lx", rand);
+	if (len != (int) sizeof (tmp_proc) - 1)
+		xerror("snprintf");
+
 	// supplementary group
 	const gid_t groups[1] = {4};
 	if (setgroups(1, groups) != 0)
@@ -362,31 +390,35 @@ static int child_main(void *dummy_arg)
 	if (mount("tmpfs", "/tmp", "tmpfs", mount_options, "mode=0111,nr_blocks=1,nr_inodes=3") != 0)
 		xerror("mount small tmpfs at /tmp");
 
-	if (mkdir("/tmp/proc", 0) != 0)
+	if (mkdir(tmp_proc, 0) != 0)
 		xerror("mkdir inside small tmpfs");
 
-	if (mount("proc", "/tmp/proc", "proc", mount_options, NULL) != 0)
+	if (mount("proc", tmp_proc, "proc", mount_options, NULL) != 0)
 		xerror("mount proc inside would-be root");
 
-	if (mkdir("/tmp/pivot", 0) != 0)
+	if (mkdir("/tmp/x", 0) != 0)
 		xerror("mkdir inside small tmpfs");
 
-	if (pivot_root("/tmp", "/tmp/pivot") != 0)
+	if (pivot_root("/tmp", "/tmp/x") != 0)
 		xerror("pivot root");
+
+	const char *proc = tmp_proc + 4; // remove "/tmp" prefix
 
 	if (chdir("/") != 0)
 		xerror("chdir to new root");
 
-	if (umount2("/pivot", MNT_DETACH) != 0)
+	if (umount2("/x", MNT_DETACH) != 0)
 		xerror("umount old root");
 
-	if (rmdir("/pivot") != 0)
-		xerror("rmdir old root");
+	// keep the x directory so that the filesystem remains full inode-wise
 
 	mount_options |= MS_RDONLY;
 
 	if (mount("", "/", "", MS_REMOUNT|mount_options, NULL) != 0)
 		xerror("remount new root as read-only");
+
+	if (chdir("/x") != 0)
+		xerror("chdir to work dir");
 
 	// "executor" credentials
 	if (setreuid(3, 3) != 0)
@@ -395,6 +427,11 @@ static int child_main(void *dummy_arg)
 		xerror("setgid for execution");
 
 	xcapclear();
+
+	char executor[GATE_FD_PATH_LEN + 1];
+	len = snprintf(executor, sizeof (executor), "%s/self/fd/%d", proc, executor_fd);
+	if (len != GATE_FD_PATH_LEN)
+		xerror("snprintf");
 
 	// enable scheduler's autogroup feature
 	if (setsid() < 0)
@@ -410,8 +447,9 @@ static int child_main(void *dummy_arg)
 
 	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
-	char *empty[] = {NULL};
-	fexecve(executor_fd, empty, empty);
+	char *envp[] = {executor, NULL};
+	char **empty = envp + 1;
+	execve(executor, empty, envp);
 	// stderr doesn't work anymore
 	return 2;
 }

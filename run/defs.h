@@ -5,7 +5,6 @@
 #define GATE_LOADER_STACK_PAGES 3 // minimum workable value, determined on Linux 4.2
 
 #define GATE_BLOCK_FD    0
-#define GATE_BLOCK_PATH  "/proc/self/fd/0"
 #define GATE_OUTPUT_FD   1
 #define GATE_DEBUG_FD    2
 #define GATE_CONTROL_FD  3
@@ -13,6 +12,7 @@
 #define GATE_NONBLOCK_FD 3
 #define GATE_LOADER_FD   4
 #define GATE_WAKEUP_FD   5
+#define GATE_FD_PATH_LEN (sizeof ("/.XXXXXXXXXXXXXXXX/self/fd/X") - 1)
 
 #define GATE_SIGNAL_STACK_RESERVE   0x600 // TODO
 #define GATE_SIGNAL_STACK_R9_OFFSET 56
