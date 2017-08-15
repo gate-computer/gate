@@ -2,7 +2,7 @@
 
 #define GATE_RODATA_ADDR 0x10000
 
-#define GATE_LOADER_STACK_PAGES 3 // minimum workable value, determined on Linux 4.2
+#define GATE_LOADER_STACK_SIZE 12288 // 3 regular pages
 
 #define GATE_BLOCK_FD    0
 #define GATE_OUTPUT_FD   1

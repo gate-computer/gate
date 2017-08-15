@@ -104,15 +104,15 @@ static int read_full(void *buf, size_t size)
 }
 
 __attribute__ ((noreturn))
-static void enter(uint64_t page_size, void *text_ptr, void *memory_ptr, void *init_memory_limit, void *grow_memory_limit, void *stack_ptr, void *stack_limit)
+static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_memory_limit, void *grow_memory_limit, void *stack_ptr, void *stack_limit)
 {
 	register void *rax asm ("rax") = stack_ptr;
 	register void *rdx asm ("rdx") = &trap_handler;
 	register void *rcx asm ("rcx") = grow_memory_limit;
-	register uint64_t rsi asm ("rsi") = GATE_LOADER_STACK_PAGES * page_size;
+	register uint64_t rsi asm ("rsi") = (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1);
 	register void *r9 asm ("r9") = &signal_handler;
 	register void *r10 asm ("r10") = &signal_restorer;
-	register uint64_t r11 asm ("r11") = page_size;
+	register uint64_t r11 asm ("r11") = page;
 	register void *r12 asm ("r12") = text_ptr;
 	register void *r13 asm ("r13") = stack_limit;
 	register void *r14 asm ("r14") = memory_ptr;

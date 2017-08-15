@@ -437,13 +437,13 @@ static int child_main(void *dummy_arg)
 	if (setsid() < 0)
 		xerror("setsid");
 
-	long pagesize = sysconf(_SC_PAGESIZE);
-	if (pagesize < 0)
+	long page = sysconf(_SC_PAGESIZE);
+	if (page <= 0)
 		xerror("sysconf _SC_PAGESIZE");
 
 	xlimit(RLIMIT_AS, GATE_LIMIT_AS);
 	xlimit(RLIMIT_CORE, 0);
-	xlimit(RLIMIT_STACK, GATE_LOADER_STACK_PAGES * pagesize);
+	xlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1));
 
 	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
