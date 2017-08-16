@@ -24,7 +24,7 @@ programs which work with Gate.
 ## API
 
 This is a description of Gate's C API.  See the [ABI](ABI.md) specification for
-language-agonstic details.
+language-agnostic details.
 
 The API declarations and implementations are in the [gate.h](include/gate.h) C
 header.  It consists of a few functions which are primarily used to access a
