@@ -15,6 +15,7 @@ Gate is a toolkit for doing things like that.
 [WebAssembly](http://webassembly.org), or wasm, is the executable format of the
 user programs.  However, the available APIs are completely different from the
 browsers' WebAssembly environments.
+See [Programming interface](Programming.md) for details.
 
 Linux's sandboxing and containerization features provide layers of security in
 addition WebAssembly's constraints.
@@ -164,6 +165,8 @@ distributions may use other names.)
 
 ## See also
 
+- [Programming interface](Programming.md)
+- [ABI](ABI.md)
 - [Installation security notes](run/container/Security.md)
 - [Go packages](https://godoc.org/github.com/tsavola/gate)
 - [wag](https://github.com/tsavola/wag)
