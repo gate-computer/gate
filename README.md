@@ -63,8 +63,7 @@ Client programs:
     See the [client-side client](examples/gate-talk/talk.go)
     and the [server-side client](examples/gate-talk/payload/talk.c) code examples.
 
-See the complete [API documentation](https://godoc.org/github.com/tsavola/gate).
-Some of the programs are available as [Docker images].
+See the complete [list of Go packages](https://godoc.org/github.com/tsavola/gate).
 
 
 ## Functional objectives
@@ -126,7 +125,7 @@ Secondary goals:
 
 ## Build requirements
 
-Due to the nature of the Go toolchain, it’s best to checkout the Git repository
+Due to the nature of the Go toolchain, it's best to checkout the Git repository
 at `$GOPATH/src/github.com/tsavola/gate`.  If you haven't set GOPATH, it
 defaults to `~/go`.
 
@@ -138,7 +137,7 @@ The non-Go components can be built with `make`.  They require:
   - libcap-dev
   - libsystemd-dev unless CGROUP_BACKEND=none is specified for make
 
-After that, capabilities need to be granted by running make capabilities as
+After that, capabilities need to be granted by running `make capabilities` as
 root (or in some other way; see [Installation security notes](run/container/Security.md)).
 That requires:
 
@@ -147,8 +146,8 @@ That requires:
 The Go programs can be built with `make bin`.  It downloads some dependencies
 to various directories under GOPATH.  In addition to them, these are required:
 
-  - Go 1.8 (or 1.7 if you don’t build the server)
-  - libcapstone-dev is needed by the runner
+  - Go 1.8 (or 1.7 if you don't build the webserver)
+  - libcapstone-dev is needed by gate-runner
 
 The programming interface libraries can be built with `make devlibs`:
 
@@ -166,7 +165,7 @@ distributions may use other names.)
 ## See also
 
 - [Installation security notes](run/container/Security.md)
-- [API documentation](https://godoc.org/github.com/tsavola/gate)
+- [Go packages](https://godoc.org/github.com/tsavola/gate)
 - [wag](https://github.com/tsavola/wag)
 - [wag-toolchain](https://github.com/tsavola/wag-toolchain)
 
