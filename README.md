@@ -19,7 +19,7 @@ browsers' WebAssembly environments.
 Linux's sandboxing and containerization features provide layers of security in
 addition WebAssembly's constraints.
 
-Services are akin to syscalls: they define the usefulness of the programs.
+*Services* are akin to syscalls: they define the usefulness of the programs.
 Gate provides a few fundamental services, but is intended to be extended.
 
 
