@@ -26,25 +26,12 @@ programs which work with Gate.
 This is a description of Gate's C API.  See the [ABI](ABI.md) specification for
 language-agnostic details.
 
-The API declarations and implementations are in the [gate.h](include/gate.h) C
-header.  It consists of a few functions which are primarily used to access a
-packet-based I/O interface.
+The API declarations and implementations are in the [`gate.h`](include/gate.h)
+header file.  It consists of a few functions which are primarily used to access
+a packet-based I/O interface.
 
 
-#### Types
-
-```c
-struct gate_packet {
-	uint32_t size;
-	uint16_t flags;
-	uint16_t code;
-};
-```
-> I/O packet header.  The size field includes the header and the trailing
-> contents.
->
-> TODO
-
+### Primitives
 
 #### Runtime constants
 
@@ -74,8 +61,8 @@ void gate_debug(const char *s);
 ```c
 void gate_exit(int status);
 ```
-> Terminate the program immediately.  The parameter value 0 indicates success
-> and 1 indicates failure.  Other values are reserved.
+> Terminate the program immediately.  Status value 0 indicates success and 1
+> indicates failure.  Other values are reserved.
 
 
 ```c
@@ -102,6 +89,78 @@ void gate_send_packet(const struct gate_packet *packet);
 > means that (at least) one packet can be sent without blocking.  Multiple
 > requests may be combined: if notification was requested multiple times before
 > the notification was delivered, the state is unknown.
+
+
+#### Packet header
+
+```c
+struct gate_packet {
+	uint32_t size;
+	uint16_t flags;
+	uint16_t code;
+};
+```
+> The size includes the header and the trailing contents.  See the
+> `gate_send_packet` function documentation about flags.
+>
+> The code identifies a service.  Code 0 identifies the service discovery
+> service.  It is the only valid code until more services have been discovered.
+>
+> As a special case, it's possible to send an empty packet with code 0 (empty
+> means that its size equals the header size).  It causes the flags to be
+> processed by the runtime, but it doesn't trigger a service discovery.
+> Likewise, the runtime may send a empty packet with code 0 if it needs to send
+> a notification, but has no queued packet to piggy-back it on.
+
+
+### Service discovery
+
+```c
+struct gate_service_name_packet {
+	struct gate_packet header;
+	// reserved fields
+	uint32_t count;
+	char names[0]; // variable length
+};
+```
+> Service discovery request, sent with code 0.  The count indicates how many
+> nul-terminated service names are concatenated in *names*.
+
+
+```c
+struct gate_service_info_packet {
+	struct gate_packet header;
+	// reserved fields
+	uint32_t count;
+	struct gate_service_info infos[0]; // variable length
+};
+```
+> Service discovery response, received with code 0.  It matches a service
+> discovery request; the count is the same as in the request, and *infos* is in
+> the same order as *names* in the request.
+>
+> Note that an empty packet with code 0 is not a service discovery response.
+
+
+```c
+struct gate_service_info {
+	uint16_t code;
+	// reserved fields
+	int32_t version;
+};
+```
+> If the code is non-zero, it can be used to send packets to the service and to
+> identify packets received from the service.  Code 0 means that the service is
+> not supported by the runtime.
+>
+> Semantics of the version are service-specific.
+>
+> Services won't start interacting with the program (or allocate significant
+> resources) until the program does, so it's safe to discover services even if
+> the program is unsure which ones it will actually use.  The contents of the
+> packets are entirely service-specific.
+>
+> The code is only valid within the program instance which discovered it.
 
 
 ## Toolchain
