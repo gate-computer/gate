@@ -49,13 +49,13 @@ struct gate_packet {
 #### Runtime constants
 
 ```c
-int gate_abi_version;
+const int gate_abi_version;
 ```
 > The ABI version.  The current version is 0.
 
 
 ```c
-size_t gate_max_packet_size;
+const size_t gate_max_packet_size;
 ```
 > The largest I/O packet size the runtime supports.  It's a fatal error to send
 > a larger packet, or to call the `gate_recv_packet` function with a smaller
