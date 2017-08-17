@@ -11,14 +11,9 @@ The wasm32 binary format acts as a container for Gate-specific programs.
 The programs must be self-sufficient: unlike in the browser, it's not possible
 to write JavaScript glue between the browser's functionality and the
 WebAssembly program.  In other words,
-binaries built with [binaryen](https://github.com/WebAssembly/binaryen) don't work.
-Everything has to be built around the import functions provided by Gate.
-
-[LLVM](https://llvm.org) and [clang](https://clang.llvm.org) have preliminary
-support for WebAssembly.
-The [wag-toolchain](https://github.com/tsavola/wag-toolchain) repository ties
-them together with other tools, and provides scripts for building C and C++
-programs which work with Gate.
+currently binaries built with [binaryen](https://github.com/WebAssembly/binaryen)
+don't work.  Everything has to be built around the import functions provided by
+Gate.  Luckily the gate-toolchain produces binaries which do work (see below).
 
 
 ## API
@@ -165,5 +160,42 @@ struct gate_service_info {
 
 ## Toolchain
 
-TODO
+[LLVM](https://llvm.org) and [clang](https://clang.llvm.org) have preliminary
+support for WebAssembly.
+The [wag-toolchain](https://github.com/tsavola/wag-toolchain) repository ties
+them together with other tools, and provides scripts for building C and C++
+programs which work with Gate.
+
+The [gate-toolchain](https://hub.docker.com/r/tsavola/gate-toolchain) Docker image
+is built on [wag-toolchain](https://hub.docker.com/r/tsavola/wag-toolchain) and contains
+partial [musl](https://www.musl-libc.org) C standard library,
+[dlmalloc](http://g.oswego.edu/dl/html/malloc.html), and the Gate API headers.
+It's currently the easiest way to build C programs for Gate.  C++ can also be
+used, but there is no C++ library support.
+
+When building your program, sources must first be compiled into LLVM bitcode
+files, which are then linked into a WebAssembly binary.  The sources of musl
+and malloc libraries have been compiled into individual LLVM bitcode files,
+found in the `/lib/wasm32` directory inside the Docker image.  When using the
+libraries, all necessary library functions need to be manually linked to the
+program.
+
+When invoking the Docker image, the container should run with your credentials
+and have access to the working directory.  Like this:
+
+```sh
+docker run -i --rm -u $(id -u):$(id -g) -v $PWD:$PWD -w $PWD tsavola/gate-toolchain ...
+```
+
+It contains the `compile`, `compile++` and `link` scripts.  They can be invoked
+more or less like gcc.  For example:
+
+```sh
+docker ... tsavola/gate-toolchain compile -Wall -o example.bc example.c
+docker ... tsavola/gate-toolchain link -o example.wasm example.bc /lib/wasm32/malloc.bc
+```
+
+There's also [example.c](examples/toolchain/example.c)
+and its [Makefile](examples/toolchain/Makefile).
+Build and run it with `make check-toolchain`.
 
