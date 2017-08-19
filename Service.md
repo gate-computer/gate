@@ -3,7 +3,7 @@
 ## Naming
 
 Service name can technically be any byte string which doesn't contain zero
-bytes, but should be an UTF-8 string, preferrably using only the ASCII string.
+bytes, but should be an UTF-8 string, preferrably using only the ASCII subset.
 
 Built-in service names never contain dots before the first slash, if any.
 (Current built-in services container neither dots nor slashes.)  That naming
