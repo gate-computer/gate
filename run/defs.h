@@ -1,3 +1,7 @@
+// Copyright (c) 2016 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // some of these are also defined in defs.go, run.js, work.js and loader/tests/stack.py
 
 #define GATE_RODATA_ADDR 0x10000

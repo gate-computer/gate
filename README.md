@@ -6,7 +6,7 @@ applications across hosts and CPU architectures.
 Create a [universal server](https://joearms.github.io/2013/11/21/My-favorite-erlang-program.html).
 Gate is a toolkit for doing things like that.
 
-- License: 2-clause BSD
+- License: [3-clause BSD](LICENSE)
 - Author: Timo Savola <timo.savola@iki.fi>
 
 
