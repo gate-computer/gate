@@ -22,6 +22,7 @@ addition WebAssembly's constraints.
 
 *Services* are akin to syscalls: they define the usefulness of the programs.
 Gate provides a few fundamental services, but is intended to be extended.
+See [Service implementation](Service.md) for details.
 
 
 ## Building blocks
@@ -167,6 +168,7 @@ distributions may use other names.)
 
 - [Programming interface](Programming.md)
 - [ABI](ABI.md)
+- [Service implementation](Service.md)
 - [Installation security notes](run/container/Security.md)
 - [Go packages](https://godoc.org/github.com/tsavola/gate)
 - [wag](https://github.com/tsavola/wag)
