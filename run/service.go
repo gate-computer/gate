@@ -7,21 +7,40 @@ package run
 import (
 	"bytes"
 	"errors"
+
+	"github.com/tsavola/gate/packet"
 )
 
 const (
-	servicePacketHeaderSize = packetHeaderSize + 8
-	serviceInfoSize         = 8
+	serviceCountOffset = 4
+	serviceHeaderSize  = 8
+
+	serviceInfoCodeOffset    = 0
+	serviceInfoVersionOffset = 4
+	serviceInfoSize          = 8
 )
 
+// ServiceInfo is used to respond to a service discovery request.  Zero-value
+// code means that the service is not available.  Version is service-specific.
 type ServiceInfo struct {
-	Code    uint16
+	Code    packet.Code
 	Version int32
 }
 
+// ServiceRegistry is used to look up service information when responding to a
+// program's service discovery packet.  When the program sends a packet to one
+// of the services, the packet is forwarded to the ServiceRegistry for
+// handling.
+//
+// Serve is called once for each program instance.  The receive channel is
+// closed when the program is being shut down, after which the send channel
+// must be closed.  The maximum packet content size may be used when buffering
+// data.
+//
+// See the service package for the default implementation.
 type ServiceRegistry interface {
 	Info(serviceName string) ServiceInfo
-	Serve(ops <-chan []byte, evs chan<- []byte) error
+	Serve(r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) error
 }
 
 type noServices struct{}
@@ -30,32 +49,36 @@ func (noServices) Info(string) (info ServiceInfo) {
 	return
 }
 
-func (noServices) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
-	defer close(evs)
-	for range ops {
+func (noServices) Serve(r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) (err error) {
+	defer close(s)
+	for range r {
 	}
 	return
 }
 
-func handleServicesPacket(request []byte, services ServiceRegistry) (response []byte, err error) {
-	if len(request) < servicePacketHeaderSize {
+func handleServicesPacket(reqPacket packet.Buf, services ServiceRegistry) (respPacket packet.Buf, err error) {
+	reqContent := reqPacket.Content()
+	if len(reqContent) < serviceHeaderSize {
 		err = errors.New("service discovery packet is too short")
 		return
 	}
 
-	count := endian.Uint32(request[packetHeaderSize+4:])
+	reqCountBuf := reqContent[serviceCountOffset : serviceCountOffset+4]
+	count := endian.Uint32(reqCountBuf)
 	if count > maxServices {
 		err = errors.New("too many services requested")
 		return
 	}
 
-	size := servicePacketHeaderSize + serviceInfoSize*count
-	response = make([]byte, size)
-	endian.PutUint32(response[0:], uint32(size))
-	endian.PutUint32(response[packetHeaderSize+4:], count)
+	size := packet.BufSize(serviceHeaderSize + serviceInfoSize*int(count))
+	respPacket = packet.Buf(make([]byte, size))
+	endian.PutUint32(respPacket[0:], uint32(size))
 
-	nameBuf := request[servicePacketHeaderSize:]
-	infoBuf := response[servicePacketHeaderSize:]
+	respContent := respPacket.Content()
+	copy(respContent[serviceCountOffset:], reqCountBuf)
+
+	nameBuf := reqContent[serviceHeaderSize:]
+	infoBuf := respContent[serviceHeaderSize:]
 
 	for i := uint32(0); i < count; i++ {
 		nameLen := bytes.IndexByte(nameBuf, 0)
@@ -68,8 +91,8 @@ func handleServicesPacket(request []byte, services ServiceRegistry) (response []
 		nameBuf = nameBuf[nameLen+1:]
 
 		info := services.Info(name)
-		endian.PutUint16(infoBuf[0:], info.Code)
-		endian.PutUint32(infoBuf[4:], uint32(info.Version))
+		copy(infoBuf[serviceInfoCodeOffset:], info.Code[:])
+		endian.PutUint32(infoBuf[serviceInfoVersionOffset:], uint32(info.Version))
 		infoBuf = infoBuf[serviceInfoSize:]
 	}
 

@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/tsavola/gate/internal/runtest"
+	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/dewag"
@@ -136,30 +137,32 @@ type testServiceRegistry struct {
 }
 
 func (services *testServiceRegistry) Info(name string) (info run.ServiceInfo) {
+	var code uint16
+
 	switch name {
 	case "origin":
-		info.Code = 1
-		info.Version = 0
+		code = 1
 
 	case "test1":
-		info.Code = 2
+		code = 2
 		info.Version = 1337
 
 	case "test2":
-		info.Code = 3
+		code = 3
 		info.Version = 12765
 	}
 
+	binary.LittleEndian.PutUint16(info.Code[:], code)
 	return
 }
 
-func (services *testServiceRegistry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
+func (services *testServiceRegistry) Serve(ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) (err error) {
 	defer close(evs)
 
 	for op := range ops {
-		switch binary.LittleEndian.Uint16(op[6:]) {
+		switch op.Code().Int() {
 		case 1:
-			if _, err := services.origin.Write(op[8:]); err != nil {
+			if _, err := services.origin.Write(op.Content()); err != nil {
 				panic(err)
 			}
 

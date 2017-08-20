@@ -28,6 +28,7 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/internal/cred \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/internal/server \
+	$(GOPACKAGEPREFIX)/packet \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
 	$(GOPACKAGEPREFIX)/server/serverconfig \

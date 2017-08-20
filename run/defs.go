@@ -26,8 +26,6 @@ const (
 	maxPacketSize = 0x10000 // coincides with default pipe buffer size on Linux
 	maxServices   = 100
 
-	packetHeaderSize = 8
-
 	magicNumber = 0x7e1c5d67
 )
 

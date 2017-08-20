@@ -9,51 +9,71 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/run"
 )
 
+// Config of the runtime.
+type Config struct {
+	MaxContentSize int
+}
+
+// Instance of a service.
 type Instance interface {
-	Handle(op []byte, evs chan<- []byte)
+	Handle(op packet.Buf, evs chan<- packet.Buf)
 	Shutdown()
 }
 
+// Factory creates instances of a particular service implementation.
 type Factory interface {
-	New() Instance
+	New(packet.Code, *Config) Instance
 }
 
-type FactoryFunc func() Instance
+// FactoryFunc is almost like Factory.
+type FactoryFunc func(packet.Code, *Config) Instance
 
-func (f FactoryFunc) New() Instance {
-	return f()
+func (f FactoryFunc) New(code packet.Code, config *Config) Instance {
+	return f(code, config)
 }
 
+// Registry is the default run.ServiceRegistry implementation.  It multiplexes
+// packets to service implementations.  If each program instance requires
+// distinct configuration for a given service, a modified Registry with a
+// distinct Factory instance must be used for each program instance.
 type Registry struct {
 	factories []Factory
 	infos     map[string]run.ServiceInfo
 }
 
+// Register a service implementation.  See
+// https://github.com/tsavola/gate/blob/master/Service.md for service naming
+// conventions.  The version parameter may be used to communicate changes in
+// the service API.
 func (r *Registry) Register(name string, version int32, f Factory) {
 	if r.infos == nil {
 		r.infos = make(map[string]run.ServiceInfo)
 	}
 
-	var code uint16
+	var code packet.Code
 
 	if info, found := r.infos[name]; found {
 		code = info.Code
-		r.factories[code-1] = f
+		r.factories[code.Int()-1] = f
 	} else {
 		r.factories = append(r.factories, f)
-		code = uint16(len(r.factories))
+		binary.LittleEndian.PutUint16(code[:], uint16(len(r.factories)))
 	}
 
 	r.infos[name] = run.ServiceInfo{Code: code, Version: version}
 }
 
-func (r *Registry) RegisterFunc(name string, version int32, f func() Instance) {
+// RegisterFunc is almost like Register.
+func (r *Registry) RegisterFunc(name string, version int32, f func(packet.Code, *Config) Instance) {
 	r.Register(name, version, FactoryFunc(f))
 }
 
+// Clone the registry.  The new registry may be used to add or replace some
+// service implementations.
 func (r *Registry) Clone() *Registry {
 	clone := new(Registry)
 
@@ -68,26 +88,33 @@ func (r *Registry) Clone() *Registry {
 	return clone
 }
 
+// Info implements the run.ServiceRegistry interface function.
 func (r *Registry) Info(name string) run.ServiceInfo {
 	return r.infos[name]
 }
 
-func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
+// Serve implements the run.ServiceRegistry interface function.
+func (r *Registry) Serve(ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) (err error) {
 	defer close(evs)
 
-	instances := make(map[uint16]Instance)
+	config := Config{
+		MaxContentSize: maxContentSize,
+	}
+
+	instances := make(map[packet.Code]Instance)
 	defer shutdown(instances)
 
 	for op := range ops {
-		code := binary.LittleEndian.Uint16(op[6:])
+		var code packet.Code
+		copy(code[:], op[packet.CodeOffset:])
 		inst, found := instances[code]
 		if !found {
-			index := uint32(code) - 1 // underflow wraps around
+			index := uint32(code.Int()) - 1 // underflow wraps around
 			if index >= uint32(len(r.factories)) {
 				err = errors.New("invalid service code")
 				return
 			}
-			inst = r.factories[index].New()
+			inst = r.factories[index].New(code, &config)
 			instances[code] = inst
 		}
 		inst.Handle(op, evs)
@@ -96,7 +123,7 @@ func (r *Registry) Serve(ops <-chan []byte, evs chan<- []byte) (err error) {
 	return
 }
 
-func shutdown(instances map[uint16]Instance) {
+func shutdown(instances map[packet.Code]Instance) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 

@@ -7,6 +7,7 @@ package origin
 import (
 	"io"
 
+	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/service"
 )
 
@@ -14,9 +15,7 @@ const (
 	Name    = "origin"
 	Version = 0
 
-	packetHeaderSize = 8
-
-	maxPacketSize = 0x10000 // TODO: move this elsewhere
+	minReadSize = 4096
 )
 
 type Factory struct {
@@ -28,8 +27,12 @@ func (f *Factory) Register(r *service.Registry) {
 	service.Register(r, Name, Version, f)
 }
 
-func (f *Factory) New() service.Instance {
-	return &origin{r: f.R, w: f.W}
+func (f *Factory) New(code packet.Code, config *service.Config) service.Instance {
+	return &origin{
+		Factory:     *f,
+		code:        code,
+		maxReadSize: config.MaxContentSize,
+	}
 }
 
 var Default = new(Factory)
@@ -45,23 +48,24 @@ func CloneRegistryWith(r *service.Registry, origIn io.Reader, origOut io.Writer)
 }
 
 type origin struct {
-	r io.Reader
-	w io.Writer
+	Factory
+	code        packet.Code
+	maxReadSize int
 
 	reading chan struct{}
 }
 
-func (o *origin) Handle(buf []byte, replies chan<- []byte) {
-	if o.r != nil && o.reading == nil {
+func (o *origin) Handle(p packet.Buf, replies chan<- packet.Buf) {
+	if o.R != nil && o.reading == nil {
 		o.reading = make(chan struct{})
-		go o.readLoop(buf[6:8], replies)
+		go o.readLoop(replies)
 	}
 
-	if o.w != nil {
-		if content := buf[packetHeaderSize:]; len(content) > 0 {
-			if _, err := o.w.Write(content); err != nil {
+	if o.W != nil {
+		if content := p.Content(); len(content) > 0 {
+			if _, err := o.W.Write(content); err != nil {
 				// assume that the error is EOF, broken pipe or such
-				o.w = nil
+				o.W = nil
 			}
 		}
 	}
@@ -73,18 +77,24 @@ func (o *origin) Shutdown() {
 	}
 }
 
-func (o *origin) readLoop(code []byte, replies chan<- []byte) {
-	for {
-		buf := make([]byte, maxPacketSize) // TODO: smaller buffer?
-		copy(buf[6:8], code)
+func (o *origin) readLoop(replies chan<- packet.Buf) {
+	var buf packet.Buf
 
-		n, err := o.r.Read(buf[packetHeaderSize:])
+	for {
+		if buf.ContentSize() < minReadSize {
+			buf = packet.Make(o.code, o.maxReadSize)
+		}
+
+		n, err := o.R.Read(buf.Content())
 		if err != nil {
 			return
 		}
 
+		var p packet.Buf
+		p, buf = buf.Split(n)
+
 		select {
-		case replies <- buf[:packetHeaderSize+n]:
+		case replies <- p:
 			// ok
 
 		case <-o.reading:

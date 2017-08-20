@@ -11,30 +11,34 @@ import (
 	"io"
 	"os"
 
+	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/wag/traps"
 )
 
-type read struct {
-	buf []byte
-	err error
-}
-
 const (
+	packetSizeOffset  = 0
+	packetFlagsOffset = 4
+
 	packetFlagPollout = uint16(0x1)
 	packetFlagTrap    = uint16(0x8000)
 
 	packetFlagsMask = packetFlagPollout | packetFlagTrap
 )
 
+type read struct {
+	buf packet.Buf
+	err error
+}
+
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
 	var (
-		messageInput  = make(chan []byte)
-		messageOutput = make(chan []byte)
+		messageInput  = make(chan packet.Buf)
+		messageOutput = make(chan packet.Buf)
 		serviceErr    = make(chan error, 1)
 	)
 	go func() {
 		defer close(serviceErr)
-		serviceErr <- services.Serve(messageOutput, messageInput)
+		serviceErr <- services.Serve(messageOutput, messageInput, maxPacketSize-packet.HeaderSize)
 	}()
 	defer func() {
 		for range messageInput {
@@ -63,19 +67,19 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 	defer subject.kill()
 
 	var (
-		pendingMsg   []byte
-		pendingEvs   [][]byte
+		pendingMsg   packet.Buf
+		pendingEvs   []packet.Buf
 		pendingPolls int
 	)
 
 	for {
 		var (
-			doEv               []byte
-			doMessageInput     <-chan []byte
-			doMessageOutput    chan<- []byte
+			doEv               packet.Buf
+			doMessageInput     <-chan packet.Buf
+			doMessageOutput    chan<- packet.Buf
 			doSubjectInput     <-chan read
 			doSubjectOutputEnd <-chan struct{}
-			doSubjectOutput    chan<- []byte
+			doSubjectOutput    chan<- packet.Buf
 		)
 
 		if len(pendingEvs) > 0 {
@@ -99,8 +103,8 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 		}
 
 		select {
-		case buf := <-doMessageInput:
-			pendingEvs = append(pendingEvs, initMessagePacket(buf))
+		case p := <-doMessageInput:
+			pendingEvs = append(pendingEvs, initMessagePacket(p))
 
 		case read, ok := <-doSubjectInput:
 			if !ok {
@@ -156,7 +160,7 @@ func subjectReadLoop(r *os.File) <-chan read {
 	go func() {
 		defer close(reads)
 
-		header := make([]byte, packetHeaderSize)
+		header := make([]byte, packet.HeaderSize)
 
 		for {
 			if _, err := io.ReadFull(r, header); err != nil {
@@ -167,7 +171,7 @@ func subjectReadLoop(r *os.File) <-chan read {
 			}
 
 			size := endian.Uint32(header)
-			if size < packetHeaderSize || size > maxPacketSize {
+			if size < packet.HeaderSize || size > maxPacketSize {
 				reads <- read{err: fmt.Errorf("invalid op packet size: %d", size)}
 				return
 			}
@@ -175,7 +179,7 @@ func subjectReadLoop(r *os.File) <-chan read {
 			buf := make([]byte, size)
 			copy(buf, header)
 
-			if _, err := io.ReadFull(r, buf[packetHeaderSize:]); err != nil {
+			if _, err := io.ReadFull(r, buf[packet.HeaderSize:]); err != nil {
 				reads <- read{err: fmt.Errorf("subject read: %v", err)}
 				return
 			}
@@ -187,8 +191,8 @@ func subjectReadLoop(r *os.File) <-chan read {
 	return reads
 }
 
-func subjectWriteLoop(w *os.File) (chan<- []byte, <-chan struct{}) {
-	writes := make(chan []byte)
+func subjectWriteLoop(w *os.File) (chan<- packet.Buf, <-chan struct{}) {
+	writes := make(chan packet.Buf)
 	end := make(chan struct{})
 
 	go func() {
@@ -204,28 +208,33 @@ func subjectWriteLoop(w *os.File) (chan<- []byte, <-chan struct{}) {
 	return writes, end
 }
 
-func initMessagePacket(buf []byte) []byte {
-	if len(buf) < packetHeaderSize || len(buf) > maxPacketSize {
+func clearPacketFlags(p packet.Buf) {
+	p[packetFlagsOffset+0] = 0
+	p[packetFlagsOffset+1] = 0
+}
+
+func packetCodeIsZero(p packet.Buf) bool {
+	return p[packet.CodeOffset+0] == 0 && p[packet.CodeOffset+1] == 0
+}
+
+func initMessagePacket(p packet.Buf) packet.Buf {
+	if len(p) < packet.HeaderSize || len(p) > maxPacketSize {
 		panic(errors.New("invalid outgoing message packet buffer length"))
 	}
 
-	if code := endian.Uint16(buf[6:]); code == 0 {
+	if packetCodeIsZero(p) {
 		panic(errors.New("service code is zero in outgoing message packet header"))
 	}
 
 	// service implementations only need to initialize the code field
-	endian.PutUint32(buf[0:], uint32(len(buf)))
-	endian.PutUint16(buf[4:], 0)
+	endian.PutUint32(p[packetSizeOffset:], uint32(len(p)))
+	clearPacketFlags(p)
 
-	return buf
+	return p
 }
 
-func handlePacket(buf []byte, services ServiceRegistry) (msg, reply []byte, poll bool, trap traps.Id, err error) {
-	var (
-		flags = endian.Uint16(buf[4:])
-		code  = endian.Uint16(buf[6:])
-	)
-
+func handlePacket(p packet.Buf, services ServiceRegistry) (msg, reply packet.Buf, poll bool, trap traps.Id, err error) {
+	flags := endian.Uint16(p[packetFlagsOffset:])
 	if (flags &^ packetFlagsMask) != 0 {
 		err = fmt.Errorf("invalid incoming packet flags: 0x%x", flags)
 		return
@@ -236,6 +245,8 @@ func handlePacket(buf []byte, services ServiceRegistry) (msg, reply []byte, poll
 			err = fmt.Errorf("excess incoming packet flags: 0x%x", flags)
 			return
 		}
+
+		code := endian.Uint16(p[packet.CodeOffset:])
 
 		switch t := traps.Id(code); t {
 		case traps.MissingFunction, traps.Suspended:
@@ -249,21 +260,21 @@ func handlePacket(buf []byte, services ServiceRegistry) (msg, reply []byte, poll
 
 	poll = (flags & packetFlagPollout) != 0
 
-	if code == 0 {
-		if len(buf) > packetHeaderSize {
-			reply, err = handleServicesPacket(buf, services)
+	if packetCodeIsZero(p) {
+		if len(p) > packet.HeaderSize {
+			reply, err = handleServicesPacket(p, services)
 		}
 	} else {
 		// hide packet flags from service implementations
-		endian.PutUint16(buf[4:], 0)
-		msg = buf
+		clearPacketFlags(p)
+		msg = p
 	}
 	return
 }
 
-func makePolloutPacket() (buf []byte) {
-	buf = make([]byte, packetHeaderSize)
-	endian.PutUint32(buf[0:], packetHeaderSize)
-	endian.PutUint16(buf[4:], packetFlagPollout)
+func makePolloutPacket() (p packet.Buf) {
+	p = make([]byte, packet.HeaderSize)
+	endian.PutUint32(p[packetSizeOffset:], packet.HeaderSize)
+	endian.PutUint16(p[packetFlagsOffset:], packetFlagPollout)
 	return
 }

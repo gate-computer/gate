@@ -6,11 +6,16 @@ package peer
 
 import (
 	"encoding/binary"
+
+	"github.com/tsavola/gate/packet"
 )
 
 const (
-	packetHeaderSize     = 8
-	peerPacketHeaderSize = packetHeaderSize + 8
+	peerActionOffset = 0
+	peerHeaderSize   = 8
+
+	peerIdOffset      = peerHeaderSize + 0
+	peerIdContentSize = peerHeaderSize + 8
 )
 
 const (
@@ -27,23 +32,20 @@ const (
 
 type peer struct {
 	group *Group
-	code  uint16
+	code  packet.Code
 	id    uint64
 	queue queue
 }
 
-func (self *peer) Handle(op []byte, evs chan<- []byte) {
-	if self.code == 0 {
-		self.code = binary.LittleEndian.Uint16(op[6:])
-	}
-
-	if len(op) < peerPacketHeaderSize {
+func (self *peer) Handle(op packet.Buf, evs chan<- packet.Buf) {
+	content := op.Content()
+	if len(content) < peerHeaderSize {
 		// TODO: send error message ev
 		self.group.Log.Printf("peer %d: packet is too short", self.id)
 		return
 	}
 
-	action := op[packetHeaderSize]
+	action := content[peerActionOffset]
 
 	switch action {
 	case opInit:
@@ -59,7 +61,7 @@ func (self *peer) Handle(op []byte, evs chan<- []byte) {
 	}
 }
 
-func (self *peer) handleInitOp(evs chan<- []byte) {
+func (self *peer) handleInitOp(evs chan<- packet.Buf) {
 	if self.queue.inited() {
 		// TODO: send error message ev
 		self.group.Log.Printf("peer %d: init: already initialized", self.id)
@@ -79,25 +81,26 @@ func (self *peer) handleInitOp(evs chan<- []byte) {
 	self.group.lock.Unlock()
 }
 
-func (self *peer) handleMessageOp(buf []byte) {
+func (self *peer) handleMessageOp(buf packet.Buf) {
 	if !self.queue.inited() {
 		// TODO: send error message ev
 		self.group.Log.Printf("peer %d: message: not initialized", self.id)
 		return
 	}
 
-	if len(buf) < peerPacketHeaderSize+8 {
+	content := buf.Content()
+	if len(content) < peerIdContentSize {
 		// TODO: send error message ev
 		self.group.Log.Printf("peer %d: message: packet is too short", self.id)
 		return
 	}
 
-	otherId := binary.LittleEndian.Uint64(buf[peerPacketHeaderSize:])
+	otherId := binary.LittleEndian.Uint64(content[peerIdOffset:])
 
-	binary.LittleEndian.PutUint32(buf[packetHeaderSize:], 0)
-	buf[packetHeaderSize] = evMessage
+	copy(content, make([]byte, peerHeaderSize))
+	content[peerActionOffset] = evMessage
 
-	binary.LittleEndian.PutUint64(buf[peerPacketHeaderSize:], self.id)
+	binary.LittleEndian.PutUint64(content[peerIdOffset:], self.id)
 
 	self.group.lock.Lock()
 	other := self.group.peers[otherId]
@@ -128,10 +131,9 @@ func (self *peer) Shutdown() {
 }
 
 func (self *peer) notify(other *peer, evCode byte) {
-	ev := make([]byte, peerPacketHeaderSize+8)
-	binary.LittleEndian.PutUint16(ev[6:], self.code)
-	ev[packetHeaderSize] = evCode
-	binary.LittleEndian.PutUint64(ev[peerPacketHeaderSize:], other.id)
-
-	self.queue.enqueue(ev, false)
+	buf := packet.Make(self.code, peerIdContentSize)
+	content := buf.Content()
+	content[peerActionOffset] = evCode
+	binary.LittleEndian.PutUint64(content[peerIdOffset:], other.id)
+	self.queue.enqueue(buf, false)
 }

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/service"
 )
 
@@ -22,9 +23,10 @@ type Group struct {
 	peers map[uint64]*peer
 }
 
-func (g *Group) New() service.Instance {
+func (g *Group) New(code packet.Code, config *service.Config) service.Instance {
 	return &peer{
 		group: g,
+		code:  code,
 		id:    atomic.AddUint64(&lastGroupId, 1),
 	}
 }

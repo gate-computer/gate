@@ -6,28 +6,30 @@ package peer
 
 import (
 	"sync"
+
+	"github.com/tsavola/gate/packet"
 )
 
 type queue struct {
-	buffer   [][]byte
+	buffer   []packet.Buf
 	shutdown bool
 	wakeup   chan struct{}
 	stopped  chan struct{}
-	sink     chan<- []byte
+	sink     chan<- packet.Buf
 }
 
 func (q *queue) inited() bool {
 	return q.wakeup != nil
 }
 
-func (q *queue) init(lock sync.Locker, sink chan<- []byte) {
+func (q *queue) init(lock sync.Locker, sink chan<- packet.Buf) {
 	q.wakeup = make(chan struct{}, 1)
 	q.stopped = make(chan struct{})
 	q.sink = sink
 	go q.loop(lock)
 }
 
-func (q *queue) enqueue(item []byte, shutdown bool) {
+func (q *queue) enqueue(item packet.Buf, shutdown bool) {
 	if shutdown {
 		q.shutdown = true
 	} else {
@@ -43,7 +45,7 @@ func (q *queue) enqueue(item []byte, shutdown bool) {
 func (q *queue) loop(lock sync.Locker) {
 	defer close(q.stopped)
 
-	var item []byte
+	var item packet.Buf
 
 	for {
 		lock.Lock()
@@ -58,7 +60,7 @@ func (q *queue) loop(lock sync.Locker) {
 			break
 		}
 
-		var doSink chan<- []byte
+		var doSink chan<- packet.Buf
 
 		if item != nil {
 			doSink = q.sink
