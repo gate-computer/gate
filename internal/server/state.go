@@ -385,32 +385,41 @@ type program struct {
 	ownerCount    int
 	instanceCount int
 	module        wag.Module
+	wasm          []byte
 	hash          [sha512.Size]byte
 }
 
-func loadProgram(body io.ReadCloser, clientHash []byte, env *run.Environment) (*program, bool, error) {
-	hash := sha512.New()
-	wasm := bufio.NewReader(io.TeeReader(body, hash))
+func loadProgram(body io.ReadCloser, clientHash []byte, env *run.Environment) (p *program, valid bool, err error) {
+	var (
+		wasm bytes.Buffer
+		hash = sha512.New()
+	)
 
-	p := &program{
+	r := bufio.NewReader(io.TeeReader(io.TeeReader(body, &wasm), hash))
+
+	p = &program{
 		module: wag.Module{
 			MainSymbol: "main",
 		},
 	}
 
-	loadErr := p.module.Load(wasm, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	loadErr := p.module.Load(r, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:
-		return nil, false, loadErr
+		err = loadErr
+		return
 
 	case closeErr != nil:
-		return nil, false, closeErr
+		err = closeErr
+		return
 	}
 
+	p.wasm = wasm.Bytes()
+
 	hash.Sum(p.hash[:0])
-	valid := validateHash(p, clientHash)
-	return p, valid, nil
+	valid = validateHash(p, clientHash)
+	return
 }
 
 func validateHash(p *program, hash []byte) bool {
