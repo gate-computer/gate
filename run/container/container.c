@@ -44,17 +44,6 @@ struct cred {
 static int parent_main(pid_t child_pid);
 static int child_main(void *);
 
-static int pivot_root(const char *new_root, const char *put_old)
-{
-	long ret = syscall(SYS_pivot_root, new_root, put_old);
-	if (ret < 0) {
-		errno = -ret;
-		return -1;
-	}
-
-	return 0;
-}
-
 // Print an error message and die.
 static void xerror(const char *s)
 {
@@ -88,6 +77,31 @@ static void xclose(int fd)
 		xerror("close");
 }
 
+// Duplicate a file descriptor or die.
+static void xdup2(int oldfd, int newfd)
+{
+	if (dup2(oldfd, newfd) != newfd)
+		xerror("dup2");
+}
+
+// Read from blocking file descriptor until EOF, or die.
+static void xread_until_eof(int fd)
+{
+	while (1) {
+		char buf[1];
+		ssize_t len = read(fd, buf, sizeof (buf));
+		if (len <= 0) {
+			if (len == 0)
+				return;
+
+			if (errno == EINTR)
+				continue;
+
+			xerror("read");
+		}
+	}
+}
+
 // Set a resource limit or die.
 static void xlimit(int resource, rlim_t rlim)
 {
@@ -100,26 +114,19 @@ static void xlimit(int resource, rlim_t rlim)
 		xerror("setrlimit");
 }
 
-// Duplicate a file descriptor or die.
-static void xdup2(int oldfd, int newfd)
-{
-	if (dup2(oldfd, newfd) != newfd)
-		xerror("dup2");
-}
-
 // Make sure that this process doesn't outlive its parent.
-static void xdeathsigkill()
+static void xset_pdeathsig(int signum)
 {
-	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
+	if (prctl(PR_SET_PDEATHSIG, signum) != 0)
 		xerror("PR_SET_PDEATHSIG");
 
 	// parent died already? (assuming it wasn't the init process)
 	if (getppid() == 1)
-		raise(SIGKILL);
+		raise(signum);
 }
 
 // Clear all process capabilities or die.
-static void xcapclear()
+static void xclear_caps()
 {
 	cap_t p = cap_init();
 	if (p == NULL)
@@ -131,6 +138,119 @@ static void xcapclear()
 		xerror("cap_set_proc");
 
 	cap_free(p);
+}
+
+// Fork with clone flags, or die.
+static int xclone(int (*fn)(void *), int flags)
+{
+	// The function pointer and its argument (8 bytes each) are stored on
+	// the stack before the address space is cloned.  Also provide 128
+	// bytes for the red zone, just in case.  After the address space is
+	// cloned, the child can use the same stack addresses as the parent, so
+	// this staging area doesn't have to cover user code.
+	union {
+		char stack[128 + 8 + 8];
+		__int128 alignment;
+	} clobbered;
+
+	void *stack_top = clobbered.stack + sizeof (clobbered.stack);
+
+	int pid = clone(fn, stack_top, flags, NULL);
+	if (pid <= 0)
+		xerror("clone");
+
+	return pid;
+}
+
+// Change the root filesystem or die.
+static void xpivot_root(const char *new_root, const char *put_old)
+{
+	long ret = syscall(SYS_pivot_root, new_root, put_old);
+	if (ret < 0) {
+		errno = -ret;
+		xerror("pivot root");
+	}
+}
+
+// Configure given process's uid_map or gid_map, or die.
+static void xwrite_id_map(pid_t pid, const char *filename, const char *data, int datalen)
+{
+	char *path;
+	if (asprintf(&path, "/proc/%d/%s", pid, filename) < 0)
+		xerror("asprintf");
+
+	int fd = open(path, O_WRONLY);
+	if (fd < 0)
+		xerror(path);
+
+	if (write(fd, data, datalen) != datalen)
+		xerror(path);
+
+	xclose(fd);
+	free(path);
+}
+
+// Configure given process's uid_map or die.
+static void xwrite_uid_map(pid_t pid, uid_t container, uid_t executor)
+{
+	char *data;
+	int len = asprintf(&data, "1 %u 1\n2 %u 1\n3 %u 1\n", getuid(), container, executor);
+	if (len < 0)
+		xerror("asprintf");
+
+	xwrite_id_map(pid, "uid_map", data, len);
+	free(data);
+}
+
+// Configure given process's gid_map or die.
+static void xwrite_gid_map(pid_t pid, gid_t container, gid_t executor, gid_t common)
+{
+	char *data;
+	int len = asprintf(&data, "1 %u 1\n2 %u 1\n3 %u 1\n4 %u 1\n", getgid(), container, executor, common);
+	if (len < 0)
+		xerror("asprintf");
+
+	xwrite_id_map(pid, "gid_map", data, len);
+	free(data);
+}
+
+// Open a file in a directory, or die.
+static int xopen_dir_file(const char *dir, const char *file, int flags)
+{
+	size_t pathsize = strlen(dir) + 1 + strlen(file) + 1;
+	char path[pathsize];
+
+	strcpy(path, dir);
+	strcat(path, "/");
+	strcat(path, file);
+
+	int fd = open(path, flags, 0);
+	if (fd < 0)
+		xerror(path);
+
+	return fd;
+}
+
+// Open loader and executor binaries, or die.  Only executor fd is returned.
+// The hard-coded GATE_LOADER_FD is valid after this.
+static int xopen_executor_and_loader()
+{
+	// lstat'ing a symlink in /proc doesn't yield target path length :(
+	char linkbuf[PATH_MAX];
+	ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof (linkbuf));
+	if (linklen <= 0 || linklen >= (ssize_t) sizeof (linkbuf))
+		xerror("readlink /proc/self/exe");
+	linkbuf[linklen] = '\0';
+
+	const char *dir = dirname(linkbuf); // linkbuf is unusable after this
+
+	int loader_fd = xopen_dir_file(dir, LOADER_FILENAME, O_RDONLY);
+	if (loader_fd != GATE_LOADER_FD) {
+		fprintf(stderr, "wrong number of open files\n");
+		exit(1);
+	}
+
+	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_RDONLY|O_CLOEXEC);
 }
 
 // Convert a base 10 string to an unsigned integer or die.
@@ -154,83 +274,43 @@ static unsigned int xatoui(const char *s)
 	return n;
 }
 
-// Configure given process's uid_map or gid_map, or die.
-static void xwritemap(pid_t pid, const char *filename, const char *data, int datalen)
+// Wait for the child process, or die.  The return code is returned.
+static int wait_for_child(pid_t child_pid)
 {
-	char path[32];
-	int pathlen = snprintf(path, sizeof (path), "/proc/%u/%s", pid, filename);
-	if (pathlen < 0 || pathlen >= (int) sizeof (path))
-		xerror("snprintf uid_map/gid_map path");
+	while (1) {
+		int status;
+		pid_t pid = wait(&status);
+		if (pid < 0) {
+			if (errno == EINTR)
+				continue;
 
-	int fd = open(path, O_WRONLY);
-	if (fd < 0)
-		xerror(path);
+			xerror("wait");
+		}
 
-	if (write(fd, data, datalen) != datalen)
-		xerror(path);
+		if (pid != child_pid) {
+			fprintf(stderr, "unknown child process %d terminated with status %d\n", pid, status);
+			exit(1);
+		}
 
-	xclose(fd);
-}
+		if (WIFSTOPPED(status)) {
+			fprintf(stderr, "executor process %d received SIGSTOP\n", pid);
+			continue;
+		}
 
-// Open a file, or die.
-static int xopen(const char *dir, const char *file, int flags)
-{
-	size_t pathsize = strlen(dir) + 1 + strlen(file) + 1;
-	char path[pathsize];
+		if (WIFCONTINUED(status)) {
+			fprintf(stderr, "executor process %d received SIGCONT\n", pid);
+			continue;
+		}
 
-	strcpy(path, dir);
-	strcat(path, "/");
-	strcat(path, file);
+		if (WIFEXITED(status))
+			return WEXITSTATUS(status);
 
-	int fd = open(path, flags, 0);
-	if (fd < 0)
-		xerror(path);
+		if (WIFSIGNALED(status))
+			return 128 + WTERMSIG(status);
 
-	return fd;
-}
-
-// Open loader and executor binaries, or die.  Only executor fd is returned.
-// The hard-coded GATE_LOADER_FD is valid after this.
-static int xopenbinaries()
-{
-	// lstat'ing a symlink in /proc doesn't yield target path length :(
-	char linkbuf[PATH_MAX];
-	ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof (linkbuf));
-	if (linklen <= 0 || linklen >= (ssize_t) sizeof (linkbuf))
-		xerror("readlink /proc/self/exe");
-	linkbuf[linklen] = '\0';
-
-	const char *dir = dirname(linkbuf); // linkbuf is unusable after this
-
-	int loader_fd = xopen(dir, LOADER_FILENAME, O_RDONLY);
-	if (loader_fd != GATE_LOADER_FD) {
-		fprintf(stderr, "wrong number of open files\n");
+		fprintf(stderr, "wait: unknown status: %d\n", status);
 		exit(1);
 	}
-
-	return xopen(dir, EXECUTOR_FILENAME, O_RDONLY|O_CLOEXEC);
-}
-
-// Fork with clone flags, or die.
-static int xclone(int (*fn)(void *), int flags)
-{
-	// The function pointer and its argument (8 bytes each) are stored on
-	// the stack before the address space is cloned.  Also provide 128
-	// bytes for the red zone, just in case.  After the address space is
-	// cloned, the child can use the same stack addresses as the parent, so
-	// this staging area doesn't have to cover user code.
-	union {
-		char stack[128 + 8 + 8];
-		__int128 alignment;
-	} clobbered;
-
-	void *stack_top = clobbered.stack + sizeof (clobbered.stack);
-
-	int pid = clone(fn, stack_top, flags, NULL);
-	if (pid <= 0)
-		xerror("clone");
-
-	return pid;
 }
 
 static gid_t common_gid;
@@ -284,89 +364,41 @@ static int parent_main(pid_t child_pid)
 	xclose(GATE_CONTROL_FD);
 	xclose(syncpipe[0]);
 
-	char *map;
-	int maplen;
-
-	maplen = asprintf(&map, "1 %u 1\n2 %u 1\n3 %u 1\n", getuid(), container_cred.uid, executor_cred.uid);
-	if (maplen < 0)
-		xerror("asprintf uid_map");
-	xwritemap(child_pid, "uid_map", map, maplen);
-	free(map);
-
-	maplen = asprintf(&map, "1 %u 1\n2 %u 1\n3 %u 1\n4 %u 1\n", getgid(), container_cred.gid, executor_cred.gid, common_gid);
-	if (maplen < 0)
-		xerror("asprintf gid_map");
-	xwritemap(child_pid, "gid_map", map, maplen);
-	free(map);
+	xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
+	xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid, common_gid);
 
 	// user namespace configured
 
 	init_cgroup(child_pid, &cgroup_config);
 
-	xcapclear();
+	xclear_caps();
 
 	// cgroup configured
 
 	xclose(syncpipe[1]); // wake child up
 
-	while (1) {
-		int status;
-		pid_t pid = wait(&status);
-		if (pid < 0) {
-			if (errno == EINTR)
-				continue;
-
-			xerror("wait");
-		}
-
-		if (pid != child_pid)
-			continue;
-
-		if (WIFSTOPPED(status) || WIFCONTINUED(status))
-			continue;
-
-		if (WIFEXITED(status))
-			return WEXITSTATUS(status);
-
-		if (WIFSIGNALED(status))
-			raise(WTERMSIG(status));
-
-		fprintf(stderr, "wait: unknown status: %d\n", status);
-		return 1;
-	}
+	return wait_for_child(child_pid);
 }
 
 static int child_main(void *dummy_arg)
 {
-	xdeathsigkill();
+	xset_pdeathsig(SIGKILL);
 
 	xclose(syncpipe[1]);
 
-	while (1) {
-		char buf[1];
-		ssize_t len = read(syncpipe[0], buf, sizeof (buf));
-		if (len < 0) {
-			if (errno == EINTR)
-				continue;
-
-			xerror("read from sync pipe");
-		}
-
-		xclose(syncpipe[0]);
-		break;
-	}
+	xread_until_eof(syncpipe[0]); // wait for parent to wakes us up
+	xclose(syncpipe[0]);
 
 	// user namespace and cgroup have been configured by parent
 
-	int executor_fd = xopenbinaries();
+	int executor_fd = xopen_executor_and_loader();
 
 	uint64_t rand;
 	xgetentropy(&rand, sizeof (rand));
 
-	char tmp_proc[strlen("/tmp/.") + 16 + 1];
-	int len = snprintf(tmp_proc, sizeof (tmp_proc), "/tmp/.%016lx", rand);
-	if (len != (int) sizeof (tmp_proc) - 1)
-		xerror("snprintf");
+	char *tmp_proc;
+	if (asprintf(&tmp_proc, "/tmp/.%016lx", rand) < 0)
+		xerror("asprintf");
 
 	// supplementary group
 	const gid_t groups[1] = {4};
@@ -403,8 +435,7 @@ static int child_main(void *dummy_arg)
 	if (mkdir("/tmp/x", 0) != 0)
 		xerror("mkdir inside small tmpfs");
 
-	if (pivot_root("/tmp", "/tmp/x") != 0)
-		xerror("pivot root");
+	xpivot_root("/tmp", "/tmp/x");
 
 	const char *proc = tmp_proc + 4; // remove "/tmp" prefix
 
@@ -430,12 +461,11 @@ static int child_main(void *dummy_arg)
 	if (setregid(3, 3) != 0)
 		xerror("setgid for execution");
 
-	xcapclear();
+	xclear_caps();
 
-	char executor[GATE_FD_PATH_LEN + 1];
-	len = snprintf(executor, sizeof (executor), "%s/self/fd/%d", proc, executor_fd);
-	if (len != GATE_FD_PATH_LEN)
-		xerror("snprintf");
+	char *executor;
+	if (asprintf(&executor, "%s/self/fd/%d", proc, executor_fd) < 0)
+		xerror("asprintf");
 
 	// enable scheduler's autogroup feature
 	if (setsid() < 0)

@@ -71,7 +71,7 @@ func (e *executor) init(config *Config) (err error) {
 	go e.receiver()
 
 	if cmd != nil {
-		go e.waiter(cmd)
+		go containerWaiter(cmd, e.doneSending)
 	}
 
 	return
@@ -220,23 +220,6 @@ func (e *executor) receiver() {
 
 		p.events <- buf
 	}
-}
-
-func (e *executor) waiter(cmd *exec.Cmd) {
-	err := cmd.Wait()
-
-	if exit, ok := err.(*exec.ExitError); ok && exit.Success() {
-		select {
-		case <-e.doneSending:
-			// clean exit
-			return
-
-		default:
-			// unexpected exit
-		}
-	}
-
-	log.Printf("executor process: %v", err)
 }
 
 type process struct {
