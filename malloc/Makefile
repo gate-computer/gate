@@ -7,7 +7,7 @@ GATEDIR		:= ..
 CPPFLAGS	+= \
 	-isystem $(GATEDIR)/libc/musl/arch/wasm32 \
 	-isystem $(GATEDIR)/libc/musl/include \
-	-include $(GATEDIR)/include/gate.h \
+	-include $(GATEDIR)/capi/include/gate.h \
 	-include morecore.h \
 	-DABORT='gate_exit(1)' \
 	-DHAVE_MMAP=0 \
@@ -32,8 +32,8 @@ include $(GATEDIR)/crt/rules.mk
 all.bc: $(OBJECTS)
 	$(LLVMLINK) -o $@ $(OBJECTS)
 
-malloc.bc: malloc.c morecore.h $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
-morecore.bc: morecore.c morecore.h $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
+malloc.bc: malloc.c morecore.h $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
+morecore.bc: morecore.c morecore.h $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 
 wasm.bc: wasm.ll Makefile $(GATEDIR)/crt/rules.mk
 	$(LLVMAS) -o $@ wasm.ll

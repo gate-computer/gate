@@ -17,7 +17,7 @@ OBJECTS		:= $(OBJECT)
 
 build: prog.wasm prog.wasm.sha512sum
 
-$(OBJECT): $(SOURCE) $(GATEDIR)/include/gate.h Makefile $(GATEDIR)/tests/test.mk $(GATEDIR)/crt/rules.mk
+$(OBJECT): $(SOURCE) $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/tests/test.mk $(GATEDIR)/crt/rules.mk
 
 prog.wasm.sha512sum: prog.wasm
 	$(SHA512SUM) prog.wasm > $@

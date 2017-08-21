@@ -36,7 +36,7 @@ LLVMAS		:= $(LLVMBINDIR)/llvm-as
 LLVMLINK	:= $(LLVMBINDIR)/llvm-link
 endif
 
-CPPFLAGS	+= -isystem $(GATEDIR)/include
+CPPFLAGS	+= -isystem $(GATEDIR)/capi/include
 
 prog.wasm: $(OBJECTS)
 	$(LINKER) -o $@ $(OBJECTS) $(LIBS)
