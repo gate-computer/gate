@@ -5,6 +5,7 @@
 GATEDIR		:= ../../..
 
 LIBS := \
+	$(GATEDIR)/capi/service.bc \
 	$(GATEDIR)/libc/compat.bc \
 	$(GATEDIR)/libc/libc_build/memcpy.bc \
 	$(GATEDIR)/libc/libc_build/memset.bc \

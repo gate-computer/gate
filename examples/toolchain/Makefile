@@ -16,6 +16,7 @@ CXX		:= $(dockertoolchain) compile++
 LINKER		:= $(dockertoolchain) link
 
 LIBS := \
+	/lib/wasm32/gate/service.bc \
 	/lib/wasm32/malloc.bc \
 	/lib/wasm32/memcpy.bc \
 	/lib/wasm32/memset.bc \

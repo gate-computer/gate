@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 #include <gate.h>
-#include <gate/service-inline.h>
+#include <gate/service.h>
 #include <gate/services/origin.h>
 #include <gate/services/peer.h>
 

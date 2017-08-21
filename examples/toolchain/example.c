@@ -7,9 +7,17 @@
 #include <string.h>
 
 #include <gate.h>
+#include <gate/service.h>
 
 int main()
 {
+	struct gate_service_registry *no_services = gate_service_registry_create();
+	if (no_services == NULL)
+		gate_exit(1);
+
+	if (!gate_discover_services(no_services))
+		gate_exit(1);
+
 	const char *str = "ok\n";
 
 	char *buf = malloc(strlen(str) + 1);
@@ -18,5 +26,7 @@ int main()
 
 	strcpy(buf, str);
 	gate_debug(buf);
+
+	gate_service_registry_destroy(no_services);
 	return 0;
 }

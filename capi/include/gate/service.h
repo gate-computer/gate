@@ -26,11 +26,11 @@ struct gate_service {
 	int32_t version;
 
 	void (*discovered)(struct gate_service *) GATE_NOEXCEPT;
-	void (*received)(struct gate_service *, void *data, size_t size) GATE_NOEXCEPT;
+	void (*received)(struct gate_service *, void *packet, size_t size) GATE_NOEXCEPT;
 };
 
 struct gate_service_registry {
-	char *packet_buf;
+	void *packet_buf;
 	struct gate_service *service_head;
 	unsigned int service_count;
 	struct gate_service **service_table;

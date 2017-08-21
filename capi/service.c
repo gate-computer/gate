@@ -140,7 +140,7 @@ int gate_recv_for_services(struct gate_service_registry *registry, unsigned int 
 	const struct gate_packet *header = registry->packet_buf;
 	if (header->code) {
 		struct gate_service *s = registry->service_table[header->code - 1];
-		s->received(s, header, size);
+		s->received(s, registry->packet_buf, size);
 	}
 
 	return (unsigned int) header->flags; // zero-extend

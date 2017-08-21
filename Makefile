@@ -70,6 +70,7 @@ bin: get
 devlibs:
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
+	$(MAKE) -C capi
 
 tests: devlibs
 	$(MAKE) -C run/loader/tests
@@ -111,6 +112,7 @@ clean:
 	$(MAKE) -C run/loader/tests clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
+	$(MAKE) -C capi clean
 	$(MAKE) -C examples/gate-talk/payload clean
 	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
