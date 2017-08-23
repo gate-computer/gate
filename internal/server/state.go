@@ -12,7 +12,9 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/binary"
+	"fmt"
 	"io"
+	"strconv"
 	"sync"
 
 	"github.com/tsavola/gate/run"
@@ -25,6 +27,17 @@ import (
 const (
 	maxStackSize = 0x40000000 // crazy but valid
 )
+
+func FormatId(id uint64) (hex string) {
+	hex = fmt.Sprintf("%016x", id)
+	return
+}
+
+func ParseId(hex string) (id uint64, ok bool) {
+	id, err := strconv.ParseUint(hex, 16, 64)
+	ok = (err == nil)
+	return
+}
 
 type State struct {
 	config.Config

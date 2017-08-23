@@ -227,7 +227,7 @@ func handleLoadContent(w http.ResponseWriter, r *http.Request, s *internal.State
 		return
 	}
 
-	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
+	w.Header().Set(api.HeaderProgramId, internal.FormatId(progId))
 }
 
 func handleLoadId(w http.ResponseWriter, r *http.Request, s *internal.State) {
@@ -246,7 +246,7 @@ func handleLoadId(w http.ResponseWriter, r *http.Request, s *internal.State) {
 		found bool
 	)
 
-	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
+	if progId, ok := internal.ParseId(progHexId); ok {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
 			valid, found = s.Check(progId, progHash)
 		}
@@ -304,8 +304,8 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
-	w.Header().Set(api.HeaderProgramId, makeHexId(progId))
+	w.Header().Set(api.HeaderInstanceId, internal.FormatId(instId))
+	w.Header().Set(api.HeaderProgramId, internal.FormatId(progId))
 
 	go func() {
 		defer out.Close()
@@ -340,7 +340,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		found  bool
 	)
 
-	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
+	if progId, ok := internal.ParseId(progHexId); ok {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
 			inst, instId, valid, found, err = s.Instantiate(r.Context(), progId, progHash, originPipe)
 			if err != nil {
@@ -358,7 +358,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
+	w.Header().Set(api.HeaderInstanceId, internal.FormatId(instId))
 
 	go func() {
 		defer out.Close()
@@ -411,7 +411,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 			found bool
 		)
 
-		if progId, err := strconv.ParseUint(run.ProgramId, 16, 64); err == nil {
+		if progId, ok := internal.ParseId(run.ProgramId); ok {
 			if progHash, err := hex.DecodeString(run.ProgramSHA512); err == nil {
 				inst, instId, valid, found, err = s.Instantiate(ctx, progId, progHash, nil)
 				if err != nil {
@@ -453,7 +453,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 			}
 		}
 
-		progHexId = makeHexId(progId)
+		progHexId = internal.FormatId(progId)
 	}
 	if !valid {
 		// TODO
@@ -462,7 +462,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}
 
 	err = conn.WriteJSON(&api.Running{
-		InstanceId: makeHexId(instId),
+		InstanceId: internal.FormatId(instId),
 		ProgramId:  progHexId,
 	})
 	if err != nil {
@@ -521,7 +521,7 @@ func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		found  bool
 	)
 
-	if progId, err := strconv.ParseUint(progHexId, 16, 64); err == nil {
+	if progId, ok := internal.ParseId(progHexId); ok {
 		if progHash, err := hex.DecodeString(progHexHash); err == nil {
 			inst, instId, valid, found, err = s.Instantiate(r.Context(), progId, progHash, nil)
 			if err != nil {
@@ -539,7 +539,7 @@ func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
+	w.Header().Set(api.HeaderInstanceId, internal.FormatId(instId))
 
 	inst.Run(r.Context(), s, instArg, r.Body, w)
 
@@ -579,7 +579,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *inter
 		found      bool
 	)
 
-	if instId, err := strconv.ParseUint(communicate.InstanceId, 16, 64); err == nil {
+	if instId, ok := internal.ParseId(communicate.InstanceId); ok {
 		originPipe, found = s.AttachOrigin(instId)
 	}
 	if !found {
@@ -618,7 +618,7 @@ func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *internal.S
 		found      bool
 	)
 
-	if instId, err := strconv.ParseUint(instHexId, 16, 64); err == nil {
+	if instId, ok := internal.ParseId(instHexId); ok {
 		originPipe, found = s.AttachOrigin(instId)
 	}
 	if !found {
@@ -644,7 +644,7 @@ func handleWait(w http.ResponseWriter, r *http.Request, s *internal.State) {
 		found  bool
 	)
 
-	if instId, err := strconv.ParseUint(instHexId, 16, 64); err == nil {
+	if instId, ok := internal.ParseId(instHexId); ok {
 		result, found = s.Wait(instId)
 	}
 	if !found {
@@ -835,8 +835,4 @@ func writeText(w http.ResponseWriter, r *http.Request, status int, v ...interfac
 	} else {
 		w.WriteHeader(status)
 	}
-}
-
-func makeHexId(id uint64) string {
-	return fmt.Sprintf("%016x", id)
 }
