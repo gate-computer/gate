@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"log/syslog"
 	"net"
@@ -22,6 +21,7 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/serverconfig"
+	"github.com/tsavola/gate/service"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/webserver"
@@ -170,6 +170,8 @@ func main() {
 	critLog.Fatal(s.Serve(l))
 }
 
-func services(r io.Reader, w io.Writer) run.ServiceRegistry {
-	return origin.CloneRegistryWith(nil, r, w)
+func services(s *serverconfig.Server) run.ServiceRegistry {
+	r := service.Defaults.Clone()
+	origin.New(s.Origin.R, s.Origin.W).Register(r)
+	return r
 }

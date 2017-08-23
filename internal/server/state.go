@@ -567,7 +567,14 @@ func (inst *Instance) Run(ctx context.Context, s *State, r io.Reader, w io.Write
 		}
 	}()
 
-	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, s.Services(r, w))
+	services := s.Services(&config.Server{
+		Origin: config.Origin{
+			R: r,
+			W: w,
+		},
+	})
+
+	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, services)
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
 	}

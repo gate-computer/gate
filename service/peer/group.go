@@ -12,6 +12,11 @@ import (
 	"github.com/tsavola/gate/service"
 )
 
+const (
+	Name    = "peer"
+	Version = 0
+)
+
 var (
 	lastGroupId uint64 // atomic
 )
@@ -23,7 +28,13 @@ type Group struct {
 	peers map[uint64]*peer
 }
 
-func (g *Group) New(code packet.Code, config *service.Config) service.Instance {
+var Default = new(Group)
+
+func (g *Group) Register(r *service.Registry) {
+	r.Register(Name, Version, g)
+}
+
+func (g *Group) Instantiate(code packet.Code, config *service.Config) service.Instance {
 	return &peer{
 		group: g,
 		code:  code,

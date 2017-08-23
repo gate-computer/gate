@@ -18,47 +18,39 @@ const (
 	minReadSize = 4096
 )
 
-type Factory struct {
+type Origin struct {
 	R io.Reader
 	W io.Writer
 }
 
-func (f *Factory) Register(r *service.Registry) {
-	service.Register(r, Name, Version, f)
+var Default = new(Origin)
+
+func New(r io.Reader, w io.Writer) *Origin {
+	return &Origin{r, w}
 }
 
-func (f *Factory) New(code packet.Code, config *service.Config) service.Instance {
-	return &origin{
-		Factory:     *f,
-		code:        code,
+func (o *Origin) Register(r *service.Registry) {
+	r.Register(Name, Version, o)
+}
+
+func (o *Origin) Instantiate(code packet.Code, config *service.Config) service.Instance {
+	return &instance{
+		Origin:      *o,
 		maxReadSize: config.MaxContentSize,
 	}
 }
 
-var Default = new(Factory)
-
-func Register(r *service.Registry) {
-	Default.Register(r)
-}
-
-func CloneRegistryWith(r *service.Registry, origIn io.Reader, origOut io.Writer) *service.Registry {
-	clone := service.Clone(r)
-	(&Factory{R: origIn, W: origOut}).Register(clone)
-	return clone
-}
-
-type origin struct {
-	Factory
-	code        packet.Code
+type instance struct {
+	Origin
 	maxReadSize int
 
 	reading chan struct{}
 }
 
-func (o *origin) Handle(p packet.Buf, replies chan<- packet.Buf) {
+func (o *instance) Handle(p packet.Buf, replies chan<- packet.Buf) {
 	if o.R != nil && o.reading == nil {
 		o.reading = make(chan struct{})
-		go o.readLoop(replies)
+		go o.readLoop(p.Code(), replies)
 	}
 
 	if o.W != nil {
@@ -71,18 +63,18 @@ func (o *origin) Handle(p packet.Buf, replies chan<- packet.Buf) {
 	}
 }
 
-func (o *origin) Shutdown() {
+func (o *instance) Shutdown() {
 	if o.reading != nil {
 		close(o.reading)
 	}
 }
 
-func (o *origin) readLoop(replies chan<- packet.Buf) {
+func (o *instance) readLoop(code packet.Code, replies chan<- packet.Buf) {
 	var buf packet.Buf
 
 	for {
 		if buf.ContentSize() < minReadSize {
-			buf = packet.Make(o.code, o.maxReadSize)
+			buf = packet.Make(code, o.maxReadSize)
 		}
 
 		n, err := o.R.Read(buf.Content())

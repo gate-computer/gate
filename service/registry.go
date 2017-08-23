@@ -26,13 +26,13 @@ type Instance interface {
 
 // Factory creates instances of a particular service implementation.
 type Factory interface {
-	New(packet.Code, *Config) Instance
+	Instantiate(packet.Code, *Config) Instance
 }
 
 // FactoryFunc is almost like Factory.
 type FactoryFunc func(packet.Code, *Config) Instance
 
-func (f FactoryFunc) New(code packet.Code, config *Config) Instance {
+func (f FactoryFunc) Instantiate(code packet.Code, config *Config) Instance {
 	return f(code, config)
 }
 
@@ -44,6 +44,10 @@ type Registry struct {
 	factories []Factory
 	infos     map[string]run.ServiceInfo
 }
+
+// Defaults gets populated with the built-in services if the service/defaults
+// package is imported.
+var Defaults = new(Registry)
 
 // Register a service implementation.  See
 // https://github.com/tsavola/gate/blob/master/Service.md for service naming
@@ -114,7 +118,7 @@ func (r *Registry) Serve(ops <-chan packet.Buf, evs chan<- packet.Buf, maxConten
 				err = errors.New("invalid service code")
 				return
 			}
-			inst = r.factories[index].New(code, &config)
+			inst = r.factories[index].Instantiate(code, &config)
 			instances[code] = inst
 		}
 		inst.Handle(op, evs)

@@ -16,44 +16,40 @@ const (
 	Version = 0
 )
 
-type Logger interface {
-	Printf(string, ...interface{})
-}
-
 var prevId uint64 // atomic
 
-type Factory struct {
+type Config struct {
 	Log Logger
 }
 
-func (f *Factory) New(packet.Code, *service.Config) service.Instance {
+var Default = new(Config)
+
+func (c *Config) Register(r *service.Registry) {
+	r.Register(Name, Version, c)
+}
+
+func (c *Config) Instantiate(packet.Code, *service.Config) service.Instance {
 	return &echo{
-		id:  atomic.AddUint64(&prevId, 1),
-		log: f.Log,
+		Config: *c,
+		id:     atomic.AddUint64(&prevId, 1),
 	}
 }
 
-var Default = new(Factory)
-
-func Register(r *service.Registry) {
-	service.Register(r, Name, Version, Default)
-}
-
 type echo struct {
-	id  uint64
-	log Logger
+	Config
+	id uint64
 }
 
 func (e *echo) Handle(p packet.Buf, replies chan<- packet.Buf) {
 	replies <- p
 
-	if e.log != nil {
-		e.log.Printf("instance %d: %#v", e.id, string(p.Content()))
+	if e.Log != nil {
+		e.Log.Printf("instance %d: %#v", e.id, string(p.Content()))
 	}
 }
 
 func (e *echo) Shutdown() {
-	if e.log != nil {
-		e.log.Printf("instance %d: shutdown", e.id)
+	if e.Log != nil {
+		e.Log.Printf("instance %d: shutdown", e.id)
 	}
 }

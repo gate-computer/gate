@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/sha512"
 	"encoding/hex"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -24,12 +23,15 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/serverconfig"
+	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	api "github.com/tsavola/gate/webapi"
 )
 
-func services(r io.Reader, w io.Writer) run.ServiceRegistry {
-	return origin.CloneRegistryWith(nil, r, w)
+func services(s *serverconfig.Server) run.ServiceRegistry {
+	r := service.Defaults.Clone()
+	origin.New(s.Origin.R, s.Origin.W).Register(r)
+	return r
 }
 
 var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &serverconfig.Config{

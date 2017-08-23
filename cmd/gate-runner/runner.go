@@ -124,12 +124,11 @@ func main() {
 		done := make(chan struct{}, len(args))
 
 		for i, arg := range args {
-			var r run.ServiceRegistry
+			r := service.Defaults
 
-			if i == 0 {
-				r = service.Defaults
-			} else {
-				r = origin.CloneRegistryWith(service.Defaults, nil, os.Stdout)
+			if i > 0 {
+				r = r.Clone()
+				origin.New(nil, os.Stdout).Register(r)
 			}
 
 			go execute(ctx, env, arg, r, &timings[i], done)

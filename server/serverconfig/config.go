@@ -16,9 +16,18 @@ const (
 	DefaultPreforkProcs    = 1
 )
 
+type Origin struct {
+	R io.Reader
+	W io.Writer
+}
+
+type Server struct {
+	Origin Origin
+}
+
 type Config struct {
 	Env      *run.Environment
-	Services func(io.Reader, io.Writer) run.ServiceRegistry
+	Services func(*Server) run.ServiceRegistry
 	Log      Logger
 	Debug    io.Writer
 
