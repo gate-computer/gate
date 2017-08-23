@@ -78,7 +78,7 @@ func NewHandler(ctx context.Context, pattern string, state *server.State, conf *
 		var (
 			path          = prefix + "/spawn"
 			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
-			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramId, api.HeaderProgramSHA512)
+			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramId, api.HeaderProgramSHA512, api.HeaderInstanceArg)
 			exposeHeaders = joinHeader(api.HeaderInstanceId, api.HeaderProgramId)
 		)
 
@@ -112,7 +112,7 @@ func NewHandler(ctx context.Context, pattern string, state *server.State, conf *
 			path             = prefix + "/run"
 			allowMethods     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
 			allowMethodsCORS = joinHeader(http.MethodPost, http.MethodOptions) // exclude websocket
-			allowHeaders     = joinHeader(api.HeaderProgramId, api.HeaderProgramSHA512)
+			allowHeaders     = joinHeader(api.HeaderProgramId, api.HeaderProgramSHA512, api.HeaderInstanceArg)
 			exposeHeaders    = joinHeader(api.HeaderInstanceId, api.HeaderProgramId)
 		)
 
@@ -269,6 +269,11 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	instArg, ok := parseInstanceArgHeader(w, r)
+	if !ok {
+		return
+	}
+
 	in, out, originPipe := internal.NewPipe()
 
 	var (
@@ -304,7 +309,7 @@ func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 	go func() {
 		defer out.Close()
-		inst.Run(ctx, s, in, out)
+		inst.Run(ctx, s, instArg, in, out)
 	}()
 }
 
@@ -317,6 +322,11 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	}
 
 	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	if !ok {
+		return
+	}
+
+	instArg, ok := parseInstanceArgHeader(w, r)
 	if !ok {
 		return
 	}
@@ -352,7 +362,7 @@ func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 
 	go func() {
 		defer out.Close()
-		inst.Run(ctx, s, in, out)
+		inst.Run(ctx, s, instArg, in, out)
 	}()
 }
 
@@ -459,7 +469,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 		cancel()
 	}
 
-	inst.Run(ctx, s, newWebsocketReadCanceler(conn, cancel), websocketWriter{conn})
+	inst.Run(ctx, s, run.InstanceArg, newWebsocketReadCanceler(conn, cancel), websocketWriter{conn})
 
 	closeMsg := websocketNormalClosure
 
@@ -499,6 +509,11 @@ func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	instArg, ok := parseInstanceArgHeader(w, r)
+	if !ok {
+		return
+	}
+
 	var (
 		inst   *internal.Instance
 		instId uint64
@@ -526,7 +541,7 @@ func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 
 	w.Header().Set(api.HeaderInstanceId, makeHexId(instId))
 
-	inst.Run(r.Context(), s, r.Body, w)
+	inst.Run(r.Context(), s, instArg, r.Body, w)
 
 	if result, ok := s.WaitInstance(inst, instId); ok {
 		if result != nil {
@@ -699,6 +714,26 @@ func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string) 
 		writeText(w, r, http.StatusBadRequest, canonicalKey, " header is invalid")
 		return "", false
 	}
+}
+
+func parseInstanceArgHeader(w http.ResponseWriter, r *http.Request) (arg int32, ok bool) {
+	fields := r.Header[api.HeaderInstanceArg]
+
+	switch len(fields) {
+	case 0:
+		ok = true
+		return
+
+	case 1:
+		if i, err := strconv.ParseInt(fields[0], 10, 32); err == nil {
+			arg = int32(i)
+			ok = true
+			return
+		}
+	}
+
+	writeText(w, r, http.StatusBadRequest, api.HeaderInstanceArg, " header is invalid")
+	return
 }
 
 func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.State) io.ReadCloser {

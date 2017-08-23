@@ -7,6 +7,7 @@ package webapi
 const (
 	HeaderProgramId     = "X-Gate-Program-Id"     // opaque
 	HeaderProgramSHA512 = "X-Gate-Program-Sha512" // hexadecimal
+	HeaderInstanceArg   = "X-Gate-Instance-Arg"   // 32-bit signed integer
 	HeaderInstanceId    = "X-Gate-Instance-Id"    // opaque
 	HeaderExitStatus    = "X-Gate-Exit-Status"    // non-negative integer
 	HeaderTrapId        = "X-Gate-Trap-Id"        // positive integer
@@ -17,6 +18,7 @@ const (
 type Run struct {
 	ProgramId     string `json:"program_id,omitempty"`
 	ProgramSHA512 string `json:"program_sha512,omitempty"`
+	InstanceArg   int32  `json:"instance_arg"`
 }
 
 type Running struct {

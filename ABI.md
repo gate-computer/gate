@@ -33,6 +33,12 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 
 
 ```wasm
+(import "env" "__gate_get_arg" (func (result i32)))
+```
+> Get the argument.
+
+
+```wasm
 (import "env" "__gate_get_max_packet_size" (func (result i32)))
 ```
 > Find out how large I/O packets the runtime supports.  It's a fatal error to

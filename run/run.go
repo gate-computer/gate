@@ -112,7 +112,7 @@ func NewEnvironment(config *Config) (env *Environment, err error) {
 		}
 
 		switch name {
-		case "__gate_get_abi_version", "__gate_get_max_packet_size":
+		case "__gate_get_abi_version", "__gate_get_arg", "__gate_get_max_packet_size":
 			funcs[name] = envFunc{addr, types.Function{
 				Result: types.I32,
 			}}
@@ -211,6 +211,7 @@ type payloadInfo struct {
 	GrowMemorySize uint32
 	StackSize      uint32
 	MagicNumber    uint32
+	Arg            int32
 }
 
 type Payload struct {
@@ -296,8 +297,13 @@ func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackS
 		GrowMemorySize: uint32(growMemorySize),
 		StackSize:      uint32(stackSize),
 		MagicNumber:    magicNumber,
+		Arg:            p.info.Arg, // in case SetArg was called before this
 	}
 	return
+}
+
+func (p *Payload) SetArg(arg int32) {
+	p.info.Arg = arg
 }
 
 func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {

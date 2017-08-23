@@ -122,12 +122,13 @@ static int read_full(void *buf, size_t size)
 }
 
 __attribute__ ((noreturn))
-static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_memory_limit, void *grow_memory_limit, void *stack_ptr, void *stack_limit)
+static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_memory_limit, void *grow_memory_limit, void *stack_ptr, void *stack_limit, int32_t arg)
 {
 	register void *rax asm ("rax") = stack_ptr;
 	register void *rdx asm ("rdx") = &trap_handler;
 	register void *rcx asm ("rcx") = grow_memory_limit;
 	register uint64_t rsi asm ("rsi") = (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1);
+	register int64_t rdi asm ("rdi") = arg;
 	register void *r9 asm ("r9") = &signal_handler;
 	register void *r10 asm ("r10") = &signal_restorer;
 	register uint64_t r11 asm ("r11") = page;
@@ -138,8 +139,9 @@ static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_me
 
 	asm volatile (
 		// runtime MMX registers
-		"        movq    %%rdx, %%mm0                            \n"
-		"        movq    %%rcx, %%mm1                            \n"
+		"        movq    %%rdx, %%mm0                            \n" // trap handler
+		"        movq    %%rcx, %%mm1                            \n" // grow memory limit
+		"        movq    %%rdi, %%mm6                            \n" // arg
 		// replace stack
 		"        mov     %%rax, %%rsp                            \n"
 		// load the stack ptr saved in _start, and unmap old stack (ASLR breaks this)
@@ -175,7 +177,7 @@ static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_me
 		"        mov     $"xstr(SYS_munmap)", %%eax              \n"
 		"        jmp     runtime_start_with_syscall              \n"
 		:
-		: "r" (rax), "r" (rdx), "r" (rcx), "r" (rsi), "r" (r9), "r" (r10), "r" (r11), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
+		: "r" (rax), "r" (rdx), "r" (rcx), "r" (rsi), "r" (rdi), "r" (r9), "r" (r10), "r" (r11), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
 	);
 	__builtin_unreachable();
 }
@@ -203,6 +205,7 @@ int main(int argc, char **argv, char **envp)
 		uint32_t grow_memory_size;
 		uint32_t stack_size;
 		uint32_t magic_number;
+		int32_t  arg;
 	} info;
 
 	if (read_full(&info, sizeof (info)) != 0)
@@ -253,5 +256,5 @@ int main(int argc, char **argv, char **envp)
 	if (nonblock_fd != GATE_NONBLOCK_FD)
 		return 57;
 
-	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit);
+	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit, info.arg);
 }

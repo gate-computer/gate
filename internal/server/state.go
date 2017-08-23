@@ -537,7 +537,7 @@ func (inst *Instance) attachOrigin() (pipe *Pipe) {
 	return
 }
 
-func (inst *Instance) Run(ctx context.Context, s *State, r io.Reader, w io.Writer) {
+func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader, w io.Writer) {
 	defer inst.close()
 
 	var (
@@ -573,6 +573,8 @@ func (inst *Instance) Run(ctx context.Context, s *State, r io.Reader, w io.Write
 			W: w,
 		},
 	})
+
+	inst.payload.SetArg(arg)
 
 	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, services)
 	if err != nil {

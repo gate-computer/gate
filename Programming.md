@@ -37,6 +37,12 @@ const int gate_abi_version;
 
 
 ```c
+const int32_t gate_arg;
+```
+> The argument.
+
+
+```c
 const size_t gate_max_packet_size;
 ```
 > The largest I/O packet size the runtime supports.  It's a fatal error to send

@@ -290,6 +290,15 @@ __gate_get_abi_version:
 
 	.align	16,INT3
 
+	.globl	__gate_get_arg
+	.type	__gate_get_arg,@function
+
+__gate_get_arg:
+	movq	%mm6, %rax
+	ret
+
+	.align	16,INT3
+
 	.globl	__gate_get_max_packet_size
 	.type	__gate_get_max_packet_size,@function
 
