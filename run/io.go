@@ -31,6 +31,9 @@ type read struct {
 }
 
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	// cancel is called below
+
 	var (
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
@@ -38,7 +41,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 	)
 	go func() {
 		defer close(serviceErr)
-		serviceErr <- services.Serve(messageOutput, messageInput, maxPacketSize-packet.HeaderSize)
+		serviceErr <- services.Serve(ctx, messageOutput, messageInput, maxPacketSize-packet.HeaderSize)
 	}()
 	defer func() {
 		for range messageInput {
@@ -51,6 +54,8 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 		}
 	}()
 	defer close(messageOutput)
+
+	defer cancel() // cancel the Serve goroutine
 
 	subjectInput := subjectReadLoop(subject.stdout)
 	defer func() {

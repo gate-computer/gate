@@ -5,6 +5,7 @@
 package echo
 
 import (
+	"context"
 	"sync/atomic"
 
 	"github.com/tsavola/gate/packet"
@@ -40,7 +41,7 @@ type echo struct {
 	id uint64
 }
 
-func (e *echo) Handle(p packet.Buf, replies chan<- packet.Buf) {
+func (e *echo) Handle(ctx context.Context, p packet.Buf, replies chan<- packet.Buf) {
 	replies <- p
 
 	if e.Log != nil {

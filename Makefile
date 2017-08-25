@@ -29,6 +29,7 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/internal/memfd \
 	$(GOPACKAGEPREFIX)/internal/server \
 	$(GOPACKAGEPREFIX)/packet \
+	$(GOPACKAGEPREFIX)/packet/packetchan \
 	$(GOPACKAGEPREFIX)/run \
 	$(GOPACKAGEPREFIX)/server \
 	$(GOPACKAGEPREFIX)/server/serverconfig \

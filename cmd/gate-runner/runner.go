@@ -92,6 +92,8 @@ func main() {
 
 	ctx := context.Background()
 
+	originalDefaultOriginReader := origin.Default.R
+
 	if addr != "" {
 		os.Remove(addr)
 		l, err := net.Listen("unix", addr)
@@ -128,7 +130,7 @@ func main() {
 
 			if i > 0 {
 				r = r.Clone()
-				origin.New(nil, os.Stdout).Register(r)
+				origin.New(originalDefaultOriginReader, os.Stdout).Register(r)
 			}
 
 			go execute(ctx, env, arg, r, &timings[i], done)

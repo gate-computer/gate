@@ -5,9 +5,9 @@
 package service
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
-	"sync"
 
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/run"
@@ -20,7 +20,7 @@ type Config struct {
 
 // Instance of a service.
 type Instance interface {
-	Handle(op packet.Buf, evs chan<- packet.Buf)
+	Handle(ctx context.Context, op packet.Buf, evs chan<- packet.Buf)
 	Shutdown()
 }
 
@@ -98,7 +98,7 @@ func (r *Registry) Info(name string) run.ServiceInfo {
 }
 
 // Serve implements the run.ServiceRegistry interface function.
-func (r *Registry) Serve(ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) (err error) {
+func (r *Registry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) (err error) {
 	defer close(evs)
 
 	config := Config{
@@ -107,37 +107,44 @@ func (r *Registry) Serve(ops <-chan packet.Buf, evs chan<- packet.Buf, maxConten
 
 	instances := make(map[packet.Code]Instance)
 	defer shutdown(instances)
+	defer flush(ops)
 
-	for op := range ops {
-		var code packet.Code
-		copy(code[:], op[packet.CodeOffset:])
-		inst, found := instances[code]
-		if !found {
-			index := uint32(code.Int()) - 1 // underflow wraps around
-			if index >= uint32(len(r.factories)) {
-				err = errors.New("invalid service code")
+	for {
+		select {
+		case op, ok := <-ops:
+			if !ok {
 				return
 			}
-			inst = r.factories[index].Instantiate(code, &config)
-			instances[code] = inst
-		}
-		inst.Handle(op, evs)
-	}
 
-	return
+			var code packet.Code
+			copy(code[:], op[packet.CodeOffset:])
+			inst, found := instances[code]
+			if !found {
+				index := uint32(code.Int()) - 1 // underflow wraps around
+				if index >= uint32(len(r.factories)) {
+					err = errors.New("invalid service code")
+					return
+				}
+				inst = r.factories[index].Instantiate(code, &config)
+				instances[code] = inst
+			}
+			inst.Handle(ctx, op, evs)
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func flush(ops <-chan packet.Buf) {
+	for range ops {
+	}
 }
 
 func shutdown(instances map[packet.Code]Instance) {
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	shutdown := func(inst Instance) {
-		defer wg.Done()
-		inst.Shutdown()
-	}
-
+	// Actual shutdown of a service should have began when the context was
+	// canceled, so these Shutdown calls only need to wait for completion.
 	for _, inst := range instances {
-		wg.Add(1)
-		go shutdown(inst)
+		inst.Shutdown()
 	}
 }

@@ -6,6 +6,7 @@ package run
 
 import (
 	"bytes"
+	"context"
 	"errors"
 
 	"github.com/tsavola/gate/packet"
@@ -32,15 +33,15 @@ type ServiceInfo struct {
 // of the services, the packet is forwarded to the ServiceRegistry for
 // handling.
 //
-// Serve is called once for each program instance.  The receive channel is
-// closed when the program is being shut down, after which the send channel
-// must be closed.  The maximum packet content size may be used when buffering
-// data.
+// Serve is called once for each program instance.  The context is canceled and
+// the receive channel is closed when the program is being shut down.  After
+// that the send channel must be closed.  The maximum packet content size may
+// be used when buffering data.
 //
 // See the service package for the default implementation.
 type ServiceRegistry interface {
 	Info(serviceName string) ServiceInfo
-	Serve(r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) error
+	Serve(ctx context.Context, r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) error
 }
 
 type noServices struct{}
@@ -49,7 +50,7 @@ func (noServices) Info(string) (info ServiceInfo) {
 	return
 }
 
-func (noServices) Serve(r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) (err error) {
+func (noServices) Serve(ctx context.Context, r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) (err error) {
 	defer close(s)
 	for range r {
 	}

@@ -5,6 +5,7 @@
 package peer
 
 import (
+	"context"
 	"encoding/binary"
 
 	"github.com/tsavola/gate/packet"
@@ -37,7 +38,7 @@ type peer struct {
 	queue queue
 }
 
-func (self *peer) Handle(op packet.Buf, evs chan<- packet.Buf) {
+func (self *peer) Handle(ctx context.Context, op packet.Buf, evs chan<- packet.Buf) {
 	content := op.Content()
 	if len(content) < peerHeaderSize {
 		// TODO: send error message ev
