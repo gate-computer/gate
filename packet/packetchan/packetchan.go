@@ -14,11 +14,10 @@ import (
 type forwardAck struct{}
 
 // ForwardDoneAck can be used with contextack.WithAck to subscribe to Forward
-// exit acknowledgement.
+// call cancellation acknowledgement.
 var ForwardDoneAck forwardAck
 
-// Forward packets from source to destination until shutdown is triggered (the
-// channel is closed).
+// Forward packets from source to destination until the context is canceled.
 func Forward(ctx context.Context, destination chan<- packet.Buf, source <-chan packet.Buf) {
 	defer contextack.Ack(ctx, ForwardDoneAck)
 
