@@ -64,8 +64,12 @@ int main()
 	char str[] = "hello world\n";
 	Packet<sizeof (str) - 1> p;
 
-	for (int i = 0; i < p.payload_size; i++)
-		p.payload()[i] = str[i];
+	for (int i = 0; i < p.payload_size; i++) {
+		char c = str[i];
+		if (c >= 'a' && c <= 'z')
+		    c += gate_arg;
+		p.payload()[i] = c;
+	}
 
 	if (p.size > gate_max_packet_size)
 		return 1;

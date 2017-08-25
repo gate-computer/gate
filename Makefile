@@ -94,6 +94,7 @@ check: bin tests
 	$(GO) test -race $(GOPACKAGES)
 	$(run) tests/echo/prog.wasm
 	$(run) -repeat=2 tests/hello/prog.wasm
+	$(run) -arg=-32 tests/hello/prog.wasm | grep "HELLO WORLD"
 	$(run) -repeat=100 tests/nop/prog.wasm
 	$(run) tests/peer/prog.wasm tests/peer/prog.wasm
 

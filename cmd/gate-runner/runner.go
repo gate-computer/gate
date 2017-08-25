@@ -58,6 +58,7 @@ func main() {
 			CgroupTitle: run.DefaultCgroupTitle,
 		}
 		addr = ""
+		arg  = 0
 	)
 
 	flag.Usage = func() {
@@ -81,11 +82,12 @@ func main() {
 	flag.BoolVar(&dumpStack, "dump-stack", dumpStack, "print stacktrace after running")
 	flag.IntVar(&repeat, "repeat", repeat, "repeat the program execution(s) multiple times")
 	flag.StringVar(&addr, "addr", addr, "I/O socket path (replaces stdio)")
+	flag.IntVar(&arg, "arg", arg, "32-bit signed integer argument for the program instance(s)")
 
 	flag.Parse()
 
-	args := flag.Args()
-	if len(args) == 0 {
+	filenames := flag.Args()
+	if len(filenames) == 0 {
 		flag.Usage()
 		os.Exit(2)
 	}
@@ -120,12 +122,12 @@ func main() {
 	}
 	defer env.Close()
 
-	timings := make([]timing, len(args))
+	timings := make([]timing, len(filenames))
 
 	for round := 0; round < repeat; round++ {
-		done := make(chan struct{}, len(args))
+		done := make(chan struct{}, len(filenames))
 
-		for i, arg := range args {
+		for i, filename := range filenames {
 			r := service.Defaults
 
 			if i > 0 {
@@ -133,19 +135,19 @@ func main() {
 				origin.New(originalDefaultOriginReader, os.Stdout).Register(r)
 			}
 
-			go execute(ctx, env, arg, r, &timings[i], done)
+			go execute(ctx, env, filename, int32(arg), r, &timings[i], done)
 		}
 
-		for range args {
+		for range filenames {
 			<-done
 		}
 	}
 
 	if dumpTime {
-		for i, arg := range args {
+		for i, filename := range filenames {
 			output := func(title string, sum time.Duration) {
 				avg := sum / time.Duration(repeat)
-				log.Printf("%s "+title+": %6d.%03dµs", arg, avg/time.Microsecond, avg%time.Microsecond)
+				log.Printf("%s "+title+": %6d.%03dµs", filename, avg/time.Microsecond, avg%time.Microsecond)
 			}
 
 			output("loading time", timings[i].loading)
@@ -155,7 +157,7 @@ func main() {
 	}
 }
 
-func execute(ctx context.Context, env *run.Environment, filename string, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
+func execute(ctx context.Context, env *run.Environment, filename string, arg int32, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
 	defer func() {
 		done <- struct{}{}
 	}()
@@ -200,6 +202,8 @@ func execute(ctx context.Context, env *run.Environment, filename string, service
 	if err != nil {
 		log.Fatalf("payload: %v", err)
 	}
+
+	payload.SetArg(arg)
 
 	if dumpText {
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
