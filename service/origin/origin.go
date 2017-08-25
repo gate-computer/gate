@@ -15,7 +15,7 @@ const (
 	Name    = "origin"
 	Version = 0
 
-	minReadSize = 4096
+	minReadSize = 1536
 )
 
 type Origin struct {
