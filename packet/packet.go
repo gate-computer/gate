@@ -26,7 +26,7 @@ func BufSize(contentSize int) int {
 	return HeaderSize + contentSize
 }
 
-// Buf holds a complete packet.
+// Buf holds a packet, including space for its header.
 type Buf []byte
 
 // Make a packet buffer.  Code identifies the service for a given program
