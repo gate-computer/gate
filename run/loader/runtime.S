@@ -317,3 +317,6 @@ __gate_debug_write:
 	mov	$SYS_write, %ebp
 	mov	$GATE_DEBUG_FD, %edi	// fd (1st syscall arg)
 	jmp	.Lio
+
+	// don't want executable stack
+	.section .note.GNU-stack,"",%progbits
