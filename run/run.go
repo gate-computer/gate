@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/reader"
 	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/types"
@@ -502,6 +503,11 @@ func (files execFiles) close() {
 func copyClose(w io.Writer, r *os.File) {
 	defer r.Close()
 	io.Copy(w, r)
+}
+
+func Load(m *wag.Module, r reader.Reader, rt *Runtime, textBuf wag.Buffer, roDataBuf []byte, startTrigger chan<- struct{}) error {
+	m.MainSymbol = MainSymbol
+	return m.Load(r, rt.Environment(), textBuf, roDataBuf, RODataAddr, startTrigger)
 }
 
 func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry) (exit int, trap traps.Id, err error) {

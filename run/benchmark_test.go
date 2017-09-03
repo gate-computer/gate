@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	benchRuntime = runtest.NewRuntime()
+	benchRT = runtest.NewRuntime()
 
 	benchProgNop   = readProgram("nop")
 	benchProgHello = readProgram("hello")
@@ -43,11 +43,9 @@ var (
 )
 
 func compileBenchmark(prog []byte) (m *wag.Module) {
-	m = &wag.Module{
-		MainSymbol: "main",
-	}
+	m = new(wag.Module)
 
-	err := m.Load(bytes.NewReader(prog), benchRuntime.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err := run.Load(m, bytes.NewReader(prog), benchRT.Runtime, new(bytes.Buffer), nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -74,13 +72,13 @@ func prepareBenchmark(m *wag.Module) (image *run.Image) {
 func executeBenchmark(image *run.Image, output io.Writer) (exit int, trap traps.Id, err error) {
 	var proc run.Process
 
-	err = proc.Init(context.Background(), benchRuntime.Runtime, image, nil)
+	err = proc.Init(context.Background(), benchRT.Runtime, image, nil)
 	if err != nil {
 		return
 	}
 	defer proc.Close()
 
-	exit, trap, err = run.Run(context.Background(), benchRuntime.Runtime, &proc, image, &testServiceRegistry{output})
+	exit, trap, err = run.Run(context.Background(), benchRT.Runtime, &proc, image, &testServiceRegistry{output})
 	return
 }
 

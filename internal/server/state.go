@@ -419,13 +419,9 @@ func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime) (p *pro
 
 	r := bufio.NewReader(io.TeeReader(io.TeeReader(body, &wasm), hash))
 
-	p = &program{
-		module: wag.Module{
-			MainSymbol: "main",
-		},
-	}
+	p = new(program)
 
-	loadErr := p.module.Load(r, rt.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
+	loadErr := run.Load(&p.module, r, rt, new(bytes.Buffer), nil, nil)
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:

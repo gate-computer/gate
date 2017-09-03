@@ -68,11 +68,9 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	wasm := openProgram(testName)
 	defer wasm.Close()
 
-	m := wag.Module{
-		MainSymbol: "main",
-	}
+	var m wag.Module
 
-	err := m.Load(bufio.NewReader(wasm), rt.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, new(bytes.Buffer), nil, nil)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}

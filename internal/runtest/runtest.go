@@ -25,12 +25,12 @@ type TestRuntime struct {
 	Closed bool
 }
 
-func (testRt *TestRuntime) Close() error {
-	testRt.Closed = true
-	return testRt.Runtime.Close()
+func (testRT *TestRuntime) Close() error {
+	testRT.Closed = true
+	return testRT.Runtime.Close()
 }
 
-func NewRuntime() (testRt *TestRuntime) {
+func NewRuntime() (testRT *TestRuntime) {
 	commonGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_COMMONGROUP"))
 	if err != nil {
 		panic(err)
@@ -64,11 +64,11 @@ func NewRuntime() (testRt *TestRuntime) {
 		panic(err)
 	}
 
-	testRt = &TestRuntime{Runtime: rt}
+	testRT = &TestRuntime{Runtime: rt}
 
 	go func() {
-		<-testRt.Done()
-		if !testRt.Closed {
+		<-testRT.Done()
+		if !testRT.Closed {
 			panic("executor died")
 		}
 	}()
