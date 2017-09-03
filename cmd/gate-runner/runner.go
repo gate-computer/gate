@@ -116,11 +116,11 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
-	env, err := run.NewEnvironment(&config)
+	rt, err := run.NewRuntime(&config)
 	if err != nil {
-		log.Fatalf("environment: %v", err)
+		log.Fatalf("runtime: %v", err)
 	}
-	defer env.Close()
+	defer rt.Close()
 
 	timings := make([]timing, len(filenames))
 
@@ -135,7 +135,7 @@ func main() {
 				origin.New(originalDefaultOriginReader, os.Stdout).Register(r)
 			}
 
-			go execute(ctx, env, filename, int32(arg), r, &timings[i], done)
+			go execute(ctx, rt, filename, int32(arg), r, &timings[i], done)
 		}
 
 		for range filenames {
@@ -157,7 +157,7 @@ func main() {
 	}
 }
 
-func execute(ctx context.Context, env *run.Environment, filename string, arg int32, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
+func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
 	defer func() {
 		done <- struct{}{}
 	}()
@@ -174,7 +174,7 @@ func execute(ctx context.Context, env *run.Environment, filename string, arg int
 
 	var proc run.Process
 
-	err = proc.Init(ctx, env, &payload, os.Stderr)
+	err = proc.Init(ctx, rt, &payload, os.Stderr)
 	if err != nil {
 		log.Fatalf("process: %v", err)
 	}
@@ -189,7 +189,7 @@ func execute(ctx context.Context, env *run.Environment, filename string, arg int
 		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err = load(&m, filename, env)
+	err = load(&m, filename, rt)
 	if err != nil {
 		log.Fatalf("module: %v", err)
 	}
@@ -211,7 +211,7 @@ func execute(ctx context.Context, env *run.Environment, filename string, arg int
 
 	tRunBegin := time.Now()
 
-	exit, trap, err := run.Run(ctx, env, &proc, &payload, services)
+	exit, trap, err := run.Run(ctx, rt, &proc, &payload, services)
 	if err != nil {
 		log.Fatalf("run: %v", err)
 	}
@@ -237,13 +237,13 @@ func execute(ctx context.Context, env *run.Environment, filename string, arg int
 	timing.overall += tEnd.Sub(tBegin)
 }
 
-func load(m *wag.Module, filename string, env *run.Environment) (err error) {
+func load(m *wag.Module, filename string, rt *run.Runtime) (err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 
-	err = m.Load(bufio.NewReader(f), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err = m.Load(bufio.NewReader(f), rt, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	return
 }

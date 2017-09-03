@@ -26,7 +26,7 @@ type Server struct {
 }
 
 type Config struct {
-	Env      *run.Environment
+	Runtime  *run.Runtime
 	Services func(*Server) run.ServiceRegistry
 	Log      Logger
 	Debug    io.Writer

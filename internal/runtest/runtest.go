@@ -20,17 +20,17 @@ func parseId(s string) uint {
 	return uint(n)
 }
 
-type TestEnvironment struct {
-	*run.Environment
+type TestRuntime struct {
+	*run.Runtime
 	Closed bool
 }
 
-func (testEnv *TestEnvironment) Close() error {
-	testEnv.Closed = true
-	return testEnv.Environment.Close()
+func (testRt *TestRuntime) Close() error {
+	testRt.Closed = true
+	return testRt.Runtime.Close()
 }
 
-func NewEnvironment() (testEnv *TestEnvironment) {
+func NewRuntime() (testRt *TestRuntime) {
 	commonGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_COMMONGROUP"))
 	if err != nil {
 		panic(err)
@@ -59,16 +59,16 @@ func NewEnvironment() (testEnv *TestEnvironment) {
 		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
 	}
 
-	env, err := run.NewEnvironment(&config)
+	rt, err := run.NewRuntime(&config)
 	if err != nil {
 		panic(err)
 	}
 
-	testEnv = &TestEnvironment{Environment: env}
+	testRt = &TestRuntime{Runtime: rt}
 
 	go func() {
-		<-testEnv.Done()
-		if !testEnv.Closed {
+		<-testRt.Done()
+		if !testRt.Closed {
 			panic("executor died")
 		}
 	}()

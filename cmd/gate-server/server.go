@@ -121,12 +121,12 @@ func main() {
 		infoLog = critLog
 	}
 
-	env, err := run.NewEnvironment(&runconf)
+	rt, err := run.NewRuntime(&runconf)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 
-	serverconf.Env = env
+	serverconf.Runtime = rt
 	serverconf.Services = services
 	serverconf.Log = infoLog
 

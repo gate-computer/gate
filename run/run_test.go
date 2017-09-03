@@ -62,8 +62,8 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		stackSize       = 4096
 	)
 
-	env := runtest.NewEnvironment()
-	defer env.Close()
+	rt := runtest.NewRuntime()
+	defer rt.Close()
 
 	wasm := openProgram(testName)
 	defer wasm.Close()
@@ -72,7 +72,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		MainSymbol: "main",
 	}
 
-	err := m.Load(bufio.NewReader(wasm), env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err := m.Load(bufio.NewReader(wasm), rt, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}
@@ -98,7 +98,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		t.Fatalf("payload error: %v", err)
 	}
 
-	err = proc.Init(context.Background(), env.Environment, &payload, os.Stdout)
+	err = proc.Init(context.Background(), rt.Runtime, &payload, os.Stdout)
 	if err != nil {
 		return
 	}
@@ -108,7 +108,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		t.Fatalf("payload error: %v", err)
 	}
 
-	exit, trap, err := run.Run(context.Background(), env.Environment, &proc, &payload, &testServiceRegistry{origin: &output})
+	exit, trap, err := run.Run(context.Background(), rt.Runtime, &proc, &payload, &testServiceRegistry{origin: &output})
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {

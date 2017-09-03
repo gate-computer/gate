@@ -70,18 +70,18 @@ func randAddr(minAddr, maxAddr uint64, b []byte) uint64 {
 	return page * uint64(pageSize)
 }
 
-type envFunc struct {
+type runtimeFunc struct {
 	addr uint64
 	sig  types.Function
 }
 
-type Environment struct {
+type Runtime struct {
 	executor  executor
-	funcs     map[string]envFunc
+	funcs     map[string]runtimeFunc
 	commonGid uint
 }
 
-func NewEnvironment(config *Config) (env *Environment, err error) {
+func NewRuntime(config *Config) (rt *Runtime, err error) {
 	mapPath := path.Join(config.LibDir, "runtime.map")
 	mapFile, err := os.Open(mapPath)
 	if err != nil {
@@ -89,7 +89,7 @@ func NewEnvironment(config *Config) (env *Environment, err error) {
 	}
 	defer mapFile.Close()
 
-	funcs := make(map[string]envFunc)
+	funcs := make(map[string]runtimeFunc)
 
 	for {
 		var (
@@ -113,29 +113,29 @@ func NewEnvironment(config *Config) (env *Environment, err error) {
 
 		switch name {
 		case "__gate_get_abi_version", "__gate_get_arg", "__gate_get_max_packet_size":
-			funcs[name] = envFunc{addr, types.Function{
+			funcs[name] = runtimeFunc{addr, types.Function{
 				Result: types.I32,
 			}}
 
 		case "__gate_func_ptr":
-			funcs[name] = envFunc{addr, types.Function{
+			funcs[name] = runtimeFunc{addr, types.Function{
 				Args:   []types.T{types.I32},
 				Result: types.I32,
 			}}
 
 		case "__gate_exit":
-			funcs[name] = envFunc{addr, types.Function{
+			funcs[name] = runtimeFunc{addr, types.Function{
 				Args: []types.T{types.I32},
 			}}
 
 		case "__gate_recv":
-			funcs[name] = envFunc{addr, types.Function{
+			funcs[name] = runtimeFunc{addr, types.Function{
 				Args:   []types.T{types.I32, types.I32, types.I32},
 				Result: types.I32,
 			}}
 
 		case "__gate_send", "__gate_debug_write":
-			funcs[name] = envFunc{addr, types.Function{
+			funcs[name] = runtimeFunc{addr, types.Function{
 				Args: []types.T{types.I32, types.I32},
 			}}
 		}
@@ -151,18 +151,18 @@ func NewEnvironment(config *Config) (env *Environment, err error) {
 		return
 	}
 
-	env = &Environment{
+	rt = &Runtime{
 		funcs:     funcs,
 		commonGid: config.CommonGid,
 	}
 
-	err = env.executor.init(config)
+	err = rt.executor.init(config)
 	return
 }
 
-func (env *Environment) ImportFunction(module, field string, sig types.Function) (variadic bool, addr uint64, err error) {
+func (rt *Runtime) ImportFunction(module, field string, sig types.Function) (variadic bool, addr uint64, err error) {
 	if module == "env" {
-		if f, found := env.funcs[field]; found {
+		if f, found := rt.funcs[field]; found {
 			if !f.sig.Equal(sig) {
 				err = fmt.Errorf("function %s %s imported with wrong signature: %s", field, f.sig, sig)
 				return
@@ -177,7 +177,7 @@ func (env *Environment) ImportFunction(module, field string, sig types.Function)
 	return
 }
 
-func (env *Environment) ImportGlobal(module, field string, t types.T) (value uint64, err error) {
+func (rt *Runtime) ImportGlobal(module, field string, t types.T) (value uint64, err error) {
 	if module == "env" {
 		switch field {
 		case "__gate_abi_version":
@@ -194,14 +194,14 @@ func (env *Environment) ImportGlobal(module, field string, t types.T) (value uin
 	return
 }
 
-func (env *Environment) Close() error {
-	return env.executor.close()
+func (rt *Runtime) Close() error {
+	return rt.executor.close()
 }
 
 // Done channel will be closed when the executor process dies.  If that wasn't
 // requested by calling Close, this indicates an internal error.
-func (env *Environment) Done() <-chan struct{} {
-	return env.executor.doneReceiving
+func (rt *Runtime) Done() <-chan struct{} {
+	return rt.executor.doneReceiving
 }
 
 // payloadInfo is like the info object in loader.c
@@ -373,7 +373,7 @@ type Process struct {
 	stdout *os.File // reader
 }
 
-func (p *Process) Init(ctx context.Context, env *Environment, payload *Payload, debug io.Writer) (err error) {
+func (p *Process) Init(ctx context.Context, rt *Runtime, payload *Payload, debug io.Writer) (err error) {
 	var (
 		stdinR  *os.File
 		stdinW  *os.File
@@ -409,7 +409,7 @@ func (p *Process) Init(ctx context.Context, env *Environment, payload *Payload, 
 		return
 	}
 
-	err = syscall.Fchown(int(stdinR.Fd()), -1, int(env.commonGid))
+	err = syscall.Fchown(int(stdinR.Fd()), -1, int(rt.commonGid))
 	if err != nil {
 		return
 	}
@@ -435,7 +435,7 @@ func (p *Process) Init(ctx context.Context, env *Environment, payload *Payload, 
 		execFiles = append(execFiles, debugW)
 	}
 
-	err = env.executor.execute(ctx, &p.process, execFiles)
+	err = rt.executor.execute(ctx, &p.process, execFiles)
 	if err != nil {
 		return
 	}
@@ -488,7 +488,7 @@ func copyClose(w io.Writer, r *os.File) {
 	io.Copy(w, r)
 }
 
-func Run(ctx context.Context, env *Environment, proc *Process, payload *Payload, services ServiceRegistry) (exit int, trap traps.Id, err error) {
+func Run(ctx context.Context, rt *Runtime, proc *Process, payload *Payload, services ServiceRegistry) (exit int, trap traps.Id, err error) {
 	if services == nil {
 		services = noServices{}
 	}

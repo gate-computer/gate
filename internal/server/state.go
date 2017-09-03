@@ -181,7 +181,7 @@ func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte) (prog *progra
 }
 
 func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (prog *program, progId uint64, valid bool, err error) {
-	prog, valid, err = loadProgram(wasm, clientHash, s.Env)
+	prog, valid, err = loadProgram(wasm, clientHash, s.Runtime)
 	if err != nil {
 		return
 	}
@@ -294,7 +294,7 @@ func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte,
 }
 
 func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *Instance) (instId uint64, prog *program, progId uint64, valid bool, err error) {
-	prog, valid, err = loadProgram(wasm, clientHash, s.Env)
+	prog, valid, err = loadProgram(wasm, clientHash, s.Runtime)
 	if err != nil {
 		return
 	}
@@ -402,7 +402,7 @@ type program struct {
 	hash          [sha512.Size]byte
 }
 
-func loadProgram(body io.ReadCloser, clientHash []byte, env *run.Environment) (p *program, valid bool, err error) {
+func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime) (p *program, valid bool, err error) {
 	var (
 		wasm bytes.Buffer
 		hash = sha512.New()
@@ -416,7 +416,7 @@ func loadProgram(body io.ReadCloser, clientHash []byte, env *run.Environment) (p
 		},
 	}
 
-	loadErr := p.module.Load(r, env, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	loadErr := p.module.Load(r, rt, new(bytes.Buffer), nil, run.RODataAddr, nil)
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:
@@ -513,7 +513,7 @@ func newInstance(ctx context.Context, s *State) *Instance {
 		}
 	}()
 
-	if err := inst.process.Init(ctx, s.Env, &inst.payload, s.Debug); err != nil {
+	if err := inst.process.Init(ctx, s.Runtime, &inst.payload, s.Debug); err != nil {
 		s.Log.Printf("process init: %v", err)
 		return nil
 	}
@@ -589,7 +589,7 @@ func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader,
 
 	inst.payload.SetArg(arg)
 
-	status, trap, err = run.Run(ctx, s.Env, &inst.process, &inst.payload, services)
+	status, trap, err = run.Run(ctx, s.Runtime, &inst.process, &inst.payload, services)
 	if err != nil {
 		s.Log.Printf("run error: %v", err)
 	}
