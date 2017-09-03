@@ -74,13 +74,13 @@ func prepareBenchmark(m *wag.Module) (p *run.Payload) {
 func executeBenchmark(payload *run.Payload, output io.Writer) (exit int, trap traps.Id, err error) {
 	var proc run.Process
 
-	err = proc.Init(context.Background(), benchEnv, payload, nil)
+	err = proc.Init(context.Background(), benchEnv.Environment, payload, nil)
 	if err != nil {
 		return
 	}
 	defer proc.Close()
 
-	exit, trap, err = run.Run(context.Background(), benchEnv, &proc, payload, &testServiceRegistry{output})
+	exit, trap, err = run.Run(context.Background(), benchEnv.Environment, &proc, payload, &testServiceRegistry{output})
 	return
 }
 

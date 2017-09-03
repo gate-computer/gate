@@ -86,9 +86,7 @@ capabilities:
 	chmod go-wx lib/container
 	$(SETCAP) cap_dac_override,cap_setgid,cap_setuid+ep lib/container
 
-# check and benchmark can't require lib due to the capabilities step
-
-check: bin tests
+check: lib bin tests
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)

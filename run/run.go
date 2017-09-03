@@ -198,6 +198,12 @@ func (env *Environment) Close() error {
 	return env.executor.close()
 }
 
+// Done channel will be closed when the executor process dies.  If that wasn't
+// requested by calling Close, this indicates an internal error.
+func (env *Environment) Done() <-chan struct{} {
+	return env.executor.doneReceiving
+}
+
 // payloadInfo is like the info object in loader.c
 type payloadInfo struct {
 	TextAddr       uint64

@@ -98,7 +98,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		t.Fatalf("payload error: %v", err)
 	}
 
-	err = proc.Init(context.Background(), env, &payload, os.Stdout)
+	err = proc.Init(context.Background(), env.Environment, &payload, os.Stdout)
 	if err != nil {
 		return
 	}
@@ -108,7 +108,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		t.Fatalf("payload error: %v", err)
 	}
 
-	exit, trap, err := run.Run(context.Background(), env, &proc, &payload, &testServiceRegistry{origin: &output})
+	exit, trap, err := run.Run(context.Background(), env.Environment, &proc, &payload, &testServiceRegistry{origin: &output})
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
