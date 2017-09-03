@@ -244,6 +244,6 @@ func load(m *wag.Module, filename string, rt *run.Runtime) (err error) {
 	}
 	defer f.Close()
 
-	err = m.Load(bufio.NewReader(f), rt, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err = m.Load(bufio.NewReader(f), rt.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
 	return
 }

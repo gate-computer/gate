@@ -47,7 +47,7 @@ func compileBenchmark(prog []byte) (m *wag.Module) {
 		MainSymbol: "main",
 	}
 
-	err := m.Load(bytes.NewReader(prog), benchRuntime, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err := m.Load(bytes.NewReader(prog), benchRuntime.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		panic(err)
 	}

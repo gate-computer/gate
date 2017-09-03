@@ -416,7 +416,7 @@ func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime) (p *pro
 		},
 	}
 
-	loadErr := p.module.Load(r, rt, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	loadErr := p.module.Load(r, rt.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:

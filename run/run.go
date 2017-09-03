@@ -75,13 +75,11 @@ type runtimeFunc struct {
 	sig  types.Function
 }
 
-type Runtime struct {
-	executor  executor
-	funcs     map[string]runtimeFunc
-	commonGid uint
+type runtimeEnv struct {
+	funcs map[string]runtimeFunc
 }
 
-func NewRuntime(config *Config) (rt *Runtime, err error) {
+func (env *runtimeEnv) init(config *Config) (err error) {
 	mapPath := path.Join(config.LibDir, "runtime.map")
 	mapFile, err := os.Open(mapPath)
 	if err != nil {
@@ -89,7 +87,7 @@ func NewRuntime(config *Config) (rt *Runtime, err error) {
 	}
 	defer mapFile.Close()
 
-	funcs := make(map[string]runtimeFunc)
+	env.funcs = make(map[string]runtimeFunc)
 
 	for {
 		var (
@@ -113,56 +111,40 @@ func NewRuntime(config *Config) (rt *Runtime, err error) {
 
 		switch name {
 		case "__gate_get_abi_version", "__gate_get_arg", "__gate_get_max_packet_size":
-			funcs[name] = runtimeFunc{addr, types.Function{
+			env.funcs[name] = runtimeFunc{addr, types.Function{
 				Result: types.I32,
 			}}
 
 		case "__gate_func_ptr":
-			funcs[name] = runtimeFunc{addr, types.Function{
+			env.funcs[name] = runtimeFunc{addr, types.Function{
 				Args:   []types.T{types.I32},
 				Result: types.I32,
 			}}
 
 		case "__gate_exit":
-			funcs[name] = runtimeFunc{addr, types.Function{
+			env.funcs[name] = runtimeFunc{addr, types.Function{
 				Args: []types.T{types.I32},
 			}}
 
 		case "__gate_recv":
-			funcs[name] = runtimeFunc{addr, types.Function{
+			env.funcs[name] = runtimeFunc{addr, types.Function{
 				Args:   []types.T{types.I32, types.I32, types.I32},
 				Result: types.I32,
 			}}
 
 		case "__gate_send", "__gate_debug_write":
-			funcs[name] = runtimeFunc{addr, types.Function{
+			env.funcs[name] = runtimeFunc{addr, types.Function{
 				Args: []types.T{types.I32, types.I32},
 			}}
 		}
 	}
 
-	err = cred.ValidateId("group", config.CommonGid)
-	if err != nil {
-		return
-	}
-
-	err = checkCurrentGid(config.CommonGid)
-	if err != nil {
-		return
-	}
-
-	rt = &Runtime{
-		funcs:     funcs,
-		commonGid: config.CommonGid,
-	}
-
-	err = rt.executor.init(config)
 	return
 }
 
-func (rt *Runtime) ImportFunction(module, field string, sig types.Function) (variadic bool, addr uint64, err error) {
+func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function) (variadic bool, addr uint64, err error) {
 	if module == "env" {
-		if f, found := rt.funcs[field]; found {
+		if f, found := env.funcs[field]; found {
 			if !f.sig.Equal(sig) {
 				err = fmt.Errorf("function %s %s imported with wrong signature: %s", field, f.sig, sig)
 				return
@@ -177,7 +159,7 @@ func (rt *Runtime) ImportFunction(module, field string, sig types.Function) (var
 	return
 }
 
-func (rt *Runtime) ImportGlobal(module, field string, t types.T) (value uint64, err error) {
+func (env *runtimeEnv) ImportGlobal(module, field string, t types.T) (value uint64, err error) {
 	if module == "env" {
 		switch field {
 		case "__gate_abi_version":
@@ -194,6 +176,36 @@ func (rt *Runtime) ImportGlobal(module, field string, t types.T) (value uint64, 
 	return
 }
 
+type Runtime struct {
+	env       runtimeEnv
+	executor  executor
+	commonGid uint
+}
+
+func NewRuntime(config *Config) (rt *Runtime, err error) {
+	err = cred.ValidateId("group", config.CommonGid)
+	if err != nil {
+		return
+	}
+
+	err = checkCurrentGid(config.CommonGid)
+	if err != nil {
+		return
+	}
+
+	rt = &Runtime{
+		commonGid: config.CommonGid,
+	}
+
+	err = rt.env.init(config)
+	if err != nil {
+		return
+	}
+
+	err = rt.executor.init(config)
+	return
+}
+
 func (rt *Runtime) Close() error {
 	return rt.executor.close()
 }
@@ -202,6 +214,10 @@ func (rt *Runtime) Close() error {
 // requested by calling Close, this indicates an internal error.
 func (rt *Runtime) Done() <-chan struct{} {
 	return rt.executor.doneReceiving
+}
+
+func (rt *Runtime) Environment() wag.Environment {
+	return &rt.env
 }
 
 // payloadInfo is like the info object in loader.c

@@ -72,7 +72,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		MainSymbol: "main",
 	}
 
-	err := m.Load(bufio.NewReader(wasm), rt, new(bytes.Buffer), nil, run.RODataAddr, nil)
+	err := m.Load(bufio.NewReader(wasm), rt.Environment(), new(bytes.Buffer), nil, run.RODataAddr, nil)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}
