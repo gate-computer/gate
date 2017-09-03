@@ -376,7 +376,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 	conn, err := u.Upgrade(w, r, nil)
 	if err != nil {
-		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
 		return
 	}
 	defer conn.Close()
@@ -394,7 +394,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	err = conn.ReadJSON(&run)
 	if err != nil {
 		// TODO
-		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
 		return
 	}
 
@@ -416,20 +416,20 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 				inst, instId, valid, found, err = s.Instantiate(ctx, progId, progHash, nil)
 				if err != nil {
 					// TODO
-					s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+					s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
 					return
 				}
 			}
 		}
 		if !found {
 			// TODO
-			s.Log.Printf("%s error: not found", r.RemoteAddr)
+			s.InfoLog.Printf("%s: run: program not found", r.RemoteAddr)
 			return
 		}
 	} else {
 		frameType, frame, err := conn.NextReader()
 		if err != nil {
-			s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+			s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
 			return
 		}
 		if frameType != websocket.BinaryMessage {
@@ -448,7 +448,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 			inst, instId, progId, progHash, valid, err = s.UploadAndInstantiate(ctx, ioutil.NopCloser(frame), progHash, nil)
 			if err != nil {
 				// TODO
-				s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+				s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
 				return
 			}
 		}
@@ -457,7 +457,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}
 	if !valid {
 		// TODO
-		s.Log.Printf("%s error: invalid hash", r.RemoteAddr)
+		s.InfoLog.Printf("%s: run: invalid hash", r.RemoteAddr)
 		return
 	}
 
@@ -559,7 +559,7 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *inter
 
 	conn, err := u.Upgrade(w, r, nil)
 	if err != nil {
-		s.Log.Printf("%s error: %v", r.RemoteAddr, err)
+		s.InfoLog.Printf("%s: communicate: %v", r.RemoteAddr, err)
 		return
 	}
 	defer conn.Close()
@@ -755,7 +755,7 @@ func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.
 			return decoder
 		}
 
-		s.Log.Printf("%v: %v", r.RemoteAddr, err)
+		s.InfoLog.Printf("%s: %v", r.RemoteAddr, err)
 
 	default:
 		w.Header().Set("Accept-Encoding", "gzip") // non-standard for response

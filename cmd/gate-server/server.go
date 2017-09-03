@@ -53,14 +53,15 @@ func main() {
 		webconf = webserver.Config{
 			MaxProgramSize: webserver.DefaultMaxProgramSize,
 		}
-		addr         = "localhost:8888"
-		maxConns     = int(nofile.Cur/8 - 10)
-		letsencrypt  = false
-		email        = ""
-		acceptTOS    = false
-		certCacheDir = "/var/lib/gate-server-letsencrypt"
-		syslogging   = false
-		debug        = false
+		addr          = "localhost:8888"
+		maxConns      = int(nofile.Cur/8 - 10)
+		letsencrypt   = false
+		email         = ""
+		acceptTOS     = false
+		certCacheDir  = "/var/lib/gate-server-letsencrypt"
+		syslogging    = false
+		clientLogging = false
+		debug         = false
 	)
 
 	flag.Usage = func() {
@@ -89,6 +90,7 @@ func main() {
 	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
 	flag.StringVar(&certCacheDir, "cert-cache-dir", certCacheDir, "certificate storage")
 	flag.BoolVar(&syslogging, "syslog", syslogging, "send log messages to syslog instead of stderr")
+	flag.BoolVar(&clientLogging, "client-logging", clientLogging, "log client connection errors")
 	flag.BoolVar(&debug, "debug", debug, "write payload programs' debug output to stderr")
 
 	flag.Parse()
@@ -99,7 +101,7 @@ func main() {
 
 	var (
 		critLog *log.Logger
-		infoLog *log.Logger
+		errLog  *log.Logger
 	)
 
 	if syslogging {
@@ -111,17 +113,29 @@ func main() {
 		}
 		critLog = log.New(w, "", 0)
 
-		w, err = syslog.New(syslog.LOG_INFO, tag)
+		w, err = syslog.New(syslog.LOG_ERR, tag)
 		if err != nil {
 			critLog.Fatal(err)
 		}
-		infoLog = log.New(w, "", 0)
+		errLog = log.New(w, "", 0)
+
+		if clientLogging {
+			w, err = syslog.New(syslog.LOG_INFO, tag)
+			if err != nil {
+				critLog.Fatal(err)
+			}
+			serverconf.InfoLog = log.New(w, "", 0)
+		}
 	} else {
 		critLog = log.New(os.Stderr, "", 0)
-		infoLog = critLog
+		errLog = critLog
+
+		if clientLogging {
+			serverconf.InfoLog = critLog
+		}
 	}
 
-	runconf.ErrorLog = critLog
+	runconf.ErrorLog = errLog
 
 	rt, err := run.NewRuntime(&runconf)
 	if err != nil {
@@ -130,7 +144,7 @@ func main() {
 
 	serverconf.Runtime = rt
 	serverconf.Services = services
-	serverconf.Log = infoLog
+	serverconf.ErrorLog = errLog
 
 	if debug {
 		serverconf.Debug = os.Stderr

@@ -8,8 +8,13 @@ import (
 	"log"
 )
 
-type Logger struct{}
+type StandardLogger struct{}
 
-func (Logger) Printf(fmt string, v ...interface{}) {
+func (StandardLogger) Printf(fmt string, v ...interface{}) {
 	log.Printf(fmt, v...)
+}
+
+type NoLogger struct{}
+
+func (NoLogger) Printf(string, ...interface{}) {
 }

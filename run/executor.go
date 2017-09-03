@@ -48,7 +48,7 @@ type executor struct {
 func (e *executor) init(config *Config) (err error) {
 	errorLog := config.ErrorLog
 	if errorLog == nil {
-		errorLog = defaultlog.Logger{}
+		errorLog = defaultlog.StandardLogger{}
 	}
 
 	var (

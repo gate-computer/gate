@@ -37,7 +37,8 @@ func services(s *serverconfig.Server) run.ServiceRegistry {
 var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &serverconfig.Config{
 	Runtime:  runtest.NewRuntime().Runtime,
 	Services: services,
-	Log:      log.New(os.Stderr, "log: ", 0),
+	ErrorLog: log.New(os.Stderr, "ERROR: ", 0),
+	InfoLog:  log.New(os.Stderr, "INFO: ", 0),
 	Debug:    os.Stdout,
 }), nil)
 

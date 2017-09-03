@@ -52,8 +52,12 @@ type State struct {
 }
 
 func (s *State) Init(ctx context.Context, conf config.Config) {
-	if conf.Log == nil {
-		conf.Log = defaultlog.Logger{}
+	if conf.ErrorLog == nil {
+		conf.ErrorLog = defaultlog.StandardLogger{}
+	}
+
+	if conf.InfoLog == nil {
+		conf.InfoLog = defaultlog.NoLogger{}
 	}
 
 	if conf.MemorySizeLimit > 0 {
@@ -507,7 +511,7 @@ func newInstance(ctx context.Context, s *State) *Instance {
 	inst := new(Instance)
 
 	if err := inst.payload.Init(); err != nil {
-		s.Log.Printf("payload init: %v", err)
+		s.ErrorLog.Printf("payload init: %v", err)
 		return nil
 	}
 
@@ -519,7 +523,7 @@ func newInstance(ctx context.Context, s *State) *Instance {
 	}()
 
 	if err := inst.process.Init(ctx, s.Runtime, &inst.payload, s.Debug); err != nil {
-		s.Log.Printf("process init: %v", err)
+		s.ErrorLog.Printf("process init: %v", err)
 		return nil
 	}
 
@@ -596,7 +600,7 @@ func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader,
 
 	status, trap, err = run.Run(ctx, s.Runtime, &inst.process, &inst.payload, services)
 	if err != nil {
-		s.Log.Printf("run error: %v", err)
+		s.ErrorLog.Printf("run: %v", err)
 	}
 }
 
