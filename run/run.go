@@ -551,3 +551,40 @@ func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services
 		return
 	}
 }
+
+type Instance struct {
+	Image
+
+	proc Process
+}
+
+func (inst *Instance) Init(ctx context.Context, rt *Runtime, debug io.Writer) (err error) {
+	err = inst.Image.Init()
+	if err != nil {
+		return
+	}
+
+	closeImage := true
+	defer func() {
+		if closeImage {
+			inst.Image.Close()
+		}
+	}()
+
+	err = inst.proc.Init(ctx, rt, &inst.Image, debug)
+	if err != nil {
+		return
+	}
+
+	closeImage = false
+	return
+}
+
+func (inst *Instance) Close() {
+	inst.Image.Close()
+	inst.proc.Close()
+}
+
+func (inst *Instance) Run(ctx context.Context, rt *Runtime, services ServiceRegistry) (exit int, trap traps.Id, err error) {
+	return Run(ctx, rt, &inst.proc, &inst.Image, services)
+}
