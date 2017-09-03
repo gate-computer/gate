@@ -18,6 +18,7 @@ type Config struct {
 	MaxProcs     int
 	DaemonSocket string
 	CommonGid    uint
+	ErrorLog     Logger
 
 	// The rest are only applicable if DaemonSocket is not set:
 	ContainerCred Cred

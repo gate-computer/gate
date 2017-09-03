@@ -28,7 +28,7 @@ type Server struct {
 type Config struct {
 	Runtime  *run.Runtime
 	Services func(*Server) run.ServiceRegistry
-	Log      Logger
+	Log      run.Logger
 	Debug    io.Writer
 
 	MemorySizeLimit int

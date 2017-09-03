@@ -99,7 +99,7 @@ func main() {
 
 	var (
 		critLog *log.Logger
-		infoLog serverconfig.Logger
+		infoLog *log.Logger
 	)
 
 	if syslogging {
@@ -120,6 +120,8 @@ func main() {
 		critLog = log.New(os.Stderr, "", 0)
 		infoLog = critLog
 	}
+
+	runconf.ErrorLog = critLog
 
 	rt, err := run.NewRuntime(&runconf)
 	if err != nil {

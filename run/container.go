@@ -5,7 +5,6 @@
 package run
 
 import (
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -82,7 +81,7 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 
 // Wait for the container process to exit.  It is requested to exit via the
 // executor API; the done channel just tells us if it was expected or not.
-func containerWaiter(cmd *exec.Cmd, done <-chan struct{}) {
+func containerWaiter(cmd *exec.Cmd, done <-chan struct{}, errorLog Logger) {
 	err := cmd.Wait()
 
 	select {
@@ -90,11 +89,11 @@ func containerWaiter(cmd *exec.Cmd, done <-chan struct{}) {
 		if exit, ok := err.(*exec.ExitError); ok && exit.Success() {
 			// expected and clean
 		} else {
-			log.Printf("container process exited with an error: %v", err)
+			errorLog.Printf("container process exited with an error: %v", err)
 		}
 
 	default:
-		log.Printf("container process exited unexpectedly: %v", err)
+		errorLog.Printf("container process exited unexpectedly: %v", err)
 	}
 }
 

@@ -10,12 +10,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
 	"net"
 	"os/exec"
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/tsavola/gate/internal/defaultlog"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -45,6 +46,11 @@ type executor struct {
 }
 
 func (e *executor) init(config *Config) (err error) {
+	errorLog := config.ErrorLog
+	if errorLog == nil {
+		errorLog = defaultlog.Logger{}
+	}
+
 	var (
 		conn *net.UnixConn
 		cmd  *exec.Cmd
@@ -67,11 +73,11 @@ func (e *executor) init(config *Config) (err error) {
 	e.maxProcs = config.maxProcs()
 	e.numProcsChanged = make(chan struct{}, 1)
 
-	go e.sender()
-	go e.receiver()
+	go e.sender(errorLog)
+	go e.receiver(errorLog)
 
 	if cmd != nil {
-		go containerWaiter(cmd, e.doneSending)
+		go containerWaiter(cmd, e.doneSending, errorLog)
 	}
 
 	return
@@ -109,7 +115,7 @@ func (e *executor) close() error {
 	return e.conn.Close()
 }
 
-func (e *executor) sender() {
+func (e *executor) sender(errorLog Logger) {
 	var closed bool
 
 	defer func() {
@@ -158,7 +164,7 @@ func (e *executor) sender() {
 				closed = true
 
 				if err := e.conn.CloseWrite(); err != nil {
-					log.Printf("executor socket: %v", err)
+					errorLog.Printf("executor socket: %v", err)
 				}
 				return
 			}
@@ -171,13 +177,13 @@ func (e *executor) sender() {
 			files.close()
 		}
 		if err != nil {
-			log.Printf("executor socket: %v", err)
+			errorLog.Printf("executor socket: %v", err)
 			return
 		}
 	}
 }
 
-func (e *executor) receiver() {
+func (e *executor) receiver(errorLog Logger) {
 	defer close(e.doneReceiving)
 
 	r := bufio.NewReader(e.conn)
@@ -188,7 +194,7 @@ func (e *executor) receiver() {
 	for {
 		if err := binary.Read(r, endian, &buf); err != nil {
 			if err != io.EOF {
-				log.Printf("executor socket: %v", err)
+				errorLog.Printf("executor socket: %v", err)
 			}
 			return
 		}
