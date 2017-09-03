@@ -468,7 +468,7 @@ type Result struct {
 }
 
 type Instance struct {
-	payload    run.Payload
+	image      run.Image
 	process    run.Process
 	exit       chan *Result
 	originPipe *Pipe
@@ -510,29 +510,29 @@ func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
 func newInstance(ctx context.Context, s *State) *Instance {
 	inst := new(Instance)
 
-	if err := inst.payload.Init(); err != nil {
-		s.ErrorLog.Printf("payload init: %v", err)
+	if err := inst.image.Init(); err != nil {
+		s.ErrorLog.Printf("image init: %v", err)
 		return nil
 	}
 
-	closePayload := true
+	closeImage := true
 	defer func() {
-		if closePayload {
-			inst.payload.Close()
+		if closeImage {
+			inst.image.Close()
 		}
 	}()
 
-	if err := inst.process.Init(ctx, s.Runtime, &inst.payload, s.Debug); err != nil {
+	if err := inst.process.Init(ctx, s.Runtime, &inst.image, s.Debug); err != nil {
 		s.ErrorLog.Printf("process init: %v", err)
 		return nil
 	}
 
-	closePayload = false
+	closeImage = false
 	return inst
 }
 
 func (inst *Instance) close() {
-	inst.payload.Close()
+	inst.image.Close()
 	inst.process.Close()
 }
 
@@ -542,7 +542,7 @@ func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err e
 		memorySize = limit
 	}
 
-	err = inst.payload.Populate(m, memorySize, int32(s.StackSize))
+	err = inst.image.Populate(m, memorySize, int32(s.StackSize))
 	if err != nil {
 		return
 	}
@@ -596,9 +596,9 @@ func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader,
 		},
 	})
 
-	inst.payload.SetArg(arg)
+	inst.image.SetArg(arg)
 
-	status, trap, err = run.Run(ctx, s.Runtime, &inst.process, &inst.payload, services)
+	status, trap, err = run.Run(ctx, s.Runtime, &inst.process, &inst.image, services)
 	if err != nil {
 		s.ErrorLog.Printf("run: %v", err)
 	}

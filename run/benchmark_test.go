@@ -55,32 +55,32 @@ func compileBenchmark(prog []byte) (m *wag.Module) {
 	return
 }
 
-func prepareBenchmark(m *wag.Module) (p *run.Payload) {
-	p = new(run.Payload)
+func prepareBenchmark(m *wag.Module) (image *run.Image) {
+	image = new(run.Image)
 
-	if err := p.Init(); err != nil {
+	if err := image.Init(); err != nil {
 		panic(err)
 	}
 
 	_, memorySize := m.MemoryLimits()
 
-	if err := p.Populate(m, memorySize, benchStackSize); err != nil {
+	if err := image.Populate(m, memorySize, benchStackSize); err != nil {
 		panic(err)
 	}
 
 	return
 }
 
-func executeBenchmark(payload *run.Payload, output io.Writer) (exit int, trap traps.Id, err error) {
+func executeBenchmark(image *run.Image, output io.Writer) (exit int, trap traps.Id, err error) {
 	var proc run.Process
 
-	err = proc.Init(context.Background(), benchRuntime.Runtime, payload, nil)
+	err = proc.Init(context.Background(), benchRuntime.Runtime, image, nil)
 	if err != nil {
 		return
 	}
 	defer proc.Close()
 
-	exit, trap, err = run.Run(context.Background(), benchRuntime.Runtime, &proc, payload, &testServiceRegistry{output})
+	exit, trap, err = run.Run(context.Background(), benchRuntime.Runtime, &proc, image, &testServiceRegistry{output})
 	return
 }
 

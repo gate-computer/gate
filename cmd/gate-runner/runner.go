@@ -176,17 +176,17 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	tBegin := time.Now()
 
-	var payload run.Payload
+	var image run.Image
 
-	err := payload.Init()
+	err := image.Init()
 	if err != nil {
-		log.Fatalf("payload: %v", err)
+		log.Fatalf("image: %v", err)
 	}
-	defer payload.Close()
+	defer image.Close()
 
 	var proc run.Process
 
-	err = proc.Init(ctx, rt, &payload, os.Stderr)
+	err = proc.Init(ctx, rt, &image, os.Stderr)
 	if err != nil {
 		log.Fatalf("process: %v", err)
 	}
@@ -210,12 +210,12 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	_, memorySize := m.MemoryLimits()
 
-	err = payload.Populate(&m, memorySize, int32(stackSize))
+	err = image.Populate(&m, memorySize, int32(stackSize))
 	if err != nil {
-		log.Fatalf("payload: %v", err)
+		log.Fatalf("image: %v", err)
 	}
 
-	payload.SetArg(arg)
+	image.SetArg(arg)
 
 	if dumpText {
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
@@ -223,7 +223,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	tRunBegin := time.Now()
 
-	exit, trap, err := run.Run(ctx, rt, &proc, &payload, services)
+	exit, trap, err := run.Run(ctx, rt, &proc, &image, services)
 	if err != nil {
 		log.Fatalf("run: %v", err)
 	}
@@ -238,7 +238,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	}
 
 	if dumpStack {
-		err := payload.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
+		err := image.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
 		if err != nil {
 			log.Printf("stacktrace: %v", err)
 		}

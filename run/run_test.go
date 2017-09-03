@@ -87,28 +87,28 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	}
 
 	var (
-		payload run.Payload
-		proc    run.Process
+		image run.Image
+		proc  run.Process
 	)
-	defer payload.Close()
+	defer image.Close()
 	defer proc.Close()
 
-	err = payload.Init()
+	err = image.Init()
 	if err != nil {
-		t.Fatalf("payload error: %v", err)
+		t.Fatalf("image error: %v", err)
 	}
 
-	err = proc.Init(context.Background(), rt.Runtime, &payload, os.Stdout)
+	err = proc.Init(context.Background(), rt.Runtime, &image, os.Stdout)
 	if err != nil {
 		return
 	}
 
-	err = payload.Populate(&m, memorySize, stackSize)
+	err = image.Populate(&m, memorySize, stackSize)
 	if err != nil {
-		t.Fatalf("payload error: %v", err)
+		t.Fatalf("image error: %v", err)
 	}
 
-	exit, trap, err := run.Run(context.Background(), rt.Runtime, &proc, &payload, &testServiceRegistry{origin: &output})
+	exit, trap, err := run.Run(context.Background(), rt.Runtime, &proc, &image, &testServiceRegistry{origin: &output})
 	if err != nil {
 		t.Fatalf("run error: %v", err)
 	} else if trap != 0 {
@@ -124,7 +124,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		}
 		defer f.Close()
 
-		if err := payload.DumpGlobalsMemoryStack(f); err != nil {
+		if err := image.DumpGlobalsMemoryStack(f); err != nil {
 			t.Fatalf("dump error: %v", err)
 		}
 	}

@@ -220,8 +220,8 @@ func (rt *Runtime) Environment() wag.Environment {
 	return &rt.env
 }
 
-// payloadInfo is like the info object in loader.c
-type payloadInfo struct {
+// imageInfo is like the info object in loader.c
+type imageInfo struct {
 	TextAddr       uint64
 	HeapAddr       uint64
 	StackAddr      uint64
@@ -236,32 +236,32 @@ type payloadInfo struct {
 	Arg            int32
 }
 
-type Payload struct {
+type Image struct {
 	maps *os.File
-	info payloadInfo
+	info imageInfo
 }
 
-func (p *Payload) Init() (err error) {
+func (image *Image) Init() (err error) {
 	mapsFd, err := memfd.Create("maps", memfd.CLOEXEC|memfd.ALLOW_SEALING)
 	if err != nil {
 		return
 	}
 
-	p.maps = os.NewFile(uintptr(mapsFd), "maps")
+	image.maps = os.NewFile(uintptr(mapsFd), "maps")
 	return
 }
 
-func (p *Payload) Close() (err error) {
-	if p.maps == nil {
+func (image *Image) Close() (err error) {
+	if image.maps == nil {
 		return
 	}
 
-	err = p.maps.Close()
-	p.maps = nil
+	err = image.maps.Close()
+	image.maps = nil
 	return
 }
 
-func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (err error) {
+func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (err error) {
 	initMemorySize, _ := m.MemoryLimits()
 
 	if initMemorySize > growMemorySize {
@@ -273,21 +273,21 @@ func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackS
 	text := m.Text()
 	data, memoryOffset := m.Data()
 
-	_, err = p.maps.Write(roData)
+	_, err = image.maps.Write(roData)
 	if err != nil {
 		return
 	}
 
 	roDataSize := roundToPage(len(roData))
 
-	_, err = p.maps.WriteAt(text, int64(roDataSize))
+	_, err = image.maps.WriteAt(text, int64(roDataSize))
 	if err != nil {
 		return
 	}
 
 	textSize := roundToPage(len(text))
 
-	_, err = p.maps.WriteAt(data, int64(roDataSize)+int64(textSize))
+	_, err = image.maps.WriteAt(data, int64(roDataSize)+int64(textSize))
 	if err != nil {
 		return
 	}
@@ -295,19 +295,19 @@ func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackS
 	globalsMemorySize := roundToPage(memoryOffset + int(growMemorySize))
 	totalSize := int64(roDataSize) + int64(textSize) + int64(globalsMemorySize) + int64(stackSize)
 
-	err = p.maps.Truncate(totalSize)
+	err = image.maps.Truncate(totalSize)
 	if err != nil {
 		return
 	}
 
-	_, err = memfd.Fcntl(int(p.maps.Fd()), memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
+	_, err = memfd.Fcntl(int(image.maps.Fd()), memfd.F_ADD_SEALS, memfd.F_SEAL_SHRINK|memfd.F_SEAL_GROW)
 	if err != nil {
 		return
 	}
 
 	textAddr, heapAddr, stackAddr := randAddrs()
 
-	p.info = payloadInfo{
+	image.info = imageInfo{
 		TextAddr:       textAddr,
 		HeapAddr:       heapAddr,
 		StackAddr:      stackAddr,
@@ -319,22 +319,22 @@ func (p *Payload) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackS
 		GrowMemorySize: uint32(growMemorySize),
 		StackSize:      uint32(stackSize),
 		MagicNumber:    magicNumber,
-		Arg:            p.info.Arg, // in case SetArg was called before this
+		Arg:            image.info.Arg, // in case SetArg was called before this
 	}
 	return
 }
 
-func (p *Payload) SetArg(arg int32) {
-	p.info.Arg = arg
+func (image *Image) SetArg(arg int32) {
+	image.info.Arg = arg
 }
 
-func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {
-	fd := int(payload.maps.Fd())
+func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
+	fd := int(image.maps.Fd())
 
-	dataMapOffset := int64(payload.info.RODataSize) + int64(payload.info.TextSize)
+	dataMapOffset := int64(image.info.RODataSize) + int64(image.info.TextSize)
 
-	globalsMemorySize := payload.info.MemoryOffset + payload.info.GrowMemorySize
-	dataSize := int(globalsMemorySize) + int(payload.info.StackSize)
+	globalsMemorySize := image.info.MemoryOffset + image.info.GrowMemorySize
+	dataSize := int(globalsMemorySize) + int(image.info.StackSize)
 
 	data, err := syscall.Mmap(fd, dataMapOffset, dataSize, syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
@@ -342,14 +342,14 @@ func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	}
 	defer syscall.Munmap(data)
 
-	buf := data[:payload.info.MemoryOffset]
+	buf := data[:image.info.MemoryOffset]
 	fmt.Fprintf(w, "--- GLOBALS (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 8 {
 		fmt.Fprintf(w, "%08x: %x\n", i, buf[0:8])
 		buf = buf[8:]
 	}
 
-	buf = data[payload.info.MemoryOffset : payload.info.MemoryOffset+globalsMemorySize]
+	buf = data[image.info.MemoryOffset : image.info.MemoryOffset+globalsMemorySize]
 	fmt.Fprintf(w, "--- MEMORY (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 32 {
 		fmt.Fprintf(w, "%08x: %x %x %x %x\n", i, buf[0:8], buf[8:16], buf[16:24], buf[24:32])
@@ -367,12 +367,12 @@ func (payload *Payload) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
-	fd := int(payload.maps.Fd())
+func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
+	fd := int(image.maps.Fd())
 
-	offset := int64(payload.info.RODataSize) + int64(payload.info.TextSize) + int64(payload.info.MemoryOffset) + int64(payload.info.GrowMemorySize)
+	offset := int64(image.info.RODataSize) + int64(image.info.TextSize) + int64(image.info.MemoryOffset) + int64(image.info.GrowMemorySize)
 
-	size := int(payload.info.StackSize)
+	size := int(image.info.StackSize)
 
 	stack, err := syscall.Mmap(fd, offset, size, syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
@@ -380,7 +380,7 @@ func (payload *Payload) DumpStacktrace(w io.Writer, funcMap, callMap []byte, fun
 	}
 	defer syscall.Munmap(stack)
 
-	return writeStacktraceTo(w, payload.info.TextAddr, stack, funcMap, callMap, funcSigs, ns)
+	return writeStacktraceTo(w, image.info.TextAddr, stack, funcMap, callMap, funcSigs, ns)
 }
 
 type Process struct {
@@ -389,7 +389,7 @@ type Process struct {
 	stdout *os.File // reader
 }
 
-func (p *Process) Init(ctx context.Context, rt *Runtime, payload *Payload, debug io.Writer) (err error) {
+func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer) (err error) {
 	var (
 		stdinR  *os.File
 		stdinW  *os.File
@@ -440,7 +440,7 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, payload *Payload, debug
 		return
 	}
 
-	execFiles := execFiles{stdinR, stdoutW, payload.maps}
+	execFiles := execFiles{stdinR, stdoutW, image.maps}
 
 	if debug != nil {
 		debugR, debugW, err = os.Pipe()
@@ -504,12 +504,12 @@ func copyClose(w io.Writer, r *os.File) {
 	io.Copy(w, r)
 }
 
-func Run(ctx context.Context, rt *Runtime, proc *Process, payload *Payload, services ServiceRegistry) (exit int, trap traps.Id, err error) {
+func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry) (exit int, trap traps.Id, err error) {
 	if services == nil {
 		services = noServices{}
 	}
 
-	err = binary.Write(proc.stdin, endian, &payload.info)
+	err = binary.Write(proc.stdin, endian, &image.info)
 	if err != nil {
 		return
 	}

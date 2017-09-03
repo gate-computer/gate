@@ -192,7 +192,7 @@ int main(int argc, char **argv, char **envp)
 	if (block_path == NULL)
 		return 49;
 
-	// this is like payloadInfo in run.go
+	// this is like imageInfo in run.go
 	struct __attribute__ ((packed)) {
 		uint64_t text_addr;
 		uint64_t heap_addr;
