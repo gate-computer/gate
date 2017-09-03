@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/tsavola/gate/internal/defaultlog"
 	"github.com/tsavola/gate/run"
 	config "github.com/tsavola/gate/server/serverconfig"
 	"github.com/tsavola/wag"
@@ -51,6 +52,10 @@ type State struct {
 }
 
 func (s *State) Init(ctx context.Context, conf config.Config) {
+	if conf.Log == nil {
+		conf.Log = defaultlog.Logger{}
+	}
+
 	if conf.MemorySizeLimit > 0 {
 		conf.MemorySizeLimit = (conf.MemorySizeLimit + int(wasm.Page-1)) &^ int(wasm.Page-1)
 	} else {
