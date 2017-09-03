@@ -116,11 +116,23 @@ func main() {
 		origin.Default.W = os.Stdout
 	}
 
+	var rtClosed bool
+
 	rt, err := run.NewRuntime(&config)
 	if err != nil {
 		log.Fatalf("runtime: %v", err)
 	}
-	defer rt.Close()
+	defer func() {
+		rtClosed = true
+		rt.Close()
+	}()
+
+	go func() {
+		<-rt.Done()
+		if !rtClosed {
+			log.Fatal("executor died")
+		}
+	}()
 
 	timings := make([]timing, len(filenames))
 

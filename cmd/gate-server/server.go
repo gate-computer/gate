@@ -142,6 +142,11 @@ func main() {
 		critLog.Fatal(err)
 	}
 
+	go func() {
+		<-rt.Done()
+		critLog.Fatal("executor died")
+	}()
+
 	serverconf.Runtime = rt
 	serverconf.Services = services
 	serverconf.ErrorLog = errLog
