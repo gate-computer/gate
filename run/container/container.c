@@ -493,7 +493,11 @@ static int child_main(void *dummy_arg)
 
 	xclear_caps();
 
+	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
+		xerror("PR_CAP_AMBIENT_CLEAR_ALL");
+
 	char *executor;
+
 	if (asprintf(&executor, "%s/self/fd/%d", proc, executor_fd) < 0)
 		xerror("asprintf");
 
