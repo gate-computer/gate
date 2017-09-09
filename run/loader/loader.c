@@ -6,14 +6,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <fcntl.h>
 #include <sys/mman.h>
-#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 
 #include "../defs.h"
-#include "../fdpath.h"
 
 #define xstr(s) str(s)
 #define str(s)  #s
@@ -71,24 +68,6 @@ static void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, of
 		"syscall"
 		: "=a" (retval)
 		: "a" (SYS_mmap), "r" (rdi), "r" (rsi), "r" (rdx), "r" (r10), "r" (r8), "r" (r9)
-		: "cc", "rcx", "r11", "memory"
-	);
-
-	return retval;
-}
-
-static int sys_open(const char *pathname, int flags, mode_t mode)
-{
-	int retval;
-
-	register const char *rdi asm ("rdi") = pathname;
-	register int rsi asm ("rsi") = flags;
-	register mode_t rdx asm ("rdx") = mode;
-
-	asm volatile (
-		"syscall"
-		: "=a" (retval)
-		: "a" (SYS_open), "r" (rdi), "r" (rsi), "r" (rdx)
 		: "cc", "rcx", "r11", "memory"
 	);
 
@@ -188,10 +167,6 @@ int main(int argc, char **argv, char **envp)
 	if (sys_personality(0) < 0)
 		return 47;
 
-	const char *block_path = get_fd_path(GATE_BLOCK_FD, envp);
-	if (block_path == NULL)
-		return 49;
-
 	// this is like imageInfo in run.go
 	struct __attribute__ ((packed)) {
 		uint64_t text_addr;
@@ -251,10 +226,6 @@ int main(int argc, char **argv, char **envp)
 
 	if (sys_close(GATE_MAPS_FD) != 0)
 		return 56;
-
-	int nonblock_fd = sys_open(block_path, O_RDONLY|O_CLOEXEC|O_NONBLOCK, 0);
-	if (nonblock_fd != GATE_NONBLOCK_FD)
-		return 57;
 
 	enter(info.page_size, text_ptr, memory_ptr, init_memory_limit, grow_memory_limit, stack_ptr, stack_limit, info.arg);
 }

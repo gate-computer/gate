@@ -21,7 +21,6 @@ import (
 	"github.com/tsavola/wag/types"
 	"github.com/tsavola/wag/wasm"
 
-	"github.com/tsavola/gate/internal/cred"
 	"github.com/tsavola/gate/internal/memfd"
 )
 
@@ -178,25 +177,12 @@ func (env *runtimeEnv) ImportGlobal(module, field string, t types.T) (value uint
 }
 
 type Runtime struct {
-	env       runtimeEnv
-	executor  executor
-	commonGid uint
+	env      runtimeEnv
+	executor executor
 }
 
 func NewRuntime(config *Config) (rt *Runtime, err error) {
-	err = cred.ValidateId("group", config.CommonGid)
-	if err != nil {
-		return
-	}
-
-	err = checkCurrentGid(config.CommonGid)
-	if err != nil {
-		return
-	}
-
-	rt = &Runtime{
-		commonGid: config.CommonGid,
-	}
+	rt = new(Runtime)
 
 	err = rt.env.init(config)
 	if err != nil {
@@ -392,20 +378,24 @@ type Process struct {
 
 func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer) (err error) {
 	var (
-		stdinR  *os.File
-		stdinW  *os.File
-		stdoutR *os.File
-		stdoutW *os.File
-		debugR  *os.File
-		debugW  *os.File
+		stdinW         *os.File
+		stdinBlockR    *os.File
+		stdinNonblockR = -1
+		stdoutR        *os.File
+		stdoutW        *os.File
+		debugR         *os.File
+		debugW         *os.File
 	)
 
 	defer func() {
-		if stdinR != nil {
-			stdinR.Close()
-		}
 		if stdinW != nil {
 			stdinW.Close()
+		}
+		if stdinBlockR != nil {
+			stdinBlockR.Close()
+		}
+		if stdinNonblockR >= 0 {
+			syscall.Close(stdinNonblockR)
 		}
 		if stdoutR != nil {
 			stdoutR.Close()
@@ -421,17 +411,12 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 		}
 	}()
 
-	stdinR, stdinW, err = os.Pipe()
+	stdinBlockR, stdinW, err = os.Pipe()
 	if err != nil {
 		return
 	}
 
-	err = syscall.Fchown(int(stdinR.Fd()), -1, int(rt.commonGid))
-	if err != nil {
-		return
-	}
-
-	err = syscall.Fchmod(int(stdinR.Fd()), 0640)
+	stdinNonblockR, err = syscall.Open(fmt.Sprintf("/proc/self/fd/%d", stdinBlockR.Fd()), syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return
 	}
@@ -441,18 +426,14 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 		return
 	}
 
-	execFiles := execFiles{stdinR, stdoutW, image.maps}
-
 	if debug != nil {
 		debugR, debugW, err = os.Pipe()
 		if err != nil {
 			return
 		}
-
-		execFiles = append(execFiles, debugW)
 	}
 
-	err = rt.executor.execute(ctx, &p.process, execFiles)
+	err = rt.executor.execute(ctx, &p.process, &execFiles{stdinBlockR, stdinNonblockR, stdoutW, image.maps, debugW})
 	if err != nil {
 		return
 	}
@@ -464,8 +445,9 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 	p.stdin = stdinW
 	p.stdout = stdoutR
 
-	stdinR = nil
 	stdinW = nil
+	stdinBlockR = nil
+	stdinNonblockR = -1
 	stdoutR = nil
 	stdoutW = nil
 	debugR = nil
@@ -487,16 +469,41 @@ func (p *Process) Close() (err error) {
 	return
 }
 
-type execFiles []*os.File // stdin stdout maps [debug]
+type execFiles struct {
+	stdinBlock    *os.File
+	stdinNonblock int
+	stdout        *os.File
+	maps          *os.File // Borrowed
+	debug         *os.File // Optional
+}
 
-func (files execFiles) close() {
-	files[0].Close() // stdin
-	files[1].Close() // stdout
+func (files *execFiles) fds() (fds []int) {
+	if files.debug == nil {
+		fds = make([]int, 4)
+	} else {
+		fds = make([]int, 5)
+	}
+
+	fds[0] = int(files.stdinBlock.Fd())
+	fds[1] = files.stdinNonblock
+	fds[2] = int(files.stdout.Fd())
+	fds[3] = int(files.maps.Fd())
+
+	if files.debug != nil {
+		fds[4] = int(files.debug.Fd())
+	}
+	return
+}
+
+func (files *execFiles) close() {
+	files.stdinBlock.Close()
+	syscall.Close(files.stdinNonblock)
+	files.stdout.Close()
 
 	// don't close maps
 
-	if len(files) > 3 {
-		files[3].Close() // debug
+	if files.debug != nil {
+		files.debug.Close()
 	}
 }
 

@@ -203,10 +203,10 @@ static void xwrite_uid_map(pid_t pid, uid_t container, uid_t executor)
 }
 
 // Configure given process's gid_map or die.
-static void xwrite_gid_map(pid_t pid, gid_t container, gid_t executor, gid_t common)
+static void xwrite_gid_map(pid_t pid, gid_t container, gid_t executor)
 {
 	char *data;
-	int len = asprintf(&data, "1 %u 1\n2 %u 1\n3 %u 1\n4 %u 1\n", getgid(), container, executor, common);
+	int len = asprintf(&data, "1 %u 1\n2 %u 1\n3 %u 1\n", getgid(), container, executor);
 	if (len < 0)
 		xerror("asprintf");
 
@@ -313,7 +313,6 @@ static int wait_for_child(pid_t child_pid)
 	}
 }
 
-static gid_t common_gid;
 static struct cred container_cred;
 static struct cred executor_cred;
 static struct cgroup_config cgroup_config;
@@ -326,18 +325,17 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	if (argc != 8) {
+	if (argc != 7) {
 		fprintf(stderr, "%s: argc != 8\n", argv[0]);
 		return 1;
 	}
 
-	common_gid = xatoui(argv[1]);
-	container_cred.uid = xatoui(argv[2]);
-	container_cred.gid = xatoui(argv[3]);
-	executor_cred.uid = xatoui(argv[4]);
-	executor_cred.gid = xatoui(argv[5]);
-	cgroup_config.title = argv[6];
-	cgroup_config.parent = argv[7];
+	container_cred.uid = xatoui(argv[1]);
+	container_cred.gid = xatoui(argv[2]);
+	executor_cred.uid = xatoui(argv[3]);
+	executor_cred.gid = xatoui(argv[4]);
+	cgroup_config.title = argv[5];
+	cgroup_config.parent = argv[6];
 
 	umask(0777);
 
@@ -361,11 +359,12 @@ int main(int argc, char **argv)
 
 static int parent_main(pid_t child_pid)
 {
+	xclose(GATE_NULL_FD);
 	xclose(GATE_CONTROL_FD);
 	xclose(syncpipe[0]);
 
 	xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
-	xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid, common_gid);
+	xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
 
 	// user namespace configured
 
@@ -399,11 +398,6 @@ static int child_main(void *dummy_arg)
 	char *tmp_proc;
 	if (asprintf(&tmp_proc, "/tmp/.%016lx", rand) < 0)
 		xerror("asprintf");
-
-	// supplementary group
-	const gid_t groups[1] = {4};
-	if (setgroups(1, groups) != 0)
-		xerror("setgroups");
 
 	// "container" credentials
 	if (setreuid(2, 2) != 0)
@@ -479,7 +473,8 @@ static int child_main(void *dummy_arg)
 	xlimit(RLIMIT_CORE, 0);
 	xlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1));
 
-	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
+	xdup2(GATE_NULL_FD, STDERR_FILENO);
+	close(GATE_NULL_FD);
 
 	char *envp[] = {executor, NULL};
 	char **empty = envp + 1;

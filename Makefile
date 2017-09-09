@@ -41,14 +41,12 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/webapi \
 	$(GOPACKAGEPREFIX)/webserver
 
-export GATE_TEST_COMMONGROUP	= $(word 2,$(shell groups))
 export GATE_TEST_CONTAINERUSER	= sys
 export GATE_TEST_EXECUTORUSER	= daemon
 export GATE_TEST_LIBDIR		= $(PWD)/lib
 export GATE_TEST_DIR		= $(PWD)/tests
 
 run = bin/runner \
-	-common-gid=$(shell getent group $(GATE_TEST_COMMONGROUP) | cut -d: -f3) \
 	-container-uid=$(shell id -u $(GATE_TEST_CONTAINERUSER)) \
 	-container-gid=$(shell id -g $(GATE_TEST_CONTAINERUSER)) \
 	-executor-uid=$(shell id -u $(GATE_TEST_EXECUTORUSER)) \

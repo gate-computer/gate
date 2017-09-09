@@ -7,8 +7,6 @@ The container binary needs capabilities for:
 
   - Configuring cgroup via systemd.  Effective uid is temporarily set to root.
 
-  - Setting supplementary groups in user namespace.
-
 
 Things controlled by the user who can execute the container binary:
 
@@ -16,10 +14,6 @@ Things controlled by the user who can execute the container binary:
     mapped to the container's user namespace.  The credentials are used to (1)
     set up the mount namespace, and (2) for the executor process and its
     children.
-
-  - Choose one of the parent namespace's group ids to be mapped to the
-    container's user namespace.  It is used as a supplementary group of the
-    contained processes, which need it for opening files in /proc/self/fd/.
 
   - Choose any cgroup as the parent for the container's cgroup.
 

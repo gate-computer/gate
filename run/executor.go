@@ -29,7 +29,7 @@ type recvEntry struct {
 
 type execRequest struct {
 	p     *process
-	files execFiles
+	files *execFiles
 }
 
 type executor struct {
@@ -83,7 +83,7 @@ func (e *executor) init(config *Config) (err error) {
 	return
 }
 
-func (e *executor) execute(ctx context.Context, p *process, files execFiles) error {
+func (e *executor) execute(ctx context.Context, p *process, files *execFiles) error {
 	p.init(e)
 
 	select {
@@ -130,7 +130,7 @@ func (e *executor) sender(errorLog Logger) {
 		var (
 			execRequests <-chan execRequest
 			buf          = make([]byte, 4) // sizeof (pid_t)
-			files        execFiles
+			files        *execFiles
 			cmsg         []byte
 		)
 
@@ -151,12 +151,7 @@ func (e *executor) sender(errorLog Logger) {
 			numProcs++ // conservative estimate
 
 			files = exec.files
-
-			fds := make([]int, len(files))
-			for i, f := range files {
-				fds[i] = int(f.Fd())
-			}
-			cmsg = syscall.UnixRights(fds...)
+			cmsg = syscall.UnixRights(files.fds()...)
 
 		case pid := <-e.killRequests:
 			if pid == 0 {

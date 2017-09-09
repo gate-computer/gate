@@ -31,11 +31,6 @@ func (testRT *TestRuntime) Close() error {
 }
 
 func NewRuntime() (testRT *TestRuntime) {
-	commonGroup, err := user.LookupGroup(os.Getenv("GATE_TEST_COMMONGROUP"))
-	if err != nil {
-		panic(err)
-	}
-
 	containerUser, err := user.Lookup(os.Getenv("GATE_TEST_CONTAINERUSER"))
 	if err != nil {
 		panic(err)
@@ -47,7 +42,6 @@ func NewRuntime() (testRT *TestRuntime) {
 	}
 
 	config := run.Config{
-		CommonGid: parseId(commonGroup.Gid),
 		ContainerCred: run.Cred{
 			Uid: parseId(containerUser.Uid),
 			Gid: parseId(containerUser.Gid),

@@ -30,7 +30,6 @@ func main() {
 	)
 
 	flag.StringVar(&config.DaemonSocket, "listen", config.DaemonSocket, "unix socket")
-	flag.UintVar(&config.CommonGid, "common-gid", config.CommonGid, "group id for file descriptor sharing")
 	flag.UintVar(&config.ContainerCred.Uid, "container-uid", config.ContainerCred.Uid, "user id for bootstrapping executor")
 	flag.UintVar(&config.ContainerCred.Gid, "container-gid", config.ContainerCred.Gid, "group id for bootstrapping executor")
 	flag.UintVar(&config.ExecutorCred.Uid, "executor-uid", config.ExecutorCred.Uid, "user id for executing code")
@@ -78,11 +77,7 @@ func main() {
 		critLog.Fatal(err)
 	}
 
-	if err := cred.ValidateIds("group", -1, 2, config.ContainerCred.Gid, config.ExecutorCred.Gid, config.CommonGid); err != nil {
-		critLog.Fatal(err)
-	}
-
-	if err := cred.ValidateId("group", config.CommonGid); err != nil {
+	if err := cred.ValidateIds("group", -1, 2, config.ContainerCred.Gid, config.ExecutorCred.Gid); err != nil {
 		critLog.Fatal(err)
 	}
 
@@ -93,7 +88,6 @@ func main() {
 
 	containerArgs := []string{
 		containerPath,
-		cred.FormatId(config.CommonGid),
 		cred.FormatId(config.ContainerCred.Uid),
 		cred.FormatId(config.ContainerCred.Gid),
 		cred.FormatId(config.ExecutorCred.Uid),
@@ -155,7 +149,14 @@ func main() {
 func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, infoLog *log.Logger) {
 	infoLog.Printf("%d: connection", client)
 
-	file, err := conn.File()
+	nullFile, err := os.Open(os.DevNull)
+	if err != nil {
+		errLog.Printf("%d: %v", client, err)
+		return
+	}
+	defer nullFile.Close()
+
+	connFile, err := conn.File()
 	conn.Close()
 	if err != nil {
 		errLog.Printf("%d: %v", client, err)
@@ -168,7 +169,8 @@ func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, i
 		Dir:    "/",
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
-			file,
+			nullFile, // GATE_NULL_FD
+			connFile, // GATE_CONTROL_FD
 		},
 		SysProcAttr: &syscall.SysProcAttr{
 			Pdeathsig: syscall.SIGKILL,
@@ -176,7 +178,7 @@ func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, i
 	}
 
 	err = cmd.Start()
-	file.Close()
+	connFile.Close()
 	if err != nil {
 		errLog.Printf("%d: %v", client, err)
 		return

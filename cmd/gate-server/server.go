@@ -71,7 +71,6 @@ func main() {
 
 	flag.IntVar(&runconf.MaxProcs, "max-procs", runconf.MaxProcs, "limit number of simultaneous programs")
 	flag.StringVar(&runconf.DaemonSocket, "daemon-socket", runconf.DaemonSocket, "use containerd via unix socket")
-	flag.UintVar(&runconf.CommonGid, "common-gid", runconf.CommonGid, "group id for file descriptor sharing")
 	flag.UintVar(&runconf.ContainerCred.Uid, "container-uid", runconf.ContainerCred.Uid, "user id for bootstrapping executor")
 	flag.UintVar(&runconf.ContainerCred.Gid, "container-gid", runconf.ContainerCred.Gid, "group id for bootstrapping executor")
 	flag.UintVar(&runconf.ExecutorCred.Uid, "executor-uid", runconf.ExecutorCred.Uid, "user id for executing code")

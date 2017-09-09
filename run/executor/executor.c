@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -22,7 +23,6 @@
 #include <unistd.h>
 
 #include "../defs.h"
-#include "../fdpath.h"
 #include "buffer.h"
 
 #define CHILD_NICE 19
@@ -92,13 +92,14 @@ static inline void execute_child(char *loader, const int *fds, int num_fds)
 	// file descriptor duplication order is fragile
 
 	int debugfd = STDOUT_FILENO; // /dev/null
-	if (num_fds > 3)
-		debugfd = fds[3];
+	if (num_fds > 4)
+		debugfd = fds[4];
 
 	xdup2(debugfd, GATE_DEBUG_FD);
 	xdup2(fds[0], GATE_BLOCK_FD);
-	xdup2(fds[1], GATE_OUTPUT_FD);
-	xdup2(fds[2], GATE_MAPS_FD);
+	xdup2(fds[1], GATE_NONBLOCK_FD);
+	xdup2(fds[2], GATE_OUTPUT_FD);
+	xdup2(fds[3], GATE_MAPS_FD);
 
 	if (nice(CHILD_NICE) != CHILD_NICE)
 		_exit(16);
@@ -115,9 +116,8 @@ static inline void execute_child(char *loader, const int *fds, int num_fds)
 	if (personality(ADDR_NO_RANDOMIZE) < 0)
 		_exit(37);
 
-	char *envp[] = {loader, NULL};
-	char **empty = envp + 1;
-	execve(loader, empty, envp);
+	char *empty[] = {NULL};
+	execve(loader, empty, empty);
 	_exit(18);
 }
 
@@ -189,10 +189,10 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 		_exit(21);
 
 	int num_fds;
-	if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof (int)))
-		num_fds = 3;
-	else if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof (int)))
+	if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof (int)))
 		num_fds = 4;
+	else if (cmsg->cmsg_len == CMSG_LEN(5 * sizeof (int)))
+		num_fds = 5;
 	else
 		_exit(22);
 
@@ -233,7 +233,7 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 
 	for (size_t receive_len = 0; receive_len < sizeof (receive.buf); ) {
 		union {
-			char buf[CMSG_SPACE(4 * sizeof (int))];
+			char buf[CMSG_SPACE(5 * sizeof (int))];
 			struct cmsghdr alignment;
 		} ctl;
 
@@ -319,6 +319,22 @@ static inline void handle_reaping(struct buffer *sending, struct buffer *killed,
 			if (buffer_append_pid(died, pid) != 0)
 				_exit(34);
 	}
+}
+
+static inline char *get_fd_path(int fd, char **envp)
+{
+	if (envp[0] == NULL || envp[1] != NULL) // Exactly one variable
+		return NULL;
+
+	char *path = envp[0];
+	envp[0] = NULL;
+
+	size_t len = strlen(path);
+	if (len != GATE_FD_PATH_LEN)
+		return NULL;
+
+	path[len - 1] = '0' + fd; // This assumes that all fds are < 10
+	return path;
 }
 
 int main(int argc, char **argv, char **envp)

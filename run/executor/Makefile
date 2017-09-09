@@ -12,7 +12,7 @@ LDFLAGS		+= -static
 	umask $(UMASK) && mkdir -p $(dir $@)
 	umask $(UMASK) && $(CC) $(CFLAGS) $(LDFLAGS) -o $@ executor.o
 
-executor.o: executor.c buffer.h ../defs.h ../fdpath.h Makefile
+executor.o: executor.c buffer.h ../defs.h Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ executor.c
 
 clean:

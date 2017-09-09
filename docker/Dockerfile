@@ -9,7 +9,6 @@ RUN apt-get update && \
     apt-get --no-install-recommends -y install libcap2-bin && \
     apt-get clean && \
 
-    addgroup --system --gid=900 gate-common && \
     adduser --system --uid=901 --group --no-create-home gate && \
     adduser --system --uid=902 --group --no-create-home gate-container && \
     adduser --system --uid=903 --group --no-create-home gate-executor && \

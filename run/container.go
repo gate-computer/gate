@@ -21,7 +21,7 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 		return
 	}
 
-	err = cred.ValidateIds("group", syscall.Getgid(), 2, config.ContainerCred.Gid, config.ExecutorCred.Gid, config.CommonGid)
+	err = cred.ValidateIds("group", syscall.Getgid(), 2, config.ContainerCred.Gid, config.ExecutorCred.Gid)
 	if err != nil {
 		return
 	}
@@ -42,6 +42,12 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 	connFile := os.NewFile(uintptr(fdPair[1]), "executor")
 	defer connFile.Close()
 
+	nullFile, err := os.Open(os.DevNull)
+	if err != nil {
+		return
+	}
+	defer nullFile.Close()
+
 	netConn, err := net.FileConn(connFile)
 	if err != nil {
 		return
@@ -51,7 +57,6 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 		Path: containerPath,
 		Args: []string{
 			containerPath,
-			cred.FormatId(config.CommonGid),
 			cred.FormatId(config.ContainerCred.Uid),
 			cred.FormatId(config.ContainerCred.Gid),
 			cred.FormatId(config.ExecutorCred.Uid),
@@ -62,7 +67,8 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 		Dir:    "/",
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
-			controlFile,
+			nullFile,    // GATE_NULL_FD
+			controlFile, // GATE_CONTROL_FD
 		},
 		SysProcAttr: &syscall.SysProcAttr{
 			Pdeathsig: syscall.SIGKILL,

@@ -21,7 +21,7 @@ OBJECTS		:= start.o loader.o runtime.o
 	umask $(UMASK) && $(OBJCOPY) --remove-section=.comment --remove-section=.eh_frame $@
 	umask $(UMASK) && $(STRIP) $@
 
-loader.o: loader.c ../defs.h ../fdpath.h Makefile
+loader.o: loader.c ../defs.h Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ loader.c
 
 start.o: start.S Makefile
