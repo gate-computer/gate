@@ -13,16 +13,6 @@ SETCAP		?= setcap
 
 CGROUP_BACKEND	?= systemd
 
-CAPS		:= # set this to cap_sys_admin if your kernel needs it
-
-ifeq ($(CGROUP_BACKEND),systemd)
- ifeq ($(CAPS),)
- CAPS		:= cap_setuid
- else
- CAPS		:= $(CAPS),cap_setuid
- endif
-endif
-
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
 TESTS		:= $(dir $(wildcard tests/*/Makefile))
@@ -97,7 +87,7 @@ all: lib bin devlibs tests
 capabilities:
 	chmod -R go-w lib
 	chmod go-wx lib/container
-	test -z "$(CAPS)" || $(SETCAP) $(CAPS)+ep lib/container
+	$(SETCAP) cap_sys_admin,cap_setuid+ep lib/container
 
 check: lib bin tests
 	$(MAKE) -C run/loader/tests check

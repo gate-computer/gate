@@ -140,9 +140,8 @@ The non-Go components can be built with `make`.  They require:
   - libcap-dev
   - libsystemd-dev unless CGROUP_BACKEND=none is specified for make
 
-After that, capabilities need to be granted by running `make capabilities` as
-root (or in some other way; see [Container
-capabilities](run/container/Capabilities.md)).  That requires:
+After that, [Container capabilities](run/container/Capabilities.md) may need to
+be granted by running `make capabilities` as root.  That requires:
 
   - libcap2-bin
 
