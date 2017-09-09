@@ -497,8 +497,12 @@ static int child_main(void *dummy_arg)
 		xerror("PR_CAP_AMBIENT_CLEAR_ALL");
 
 	char *executor;
+	char *loader;
 
 	if (asprintf(&executor, "%s/self/fd/%d", proc, executor_fd) < 0)
+		xerror("asprintf");
+
+	if (asprintf(&loader, "%s/self/fd/%d", proc, GATE_LOADER_FD) < 0)
 		xerror("asprintf");
 
 	// enable scheduler's autogroup feature
@@ -516,7 +520,7 @@ static int child_main(void *dummy_arg)
 	xdup2(GATE_NULL_FD, STDERR_FILENO);
 	close(GATE_NULL_FD);
 
-	char *envp[] = {executor, NULL};
+	char *envp[] = {loader, NULL};
 	char **empty = envp + 1;
 	execve(executor, empty, envp);
 	// stderr doesn't work anymore

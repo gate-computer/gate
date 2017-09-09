@@ -321,19 +321,16 @@ static inline void handle_reaping(struct buffer *sending, struct buffer *killed,
 	}
 }
 
-static inline char *get_fd_path(int fd, char **envp)
+static inline char *get_loader_fd_path(char **envp)
 {
-	if (envp[0] == NULL || envp[1] != NULL) // Exactly one variable
-		return NULL;
+	char *path = NULL;
 
-	char *path = envp[0];
-	envp[0] = NULL;
+	// Require exactly one variable.
+	if (envp[0] && envp[1] == NULL) {
+		path = envp[0];
+		envp[0] = NULL;
+	}
 
-	size_t len = strlen(path);
-	if (len != GATE_FD_PATH_LEN)
-		return NULL;
-
-	path[len - 1] = '0' + fd; // This assumes that all fds are < 10
 	return path;
 }
 
@@ -349,7 +346,7 @@ int main(int argc, char **argv, char **envp)
 
 	init_sigchld();
 
-	char *loader = get_fd_path(GATE_LOADER_FD, envp);
+	char *loader = get_loader_fd_path(envp);
 	if (loader == NULL)
 		_exit(36);
 
