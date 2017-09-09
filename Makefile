@@ -98,7 +98,7 @@ check-toolchain:
 	$(MAKE) -C examples/toolchain
 	$(run) examples/toolchain/example.wasm
 
-benchmark: bin tests
+benchmark: lib bin tests
 	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
 	$(run) -repeat=10000 -dump-time tests/nop/prog.wasm
 
