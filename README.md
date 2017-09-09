@@ -136,12 +136,13 @@ The non-Go components can be built with `make`.  They require:
   - Linux
   - gcc or clang
   - pkg-config
+  - uidmap (shadow-utils)
   - libcap-dev
   - libsystemd-dev unless CGROUP_BACKEND=none is specified for make
 
 After that, capabilities need to be granted by running `make capabilities` as
-root (or in some other way; see [Installation security notes](run/container/Security.md)).
-That requires:
+root (or in some other way; see [Container
+capabilities](run/container/Capabilities.md)).  That requires:
 
   - libcap2-bin
 
@@ -169,7 +170,7 @@ distributions may use other names.)
 - [Programming interface](Programming.md)
 - [ABI](ABI.md)
 - [Service implementation](Service.md)
-- [Installation security notes](run/container/Security.md)
+- [Container capabilities](run/container/Capabilities.md)
 - [Go packages](https://godoc.org/github.com/tsavola/gate)
 - [wag](https://github.com/tsavola/wag)
 - [wag-toolchain](https://github.com/tsavola/wag-toolchain)

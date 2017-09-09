@@ -1,19 +1,19 @@
-# Installation security notes
+# Container capabilities
 
 
-The container binary needs capabilities for:
+Capabilities needed by the container binary:
 
-  - Configuring namespaces.
+  - Unless systemd support was disabled at build time, CAP_SETUID is needed for
+    changing the effective user id to root for the duration of cgroup
+    initialization.
 
-  - Configuring cgroup via systemd.  Effective uid is temporarily set to root.
+  - If the kernel doesn't allow user namespace creation for non-root users,
+    CAP_SYS_ADMIN is needed for that.  After the container has been configured,
+    it drops all privileges and uses a non-root user id.
 
 
-Things controlled by the user who can execute the container binary:
-
-  - Choose any two pairs of the parent namespace's user and group ids to be
-    mapped to the container's user namespace.  The credentials are used to (1)
-    set up the mount namespace, and (2) for the executor process and its
-    children.
+Privileged things controlled by users who can execute a capable container
+binary:
 
   - Choose any cgroup as the parent for the container's cgroup.
 
@@ -24,8 +24,10 @@ Things controlled by the user who can execute the container binary:
 
 Environmental factors:
 
-  - The container binary needs CAP_DAC_OVERRIDE, CAP_SETGID, and CAP_SETUID
-    capabilities.  It should be executable only by a single, trusted user.
+  - The container binary should be executable only by a single, trusted user.
+
+  - Configuration of the user namespace is delegated to /usr/bin/newuidmap and
+    /usr/bin/newgidmap.
 
   - The binaries executed inside the container are determined by the location
     of the container binary itself: it looks for the "executor" and "loader"
@@ -34,6 +36,6 @@ Environmental factors:
     loader don't need capabilities, and they need to have more relaxed read and
     execution permissions.)
 
-  - Cgroup configuration needs to be via systemd.  By default a container
+  - Cgroup configuration needs to be done via systemd.  By default a container
     instance gets its own cgroup under system.slice, but that's it.
 

@@ -17,6 +17,7 @@
 #include <libgen.h>
 #include <linux/random.h>
 #include <sched.h>
+#include <spawn.h>
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
@@ -33,8 +34,13 @@
 #include "../defs.h"
 #include "cgroup.h"
 
+#define NEWUIDMAP_PATH "/usr/bin/newuidmap"
+#define NEWGIDMAP_PATH "/usr/bin/newgidmap"
+
 #define EXECUTOR_FILENAME "executor"
 #define LOADER_FILENAME   "loader"
+
+extern char **environ;
 
 struct cred {
 	uid_t uid;
@@ -172,46 +178,98 @@ static void xpivot_root(const char *new_root, const char *put_old)
 	}
 }
 
-// Configure given process's uid_map or gid_map, or die.
-static void xwrite_id_map(pid_t pid, const char *filename, const char *data, int datalen)
+// Convert a base 10 string to an unsigned integer or die.
+static unsigned int xatoui(const char *s)
 {
-	char *path;
-	if (asprintf(&path, "/proc/%d/%s", pid, filename) < 0)
+	if (*s == '\0') {
+		errno = ERANGE;
+		xerror(s);
+	}
+
+	char *end;
+	unsigned long n = strtoul(s, &end, 10);
+	if (*end != '\0')
+		xerror(s);
+
+	if (n >= UINT_MAX) {
+		errno = ERANGE;
+		xerror(s);
+	}
+
+	return n;
+}
+
+// Convert an unsigned integer to a base 10 string or die.  The returned string
+// must be freed.
+static char *xuitoa(unsigned int i)
+{
+	char *s;
+
+	if (asprintf(&s, "%u", i) < 0)
 		xerror("asprintf");
 
-	int fd = open(path, O_WRONLY);
-	if (fd < 0)
-		xerror(path);
+	return s;
+}
 
-	if (write(fd, data, datalen) != datalen)
-		xerror(path);
+// Configure given process's uid_map or gid_map, or die.
+static void xwrite_id_map(pid_t target, const char *prog, unsigned int current, unsigned int container, unsigned int executor)
+{
+	char *target_str = xuitoa(target);
+	char *current_str = xuitoa(current);
+	char *container_str = xuitoa(container);
+	char *executor_str = xuitoa(executor);
 
-	xclose(fd);
-	free(path);
+	char *args[] = {
+		(char *) prog,
+		target_str,
+		// inside, outside, count
+		"1", current_str,   "1",
+		"2", container_str, "1",
+		"3", executor_str,  "1",
+		NULL,
+	};
+
+	pid_t prog_pid;
+	errno = posix_spawn(&prog_pid, prog, NULL, NULL, args, environ);
+	if (errno != 0)
+		xerror(prog);
+
+	free(executor_str);
+	free(container_str);
+	free(current_str);
+	free(target_str);
+
+	while (1) {
+		int status;
+		pid_t retval = waitpid(prog_pid, &status, 0);
+		if (retval < 0) {
+			if (errno == EINTR)
+				continue;
+
+			xerror("waitpid");
+		}
+
+		if (WIFEXITED(status)) {
+			if (WEXITSTATUS(status) == 0)
+				break;
+		} else {
+			fprintf(stderr, "%s terminated with status %d\n", prog, status);
+		}
+
+		exit(1);
+	}
 }
 
 // Configure given process's uid_map or die.
 static void xwrite_uid_map(pid_t pid, uid_t container, uid_t executor)
 {
-	char *data;
-	int len = asprintf(&data, "1 %u 1\n2 %u 1\n3 %u 1\n", getuid(), container, executor);
-	if (len < 0)
-		xerror("asprintf");
-
-	xwrite_id_map(pid, "uid_map", data, len);
-	free(data);
+	xwrite_id_map(pid, NEWUIDMAP_PATH, getuid(), container, executor);
 }
 
 // Configure given process's gid_map or die.
 static void xwrite_gid_map(pid_t pid, gid_t container, gid_t executor)
 {
-	char *data;
-	int len = asprintf(&data, "1 %u 1\n2 %u 1\n3 %u 1\n", getgid(), container, executor);
-	if (len < 0)
-		xerror("asprintf");
-
-	xwrite_id_map(pid, "gid_map", data, len);
-	free(data);
+	xwrite_id_map(pid, NEWGIDMAP_PATH, getgid(), container, executor);
 }
 
 // Open a file in a directory, or die.
@@ -251,27 +309,6 @@ static int xopen_executor_and_loader()
 	}
 
 	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_RDONLY|O_CLOEXEC);
-}
-
-// Convert a base 10 string to an unsigned integer or die.
-static unsigned int xatoui(const char *s)
-{
-	if (*s == '\0') {
-		errno = ERANGE;
-		xerror(s);
-	}
-
-	char *end;
-	unsigned long n = strtoul(s, &end, 10);
-	if (*end != '\0')
-		xerror(s);
-
-	if (n >= UINT_MAX) {
-		errno = ERANGE;
-		xerror(s);
-	}
-
-	return n;
 }
 
 // Wait for the child process, or die.  The return code is returned.
@@ -346,9 +383,6 @@ int main(int argc, char **argv)
 	xlimit(RLIMIT_RTTIME, 0);
 	xlimit(RLIMIT_SIGPENDING, 0); // applies only to sigqueue
 
-	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
-		xerror("PR_SET_NO_NEW_PRIVS");
-
 	if (pipe2(syncpipe, O_CLOEXEC) != 0)
 		xerror("pipe");
 
@@ -363,16 +397,16 @@ static int parent_main(pid_t child_pid)
 	xclose(GATE_CONTROL_FD);
 	xclose(syncpipe[0]);
 
-	xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
-	xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
-
-	// user namespace configured
-
 	init_cgroup(child_pid, &cgroup_config);
 
 	xclear_caps();
 
 	// cgroup configured
+
+	xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
+	xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
+
+	// user namespace configured
 
 	xclose(syncpipe[1]); // wake child up
 
@@ -383,8 +417,10 @@ static int child_main(void *dummy_arg)
 {
 	xset_pdeathsig(SIGKILL);
 
-	xclose(syncpipe[1]);
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
+		xerror("PR_SET_NO_NEW_PRIVS");
 
+	xclose(syncpipe[1]);
 	xread_until_eof(syncpipe[0]); // wait for parent to wakes us up
 	xclose(syncpipe[0]);
 

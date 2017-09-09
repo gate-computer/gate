@@ -13,6 +13,16 @@ SETCAP		?= setcap
 
 CGROUP_BACKEND	?= systemd
 
+CAPS		:= # set this to cap_sys_admin if your kernel needs it
+
+ifeq ($(CGROUP_BACKEND),systemd)
+ ifeq ($(CAPS),)
+ CAPS		:= cap_setuid
+ else
+ CAPS		:= $(CAPS),cap_setuid
+ endif
+endif
+
 GOPACKAGEPREFIX	:= github.com/tsavola/gate
 
 TESTS		:= $(dir $(wildcard tests/*/Makefile))
@@ -41,16 +51,21 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/webapi \
 	$(GOPACKAGEPREFIX)/webserver
 
-export GATE_TEST_CONTAINERUSER	= sys
-export GATE_TEST_EXECUTORUSER	= daemon
-export GATE_TEST_LIBDIR		= $(PWD)/lib
-export GATE_TEST_DIR		= $(PWD)/tests
+lower_uid	:= $(shell grep ^$(USER): /etc/subuid | cut -d: -f2)
+lower_gid	:= $(shell grep ^$(USER): /etc/subgid | cut -d: -f2)
+
+export GATE_TEST_CONTAINER_UID	:= $(shell expr $(lower_uid) + 1)
+export GATE_TEST_CONTAINER_GID	:= $(shell expr $(lower_gid) + 1)
+export GATE_TEST_EXECUTOR_UID	:= $(shell expr $(lower_uid) + 2)
+export GATE_TEST_EXECUTOR_GID	:= $(shell expr $(lower_gid) + 2)
+export GATE_TEST_LIBDIR		:= $(PWD)/lib
+export GATE_TEST_DIR		:= $(PWD)/tests
 
 run = bin/runner \
-	-container-uid=$(shell id -u $(GATE_TEST_CONTAINERUSER)) \
-	-container-gid=$(shell id -g $(GATE_TEST_CONTAINERUSER)) \
-	-executor-uid=$(shell id -u $(GATE_TEST_EXECUTORUSER)) \
-	-executor-gid=$(shell id -g $(GATE_TEST_EXECUTORUSER))
+	-container-uid=$(GATE_TEST_CONTAINER_UID) \
+	-container-gid=$(GATE_TEST_CONTAINER_GID) \
+	-executor-uid=$(GATE_TEST_EXECUTOR_UID) \
+	-executor-gid=$(GATE_TEST_EXECUTOR_GID)
 
 lib:
 	$(MAKE) -C run/container CGROUP_BACKEND=$(CGROUP_BACKEND)
@@ -82,7 +97,7 @@ all: lib bin devlibs tests
 capabilities:
 	chmod -R go-w lib
 	chmod go-wx lib/container
-	$(SETCAP) cap_dac_override,cap_setgid,cap_setuid+ep lib/container
+	test -z "$(CAPS)" || $(SETCAP) $(CAPS)+ep lib/container
 
 check: lib bin tests
 	$(MAKE) -C run/loader/tests check

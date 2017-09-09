@@ -6,7 +6,6 @@ package runtest
 
 import (
 	"os"
-	"os/user"
 	"strconv"
 
 	"github.com/tsavola/gate/run"
@@ -31,24 +30,14 @@ func (testRT *TestRuntime) Close() error {
 }
 
 func NewRuntime() (testRT *TestRuntime) {
-	containerUser, err := user.Lookup(os.Getenv("GATE_TEST_CONTAINERUSER"))
-	if err != nil {
-		panic(err)
-	}
-
-	executorUser, err := user.Lookup(os.Getenv("GATE_TEST_EXECUTORUSER"))
-	if err != nil {
-		panic(err)
-	}
-
 	config := run.Config{
 		ContainerCred: run.Cred{
-			Uid: parseId(containerUser.Uid),
-			Gid: parseId(containerUser.Gid),
+			Uid: parseId(os.Getenv("GATE_TEST_CONTAINER_UID")),
+			Gid: parseId(os.Getenv("GATE_TEST_CONTAINER_GID")),
 		},
 		ExecutorCred: run.Cred{
-			Uid: parseId(executorUser.Uid),
-			Gid: parseId(executorUser.Gid),
+			Uid: parseId(os.Getenv("GATE_TEST_EXECUTOR_UID")),
+			Gid: parseId(os.Getenv("GATE_TEST_EXECUTOR_GID")),
 		},
 		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
 	}
