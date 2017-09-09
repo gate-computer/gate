@@ -339,6 +339,9 @@ static inline char *get_fd_path(int fd, char **envp)
 
 int main(int argc, char **argv, char **envp)
 {
+	if (prctl(PR_SET_DUMPABLE, 0) != 0)
+		_exit(35);
+
 	xlimit(RLIMIT_DATA, 0);
 
 	xcloexec(GATE_CONTROL_FD);
@@ -348,7 +351,7 @@ int main(int argc, char **argv, char **envp)
 
 	char *loader = get_fd_path(GATE_LOADER_FD, envp);
 	if (loader == NULL)
-		_exit(35);
+		_exit(36);
 
 	char buffers[BUFFER_STORAGE_SIZE(SENDING_CAPACITY + KILLED_CAPACITY + DIED_CAPACITY)];
 	struct buffer sending = BUFFER_INITIALIZER(buffers, 0);

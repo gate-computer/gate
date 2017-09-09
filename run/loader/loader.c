@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <sys/mman.h>
+#include <sys/prctl.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 
@@ -33,6 +34,20 @@ static int sys_personality(unsigned long persona)
 		"syscall"
 		: "=a" (retval)
 		: "a" (SYS_personality), "D" (persona)
+		: "cc", "rcx", "r11", "memory"
+	);
+
+	return retval;
+}
+
+static int sys_prctl(int option, unsigned long arg2)
+{
+	int retval;
+
+	asm volatile (
+		"syscall"
+		: "=a" (retval)
+		: "a" (SYS_prctl), "D" (option), "S" (arg2)
 		: "cc", "rcx", "r11", "memory"
 	);
 
@@ -163,9 +178,12 @@ static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_me
 
 int main(int argc, char **argv, char **envp)
 {
+	if (sys_prctl(PR_SET_DUMPABLE, 0) != 0)
+		return 48;
+
 	// undo the personality change by executor.c
 	if (sys_personality(0) < 0)
-		return 47;
+		return 49;
 
 	// this is like imageInfo in run.go
 	struct __attribute__ ((packed)) {
