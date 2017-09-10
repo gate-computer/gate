@@ -272,6 +272,26 @@ static void xwrite_gid_map(pid_t pid, gid_t container, gid_t executor)
 	xwrite_id_map(pid, NEWGIDMAP_PATH, getgid(), container, executor);
 }
 
+// Set maximum out-of-memory score adjustment for process, or die.
+static void xoom_score_adj(pid_t pid)
+{
+	const char *value = "1000"; // OOM_SCORE_ADJ_MAX
+
+	char *path;
+	if (asprintf(&path, "/proc/%d/oom_score_adj", pid) < 0)
+		xerror("asprintf");
+
+	int fd = open(path, O_WRONLY);
+	if (fd < 0)
+		xerror(path);
+
+	if (write(fd, value, strlen(value)) != (ssize_t) strlen(value))
+		xerror(path);
+
+	xclose(fd);
+	free(path);
+}
+
 // Open a file in a directory, or die.
 static int xopen_dir_file(const char *dir, const char *file, int flags)
 {
@@ -396,6 +416,8 @@ static int parent_main(pid_t child_pid)
 	xclose(GATE_NULL_FD);
 	xclose(GATE_CONTROL_FD);
 	xclose(syncpipe[0]);
+
+	xoom_score_adj(child_pid);
 
 	init_cgroup(child_pid, &cgroup_config);
 
