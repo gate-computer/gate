@@ -16,17 +16,12 @@ import (
 )
 
 func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
-	err = cred.ValidateIds("user", syscall.Getuid(), 2, config.ContainerCred.Uid, config.ExecutorCred.Uid)
-	if err != nil {
-		return
-	}
-
-	err = cred.ValidateIds("group", syscall.Getgid(), 2, config.ContainerCred.Gid, config.ExecutorCred.Gid)
-	if err != nil {
-		return
-	}
-
 	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
+	if err != nil {
+		return
+	}
+
+	creds, err := cred.Parse(config.ContainerCred.Uid, config.ContainerCred.Gid, config.ExecutorCred.Uid, config.ExecutorCred.Gid)
 	if err != nil {
 		return
 	}
@@ -57,10 +52,10 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 		Path: containerPath,
 		Args: []string{
 			containerPath,
-			cred.FormatId(config.ContainerCred.Uid),
-			cred.FormatId(config.ContainerCred.Gid),
-			cred.FormatId(config.ExecutorCred.Uid),
-			cred.FormatId(config.ExecutorCred.Gid),
+			creds[0],
+			creds[1],
+			creds[2],
+			creds[3],
 			config.cgroupTitle(),
 			config.CgroupParent,
 		},

@@ -73,25 +73,22 @@ func main() {
 		infoLog = critLog
 	}
 
-	if err := cred.ValidateIds("user", -1, 2, config.ContainerCred.Uid, config.ExecutorCred.Uid); err != nil {
-		critLog.Fatal(err)
-	}
-
-	if err := cred.ValidateIds("group", -1, 2, config.ContainerCred.Gid, config.ExecutorCred.Gid); err != nil {
-		critLog.Fatal(err)
-	}
-
 	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
+	if err != nil {
+		return
+	}
+
+	creds, err := cred.Parse(config.ContainerCred.Uid, config.ContainerCred.Gid, config.ExecutorCred.Uid, config.ExecutorCred.Gid)
 	if err != nil {
 		return
 	}
 
 	containerArgs := []string{
 		containerPath,
-		cred.FormatId(config.ContainerCred.Uid),
-		cred.FormatId(config.ContainerCred.Gid),
-		cred.FormatId(config.ExecutorCred.Uid),
-		cred.FormatId(config.ExecutorCred.Gid),
+		creds[0],
+		creds[1],
+		creds[2],
+		creds[3],
 		config.CgroupTitle,
 		config.CgroupParent,
 	}

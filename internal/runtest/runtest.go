@@ -31,14 +31,6 @@ func (testRT *TestRuntime) Close() error {
 
 func NewRuntime() (testRT *TestRuntime) {
 	config := run.Config{
-		ContainerCred: run.Cred{
-			Uid: parseId(os.Getenv("GATE_TEST_CONTAINER_UID")),
-			Gid: parseId(os.Getenv("GATE_TEST_CONTAINER_GID")),
-		},
-		ExecutorCred: run.Cred{
-			Uid: parseId(os.Getenv("GATE_TEST_EXECUTOR_UID")),
-			Gid: parseId(os.Getenv("GATE_TEST_EXECUTOR_GID")),
-		},
 		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
 	}
 

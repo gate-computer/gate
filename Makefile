@@ -41,21 +41,8 @@ GOPACKAGES := \
 	$(GOPACKAGEPREFIX)/webapi \
 	$(GOPACKAGEPREFIX)/webserver
 
-lower_uid	:= $(shell grep ^$(USER): /etc/subuid | cut -d: -f2)
-lower_gid	:= $(shell grep ^$(USER): /etc/subgid | cut -d: -f2)
-
-export GATE_TEST_CONTAINER_UID	:= $(shell expr $(lower_uid) + 1)
-export GATE_TEST_CONTAINER_GID	:= $(shell expr $(lower_gid) + 1)
-export GATE_TEST_EXECUTOR_UID	:= $(shell expr $(lower_uid) + 2)
-export GATE_TEST_EXECUTOR_GID	:= $(shell expr $(lower_gid) + 2)
 export GATE_TEST_LIBDIR		:= $(PWD)/lib
 export GATE_TEST_DIR		:= $(PWD)/tests
-
-run = bin/runner \
-	-container-uid=$(GATE_TEST_CONTAINER_UID) \
-	-container-gid=$(GATE_TEST_CONTAINER_GID) \
-	-executor-uid=$(GATE_TEST_EXECUTOR_UID) \
-	-executor-gid=$(GATE_TEST_EXECUTOR_GID)
 
 lib:
 	$(MAKE) -C run/container CGROUP_BACKEND=$(CGROUP_BACKEND)
@@ -93,19 +80,19 @@ check: lib bin tests
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
-	$(run) tests/echo/prog.wasm
-	$(run) -repeat=2 tests/hello/prog.wasm
-	$(run) -arg=-32 tests/hello/prog.wasm | grep "HELLO WORLD"
-	$(run) -repeat=100 tests/nop/prog.wasm
-	$(run) tests/peer/prog.wasm tests/peer/prog.wasm
+	bin/runner tests/echo/prog.wasm
+	bin/runner -repeat=2 tests/hello/prog.wasm
+	bin/runner -arg=-32 tests/hello/prog.wasm | grep "HELLO WORLD"
+	bin/runner -repeat=100 tests/nop/prog.wasm
+	bin/runner tests/peer/prog.wasm tests/peer/prog.wasm
 
 check-toolchain:
 	$(MAKE) -C examples/toolchain
-	$(run) examples/toolchain/example.wasm
+	bin/runner examples/toolchain/example.wasm
 
 benchmark: lib bin tests
 	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
-	$(run) -repeat=10000 -dump-time tests/nop/prog.wasm
+	bin/runner -repeat=10000 -dump-time tests/nop/prog.wasm
 
 clean:
 	rm -rf bin lib pkg
