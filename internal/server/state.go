@@ -232,10 +232,10 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 		return
 	}
 
-	closeInst := true
+	killInst := true
 	defer func() {
-		if closeInst {
-			inst.close()
+		if killInst {
+			inst.kill(s)
 		}
 	}()
 
@@ -271,7 +271,7 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 	progHash = prog.hash[:]
 
 	removeProgAndInst = false
-	closeInst = false
+	killInst = false
 	return
 }
 
@@ -349,10 +349,10 @@ func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte,
 		return
 	}
 
-	closeInst := true
+	killInst := true
 	defer func() {
-		if closeInst {
-			inst.close()
+		if killInst {
+			inst.kill(s)
 		}
 	}()
 
@@ -365,7 +365,7 @@ func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte,
 	instId = makeId()
 	s.setInstance(instId, inst)
 
-	closeInst = false
+	killInst = false
 	unrefProg = false
 	return
 }
@@ -479,7 +479,7 @@ func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
 			close(channel)
 
 			for inst := range channel {
-				inst.close()
+				inst.kill(s)
 			}
 		}()
 
@@ -493,7 +493,7 @@ func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
 			case channel <- inst:
 
 			case <-ctx.Done():
-				inst.close()
+				inst.kill(s)
 				return
 			}
 		}
@@ -513,8 +513,8 @@ func newInstance(ctx context.Context, s *State) *Instance {
 	return inst
 }
 
-func (inst *Instance) close() {
-	inst.run.Close()
+func (inst *Instance) kill(s *State) {
+	inst.run.Kill(s.Runtime)
 }
 
 func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err error) {
@@ -541,7 +541,7 @@ func (inst *Instance) attachOrigin() (pipe *Pipe) {
 }
 
 func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader, w io.Writer) {
-	defer inst.close()
+	defer inst.kill(s)
 
 	var (
 		status int

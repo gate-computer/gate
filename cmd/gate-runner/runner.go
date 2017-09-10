@@ -117,7 +117,7 @@ func main() {
 
 	var rtClosed bool
 
-	rt, err := run.NewRuntime(&config)
+	rt, err := run.NewRuntime(ctx, &config)
 	if err != nil {
 		log.Fatalf("runtime: %v", err)
 	}
@@ -175,21 +175,17 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	tBegin := time.Now()
 
-	var image run.Image
+	var (
+		image run.Image
+		proc  run.Process
+	)
 
-	err := image.Init()
+	err := run.InitImageAndProcess(ctx, rt, &image, &proc, os.Stderr)
 	if err != nil {
-		log.Fatalf("image: %v", err)
+		log.Fatalf("instance: %v", err)
 	}
-	defer image.Close()
-
-	var proc run.Process
-
-	err = proc.Init(ctx, rt, &image, os.Stderr)
-	if err != nil {
-		log.Fatalf("process: %v", err)
-	}
-	defer proc.Close()
+	defer image.Release(rt)
+	defer proc.Kill(rt)
 
 	tLoadBegin := tBegin
 

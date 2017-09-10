@@ -5,6 +5,7 @@
 package run
 
 import (
+	"context"
 	"net"
 	"os"
 	"os/exec"
@@ -15,11 +16,23 @@ import (
 	"github.com/tsavola/gate/internal/cred"
 )
 
-func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
+func startContainer(ctx context.Context, limiter FileLimiter, config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
 	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
 	if err != nil {
 		return
 	}
+
+	// Acquire files before cred.Parse() because it may allocate temporary file
+	// descriptors (one at a time).
+
+	numFiles := 3 + 5 // Trying to guess how many file descriptors cmd.Start() uses
+	err = limiter.acquire(ctx, numFiles)
+	if err != nil {
+		return
+	}
+	defer func() {
+		limiter.release(numFiles)
+	}()
 
 	creds, err := cred.Parse(config.ContainerCred.Uid, config.ContainerCred.Gid, config.ExecutorCred.Uid, config.ExecutorCred.Gid)
 	if err != nil {
@@ -35,18 +48,17 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 	defer controlFile.Close()
 
 	connFile := os.NewFile(uintptr(fdPair[1]), "executor")
-	defer connFile.Close()
+	netConn, err := net.FileConn(connFile)
+	connFile.Close()
+	if err != nil {
+		return
+	}
 
 	nullFile, err := os.Open(os.DevNull)
 	if err != nil {
 		return
 	}
 	defer nullFile.Close()
-
-	netConn, err := net.FileConn(connFile)
-	if err != nil {
-		return
-	}
 
 	cmd = &exec.Cmd{
 		Path: containerPath,
@@ -77,6 +89,7 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 	}
 
 	unixConn = netConn.(*net.UnixConn)
+	numFiles-- // Keep unixConn
 	return
 }
 
@@ -98,12 +111,26 @@ func containerWaiter(cmd *exec.Cmd, done <-chan struct{}, errorLog Logger) {
 	}
 }
 
-func dialContainerDaemon(config *Config) (conn *net.UnixConn, err error) {
+func dialContainerDaemon(ctx context.Context, limiter FileLimiter, config *Config) (conn *net.UnixConn, err error) {
 	addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
 	if err != nil {
 		return
 	}
 
+	numFiles := 1
+	err = limiter.acquire(ctx, numFiles)
+	if err != nil {
+		return
+	}
+	defer func() {
+		limiter.release(numFiles)
+	}()
+
 	conn, err = net.DialUnix(addr.Net, nil, addr)
+	if err != nil {
+		return
+	}
+
+	numFiles-- // Keep conn
 	return
 }

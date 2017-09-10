@@ -5,6 +5,7 @@
 package runtest
 
 import (
+	"context"
 	"os"
 	"strconv"
 
@@ -29,12 +30,13 @@ func (testRT *TestRuntime) Close() error {
 	return testRT.Runtime.Close()
 }
 
-func NewRuntime() (testRT *TestRuntime) {
-	config := run.Config{
-		LibDir: os.Getenv("GATE_TEST_LIBDIR"),
+func NewRuntime(config *run.Config) (testRT *TestRuntime) {
+	if config == nil {
+		config = new(run.Config)
 	}
+	config.LibDir = os.Getenv("GATE_TEST_LIBDIR")
 
-	rt, err := run.NewRuntime(&config)
+	rt, err := run.NewRuntime(context.Background(), config)
 	if err != nil {
 		panic(err)
 	}

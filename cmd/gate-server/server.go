@@ -31,6 +31,15 @@ import (
 
 const (
 	renewCertBefore = 30 * 24 * time.Hour
+
+	// stdio, syslog, runtime, listener, debug, autocert (guess)
+	globalFileOverhead = 3 + 3 + 1 + 1 + 1 + 2
+
+	// conn, image, process
+	connFileOverhead = 1 + 1 + 3
+
+	processInitParallelism = 10
+	processInitFilePool    = (7 - connFileOverhead) * processInitParallelism
 )
 
 func main() {
@@ -54,7 +63,7 @@ func main() {
 			MaxProgramSize: webserver.DefaultMaxProgramSize,
 		}
 		addr          = "localhost:8888"
-		maxConns      = int(nofile.Cur/8 - 10)
+		maxConns      = int(nofile.Cur-globalFileOverhead-processInitFilePool) / connFileOverhead
 		letsencrypt   = false
 		email         = ""
 		acceptTOS     = false
@@ -136,7 +145,14 @@ func main() {
 
 	runconf.ErrorLog = errLog
 
-	rt, err := run.NewRuntime(&runconf)
+	runtimeFileLimit := int(nofile.Cur) - globalFileOverhead - maxConns
+	runconf.FileLimiter = run.NewFileLimiter(runtimeFileLimit)
+
+	errLog.Printf("process file limit = %d", nofile.Cur)
+	errLog.Printf("runtime file limit = %d", runtimeFileLimit)
+	errLog.Printf("max conns          = %d", maxConns)
+
+	rt, err := run.NewRuntime(ctx, &runconf)
 	if err != nil {
 		critLog.Fatal(err)
 	}

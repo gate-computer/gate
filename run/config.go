@@ -19,6 +19,22 @@ type Config struct {
 	DaemonSocket string
 	ErrorLog     Logger
 
+	// FileLimiter limits the number of simultaneous file descriptors used by
+	// runtimes.  When the limit is reached, calls block.  By default there is
+	// no limit.  This only applies to the Go program; file descriptor usage of
+	// child processes are not accounted for.
+	//
+	// A Runtime instance itself requires some file descriptors during its
+	// initialization (unless DaemonSocket is used), of which one is required
+	// for the lifetime of the runtime (regardless of DaemonSocket usage).
+	//
+	// An Image requires one file descriptor.
+	//
+	// Process initialization requires 5 file descriptors (or 7 if debug output
+	// is enabled), of which 2 (or 3) are required for the lifetime of the
+	// process.
+	FileLimiter *FileLimiter
+
 	// The rest are only applicable if DaemonSocket is not set:
 	ContainerCred Cred
 	ExecutorCred  Cred

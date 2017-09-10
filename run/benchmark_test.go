@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	benchRT = runtest.NewRuntime()
+	benchRT = runtest.NewRuntime(nil)
 
 	benchProgNop   = readProgram("nop")
 	benchProgHello = readProgram("hello")
@@ -56,7 +56,7 @@ func compileBenchmark(prog []byte) (m *wag.Module) {
 func prepareBenchmark(m *wag.Module) (image *run.Image) {
 	image = new(run.Image)
 
-	if err := image.Init(); err != nil {
+	if err := image.Init(context.Background(), benchRT.Runtime); err != nil {
 		panic(err)
 	}
 
@@ -76,7 +76,7 @@ func executeBenchmark(image *run.Image, output io.Writer) (exit int, trap traps.
 	if err != nil {
 		return
 	}
-	defer proc.Close()
+	defer proc.Kill(benchRT.Runtime)
 
 	exit, trap, err = run.Run(context.Background(), benchRT.Runtime, &proc, image, &testServiceRegistry{output})
 	return
@@ -102,8 +102,8 @@ func benchmarkPrepare(b *testing.B, prog []byte) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		p := prepareBenchmark(m)
-		p.Close()
+		image := prepareBenchmark(m)
+		image.Release(benchRT.Runtime)
 	}
 }
 
@@ -112,15 +112,15 @@ func BenchmarkExecuteHello(b *testing.B) { benchmarkExecute(b, benchProgHello, "
 
 func benchmarkExecute(b *testing.B, prog []byte, expectOutput string) {
 	m := compileBenchmark(prog)
-	p := prepareBenchmark(m)
-	defer p.Close()
+	image := prepareBenchmark(m)
+	defer image.Release(benchRT.Runtime)
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		var output bytes.Buffer
 
-		exit, trap, err := executeBenchmark(p, &output)
+		exit, trap, err := executeBenchmark(image, &output)
 		if err != nil {
 			panic(err)
 		}

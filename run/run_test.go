@@ -62,7 +62,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		stackSize       = 4096
 	)
 
-	rt := runtest.NewRuntime()
+	rt := runtest.NewRuntime(nil)
 	defer rt.Close()
 
 	wasm := openProgram(testName)
@@ -88,10 +88,10 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		image run.Image
 		proc  run.Process
 	)
-	defer image.Close()
-	defer proc.Close()
+	defer image.Release(rt.Runtime)
+	defer proc.Kill(rt.Runtime)
 
-	err = image.Init()
+	err = image.Init(context.Background(), rt.Runtime)
 	if err != nil {
 		t.Fatalf("image error: %v", err)
 	}

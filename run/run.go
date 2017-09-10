@@ -181,7 +181,7 @@ type Runtime struct {
 	executor executor
 }
 
-func NewRuntime(config *Config) (rt *Runtime, err error) {
+func NewRuntime(ctx context.Context, config *Config) (rt *Runtime, err error) {
 	rt = new(Runtime)
 
 	err = rt.env.init(config)
@@ -189,7 +189,7 @@ func NewRuntime(config *Config) (rt *Runtime, err error) {
 		return
 	}
 
-	err = rt.executor.init(config)
+	err = rt.executor.init(ctx, config)
 	return
 }
 
@@ -205,6 +205,14 @@ func (rt *Runtime) Done() <-chan struct{} {
 
 func (rt *Runtime) Environment() wag.Environment {
 	return &rt.env
+}
+
+func (rt *Runtime) acquireFiles(ctx context.Context, n int) error {
+	return rt.executor.limiter.acquire(ctx, n)
+}
+
+func (rt *Runtime) releaseFiles(n int) {
+	rt.executor.limiter.release(n)
 }
 
 // imageInfo is like the info object in loader.c
@@ -228,7 +236,26 @@ type Image struct {
 	info imageInfo
 }
 
-func (image *Image) Init() (err error) {
+func (image *Image) Init(ctx context.Context, rt *Runtime) (err error) {
+	numFiles := 1
+	err = rt.acquireFiles(ctx, numFiles)
+	if err != nil {
+		return
+	}
+	defer func() {
+		rt.releaseFiles(numFiles)
+	}()
+
+	err = image.init(ctx, rt)
+	if err != nil {
+		return
+	}
+
+	numFiles = 0
+	return
+}
+
+func (image *Image) init(ctx context.Context, rt *Runtime) (err error) {
 	mapsFd, err := memfd.Create("maps", memfd.CLOEXEC|memfd.ALLOW_SEALING)
 	if err != nil {
 		return
@@ -238,13 +265,15 @@ func (image *Image) Init() (err error) {
 	return
 }
 
-func (image *Image) Close() (err error) {
+func (image *Image) Release(rt *Runtime) (err error) {
 	if image.maps == nil {
 		return
 	}
 
 	err = image.maps.Close()
 	image.maps = nil
+
+	rt.releaseFiles(1)
 	return
 }
 
@@ -377,6 +406,29 @@ type Process struct {
 }
 
 func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer) (err error) {
+	numFiles := 5
+	if debug != nil {
+		numFiles += 2
+	}
+
+	err = rt.acquireFiles(ctx, numFiles)
+	if err != nil {
+		return
+	}
+	defer func() {
+		rt.releaseFiles(numFiles)
+	}()
+
+	err = p.init(ctx, rt, image, debug)
+	if err != nil {
+		return
+	}
+
+	numFiles = 0
+	return
+}
+
+func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer) (err error) {
 	var (
 		stdinW         *os.File
 		stdinBlockR    *os.File
@@ -438,8 +490,8 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 		return
 	}
 
-	if debugR != nil {
-		go copyClose(debug, debugR)
+	if debug != nil {
+		go copyCloseRelease(rt, debug, debugR)
 	}
 
 	p.stdin = stdinW
@@ -455,7 +507,7 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 	return
 }
 
-func (p *Process) Close() (err error) {
+func (p *Process) Kill(rt *Runtime) {
 	if p.stdin == nil {
 		return
 	}
@@ -466,6 +518,8 @@ func (p *Process) Close() (err error) {
 
 	p.stdin = nil
 	p.stdout = nil
+
+	rt.releaseFiles(2)
 	return
 }
 
@@ -495,7 +549,8 @@ func (files *execFiles) fds() (fds []int) {
 	return
 }
 
-func (files *execFiles) close() {
+func (files *execFiles) release(limiter FileLimiter) {
+	numFiles := 3
 	files.stdinBlock.Close()
 	syscall.Close(files.stdinNonblock)
 	files.stdout.Close()
@@ -503,13 +558,49 @@ func (files *execFiles) close() {
 	// don't close maps
 
 	if files.debug != nil {
+		numFiles++
 		files.debug.Close()
 	}
+
+	limiter.release(numFiles)
 }
 
-func copyClose(w io.Writer, r *os.File) {
+func copyCloseRelease(rt *Runtime, w io.Writer, r *os.File) {
+	defer rt.releaseFiles(1)
 	defer r.Close()
+
 	io.Copy(w, r)
+}
+
+// InitImageAndProcess is otherwise same as Image.Init() + Process.Init(), but
+// avoids deadlocks by allocating all required file descriptors in a single
+// step.
+func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *Process, debug io.Writer) (err error) {
+	numFiles := 6
+	if debug != nil {
+		numFiles += 2
+	}
+
+	err = rt.acquireFiles(ctx, numFiles)
+	if err != nil {
+		return
+	}
+	defer func() {
+		rt.releaseFiles(numFiles)
+	}()
+
+	err = image.init(ctx, rt)
+	if err != nil {
+		return
+	}
+
+	err = proc.init(ctx, rt, image, debug)
+	if err != nil {
+		return
+	}
+
+	numFiles = 0
+	return
 }
 
 func Load(m *wag.Module, r reader.Reader, rt *Runtime, textBuf wag.Buffer, roDataBuf []byte, startTrigger chan<- struct{}) error {
@@ -571,31 +662,14 @@ type Instance struct {
 	proc Process
 }
 
-func (inst *Instance) Init(ctx context.Context, rt *Runtime, debug io.Writer) (err error) {
-	err = inst.Image.Init()
-	if err != nil {
-		return
-	}
-
-	closeImage := true
-	defer func() {
-		if closeImage {
-			inst.Image.Close()
-		}
-	}()
-
-	err = inst.proc.Init(ctx, rt, &inst.Image, debug)
-	if err != nil {
-		return
-	}
-
-	closeImage = false
-	return
+func (inst *Instance) Init(ctx context.Context, rt *Runtime, debug io.Writer) error {
+	return InitImageAndProcess(ctx, rt, &inst.Image, &inst.proc, debug)
 }
 
-func (inst *Instance) Close() {
-	inst.Image.Close()
-	inst.proc.Close()
+func (inst *Instance) Kill(rt *Runtime) (err error) {
+	err = inst.Image.Release(rt)
+	inst.proc.Kill(rt)
+	return
 }
 
 func (inst *Instance) Run(ctx context.Context, rt *Runtime, services ServiceRegistry) (exit int, trap traps.Id, err error) {

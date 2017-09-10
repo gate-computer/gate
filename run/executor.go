@@ -33,6 +33,7 @@ type execRequest struct {
 }
 
 type executor struct {
+	limiter         FileLimiter
 	conn            *net.UnixConn
 	execRequests    chan execRequest
 	killRequests    chan int32
@@ -45,10 +46,14 @@ type executor struct {
 	pending         []*process
 }
 
-func (e *executor) init(config *Config) (err error) {
+func (e *executor) init(ctx context.Context, config *Config) (err error) {
 	errorLog := config.ErrorLog
 	if errorLog == nil {
 		errorLog = defaultlog.StandardLogger{}
+	}
+
+	if config.FileLimiter != nil {
+		e.limiter = *config.FileLimiter
 	}
 
 	var (
@@ -57,9 +62,9 @@ func (e *executor) init(config *Config) (err error) {
 	)
 
 	if config.DaemonSocket != "" {
-		conn, err = dialContainerDaemon(config)
+		conn, err = dialContainerDaemon(ctx, e.limiter, config)
 	} else {
-		cmd, conn, err = startContainer(config)
+		cmd, conn, err = startContainer(ctx, e.limiter, config)
 	}
 	if err != nil {
 		return
@@ -169,7 +174,7 @@ func (e *executor) sender(errorLog Logger) {
 
 		_, _, err := e.conn.WriteMsgUnix(buf, cmsg, nil)
 		if files != nil {
-			files.close()
+			files.release(e.limiter)
 		}
 		if err != nil {
 			errorLog.Printf("executor socket: %v", err)
