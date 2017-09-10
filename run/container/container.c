@@ -428,6 +428,9 @@ static int child_main(void *dummy_arg)
 
 	int executor_fd = xopen_executor_and_loader();
 
+	if (setgroups(0, NULL) != 0)
+		xerror("setgroups to empty list");
+
 	uint64_t rand;
 	xgetentropy(&rand, sizeof (rand));
 
