@@ -34,11 +34,11 @@ Environmental factors:
     /usr/bin/newgidmap.
 
   - The binaries executed inside the container are determined by the location
-    of the container binary itself: it looks for the "executor" and "loader"
-    files in the same directory where it is located.  The write permissions of
-    the directory and the binaries should be limited.  (Note that executor and
-    loader don't need capabilities, and they need to have more relaxed read and
-    execution permissions.)
+    of the container binary itself: it looks for the "gate-executor" and
+    "gate-loader" files in the same directory where it is located.  The write
+    permissions of the directory and the binaries should be limited.  (Note
+    that executor and loader don't need capabilities, and they need to have
+    more relaxed read and execution permissions.)
 
   - Cgroup configuration needs to be done via systemd.  A container instance
     gets its own cgroup automatically, but that's it.
