@@ -17,7 +17,7 @@ CFLAGS		+= $(shell $(PKGCONFIG) --cflags $(pkgs))
 LIBS		+= $(shell $(PKGCONFIG) --libs $(pkgs))
 
 build: ../../lib/container-cgroup-$(CGROUP_BACKEND)
-	ln -f ../../lib/container-cgroup-$(CGROUP_BACKEND) ../../lib/container
+	ln -f ../../lib/container-cgroup-$(CGROUP_BACKEND) ../../lib/gate-container
 
 ../../lib/container-cgroup-$(CGROUP_BACKEND): container.o cgroup-$(CGROUP_BACKEND).o Makefile
 	umask $(UMASK) && mkdir -p $(dir $@)

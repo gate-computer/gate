@@ -37,8 +37,8 @@
 #define NEWUIDMAP_PATH "/usr/bin/newuidmap"
 #define NEWGIDMAP_PATH "/usr/bin/newgidmap"
 
-#define EXECUTOR_FILENAME "executor"
-#define LOADER_FILENAME   "loader"
+#define EXECUTOR_FILENAME "gate-executor"
+#define LOADER_FILENAME   "gate-loader"
 
 extern char **environ;
 

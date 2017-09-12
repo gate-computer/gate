@@ -73,8 +73,8 @@ all: lib bin devlibs tests
 
 capabilities:
 	chmod -R go-w lib
-	chmod go-wx lib/container
-	$(SETCAP) cap_sys_admin,cap_setuid+ep lib/container
+	chmod go-wx lib/gate-container
+	$(SETCAP) cap_sys_admin,cap_setuid+ep lib/gate-container
 
 check: lib bin tests
 	$(MAKE) -C run/loader/tests check

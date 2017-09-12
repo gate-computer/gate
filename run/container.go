@@ -17,7 +17,7 @@ import (
 )
 
 func startContainer(ctx context.Context, limiter FileLimiter, config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
-	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
+	containerPath, err := filepath.Abs(path.Join(config.LibDir, "gate-container"))
 	if err != nil {
 		return
 	}

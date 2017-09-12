@@ -73,7 +73,7 @@ func main() {
 		infoLog = critLog
 	}
 
-	containerPath, err := filepath.Abs(path.Join(config.LibDir, "container"))
+	containerPath, err := filepath.Abs(path.Join(config.LibDir, "gate-container"))
 	if err != nil {
 		return
 	}

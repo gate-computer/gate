@@ -14,7 +14,7 @@ LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segmen
 
 OBJECTS		:= start.o loader.o runtime.o
 
-../../lib/loader: $(OBJECTS)
+../../lib/gate-loader: $(OBJECTS)
 	umask $(UMASK) && mkdir -p $(dir $@)
 	umask $(UMASK) && $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS)
 	umask $(UMASK) && $(NM) $@ | grep " __gate_" > $(dir $@)runtime.map

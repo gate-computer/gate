@@ -8,7 +8,7 @@ CPPFLAGS	+= -DNDEBUG
 CFLAGS		+= -std=gnu99 -O2 -fomit-frame-pointer -g -Wall -Wextra -Wno-unused-parameter
 LDFLAGS		+= -static
 
-../../lib/executor: executor.o
+../../lib/gate-executor: executor.o
 	umask $(UMASK) && mkdir -p $(dir $@)
 	umask $(UMASK) && $(CC) $(CFLAGS) $(LDFLAGS) -o $@ executor.o
 
