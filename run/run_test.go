@@ -154,7 +154,8 @@ func (services *testServiceRegistry) Info(name string) (info run.ServiceInfo) {
 	return
 }
 
-func (services *testServiceRegistry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) (err error) {
+func (services *testServiceRegistry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int,
+) (err error) {
 	defer close(evs)
 
 	for op := range ops {

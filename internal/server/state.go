@@ -110,7 +110,8 @@ func (s *State) setProgramForOwner(progId uint64, prog *program) {
 	s.programs[progId] = prog
 }
 
-func (s *State) getProgramForInstance(progId uint64) (prog *program, found bool) {
+func (s *State) getProgramForInstance(progId uint64,
+) (prog *program, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	prog, found = s.programs[progId]
@@ -149,7 +150,8 @@ func (s *State) setInstance(instId uint64, inst *Instance) {
 	s.instances[instId] = inst
 }
 
-func (s *State) Upload(wasm io.ReadCloser, clientHash []byte) (progId uint64, progHash []byte, valid bool, err error) {
+func (s *State) Upload(wasm io.ReadCloser, clientHash []byte,
+) (progId uint64, progHash []byte, valid bool, err error) {
 	if len(clientHash) != sha512.Size {
 		return
 	}
@@ -170,7 +172,8 @@ func (s *State) Upload(wasm io.ReadCloser, clientHash []byte) (progId uint64, pr
 	return
 }
 
-func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte) (prog *program, progId uint64, valid, found bool, err error) {
+func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte,
+) (prog *program, progId uint64, valid, found bool, err error) {
 	prog, found = s.getProgramByHash(clientHash)
 	if !found {
 		return
@@ -189,7 +192,8 @@ func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte) (prog *progra
 	return
 }
 
-func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte) (prog *program, progId uint64, valid bool, err error) {
+func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte,
+) (prog *program, progId uint64, valid bool, err error) {
 	prog, valid, err = loadProgram(wasm, clientHash, s.Runtime)
 	if err != nil {
 		return
@@ -222,7 +226,8 @@ func (s *State) Check(progId uint64, progHash []byte) (valid, found bool) {
 	return
 }
 
-func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *Pipe) (inst *Instance, instId, progId uint64, progHash []byte, valid bool, err error) {
+func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *Pipe,
+) (inst *Instance, instId, progId uint64, progHash []byte, valid bool, err error) {
 	if len(clientHash) != sha512.Size {
 		return
 	}
@@ -275,7 +280,8 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 	return
 }
 
-func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *Instance) (instId uint64, prog *program, progId uint64, valid, found bool, err error) {
+func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *Instance,
+) (instId uint64, prog *program, progId uint64, valid, found bool, err error) {
 	prog, found = s.getProgramByHash(clientHash)
 	if !found {
 		return
@@ -302,7 +308,8 @@ func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte,
 	return
 }
 
-func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *Instance) (instId uint64, prog *program, progId uint64, valid bool, err error) {
+func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *Instance,
+) (instId uint64, prog *program, progId uint64, valid bool, err error) {
 	prog, valid, err = loadProgram(wasm, clientHash, s.Runtime)
 	if err != nil {
 		return
@@ -326,7 +333,8 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 	return
 }
 
-func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *Pipe) (inst *Instance, instId uint64, valid, found bool, err error) {
+func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *Pipe,
+) (inst *Instance, instId uint64, valid, found bool, err error) {
 	prog, found := s.getProgramForInstance(progId)
 	if !found {
 		return
@@ -390,7 +398,8 @@ func (s *State) Wait(instId uint64) (result *Result, found bool) {
 	return
 }
 
-func (s *State) WaitInstance(inst *Instance, instId uint64) (result *Result, found bool) {
+func (s *State) WaitInstance(inst *Instance, instId uint64,
+) (result *Result, found bool) {
 	result, found = <-inst.exit
 	if !found {
 		return
@@ -411,7 +420,8 @@ type program struct {
 	hash          [sha512.Size]byte
 }
 
-func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime) (p *program, valid bool, err error) {
+func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime,
+) (p *program, valid bool, err error) {
 	var (
 		wasm bytes.Buffer
 		hash = sha512.New()
@@ -517,7 +527,8 @@ func (inst *Instance) kill(s *State) {
 	inst.run.Kill(s.Runtime)
 }
 
-func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err error) {
+func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State,
+) (err error) {
 	_, memorySize := m.MemoryLimits()
 	if limit := wasm.MemorySize(s.MemorySizeLimit); memorySize > limit {
 		memorySize = limit

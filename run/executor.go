@@ -88,7 +88,8 @@ func (e *executor) init(ctx context.Context, config *Config) (err error) {
 	return
 }
 
-func (e *executor) execute(ctx context.Context, p *process, files *execFiles) error {
+func (e *executor) execute(ctx context.Context, p *process, files *execFiles,
+) error {
 	p.init(e)
 
 	select {

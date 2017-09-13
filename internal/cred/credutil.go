@@ -85,7 +85,8 @@ func (m *subIdMap) getId() (id uint, err error) {
 	return
 }
 
-func Parse(contUid, contGid, execUid, execGid uint) (creds [4]string, err error) {
+func Parse(contUid, contGid, execUid, execGid uint,
+) (creds [4]string, err error) {
 	if contUid == 0 || contGid == 0 || execUid == 0 || execGid == 0 {
 		var u *user.User
 

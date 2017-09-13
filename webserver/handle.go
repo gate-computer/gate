@@ -29,7 +29,8 @@ const (
 
 // NewHandler should be called with the same context that was passed to
 // server.NewState(), or its subcontext.
-func NewHandler(ctx context.Context, pattern string, state *server.State, conf *Config) http.Handler {
+func NewHandler(ctx context.Context, pattern string, state *server.State, conf *Config,
+) http.Handler {
 	maxProgramSize := DefaultMaxProgramSize
 	if conf != nil && conf.MaxProgramSize != 0 {
 		maxProgramSize = conf.MaxProgramSize
@@ -699,7 +700,8 @@ func getContentType(r *http.Request) (value string) {
 	return
 }
 
-func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string) (value string, ok bool) {
+func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string,
+) (value string, ok bool) {
 	fields := r.Header[canonicalKey]
 
 	switch len(fields) {
@@ -716,7 +718,8 @@ func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string) 
 	}
 }
 
-func parseInstanceArgHeader(w http.ResponseWriter, r *http.Request) (arg int32, ok bool) {
+func parseInstanceArgHeader(w http.ResponseWriter, r *http.Request,
+) (arg int32, ok bool) {
 	fields := r.Header[api.HeaderInstanceArg]
 
 	switch len(fields) {
@@ -736,7 +739,8 @@ func parseInstanceArgHeader(w http.ResponseWriter, r *http.Request) (arg int32, 
 	return
 }
 
-func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.State) io.ReadCloser {
+func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.State,
+) io.ReadCloser {
 	// TODO: support nested encodings
 
 	var encoding string
@@ -765,7 +769,8 @@ func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.
 	return nil
 }
 
-func decodeContent(w http.ResponseWriter, r *http.Request, s *internal.State, limit int) (cr *contentReader) {
+func decodeContent(w http.ResponseWriter, r *http.Request, s *internal.State, limit int,
+) (cr *contentReader) {
 	if r.ContentLength < 0 {
 		w.WriteHeader(http.StatusLengthRequired)
 		return
@@ -781,7 +786,8 @@ func decodeContent(w http.ResponseWriter, r *http.Request, s *internal.State, li
 	return
 }
 
-func writeCORSWithoutExposeHeaders(w http.ResponseWriter, r *http.Request, allowMethods, allowHeaders string) (origin bool) {
+func writeCORSWithoutExposeHeaders(w http.ResponseWriter, r *http.Request, allowMethods, allowHeaders string,
+) (origin bool) {
 	_, origin = r.Header["Origin"]
 	if origin {
 		w.Header().Set("Access-Control-Allow-Headers", allowHeaders)

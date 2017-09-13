@@ -63,7 +63,8 @@ func getCallSites(callMap []byte) (callSites map[int]callSite) {
 	return
 }
 
-func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
+func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection,
+) (err error) {
 	unused := endian.Uint64(stack)
 	if unused == 0 {
 		err = errors.New("no stack")

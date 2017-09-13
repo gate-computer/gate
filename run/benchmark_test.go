@@ -69,7 +69,8 @@ func prepareBenchmark(m *wag.Module) (image *run.Image) {
 	return
 }
 
-func executeBenchmark(image *run.Image, output io.Writer) (exit int, trap traps.Id, err error) {
+func executeBenchmark(image *run.Image, output io.Writer,
+) (exit int, trap traps.Id, err error) {
 	var proc run.Process
 
 	err = proc.Init(context.Background(), benchRT.Runtime, image, nil)
@@ -82,9 +83,17 @@ func executeBenchmark(image *run.Image, output io.Writer) (exit int, trap traps.
 	return
 }
 
-func BenchmarkCompileNop(b *testing.B)   { benchmarkCompile(b, benchProgNop) }
-func BenchmarkCompileHello(b *testing.B) { benchmarkCompile(b, benchProgHello) }
-func BenchmarkCompilePeer(b *testing.B)  { benchmarkCompile(b, benchProgPeer) }
+func BenchmarkCompileNop(b *testing.B) {
+	benchmarkCompile(b, benchProgNop)
+}
+
+func BenchmarkCompileHello(b *testing.B) {
+	benchmarkCompile(b, benchProgHello)
+}
+
+func BenchmarkCompilePeer(b *testing.B) {
+	benchmarkCompile(b, benchProgPeer)
+}
 
 func benchmarkCompile(b *testing.B, prog []byte) {
 	for i := 0; i < b.N; i++ {
@@ -92,9 +101,17 @@ func benchmarkCompile(b *testing.B, prog []byte) {
 	}
 }
 
-func BenchmarkPrepareNop(b *testing.B)   { benchmarkPrepare(b, benchProgNop) }
-func BenchmarkPrepareHello(b *testing.B) { benchmarkPrepare(b, benchProgHello) }
-func BenchmarkPreparePeer(b *testing.B)  { benchmarkPrepare(b, benchProgPeer) }
+func BenchmarkPrepareNop(b *testing.B) {
+	benchmarkPrepare(b, benchProgNop)
+}
+
+func BenchmarkPrepareHello(b *testing.B) {
+	benchmarkPrepare(b, benchProgHello)
+}
+
+func BenchmarkPreparePeer(b *testing.B) {
+	benchmarkPrepare(b, benchProgPeer)
+}
 
 func benchmarkPrepare(b *testing.B, prog []byte) {
 	m := compileBenchmark(prog)
@@ -107,8 +124,13 @@ func benchmarkPrepare(b *testing.B, prog []byte) {
 	}
 }
 
-func BenchmarkExecuteNop(b *testing.B)   { benchmarkExecute(b, benchProgNop, "") }
-func BenchmarkExecuteHello(b *testing.B) { benchmarkExecute(b, benchProgHello, "hello world\n") }
+func BenchmarkExecuteNop(b *testing.B) {
+	benchmarkExecute(b, benchProgNop, "")
+}
+
+func BenchmarkExecuteHello(b *testing.B) {
+	benchmarkExecute(b, benchProgHello, "hello world\n")
+}
 
 func benchmarkExecute(b *testing.B, prog []byte, expectOutput string) {
 	m := compileBenchmark(prog)

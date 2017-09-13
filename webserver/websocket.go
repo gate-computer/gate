@@ -55,7 +55,8 @@ type websocketReadCanceler struct {
 	cancel context.CancelFunc
 }
 
-func newWebsocketReadCanceler(conn *websocket.Conn, cancel context.CancelFunc) *websocketReadCanceler {
+func newWebsocketReadCanceler(conn *websocket.Conn, cancel context.CancelFunc,
+) *websocketReadCanceler {
 	return &websocketReadCanceler{
 		reader: websocketReader{
 			conn: conn,

@@ -50,14 +50,16 @@ func (noServices) Info(string) (info ServiceInfo) {
 	return
 }
 
-func (noServices) Serve(ctx context.Context, r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) (err error) {
+func (noServices) Serve(ctx context.Context, r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int,
+) (err error) {
 	defer close(s)
 	for range r {
 	}
 	return
 }
 
-func handleServicesPacket(reqPacket packet.Buf, services ServiceRegistry) (respPacket packet.Buf, err error) {
+func handleServicesPacket(reqPacket packet.Buf, services ServiceRegistry,
+) (respPacket packet.Buf, err error) {
 	reqContent := reqPacket.Content()
 	if len(reqContent) < serviceHeaderSize {
 		err = errors.New("service discovery packet is too short")

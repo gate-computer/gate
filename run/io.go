@@ -30,7 +30,8 @@ type read struct {
 	err error
 }
 
-func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
+func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
+) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	// cancel is called below
 
@@ -238,7 +239,8 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 	return p
 }
 
-func handlePacket(p packet.Buf, services ServiceRegistry) (msg, reply packet.Buf, poll bool, trap traps.Id, err error) {
+func handlePacket(p packet.Buf, services ServiceRegistry,
+) (msg, reply packet.Buf, poll bool, trap traps.Id, err error) {
 	flags := endian.Uint16(p[packetFlagsOffset:])
 	if (flags &^ packetFlagsMask) != 0 {
 		err = fmt.Errorf("invalid incoming packet flags: 0x%x", flags)

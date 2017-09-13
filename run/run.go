@@ -142,7 +142,8 @@ func (env *runtimeEnv) init(config *Config) (err error) {
 	return
 }
 
-func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function) (variadic bool, addr uint64, err error) {
+func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function,
+) (variadic bool, addr uint64, err error) {
 	if module == "env" {
 		if f, found := env.funcs[field]; found {
 			if !f.sig.Equal(sig) {
@@ -159,7 +160,8 @@ func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function) 
 	return
 }
 
-func (env *runtimeEnv) ImportGlobal(module, field string, t types.T) (value uint64, err error) {
+func (env *runtimeEnv) ImportGlobal(module, field string, t types.T,
+) (value uint64, err error) {
 	if module == "env" {
 		switch field {
 		case "__gate_abi_version":
@@ -277,7 +279,8 @@ func (image *Image) Release(rt *Runtime) (err error) {
 	return
 }
 
-func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32) (err error) {
+func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32,
+) (err error) {
 	initMemorySize, _ := m.MemoryLimits()
 
 	if initMemorySize > growMemorySize {
@@ -383,7 +386,8 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection) (err error) {
+func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection,
+) (err error) {
 	fd := int(image.maps.Fd())
 
 	offset := int64(image.info.RODataSize) + int64(image.info.TextSize) + int64(image.info.MemoryOffset) + int64(image.info.GrowMemorySize)
@@ -405,7 +409,8 @@ type Process struct {
 	stdout *os.File // reader
 }
 
-func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer) (err error) {
+func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer,
+) (err error) {
 	numFiles := 5
 	if debug != nil {
 		numFiles += 2
@@ -428,7 +433,8 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 	return
 }
 
-func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer) (err error) {
+func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer,
+) (err error) {
 	var (
 		stdinW         *os.File
 		stdinBlockR    *os.File
@@ -575,7 +581,8 @@ func copyCloseRelease(rt *Runtime, w io.Writer, r *os.File) {
 // InitImageAndProcess is otherwise same as Image.Init() + Process.Init(), but
 // avoids deadlocks by allocating all required file descriptors in a single
 // step.
-func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *Process, debug io.Writer) (err error) {
+func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *Process, debug io.Writer,
+) (err error) {
 	numFiles := 6
 	if debug != nil {
 		numFiles += 2
@@ -603,12 +610,14 @@ func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *P
 	return
 }
 
-func Load(m *wag.Module, r reader.Reader, rt *Runtime, textBuf wag.Buffer, roDataBuf []byte, startTrigger chan<- struct{}) error {
+func Load(m *wag.Module, r reader.Reader, rt *Runtime, textBuf wag.Buffer, roDataBuf []byte, startTrigger chan<- struct{},
+) error {
 	m.MainSymbol = MainSymbol
 	return m.Load(r, rt.Environment(), textBuf, roDataBuf, RODataAddr, startTrigger)
 }
 
-func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry) (exit int, trap traps.Id, err error) {
+func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry,
+) (exit int, trap traps.Id, err error) {
 	if services == nil {
 		services = noServices{}
 	}
@@ -662,7 +671,8 @@ type Instance struct {
 	proc Process
 }
 
-func (inst *Instance) Init(ctx context.Context, rt *Runtime, debug io.Writer) error {
+func (inst *Instance) Init(ctx context.Context, rt *Runtime, debug io.Writer,
+) error {
 	return InitImageAndProcess(ctx, rt, &inst.Image, &inst.proc, debug)
 }
 
@@ -672,6 +682,7 @@ func (inst *Instance) Kill(rt *Runtime) (err error) {
 	return
 }
 
-func (inst *Instance) Run(ctx context.Context, rt *Runtime, services ServiceRegistry) (exit int, trap traps.Id, err error) {
+func (inst *Instance) Run(ctx context.Context, rt *Runtime, services ServiceRegistry,
+) (exit int, trap traps.Id, err error) {
 	return Run(ctx, rt, &inst.proc, &inst.Image, services)
 }

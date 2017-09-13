@@ -41,7 +41,8 @@ func (o *Origin) Register(r *service.Registry) {
 	r.Register(Name, Version, o)
 }
 
-func (o *Origin) Instantiate(code packet.Code, config *service.Config) service.Instance {
+func (o *Origin) Instantiate(code packet.Code, config *service.Config,
+) service.Instance {
 	return &instance{
 		Origin:      *o,
 		maxReadSize: config.MaxContentSize,

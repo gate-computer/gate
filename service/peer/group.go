@@ -34,7 +34,8 @@ func (g *Group) Register(r *service.Registry) {
 	r.Register(Name, Version, g)
 }
 
-func (g *Group) Instantiate(code packet.Code, config *service.Config) service.Instance {
+func (g *Group) Instantiate(code packet.Code, config *service.Config,
+) service.Instance {
 	return &peer{
 		group: g,
 		code:  code,

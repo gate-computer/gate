@@ -72,7 +72,11 @@ func (r *Registry) Register(name string, version int32, f Factory) {
 }
 
 // RegisterFunc is almost like Register.
-func (r *Registry) RegisterFunc(name string, version int32, f func(packet.Code, *Config) Instance) {
+func (r *Registry) RegisterFunc(
+	name string,
+	version int32,
+	f func(packet.Code, *Config) Instance,
+) {
 	r.Register(name, version, FactoryFunc(f))
 }
 
@@ -98,7 +102,8 @@ func (r *Registry) Info(name string) run.ServiceInfo {
 }
 
 // Serve implements the run.ServiceRegistry interface function.
-func (r *Registry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) (err error) {
+func (r *Registry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int,
+) (err error) {
 	defer close(evs)
 
 	config := Config{

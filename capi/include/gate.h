@@ -78,9 +78,11 @@ extern GATE_CONSTFUNC size_t __gate_get_max_packet_size() GATE_NOEXCEPT;
 #define gate_max_packet_size (__gate_get_max_packet_size())
 
 extern void __gate_debug_write(const void *data, size_t size) GATE_NOEXCEPT;
-extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id)
+	GATE_NOEXCEPT;
 extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
-extern size_t __gate_recv(void *buf, size_t size, unsigned int flags) GATE_NOEXCEPT;
+extern size_t __gate_recv(void *buf, size_t size, unsigned int flags)
+	GATE_NOEXCEPT;
 extern void __gate_send(const void *data, size_t size) GATE_NOEXCEPT;
 
 static inline void gate_debug(const char *s)
@@ -103,7 +105,8 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 	__gate_exit(status);
 }
 
-static inline size_t gate_recv_packet(void *buf, size_t size, unsigned int flags) GATE_NOEXCEPT
+static inline size_t gate_recv_packet(void *buf, size_t size, unsigned int flags)
+	GATE_NOEXCEPT
 {
 	if (size < gate_max_packet_size)
 		gate_exit(1);
@@ -130,7 +133,8 @@ static inline size_t gate_recv_packet(void *buf, size_t size, unsigned int flags
 	return header->size;
 }
 
-static inline void gate_send_packet(const struct gate_packet *packet) GATE_NOEXCEPT
+static inline void gate_send_packet(const struct gate_packet *packet)
+	GATE_NOEXCEPT
 {
 	__gate_send(packet, packet->size);
 }

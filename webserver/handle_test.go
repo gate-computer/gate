@@ -60,7 +60,8 @@ func init() {
 	progHash = hex.EncodeToString(hash.Sum(nil))
 }
 
-func do(t *testing.T, req *http.Request) (resp *http.Response, content []byte) {
+func do(t *testing.T, req *http.Request,
+) (resp *http.Response, content []byte) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	resp = w.Result()

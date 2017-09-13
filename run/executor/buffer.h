@@ -15,7 +15,8 @@
 
 #define BUFFER_ALIGN_MASK  (BUFFER_ALIGNMENT - 1ULL)
 
-#define BUFFER_STORAGE_SIZE(combined_size) (BUFFER_ALIGN_MASK + (combined_size))
+#define BUFFER_STORAGE_SIZE(combined_size) \
+	(BUFFER_ALIGN_MASK + (combined_size))
 
 #define BUFFER_INITIALIZER(storage, offset) { \
 	.ptr = (void *) ((((uintptr_t) (storage) + BUFFER_ALIGN_MASK) & ~BUFFER_ALIGN_MASK) + offset) \
