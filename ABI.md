@@ -8,21 +8,21 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 ```wasm
 (import "env" "__gate_debug_write" (func (param i32) (param i32)))
 ```
-> Write data to the runtime debug log.  The first argument is buffer pointer
-> and the second is length.
+> Output debug data.  The first argument is buffer pointer and the second is
+> length.
 
 
 ```wasm
-(import "env" "__gate_exit" (func (result i32)))
+(import "env" "__gate_exit" (func (param i32)))
 ```
-> Terminate the program immediately.  The parameter value 0 indicates success
-> and 1 indicates failure.  Other values are reserved.
+> Terminate the program.  The parameter value 0 indicates success and 1
+> indicates failure.  Other values are reserved.
 
 
 ```wasm
 (import "env" "__gate_func_ptr" (func (param i32) (result i32)))
 ```
-> Get a pointer to a function.  The parameter is a numeric function id.  If an
+> Get a pointer to a function.  The parameter is a function id.  If an
 > unsupported id is specified, null is returned.
 
 
@@ -54,7 +54,7 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 > If flags is 0, the call blocks until *length* bytes have been received into
 > the buffer.  The return value is unspecified.
 >
-> If flags is 1, the call doesn't blocks, but all bytes might not be received.
+> If flags is 1, the call doesn't block, but all bytes might not be received.
 > The return value indicates the number of remaining bytes (length minus the
 > received bytes).
 >
