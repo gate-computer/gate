@@ -3,7 +3,7 @@
 Run untrusted code safely.  Replace rigid HTTP requests and such with custom
 programs that are executed on the server.  Migrate or duplicate live
 applications across hosts and CPU architectures.
-Create a [universal server](https://joearms.github.io/2013/11/21/My-favorite-erlang-program.html).
+Create a [universal server](https://joearms.github.io/published/2013-11-21-My-favorite-erlang-program.html).
 Gate is a toolkit for doing things like that.
 
 - License: [3-clause BSD](LICENSE)
@@ -18,7 +18,7 @@ browsers' WebAssembly environments.
 See [Programming interface](Programming.md) for details.
 
 Linux's sandboxing and containerization features provide layers of security in
-addition WebAssembly's constraints.
+addition WebAssembly's constraints.  See [Security](Security.md) for details.
 
 *Services* are akin to syscalls: they define the usefulness of the programs.
 Gate provides a few fundamental services, but is intended to be extended.
@@ -91,7 +91,7 @@ See the complete [list of Go packages](https://godoc.org/github.com/tsavola/gate
 
 ## Non-functional objectives
 
-- Security.
+- [Security](Security.md).
 
 - Low enough overhead to be useful.  That means low startup latency and memory
   usage.
@@ -103,7 +103,6 @@ Primary goals:
 
   - [x] Supports simple C/C++ programs (mostly limited by immature toolchain)
   - [x] Linux x86-64 host support
-  - [x] Partial support for running unmodified programs in the browser
   - [x] All planned security measures have been implemented
   - [x] Bare-bones HTTP server for running programs
   - [x] Client can communicate with the program it runs on the server
@@ -121,8 +120,10 @@ Primary goals:
 
 Secondary goals:
 
+  - [x] Partial support for running unmodified programs in the browser
   - [ ] Support for more complex, real-world programs (needs toolchain/ecosystem support)
   - [ ] Non-Linux host support
+  - [ ] Additional security measures?
 
 
 ## Build requirements
@@ -169,6 +170,7 @@ distributions may use other names.)
 - [Programming interface](Programming.md)
 - [ABI](ABI.md)
 - [Service implementation](Service.md)
+- [Security](Security.md)
 - [Container capabilities](run/container/Capabilities.md)
 - [Go packages](https://godoc.org/github.com/tsavola/gate)
 - [wag](https://github.com/tsavola/wag)
