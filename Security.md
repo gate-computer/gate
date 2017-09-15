@@ -41,7 +41,7 @@ has been implemented from the start with Gate's security-oriented use case in
 mind.  Nevertheless, it has a large attack surface.
 
 The security aspects of the generated code are explained in the
-[WebAssembly sandbox](#1-webassembly-sanbox) section.
+[WebAssembly sandbox](#1-webassembly-sandbox) section.
 
 
 ### 2. Execution environment
