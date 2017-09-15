@@ -114,7 +114,7 @@ The process is configured in various ways:
   - CORE, DATA, FSIZE, MEMLOCK, MSGQUEUE, NPROC, RTPRIO, RTTIME and SIGPENDING
     resource limits are set to zero.
 
-  - AS, NOFILE and STACK resource limit is set to small values.
+  - AS, NOFILE and STACK resource limits are set to small values.
 
   - The process is not dumpable.
 
