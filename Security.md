@@ -73,8 +73,8 @@ untrusted code.
 and it's designed for easy validation.  Particularly helpful details about wasm
 programs are that they never store buffers in the call stack, and function
 pointer targets addresses are whitelisted by signature.  The [Wag
-compiler](https://godoc.org/github.com/tsavola/wag) has some additional design
-principles for fool-proofing the generated code:
+compiler](https://github.com/tsavola/wag) has some additional design principles
+for fool-proofing the generated code:
 
   - Programs are limited to 32-bit memory addressing, while the compiler
     targets 64-bit hosts.  Linear memory (heap) is mapped at a location which
