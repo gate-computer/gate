@@ -34,11 +34,11 @@ with other common security details; those are not covered by this document.
 
 ### 1. WebAssembly compiler
 
-[Wag](https://godoc.org/github.com/tsavola/wag) takes a wasm32 binary and
-generates machine code.  It is implemented in Go, which helps with some
-traditional bug classes.  While one of its objectives is compilation speed, it
-has been implemented from the start with Gate's security-oriented use case in
-mind.  Nevertheless, it has a large attack surface.
+[Wag](https://github.com/tsavola/wag) takes a wasm32 binary and generates
+machine code.  It is implemented in Go, which helps with some traditional bug
+classes.  While one of its objectives is compilation speed, it has been
+implemented from the start with Gate's security-oriented use case in mind.
+Nevertheless, it has a large attack surface.
 
 The security aspects of the generated code are explained in the
 [WebAssembly sandbox](#1-webassembly-sandbox) section.
