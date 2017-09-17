@@ -73,11 +73,18 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 The `__gate_recv` and `__gate_send` functions exchange packets with the
 runtime.  Packets have a 8-byte header, followed by contents.
 
-Packet header consists of little-endian integer fields (without padding):
+Packet header consists of little-endian integer fields (without implicit
+padding):
 
   1. 32-bit size - including the header
-  2. 16-bit flags - value 1 indicates *pollout* flag, other values are reserved
-  3. 16-bit code
+  2. 8-bit flags - value 1 indicates *pollout* flag, other values are reserved
+  3. 8 zero bits
+  4. 16-bit code
+
+Built-in codes:
+
+  - -1 is "nothing"
+  - -2 is the service discovery service
 
 The [Programming interface](Programming.md) documents the semantics.
 

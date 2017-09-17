@@ -5,3 +5,5 @@
 GATEDIR 	:= ../..
 
 include $(GATEDIR)/tests/test.mk
+
+$(OBJECT): $(GATEDIR)/tests/discover.h

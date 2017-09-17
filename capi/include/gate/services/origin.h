@@ -12,7 +12,7 @@
 
 #define ORIGIN_SERVICE_NAME "origin"
 
-static inline void origin_send_packet(void *buf, size_t size, uint16_t code)
+static inline void origin_send_packet(void *buf, size_t size, int16_t code)
 {
 	struct gate_packet *header = (struct gate_packet *) buf;
 
@@ -23,7 +23,7 @@ static inline void origin_send_packet(void *buf, size_t size, uint16_t code)
 	gate_send_packet(header);
 }
 
-static inline void origin_send(uint16_t code, const void *msg, size_t msglen)
+static inline void origin_send(int16_t code, const void *msg, size_t msglen)
 {
 	if (msglen > gate_max_packet_size - sizeof (struct gate_packet))
 		gate_exit(1);
@@ -36,12 +36,12 @@ static inline void origin_send(uint16_t code, const void *msg, size_t msglen)
 	origin_send_packet(buf, size, code);
 }
 
-static inline void origin_send_str(uint16_t code, const char *msg)
+static inline void origin_send_str(int16_t code, const char *msg)
 {
 	origin_send(code, msg, strlen(msg));
 }
 
-static inline void origin_send_init(uint16_t code)
+static inline void origin_send_init(int16_t code)
 {
 	origin_send(code, NULL, 0);
 }

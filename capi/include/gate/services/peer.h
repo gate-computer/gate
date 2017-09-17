@@ -34,7 +34,7 @@ struct peer_id_packet {
 	uint64_t peer_id;
 } GATE_PACKED;
 
-static inline void peer_send_init(uint16_t code)
+static inline void peer_send_init(int16_t code)
 {
 	const struct peer_packet packet = {
 		.header = {
@@ -47,7 +47,7 @@ static inline void peer_send_init(uint16_t code)
 	gate_send_packet(&packet.header);
 }
 
-static inline void peer_send_message_packet(void *buf, size_t size, uint16_t code, uint64_t peer_id)
+static inline void peer_send_message_packet(void *buf, size_t size, int16_t code, uint64_t peer_id)
 {
 	struct peer_id_packet *header = (struct peer_id_packet *) buf;
 
@@ -60,7 +60,7 @@ static inline void peer_send_message_packet(void *buf, size_t size, uint16_t cod
 	gate_send_packet(&header->peer_header.header);
 }
 
-static inline void peer_send_message(uint16_t code, uint64_t peer_id, const void *msg, size_t msglen)
+static inline void peer_send_message(int16_t code, uint64_t peer_id, const void *msg, size_t msglen)
 {
 	if (msglen > gate_max_packet_size - sizeof (struct peer_id_packet))
 		gate_exit(1);

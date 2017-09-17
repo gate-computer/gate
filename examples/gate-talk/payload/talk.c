@@ -173,12 +173,12 @@ void main()
 	if (!gate_discover_services(r))
 		gate_exit(1);
 
-	if (origin.code == 0) {
+	if ((origin.flags & GATE_SERVICE_FLAG_AVAILABLE) == 0) {
 		gate_debug("origin service not found\n");
 		gate_exit(1);
 	}
 
-	if (peer.code == 0) {
+	if ((peer.flags & GATE_SERVICE_FLAG_AVAILABLE) == 0) {
 		origin_send_str(origin.code, "peer service not found\n");
 		gate_exit(1);
 	}

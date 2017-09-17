@@ -67,7 +67,7 @@ void gate_exit(int status);
 
 
 ```c
-size_t gate_recv_packet(void *buf, size_t size, unsigned int flags);
+size_t gate_recv_packet(void *buf, size_t size, unsigned flags);
 ```
 > Receive a complete packet into a buffer.  *size* must be at least
 > `gate_max_packet_size`.  If the `GATE_RECV_FLAG_NONBLOCK` flag is set, the
@@ -97,21 +97,24 @@ void gate_send_packet(const struct gate_packet *packet);
 ```c
 struct gate_packet {
 	uint32_t size;
-	uint16_t flags;
-	uint16_t code;
+	unsigned flags;
+	int16_t code;
 };
 ```
 > The size includes the header and the trailing contents.  See the
 > `gate_send_packet` function documentation about flags.
 >
-> The code identifies a service.  Code 0 identifies the service discovery
-> service.  It is the only valid code until more services have been discovered.
+> Non-negative codes identify discovered services.  Negative codes are for
+> built-in functionality.
 >
-> As a special case, it's possible to send an empty packet with code 0 (empty
-> means that its size equals the header size).  It causes the flags to be
-> processed by the runtime, but it doesn't trigger a service discovery.
-> Likewise, the runtime may send a empty packet with code 0 if it needs to send
-> a notification, but has no queued packet to piggy-back it on.
+> Sending a packet with code `GATE_PACKET_CODE_NOTHING` causes the flags to be
+> processed by the runtime, but has no other effect.  Likewise, the runtime may
+> send a packet with that code if it needs to send a notification, but has no
+> queued packet to piggy-back it on.
+>
+> The size of the unsigned integer type of the flags field is unspecified.  The
+> struct declaration may contain additional reserved fields which must be
+> zeroed in sent packets.
 
 
 ### Service discovery
@@ -119,49 +122,51 @@ struct gate_packet {
 ```c
 struct gate_service_name_packet {
 	struct gate_packet header;
-	// reserved fields
-	uint32_t count;
+	uint16_t count;
 	char names[0]; // variable length
 };
 ```
-> Service discovery request, sent with code 0.  The count indicates how many
-> nul-terminated service names are concatenated in *names*.
+> Service discovery request, sent with the `GATE_PACKET_CODE_SERVICES` code.
+> The count indicates how many nul-terminated service names are concatenated in
+> *names*.  The *infos* array in the response packet will be in the same order
+> as *names*.
+>
+> Services may be discovered in multiple steps.
+>
+> The struct declaration may contain additional reserved fields which must be
+> zeroed.
 
 
 ```c
 struct gate_service_info_packet {
 	struct gate_packet header;
-	// reserved fields
-	uint32_t count;
+	uint16_t count;
 	struct gate_service_info infos[0]; // variable length
 };
 ```
-> Service discovery response, received with code 0.  It matches a service
-> discovery request; the count is the same as in the request, and *infos* is in
-> the same order as *names* in the request.
->
-> Note that an empty packet with code 0 is not a service discovery response.
+> Service discovery response, received with the `GATE_PACKET_CODE_SERVICES`
+> code.  It matches a service discovery request.  The count is the total number
+> of discovered services, and *infos* is a concatenation of all previously and
+> newly discovered service information.
 
 
 ```c
 struct gate_service_info {
-	uint16_t code;
-	// reserved fields
+	unsigned flags;
 	int32_t version;
 };
 ```
-> If the code is non-zero, it can be used to send packets to the service and to
-> identify packets received from the service.  Code 0 means that the service is
-> not supported by the runtime.
+> If the `GATE_SERVICE_FLAG_AVAILABLE` flag is set, packets may be sent to the
+> service.  The packet code of the service is its index in the *infos* array
+> (its discovery ordering).
 >
 > Semantics of the version are service-specific.
 >
-> Services won't start interacting with the program (or allocate significant
-> resources) until the program does, so it's safe to discover services even if
-> the program is unsure which ones it will actually use.  The contents of the
-> packets are entirely service-specific.
+> Services won't start sending packets to the program (or allocate significant
+> resources) until the program initiates interaction, so it's safe to discover
+> services even if the program is unsure which ones it will actually use.
 >
-> The code is only valid within the program instance which discovered it.
+> The size of the unsigned integer type of the flags field is unspecified.
 
 
 ## Toolchain

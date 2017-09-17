@@ -8,11 +8,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/binary"
-	"errors"
 	"io"
 	"os"
 	"path"
+	"sync"
 	"testing"
 
 	"github.com/tsavola/gate/internal/runtest"
@@ -134,45 +133,63 @@ type testServiceRegistry struct {
 	origin io.Writer
 }
 
-func (services *testServiceRegistry) Info(name string) (info run.ServiceInfo) {
-	var code uint16
+func (services *testServiceRegistry) StartServing(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int,
+) run.ServiceDiscoverer {
+	d := new(testServiceDiscoverer)
 
-	switch name {
-	case "origin":
-		code = 1
+	go func() {
+		defer close(evs)
 
-	case "test1":
-		code = 2
-		info.Version = 1337
+		for op := range ops {
+			i := op.Code().Int16()
 
-	case "test2":
-		code = 3
-		info.Version = 12765
-	}
+			d.nameLock.Lock()
+			name := d.names[i]
+			d.nameLock.Unlock()
 
-	binary.LittleEndian.PutUint16(info.Code[:], code)
-	return
+			switch name {
+			case "origin":
+				if _, err := services.origin.Write(op.Content()); err != nil {
+					panic(err)
+				}
+			}
+		}
+	}()
+
+	return d
 }
 
-func (services *testServiceRegistry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int,
-) (err error) {
-	defer close(evs)
+type testServiceDiscoverer struct {
+	services []run.Service
+	nameLock sync.Mutex
+	names    []string
+}
 
-	for op := range ops {
-		switch op.Code().Int() {
-		case 1:
-			if _, err := services.origin.Write(op.Content()); err != nil {
-				panic(err)
-			}
+func (d *testServiceDiscoverer) Discover(names []string) []run.Service {
+	for _, name := range names {
+		var s run.Service
 
-		case 2, 3:
-			// ok
+		switch name {
+		case "origin":
+			s.SetAvailable(0)
 
-		default:
-			err = errors.New("invalid service code")
-			return
+		case "test1":
+			s.SetAvailable(1337)
+
+		case "test2":
+			s.SetAvailable(12765)
 		}
+
+		d.services = append(d.services, s)
+
+		d.nameLock.Lock()
+		d.names = append(d.names, name)
+		d.nameLock.Unlock()
 	}
 
-	return
+	return d.services
+}
+
+func (d *testServiceDiscoverer) NumServices() int {
+	return len(d.services)
 }

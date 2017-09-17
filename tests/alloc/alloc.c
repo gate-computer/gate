@@ -10,7 +10,7 @@
 
 #include <gate.h>
 
-#define ORIGIN 1 // TODO
+#include "../discover.h"
 
 static const int num_garbage_slots = 2;
 static void *garbage[num_garbage_slots];
@@ -24,7 +24,6 @@ static void do_it(int c, int n)
 		gate_exit(1);
 
 	buf->size = size;
-	buf->code = ORIGIN;
 
 	memset(buf + 1, c, n);
 	((char *) (buf + 1))[n] = '\n';
@@ -47,6 +46,8 @@ static void do_it(int c, int n)
 
 void main()
 {
+	discover_service("origin");
+
 	for (int i = 33; i < 127; i++)
 		do_it(i, i - 32);
 }

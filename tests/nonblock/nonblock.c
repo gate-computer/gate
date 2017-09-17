@@ -6,10 +6,12 @@
 
 #include <gate.h>
 
-#define ORIGIN 1 // TODO
+#include "../discover.h"
 
 void main()
 {
+	discover_service("origin");
+
 	int idle = 0;
 	char payload;
 
@@ -22,7 +24,7 @@ void main()
 			continue;
 
 		const struct gate_packet *ev = (void *) buf;
-		if (ev->code != ORIGIN)
+		if (ev->code != 0)
 			continue;
 
 		if (len < sizeof (struct gate_packet) + 1)
@@ -35,10 +37,11 @@ void main()
 	size_t size = sizeof (struct gate_packet) + 3;
 	char buf[size];
 
+	for (size_t i = 0; i < size; i++)
+		buf[i] = 0;
+
 	struct gate_packet *op = (void *) buf;
 	op->size = size;
-	op->flags = 0;
-	op->code = ORIGIN;
 
 	buf[sizeof (struct gate_packet) + 0] = idle;
 	buf[sizeof (struct gate_packet) + 1] = idle >> 8;

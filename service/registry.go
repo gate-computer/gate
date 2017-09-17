@@ -6,8 +6,7 @@ package service
 
 import (
 	"context"
-	"encoding/binary"
-	"errors"
+	"sync"
 
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/run"
@@ -36,13 +35,18 @@ func (f FactoryFunc) Instantiate(code packet.Code, config *Config) Instance {
 	return f(code, config)
 }
 
+type impl struct {
+	factory Factory
+	version int32
+}
+
 // Registry is the default run.ServiceRegistry implementation.  It multiplexes
 // packets to service implementations.  If each program instance requires
 // distinct configuration for a given service, a modified Registry with a
 // distinct Factory instance must be used for each program instance.
 type Registry struct {
-	factories []Factory
-	infos     map[string]run.ServiceInfo
+	impls  map[string]impl
+	parent *Registry
 }
 
 // Defaults gets populated with the built-in services if the service/defaults
@@ -54,21 +58,10 @@ var Defaults = new(Registry)
 // conventions.  The version parameter may be used to communicate changes in
 // the service API.
 func (r *Registry) Register(name string, version int32, f Factory) {
-	if r.infos == nil {
-		r.infos = make(map[string]run.ServiceInfo)
+	if r.impls == nil {
+		r.impls = make(map[string]impl)
 	}
-
-	var code packet.Code
-
-	if info, found := r.infos[name]; found {
-		code = info.Code
-		r.factories[code.Int()-1] = f
-	} else {
-		r.factories = append(r.factories, f)
-		binary.LittleEndian.PutUint16(code[:], uint16(len(r.factories)))
-	}
-
-	r.infos[name] = run.ServiceInfo{Code: code, Version: version}
+	r.impls[name] = impl{f, version}
 }
 
 // RegisterFunc is almost like Register.
@@ -83,27 +76,41 @@ func (r *Registry) RegisterFunc(
 // Clone the registry.  The new registry may be used to add or replace some
 // service implementations.
 func (r *Registry) Clone() *Registry {
-	clone := new(Registry)
+	return &Registry{
+		parent: r,
+	}
+}
 
-	clone.factories = make([]Factory, len(r.factories))
-	copy(clone.factories, r.factories)
+func (r *Registry) lookup(name string) (result impl) {
+	for {
+		var found bool
 
-	clone.infos = make(map[string]run.ServiceInfo)
-	for k, v := range r.infos {
-		clone.infos[k] = v
+		result, found = r.impls[name]
+		if found {
+			return
+		}
+
+		r = r.parent
+		if r == nil {
+			return
+		}
+	}
+}
+
+// StartServing implements the run.ServiceRegistry interface function.
+func (r *Registry) StartServing(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int,
+) run.ServiceDiscoverer {
+	d := &discoverer{
+		registry:   r,
+		discovered: make(map[Factory]struct{}),
 	}
 
-	return clone
+	go serve(ctx, r, d, ops, evs, maxContentSize)
+
+	return d
 }
 
-// Info implements the run.ServiceRegistry interface function.
-func (r *Registry) Info(name string) run.ServiceInfo {
-	return r.infos[name]
-}
-
-// Serve implements the run.ServiceRegistry interface function.
-func (r *Registry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int,
-) (err error) {
+func serve(ctx context.Context, r *Registry, d *discoverer, ops <-chan packet.Buf, evs chan<- packet.Buf, maxContentSize int) {
 	defer close(evs)
 
 	config := Config{
@@ -123,17 +130,19 @@ func (r *Registry) Serve(ctx context.Context, ops <-chan packet.Buf, evs chan<- 
 
 			var code packet.Code
 			copy(code[:], op[packet.CodeOffset:])
+
 			inst, found := instances[code]
 			if !found {
-				index := uint32(code.Int()) - 1 // underflow wraps around
-				if index >= uint32(len(r.factories)) {
-					err = errors.New("invalid service code")
-					return
+				if f := d.getFactories()[code.Int16()]; f != nil {
+					inst = f.Instantiate(code, &config)
 				}
-				inst = r.factories[index].Instantiate(code, &config)
 				instances[code] = inst
 			}
-			inst.Handle(ctx, op, evs)
+
+			if inst != nil {
+				inst.Handle(ctx, op, evs)
+			}
+			// TODO: packets to unknown services should be handled somehow
 
 		case <-ctx.Done():
 			return
@@ -150,6 +159,70 @@ func shutdown(instances map[packet.Code]Instance) {
 	// Actual shutdown of a service should have began when the context was
 	// canceled, so these Shutdown calls only need to wait for completion.
 	for _, inst := range instances {
-		inst.Shutdown()
+		if inst != nil {
+			inst.Shutdown()
+		}
 	}
+}
+
+type discoverer struct {
+	registry    *Registry
+	discovered  map[Factory]struct{}
+	services    []run.Service
+	factoryLock sync.Mutex
+	factories   []Factory
+}
+
+func (d *discoverer) Discover(newNames []string) []run.Service {
+	oldCount := len(d.services)
+	newCount := oldCount + len(newNames)
+
+	if cap(d.services) < newCount {
+		newServices := make([]run.Service, oldCount, newCount)
+		copy(newServices, d.services)
+		d.services = newServices
+	}
+
+	newFactories := make([]Factory, oldCount, newCount)
+	copy(newFactories, d.factories)
+
+	for _, name := range newNames {
+		var (
+			f Factory
+			s run.Service
+		)
+
+		if impl := d.registry.lookup(name); impl.factory != nil {
+			if _, dupe := d.discovered[impl.factory]; !dupe {
+				d.discovered[impl.factory] = struct{}{}
+				f = impl.factory
+				s.SetAvailable(impl.version)
+			}
+		}
+
+		newFactories = append(newFactories, f)
+		d.services = append(d.services, s)
+	}
+
+	d.setFactories(newFactories)
+
+	return d.services
+}
+
+func (d *discoverer) NumServices() int {
+	return len(d.services)
+}
+
+func (d *discoverer) getFactories() []Factory {
+	d.factoryLock.Lock()
+	defer d.factoryLock.Unlock()
+
+	return d.factories
+}
+
+func (d *discoverer) setFactories(factories []Factory) {
+	d.factoryLock.Lock()
+	defer d.factoryLock.Unlock()
+
+	d.factories = factories
 }

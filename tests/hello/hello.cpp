@@ -6,7 +6,7 @@
 
 #include <gate.h>
 
-#define ORIGIN 1 // TODO
+#include "../discover.h"
 
 long workaround;
 void (*indirection)(const gate_packet *);
@@ -15,6 +15,7 @@ namespace {
 
 void implementation(const gate_packet *p)
 {
+	discover_service("origin");
 	gate_send_packet(p);
 }
 
@@ -42,7 +43,7 @@ public:
 		return buf + header_size;
 	}
 
-	const gate_packet *op_data(uint16_t code, uint16_t flags = 0)
+	const gate_packet *op_data(int16_t code, uint16_t flags = 0)
 	{
 		gate_packet *header = reinterpret_cast<gate_packet *> (buf);
 		header->size = size;
@@ -74,7 +75,7 @@ int main()
 	if (p.size > gate_max_packet_size)
 		return 1;
 
-	indirection(p.op_data(ORIGIN));
+	indirection(p.op_data(0));
 
 	return 0;
 }

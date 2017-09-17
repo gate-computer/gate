@@ -136,8 +136,9 @@ trap_handler:
 	mov	$8, %edx		// size (3rd syscall arg)
 
 	mov	%edx, (%rsi)		// packet size
-	movw	$GATE_PACKET_FLAG_TRAP, 4(%rsi)
-	mov	%ax, 6(%rsi)		// packet code (trap)
+	movb	$0, 4(%rsi)		// packet flags
+	mov	%al, 5(%rsi)		// reserved field (trap id)
+	movw	$-20408, 6(%rsi)	// packet code (trap)
 
 .Lloop_mf:
 	mov	$SYS_write, %eax

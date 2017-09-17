@@ -14,8 +14,7 @@ import (
 )
 
 func init() {
-	origin.Default.Register(service.Defaults) // code 1 for unit tests
-
 	echo.Default.Register(service.Defaults)
+	origin.Default.Register(service.Defaults)
 	peer.Default.Register(service.Defaults)
 }

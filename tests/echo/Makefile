@@ -10,3 +10,5 @@ LIBS := \
 	$(GATEDIR)/libc/libc_build/memset.bc
 
 include $(GATEDIR)/tests/test.mk
+
+$(OBJECT): $(GATEDIR)/tests/discover.h

@@ -7,80 +7,50 @@
 
 #include <gate.h>
 
-#define SERVICE "echo"
+#include "../discover.h"
+
 #define CONTENT "ECHO.. Echo.. echo..\n"
 
-struct ServiceNamePacket {
-	gate_service_name_packet packet;
-	char names[sizeof (SERVICE)];
-} __attribute__ ((packed));
-
-struct MessageOp {
+struct message_op {
 	gate_packet header;
 	char content[sizeof (CONTENT)];
-} __attribute__ ((packed));
+} GATE_PACKED;
 
-struct MessageEv {
+struct message_ev {
 	gate_packet header;
 	char content[0];
-} __attribute__ ((packed));
+} GATE_PACKED;
 
-static uint16_t get_service_code()
+static void send_message()
 {
-	const ServiceNamePacket op = {
-		.packet = {
-			.header = {
-				.size = sizeof (op),
-			},
-			.count = 1,
-		},
-		.names = SERVICE,
-	};
-	gate_send_packet(&op.packet.header);
-
-	while (1) {
-		char buf[gate_max_packet_size];
-		gate_recv_packet(buf, gate_max_packet_size, 0);
-		auto ev = reinterpret_cast<const gate_service_info_packet *> (buf);
-		if (ev->header.code == 0)
-			return ev->infos[0].code;
-	}
-}
-
-static void send_message(uint16_t code)
-{
-	const MessageOp op = {
+	const message_op packet = {
 		.header = {
-			.size = sizeof (op),
-			.code = code,
+			.size = sizeof (packet),
 		},
 		.content = CONTENT,
 	};
-	gate_send_packet(&op.header);
+
+	gate_send_packet(&packet.header);
 }
 
-static MessageEv *recv_message(char *buf, size_t bufsize, uint16_t code)
+static message_ev *recv_message(char *buf, size_t bufsize)
 {
-	while (1) {
+	auto packet = reinterpret_cast<message_ev *> (buf);
+
+	do {
 		gate_recv_packet(buf, bufsize, 0);
-		auto ev = reinterpret_cast<MessageEv *> (buf);
-		if (ev->header.code == code)
-			return ev;
-	}
+	} while (packet->header.code != 0);
+
+	return packet;
 }
 
 int main()
 {
-	auto code = get_service_code();
-	if (code == 0) {
-		gate_debug("No such service: echo\n");
-		return 1;
-	}
-
-	send_message(code);
+	discover_service("echo");
+	send_message();
 
 	char buf[gate_max_packet_size];
-	const auto reply = recv_message(buf, gate_max_packet_size, code);
+	const auto reply = recv_message(buf, gate_max_packet_size);
 
 	auto length = reply->header.size - sizeof (reply->header);
 	if (length != sizeof (CONTENT)) {

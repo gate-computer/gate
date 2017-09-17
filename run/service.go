@@ -16,49 +16,78 @@ const (
 	serviceCountOffset = 4
 	serviceHeaderSize  = 8
 
-	serviceInfoCodeOffset    = 0
+	serviceFlagAvailable uint8 = 0x1
+
+	serviceInfoFlagsOffset   = 0
 	serviceInfoVersionOffset = 4
 	serviceInfoSize          = 8
 )
 
-// ServiceInfo is used to respond to a service discovery request.  Zero-value
-// code means that the service is not available.  Version is service-specific.
-type ServiceInfo struct {
-	Code    packet.Code
-	Version int32
+// Service is used to respond to a service discovery request.
+type Service struct {
+	info [serviceInfoSize]byte
 }
 
-// ServiceRegistry is used to look up service information when responding to a
-// program's service discovery packet.  When the program sends a packet to one
-// of the services, the packet is forwarded to the ServiceRegistry for
-// handling.
+// SetAvailable indicates a successful service discovery result.  Semantics of
+// the version are service-specific.
+func (s *Service) SetAvailable(version int32) {
+	s.info[serviceInfoFlagsOffset] = serviceFlagAvailable
+	endian.PutUint32(s.info[serviceInfoVersionOffset:], uint32(version))
+}
+
+// ServiceRegistry is a collection of fully configured services.
 //
-// Serve is called once for each program instance.  The context is canceled and
-// the receive channel is closed when the program is being shut down.  After
-// that the send channel must be closed.  The maximum packet content size may
-// be used when buffering data.
+// StartServing is called once for each program instance.  The context is
+// canceled and the receive channel is closed when the program is being shut
+// down.  After that the send channel must be closed.  The maximum packet
+// content size may be used when buffering data.
 //
 // See the service package for the default implementation.
 type ServiceRegistry interface {
-	Info(serviceName string) ServiceInfo
-	Serve(ctx context.Context, r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int) error
+	StartServing(
+		ctx context.Context,
+		recv <-chan packet.Buf,
+		send chan<- packet.Buf,
+		maxContentSize int,
+	) ServiceDiscoverer
+}
+
+// ServiceDiscoverer is used to look up service information when responding to
+// a program's service discovery packet.  It modifies the internal state of the
+// ServiceRegistry server.
+type ServiceDiscoverer interface {
+	Discover(newNames []string) (allServices []Service)
+	NumServices() int
 }
 
 type noServices struct{}
 
-func (noServices) Info(string) (info ServiceInfo) {
-	return
+func (noServices) StartServing(ctx context.Context, recv <-chan packet.Buf, send chan<- packet.Buf, maxContentSize int,
+) ServiceDiscoverer {
+	go func() {
+		defer close(send)
+
+		for range recv {
+		}
+	}()
+
+	return new(noDiscoveries)
 }
 
-func (noServices) Serve(ctx context.Context, r <-chan packet.Buf, s chan<- packet.Buf, maxContentSize int,
-) (err error) {
-	defer close(s)
-	for range r {
-	}
-	return
+type noDiscoveries struct {
+	num int
 }
 
-func handleServicesPacket(reqPacket packet.Buf, services ServiceRegistry,
+func (no *noDiscoveries) Discover(names []string) []Service {
+	no.num += len(names)
+	return make([]Service, no.num)
+}
+
+func (no *noDiscoveries) NumServices() int {
+	return no.num
+}
+
+func handleServicesPacket(reqPacket packet.Buf, discoverer ServiceDiscoverer,
 ) (respPacket packet.Buf, err error) {
 	reqContent := reqPacket.Content()
 	if len(reqContent) < serviceHeaderSize {
@@ -66,36 +95,40 @@ func handleServicesPacket(reqPacket packet.Buf, services ServiceRegistry,
 		return
 	}
 
-	reqCountBuf := reqContent[serviceCountOffset : serviceCountOffset+4]
-	count := endian.Uint32(reqCountBuf)
-	if count > maxServices {
-		err = errors.New("too many services requested")
+	reqCount := endian.Uint16(reqContent[serviceCountOffset:])
+	totalCount := discoverer.NumServices() + int(reqCount)
+	if totalCount > maxServices {
+		err = errors.New("too many services")
 		return
 	}
 
-	size := packet.BufSize(serviceHeaderSize + serviceInfoSize*int(count))
-	respPacket = packet.Buf(make([]byte, size))
-	endian.PutUint32(respPacket[0:], uint32(size))
-
-	respContent := respPacket.Content()
-	copy(respContent[serviceCountOffset:], reqCountBuf)
-
 	nameBuf := reqContent[serviceHeaderSize:]
-	infoBuf := respContent[serviceHeaderSize:]
+	names := make([]string, reqCount)
 
-	for i := uint32(0); i < count; i++ {
+	for i := range names {
 		nameLen := bytes.IndexByte(nameBuf, 0)
 		if nameLen < 0 {
-			err = errors.New("name string is truncated in service discovery packet")
+			err = errors.New("name data is truncated in service discovery packet")
 			return
 		}
 
-		name := string(nameBuf[:nameLen])
+		names[i] = string(nameBuf[:nameLen])
 		nameBuf = nameBuf[nameLen+1:]
+	}
 
-		info := services.Info(name)
-		copy(infoBuf[serviceInfoCodeOffset:], info.Code[:])
-		endian.PutUint32(infoBuf[serviceInfoVersionOffset:], uint32(info.Version))
+	services := discoverer.Discover(names)
+
+	respContentSize := serviceHeaderSize + serviceInfoSize*totalCount
+	respPacket = packet.Make(reqPacket.Code(), respContentSize)
+	endian.PutUint32(respPacket[0:], uint32(len(respPacket)))
+
+	respContent := respPacket.Content()
+	endian.PutUint16(respContent[serviceCountOffset:], uint16(totalCount))
+
+	infoBuf := respContent[serviceHeaderSize:]
+
+	for _, service := range services {
+		copy(infoBuf, service.info[:])
 		infoBuf = infoBuf[serviceInfoSize:]
 	}
 

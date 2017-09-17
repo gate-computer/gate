@@ -16,9 +16,9 @@ const (
 // Code represents the source/destination of a packet.
 type Code [2]byte
 
-// Int is mostly useful for debug logging.
-func (code Code) Int() int {
-	return int(binary.LittleEndian.Uint16(code[:]))
+// Int16 is mostly useful for debug purposes.
+func (code Code) Int16() int16 {
+	return int16(binary.LittleEndian.Uint16(code[:]))
 }
 
 // BufSize calculates packet size based on packet content size.

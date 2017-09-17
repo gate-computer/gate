@@ -20,27 +20,30 @@ extern "C" {
 #endif
 
 struct gate_service {
-	const char *name;
-	struct gate_service *next;
-	uint16_t code;
-	int32_t version;
+	const char *name; // Initialized by implementation
+	int16_t code;     // Initialized by registry when service is registered
+	unsigned flags;   // Updated by registry just before changed is invoked
+	int32_t version;  // Updated by registry just before changed is invoked
 
-	void (*discovered)(struct gate_service *) GATE_NOEXCEPT;
+	struct gate_service *next_service; // Used internally by registry
+
+	void (*changed)(struct gate_service *) GATE_NOEXCEPT;
 	void (*received)(struct gate_service *, void *packet, size_t size) GATE_NOEXCEPT;
 };
 
 struct gate_service_registry {
 	void *packet_buf;
 	struct gate_service *service_head;
-	unsigned int service_count;
+	struct gate_service *service_tail;
+	int service_count;
 	struct gate_service **service_table;
 	size_t request_size;
 };
 
-GATE_SERVICE_DECL bool gate_service_registry_init(struct gate_service_registry *) GATE_NOEXCEPT;
+GATE_SERVICE_DECL bool gate_service_registry_init(struct gate_service_registry *, void *packet_buf, size_t packet_size) GATE_NOEXCEPT;
 GATE_SERVICE_DECL void gate_service_registry_deinit(struct gate_service_registry *) GATE_NOEXCEPT;
 
-GATE_SERVICE_DECL struct gate_service_registry *gate_service_registry_create(void) GATE_NOEXCEPT;
+GATE_SERVICE_DECL struct gate_service_registry *gate_service_registry_create() GATE_NOEXCEPT;
 GATE_SERVICE_DECL void gate_service_registry_destroy(struct gate_service_registry *) GATE_NOEXCEPT;
 
 GATE_SERVICE_DECL bool gate_register_service(struct gate_service_registry *, struct gate_service *) GATE_NOEXCEPT;

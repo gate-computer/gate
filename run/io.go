@@ -16,14 +16,26 @@ import (
 )
 
 const (
-	packetSizeOffset  = 0
-	packetFlagsOffset = 4
+	packetSizeOffset     = 0
+	packetFlagsOffset    = 4
+	packetReservedOffset = 5
 
-	packetFlagPollout = uint16(0x1)
-	packetFlagTrap    = uint16(0x8000)
+	packetFlagPollout uint8 = 0x1
+	packetFlagsMask         = packetFlagPollout
 
-	packetFlagsMask = packetFlagPollout | packetFlagTrap
+	packetCodeNothing  = -1
+	packetCodeServices = -2
+	packetCodeTrap     = -20408
 )
+
+var polloutPacket packet.Buf
+
+func init() {
+	polloutPacket = make([]byte, packet.HeaderSize)
+	endian.PutUint32(polloutPacket[packetSizeOffset:], packet.HeaderSize)
+	polloutPacket[packetFlagsOffset] = packetFlagPollout
+	endian.PutUint16(polloutPacket[packet.CodeOffset:], 0x10000+packetCodeNothing)
+}
 
 type read struct {
 	buf packet.Buf
@@ -38,25 +50,15 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 	var (
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
-		serviceErr    = make(chan error, 1)
 	)
-	go func() {
-		defer close(serviceErr)
-		serviceErr <- services.Serve(ctx, messageOutput, messageInput, maxPacketSize-packet.HeaderSize)
-	}()
+	discoverer := services.StartServing(ctx, messageOutput, messageInput, maxPacketSize-packet.HeaderSize)
 	defer func() {
 		for range messageInput {
-		}
-		if err == nil {
-			err = <-serviceErr
-			if err != nil {
-				err = fmt.Errorf("serve: %v", err)
-			}
 		}
 	}()
 	defer close(messageOutput)
 
-	defer cancel() // cancel the Serve goroutine
+	defer cancel() // undo StartServing
 
 	subjectInput := subjectReadLoop(subject.stdout)
 	defer func() {
@@ -91,7 +93,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 		if len(pendingEvs) > 0 {
 			doEv = pendingEvs[0]
 		} else if pendingPolls > 0 {
-			doEv = makePolloutPacket()
+			doEv = polloutPacket
 		}
 
 		if pendingMsg != nil {
@@ -121,7 +123,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 				return
 			}
 
-			msg, ev, poll, trap, opErr := handlePacket(read.buf, services)
+			msg, ev, poll, trap, opErr := handlePacket(read.buf, discoverer)
 			if opErr != nil {
 				err = opErr
 				return
@@ -219,17 +221,13 @@ func clearPacketFlags(p packet.Buf) {
 	p[packetFlagsOffset+1] = 0
 }
 
-func packetCodeIsZero(p packet.Buf) bool {
-	return p[packet.CodeOffset+0] == 0 && p[packet.CodeOffset+1] == 0
-}
-
 func initMessagePacket(p packet.Buf) packet.Buf {
 	if len(p) < packet.HeaderSize || len(p) > maxPacketSize {
 		panic(errors.New("invalid outgoing message packet buffer length"))
 	}
 
-	if packetCodeIsZero(p) {
-		panic(errors.New("service code is zero in outgoing message packet header"))
+	if p.Code().Int16() < 0 {
+		panic(errors.New("negative service code in outgoing message packet header"))
 	}
 
 	// service implementations only need to initialize the code field
@@ -239,49 +237,48 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 	return p
 }
 
-func handlePacket(p packet.Buf, services ServiceRegistry,
+func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 ) (msg, reply packet.Buf, poll bool, trap traps.Id, err error) {
-	flags := endian.Uint16(p[packetFlagsOffset:])
+	flags := p[packetFlagsOffset]
 	if (flags &^ packetFlagsMask) != 0 {
 		err = fmt.Errorf("invalid incoming packet flags: 0x%x", flags)
 		return
 	}
 
-	if flags&packetFlagTrap != 0 {
-		if flags != packetFlagTrap {
-			err = fmt.Errorf("excess incoming packet flags: 0x%x", flags)
-			return
-		}
+	poll = (flags & packetFlagPollout) != 0
 
-		code := endian.Uint16(p[packet.CodeOffset:])
+	code := p.Code().Int16()
 
-		switch t := traps.Id(code); t {
+	if reserved := p[packetReservedOffset]; reserved != 0 {
+		switch t := traps.Id(reserved); t {
 		case traps.MissingFunction, traps.Suspended:
 			trap = t
+		}
 
-		default:
-			err = fmt.Errorf("invalid incoming packet trap: %d", code)
+		if p.ContentSize() != 0 || flags != 0 || code != packetCodeTrap || trap == 0 {
+			err = errors.New("incoming packet is corrupted")
 		}
 		return
 	}
 
-	poll = (flags & packetFlagPollout) != 0
-
-	if packetCodeIsZero(p) {
-		if len(p) > packet.HeaderSize {
-			reply, err = handleServicesPacket(p, services)
+	switch {
+	case code >= 0:
+		if int(code) >= discoverer.NumServices() {
+			err = errors.New("invalid service code")
+			return
 		}
-	} else {
+
 		// hide packet flags from service implementations
 		clearPacketFlags(p)
 		msg = p
-	}
-	return
-}
 
-func makePolloutPacket() (p packet.Buf) {
-	p = make([]byte, packet.HeaderSize)
-	endian.PutUint32(p[packetSizeOffset:], packet.HeaderSize)
-	endian.PutUint16(p[packetFlagsOffset:], packetFlagPollout)
+	case code == packetCodeNothing:
+
+	case code == packetCodeServices:
+		reply, err = handleServicesPacket(p, discoverer)
+
+	default:
+		err = fmt.Errorf("invalid code in incoming packet: %d", code)
+	}
 	return
 }

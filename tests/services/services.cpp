@@ -16,6 +16,7 @@ int main()
 	memset(op_buf, 0, op_size);
 	auto op = reinterpret_cast<gate_service_name_packet *> (op_buf);
 	op->header.size = op_size;
+	op->header.code = GATE_PACKET_CODE_SERVICES;
 	op->count = 2;
 	memcpy(op->names, NAMES, sizeof (NAMES));
 	gate_send_packet(&op->header);
@@ -25,15 +26,15 @@ int main()
 	do {
 		gate_recv_packet(ev_buf, gate_max_packet_size, 0);
 		ev = reinterpret_cast<gate_service_info_packet *> (ev_buf);
-	} while (ev->header.code != 0 || ev->header.size == sizeof (gate_packet));
+	} while (ev->header.code != GATE_PACKET_CODE_SERVICES || ev->header.size == sizeof (gate_packet));
 
 	if (ev->count != 2) {
 		gate_debug("Unexpected number of service entries\n");
 		return 1;
 	}
 
-	if (ev->infos[0].code != 2) {
-		gate_debug("Unexpected test1 service code\n");
+	if (ev->infos[0].flags != GATE_SERVICE_FLAG_AVAILABLE) {
+		gate_debug("Unexpected test1 service flags\n");
 		return 1;
 	}
 
@@ -42,8 +43,8 @@ int main()
 		return 1;
 	}
 
-	if (ev->infos[1].code != 3) {
-		gate_debug("Unexpected test2 service code\n");
+	if (ev->infos[1].flags != GATE_SERVICE_FLAG_AVAILABLE) {
+		gate_debug("Unexpected test2 service flags\n");
 		return 1;
 	}
 

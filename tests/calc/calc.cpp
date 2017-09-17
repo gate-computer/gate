@@ -7,7 +7,7 @@
 
 #include <gate.h>
 
-#define ORIGIN 1 // TODO
+#include "../discover.h"
 
 template <typename T>
 class Buf {
@@ -87,6 +87,8 @@ size_t Calculator::eval(Buf<const char> expr, Buf<char> out)
 
 int main()
 {
+	discover_service("origin");
+
 	Calculator state;
 
 	while (1) {
@@ -94,7 +96,7 @@ int main()
 		gate_recv_packet(evdata, gate_max_packet_size, 0);
 		auto evhead = reinterpret_cast<const gate_packet *> (evdata);
 
-		if (evhead->code == ORIGIN) {
+		if (evhead->code == 0) {
 			const Buf<const char> expr = {
 				evdata + sizeof (gate_packet),
 				evhead->size - sizeof (gate_packet),
@@ -117,7 +119,6 @@ int main()
 
 			auto ophead = reinterpret_cast<gate_packet *> (opdata);
 			ophead->size = sizeof (gate_packet) + outlen;
-			ophead->code = ORIGIN;
 
 			gate_send_packet(ophead);
 		}

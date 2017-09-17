@@ -27,7 +27,7 @@ static void display(const char *msg)
 {
 	gate_debug(msg);
 
-	if (origin_service.code)
+	if (origin_service.flags & GATE_SERVICE_FLAG_AVAILABLE)
 		origin_send_str(origin_service.code, msg);
 }
 
@@ -101,7 +101,7 @@ void main()
 	if (!gate_discover_services(r))
 		gate_exit(1);
 
-	if (peer_service.parent.code == 0) {
+	if ((peer_service.parent.flags & GATE_SERVICE_FLAG_AVAILABLE) == 0) {
 		display("peer service not found\n");
 		gate_exit(1);
 	}

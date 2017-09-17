@@ -35,39 +35,43 @@ extern "C" {
 
 #define GATE_PACKET_FLAG_POLLOUT 0x1
 
+#define GATE_PACKET_CODE_NOTHING  -1
+#define GATE_PACKET_CODE_SERVICES -2
+
+#define GATE_SERVICE_FLAG_AVAILABLE 0x1
+
 enum gate_func_id {
 	__GATE_FUNC_RESERVED
 };
 
 struct gate_packet {
 	uint32_t size;
-	uint16_t flags;
-	uint16_t code;
+	uint8_t flags;
+	uint8_t __reserved;
+	int16_t code;
 } GATE_PACKED;
 
 struct gate_service_info {
-	uint16_t code;
-	uint16_t __reserved;
+	uint8_t flags;
+	uint8_t __reserved[3];
 	int32_t version;
 } GATE_PACKED;
 
 struct gate_service_name_packet {
 	struct gate_packet header;
 	uint32_t __reserved;
-	uint32_t count;
+	uint16_t count;
+	uint16_t __reserved2;
 	char names[0]; // variable length
 } GATE_PACKED;
 
 struct gate_service_info_packet {
 	struct gate_packet header;
 	uint32_t __reserved;
-	uint32_t count;
+	uint16_t count;
+	uint16_t __reserved2;
 	struct gate_service_info infos[0]; // variable length
 } GATE_PACKED;
-
-// extern const int __gate_abi_version;
-// extern const int32_t __gate_arg;
-// extern const size_t __gate_max_packet_size;
 
 extern GATE_CONSTFUNC int __gate_get_abi_version() GATE_NOEXCEPT;
 extern GATE_CONSTFUNC int32_t __gate_get_arg() GATE_NOEXCEPT;
@@ -81,7 +85,7 @@ extern void __gate_debug_write(const void *data, size_t size) GATE_NOEXCEPT;
 extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id)
 	GATE_NOEXCEPT;
 extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
-extern size_t __gate_recv(void *buf, size_t size, unsigned int flags)
+extern size_t __gate_recv(void *buf, size_t size, unsigned flags)
 	GATE_NOEXCEPT;
 extern void __gate_send(const void *data, size_t size) GATE_NOEXCEPT;
 
@@ -105,13 +109,13 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 	__gate_exit(status);
 }
 
-static inline size_t gate_recv_packet(void *buf, size_t size, unsigned int flags)
+static inline size_t gate_recv_packet(void *buf, size_t size, unsigned flags)
 	GATE_NOEXCEPT
 {
 	if (size < gate_max_packet_size)
 		gate_exit(1);
 
-	unsigned int other_flags = flags & ~(unsigned int) GATE_RECV_FLAG_NONBLOCK;
+	unsigned other_flags = flags & ~(unsigned) GATE_RECV_FLAG_NONBLOCK;
 
 	if ((flags & GATE_RECV_FLAG_NONBLOCK) != 0) {
 		size_t remain = __gate_recv(buf, sizeof (struct gate_packet), flags);
