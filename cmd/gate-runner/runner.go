@@ -134,9 +134,10 @@ func main() {
 	}()
 
 	timings := make([]timing, len(filenames))
+	exitCode := 0
 
 	for round := 0; round < repeat; round++ {
-		done := make(chan struct{}, len(filenames))
+		done := make(chan int, len(filenames))
 
 		for i, filename := range filenames {
 			r := service.Defaults
@@ -150,7 +151,9 @@ func main() {
 		}
 
 		for range filenames {
-			<-done
+			if n := <-done; n > exitCode {
+				exitCode = n
+			}
 		}
 	}
 
@@ -166,11 +169,17 @@ func main() {
 			output("overall time", timings[i].overall)
 		}
 	}
+
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
 }
 
-func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, services run.ServiceRegistry, timing *timing, done chan<- struct{}) {
+func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, services run.ServiceRegistry, timing *timing, done chan<- int) {
+	exit := 0
+
 	defer func() {
-		done <- struct{}{}
+		done <- exit
 	}()
 
 	tBegin := time.Now()
@@ -227,6 +236,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	if trap != 0 {
 		log.Printf("trap: %s", trap)
+		exit = 3
 	} else if exit != 0 {
 		log.Printf("exit: %d", exit)
 	}
