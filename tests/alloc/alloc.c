@@ -29,7 +29,7 @@ static void do_it(int c, int n)
 	memset(buf + 1, c, n);
 	((char *) (buf + 1))[n] = '\n';
 
-	gate_send_packet(buf);
+	gate_send_packet(buf, 0);
 
 	while (true) {
 		for (int i = 0; i < NUM_GARBAGE_SLOTS; i++)

@@ -8,16 +8,14 @@
 
 #define GATE_LOADER_STACK_SIZE 12288 // 3 regular pages
 
-#define GATE_NULL_FD     3 // container
-#define GATE_CONTROL_FD  4 // container, executor
-#define GATE_LOADER_FD   5 // container, executor
+#define GATE_CONTROL_FD  3 // container, executor
+#define GATE_LOADER_FD   4 // container, executor
 
-#define GATE_BLOCK_FD    0 // loader, runtime
+#define GATE_INPUT_FD    0 // loader, runtime
 #define GATE_OUTPUT_FD   1 // loader, runtime
 #define GATE_DEBUG_FD    2 // loader, runtime
-#define GATE_NONBLOCK_FD 3 // loader, runtime
-#define GATE_MAPS_FD     4 // loader
-#define GATE_WAKEUP_FD   5 // Imaginary
+#define GATE_MAPS_FD     3 // loader
+#define GATE_WAKEUP_FD   4 // Imaginary
 
 #define GATE_FD_PATH_LEN (sizeof ("/.XXXXXXXXXXXXXXXX/self/fd/X") - 1)
 

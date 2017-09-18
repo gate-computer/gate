@@ -44,7 +44,7 @@ static inline void peer_send_init(int16_t code)
 		.type = PEER_OP_INIT,
 	};
 
-	gate_send_packet(&packet.header);
+	gate_send_packet(&packet.header, 0);
 }
 
 static inline void peer_send_message_packet(void *buf, size_t size, int16_t code, uint64_t peer_id)
@@ -57,7 +57,7 @@ static inline void peer_send_message_packet(void *buf, size_t size, int16_t code
 	header->peer_header.type = PEER_OP_MESSAGE;
 	header->peer_id = peer_id;
 
-	gate_send_packet(&header->peer_header.header);
+	gate_send_packet(&header->peer_header.header, 0);
 }
 
 static inline void peer_send_message(int16_t code, uint64_t peer_id, const void *msg, size_t msglen)

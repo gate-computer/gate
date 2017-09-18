@@ -255,13 +255,13 @@ func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSig
 
 type Process struct {
 	process
-	stdin  *os.File // writer
-	stdout *os.File // reader
+	writer *os.File
+	reader *os.File
 }
 
 func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer,
 ) (err error) {
-	numFiles := 5
+	numFiles := 4
 	if debug != nil {
 		numFiles += 2
 	}
@@ -286,30 +286,26 @@ func (p *Process) Init(ctx context.Context, rt *Runtime, image *Image, debug io.
 func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.Writer,
 ) (err error) {
 	var (
-		stdinW         *os.File
-		stdinBlockR    *os.File
-		stdinNonblockR = -1
-		stdoutR        *os.File
-		stdoutW        *os.File
-		debugR         *os.File
-		debugW         *os.File
+		inputR  *os.File
+		inputW  *os.File
+		outputR *os.File
+		outputW *os.File
+		debugR  *os.File
+		debugW  *os.File
 	)
 
 	defer func() {
-		if stdinW != nil {
-			stdinW.Close()
+		if inputR != nil {
+			inputR.Close()
 		}
-		if stdinBlockR != nil {
-			stdinBlockR.Close()
+		if inputW != nil {
+			inputW.Close()
 		}
-		if stdinNonblockR >= 0 {
-			syscall.Close(stdinNonblockR)
+		if outputR != nil {
+			outputR.Close()
 		}
-		if stdoutR != nil {
-			stdoutR.Close()
-		}
-		if stdoutW != nil {
-			stdoutW.Close()
+		if outputW != nil {
+			outputW.Close()
 		}
 		if debugR != nil {
 			debugR.Close()
@@ -319,17 +315,12 @@ func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.
 		}
 	}()
 
-	stdinBlockR, stdinW, err = os.Pipe()
+	inputR, inputW, err = os.Pipe()
 	if err != nil {
 		return
 	}
 
-	stdinNonblockR, err = syscall.Open(fmt.Sprintf("/proc/self/fd/%d", stdinBlockR.Fd()), syscall.O_RDONLY|syscall.O_CLOEXEC|syscall.O_NONBLOCK, 0)
-	if err != nil {
-		return
-	}
-
-	stdoutR, stdoutW, err = os.Pipe()
+	outputR, outputW, err = os.Pipe()
 	if err != nil {
 		return
 	}
@@ -341,7 +332,7 @@ func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.
 		}
 	}
 
-	err = rt.executor.execute(ctx, &p.process, &execFiles{stdinBlockR, stdinNonblockR, stdoutW, image.maps, debugW})
+	err = rt.executor.execute(ctx, &p.process, &execFiles{inputR, outputW, image.maps, debugW})
 	if err != nil {
 		return
 	}
@@ -350,66 +341,62 @@ func (p *Process) init(ctx context.Context, rt *Runtime, image *Image, debug io.
 		go copyCloseRelease(rt, debug, debugR)
 	}
 
-	p.stdin = stdinW
-	p.stdout = stdoutR
+	p.writer = inputW
+	p.reader = outputR
 
-	stdinW = nil
-	stdinBlockR = nil
-	stdinNonblockR = -1
-	stdoutR = nil
-	stdoutW = nil
+	inputR = nil
+	inputW = nil
+	outputR = nil
+	outputW = nil
 	debugR = nil
 	debugW = nil
 	return
 }
 
 func (p *Process) Kill(rt *Runtime) {
-	if p.stdin == nil {
+	if p.writer == nil {
 		return
 	}
 
 	p.process.kill()
-	p.stdin.Close()
-	p.stdout.Close()
+	p.writer.Close()
+	p.reader.Close()
 
-	p.stdin = nil
-	p.stdout = nil
+	p.writer = nil
+	p.reader = nil
 
 	rt.releaseFiles(2)
 	return
 }
 
 type execFiles struct {
-	stdinBlock    *os.File
-	stdinNonblock int
-	stdout        *os.File
-	maps          *os.File // Borrowed
-	debug         *os.File // Optional
+	input  *os.File
+	output *os.File
+	maps   *os.File // Borrowed
+	debug  *os.File // Optional
 }
 
 func (files *execFiles) fds() (fds []int) {
 	if files.debug == nil {
-		fds = make([]int, 4)
+		fds = make([]int, 3)
 	} else {
-		fds = make([]int, 5)
+		fds = make([]int, 4)
 	}
 
-	fds[0] = int(files.stdinBlock.Fd())
-	fds[1] = files.stdinNonblock
-	fds[2] = int(files.stdout.Fd())
-	fds[3] = int(files.maps.Fd())
+	fds[0] = int(files.input.Fd())
+	fds[1] = int(files.output.Fd())
+	fds[2] = int(files.maps.Fd())
 
 	if files.debug != nil {
-		fds[4] = int(files.debug.Fd())
+		fds[3] = int(files.debug.Fd())
 	}
 	return
 }
 
 func (files *execFiles) release(limiter FileLimiter) {
-	numFiles := 3
-	files.stdinBlock.Close()
-	syscall.Close(files.stdinNonblock)
-	files.stdout.Close()
+	numFiles := 2
+	files.input.Close()
+	files.output.Close()
 
 	// don't close maps
 
@@ -433,7 +420,7 @@ func copyCloseRelease(rt *Runtime, w io.Writer, r *os.File) {
 // step.
 func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *Process, debug io.Writer,
 ) (err error) {
-	numFiles := 6
+	numFiles := 5
 	if debug != nil {
 		numFiles += 2
 	}
@@ -472,7 +459,7 @@ func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services
 		services = noServices{}
 	}
 
-	err = binary.Write(proc.stdin, endian, &image.info)
+	err = binary.Write(proc.writer, endian, &image.info)
 	if err != nil {
 		return
 	}

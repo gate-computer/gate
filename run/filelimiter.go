@@ -13,10 +13,10 @@ var errFileLimiterClosed = errors.New("file limiter closed")
 
 type FileLimiter struct {
 	get1 chan struct{}
+	get4 chan struct{}
 	get5 chan struct{}
 	get6 chan struct{}
 	get7 chan struct{}
-	get8 chan struct{}
 	put  chan struct{}
 }
 
@@ -25,10 +25,10 @@ func NewFileLimiter(maxFiles int) (limiter *FileLimiter) {
 
 	if maxFiles > 0 {
 		limiter.get1 = make(chan struct{})
+		limiter.get4 = make(chan struct{})
 		limiter.get5 = make(chan struct{})
 		limiter.get6 = make(chan struct{})
 		limiter.get7 = make(chan struct{})
-		limiter.get8 = make(chan struct{})
 		limiter.put = make(chan struct{}, (1<<31)-1)
 
 		go limiter.loop(maxFiles)
@@ -47,26 +47,22 @@ func (limiter *FileLimiter) Close() (err error) {
 func (limiter *FileLimiter) loop(numFiles int) {
 	defer func() {
 		close(limiter.get1)
+		close(limiter.get4)
 		close(limiter.get5)
 		close(limiter.get6)
 		close(limiter.get7)
-		close(limiter.get8)
 	}()
 
 	for {
 		var (
 			get1 chan<- struct{}
+			get4 chan<- struct{}
 			get5 chan<- struct{}
 			get6 chan<- struct{}
 			get7 chan<- struct{}
-			get8 chan<- struct{}
 		)
 
 		switch {
-		case numFiles >= 8:
-			get8 = limiter.get8
-			fallthrough
-
 		case numFiles >= 7:
 			get7 = limiter.get7
 			fallthrough
@@ -79,6 +75,10 @@ func (limiter *FileLimiter) loop(numFiles int) {
 			get5 = limiter.get5
 			fallthrough
 
+		case numFiles >= 4:
+			get4 = limiter.get4
+			fallthrough
+
 		case numFiles >= 1:
 			get1 = limiter.get1
 		}
@@ -86,6 +86,9 @@ func (limiter *FileLimiter) loop(numFiles int) {
 		select {
 		case get1 <- struct{}{}:
 			numFiles -= 1
+
+		case get4 <- struct{}{}:
+			numFiles -= 4
 
 		case get5 <- struct{}{}:
 			numFiles -= 5
@@ -95,9 +98,6 @@ func (limiter *FileLimiter) loop(numFiles int) {
 
 		case get7 <- struct{}{}:
 			numFiles -= 7
-
-		case get8 <- struct{}{}:
-			numFiles -= 8
 
 		case _, ok := <-limiter.put:
 			if !ok {
@@ -116,17 +116,17 @@ func (limiter FileLimiter) acquire(ctx context.Context, num int) (err error) {
 	case 1: // Image.Init, dialContainerDaemon
 		get = limiter.get1
 
-	case 5: // Process.Init without debug
+	case 4: // Process.Init without debug
+		get = limiter.get4
+
+	case 5: // InitImageAndProcess without debug
 		get = limiter.get5
 
-	case 6: // InitImageAndProcess without debug
+	case 6: // Process.Init with debug
 		get = limiter.get6
 
-	case 7: // Process.Init with debug
+	case 7: // InitImageAndProcess with debug, startContainer
 		get = limiter.get7
-
-	case 8: // InitImageAndProcess with debug, startContainer
-		get = limiter.get8
 
 	default:
 		panic(num)

@@ -24,7 +24,7 @@ static inline void discover_service(const char *name)
 	op->header.code = GATE_PACKET_CODE_SERVICES;
 	op->count = 1;
 
-	gate_send_packet(&op->header);
+	gate_send_packet(&op->header, 0);
 
 	struct gate_service_info_packet *ev = (struct gate_service_info_packet *) buf;
 

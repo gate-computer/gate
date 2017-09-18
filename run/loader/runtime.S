@@ -187,20 +187,15 @@ __gate_send:
 
 // ecx = relative addr
 // ebx = size
-// ebp = flags
 __gate_recv:
-	mov	$GATE_NONBLOCK_FD, %eax
-	xor	%edi, %edi		// GATE_BLOCK_FD (1st syscall arg)
-	shr	$1, %ebp		// flag parameter to CPU carry flag
-	cmovc	%eax, %edi		// fd (1st syscall arg)
 	xor	%ebp, %ebp		// SYS_read
+	xor	%edi, %edi		// GATE_INPUT_FD (1st syscall arg)
 	// fall through to .Lio
 
 // ecx = relative addr
 // ebx = size
 // rdi = fd (1st syscall arg)
 // rbp = syscall
-// result: remaining size
 .Lio:
 	// check lower bound of relative addr
 	and	%ecx, %ecx		// zero-extend relative addr + test
@@ -230,15 +225,12 @@ __gate_recv:
 	sub	%eax, %edx		// update size (3rd syscall arg)
 	jne	.Lloop_io
 .Lempty:
-	xor	%eax, %eax		// remaining size (result)
+	xor	%eax, %eax
 	ret
 
 .Lerror:
 	mov	$90, %edi		// status (1st syscall arg)
-	cmp	$-EAGAIN, %rax
-	jne	.Lexit
-	mov	%edx, %eax		// remaining size (result)
-	ret
+	jmp	.Lexit
 
 .Lbounds:
 	mov	$91, %edi		// status (1st syscall arg)

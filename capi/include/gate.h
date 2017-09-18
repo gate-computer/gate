@@ -12,6 +12,10 @@
 # define GATE_CONSTFUNC __attribute__ ((const))
 #endif
 
+#ifndef GATE_PURE
+# define GATE_PURE __attribute__ ((pure))
+#endif
+
 #ifndef GATE_NORETURN
 # define GATE_NORETURN __attribute__ ((noreturn))
 #endif
@@ -32,8 +36,7 @@ extern "C" {
 #endif
 
 #define GATE_RECV_FLAG_NONBLOCK 0x1
-
-#define GATE_PACKET_FLAG_POLLOUT 0x1
+#define GATE_SEND_FLAG_NONBLOCK 0x1
 
 #define GATE_PACKET_CODE_NOTHING  -1
 #define GATE_PACKET_CODE_SERVICES -2
@@ -46,7 +49,7 @@ enum gate_func_id {
 
 struct gate_packet {
 	uint32_t size;
-	uint8_t flags;
+	uint8_t __flags;
 	uint8_t __reserved;
 	int16_t code;
 } GATE_PACKED;
@@ -85,9 +88,12 @@ extern void __gate_debug_write(const void *data, size_t size) GATE_NOEXCEPT;
 extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id)
 	GATE_NOEXCEPT;
 extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
-extern size_t __gate_recv(void *buf, size_t size, unsigned flags)
-	GATE_NOEXCEPT;
-extern void __gate_send(const void *data, size_t size) GATE_NOEXCEPT;
+
+void __gate_recv_packet(struct gate_packet *buf) GATE_NOEXCEPT;
+size_t __gate_recv_packet_nonblock(struct gate_packet *buf) GATE_NOEXCEPT;
+void __gate_send_packet(const struct gate_packet *data) GATE_NOEXCEPT;
+size_t __gate_send_packet_nonblock(const struct gate_packet *data) GATE_NOEXCEPT;
+GATE_PURE size_t __gate_nonblock_send_size() GATE_NOEXCEPT;
 
 static inline void gate_debug(const char *s)
 {
@@ -113,34 +119,34 @@ static inline size_t gate_recv_packet(void *buf, size_t size, unsigned flags)
 	GATE_NOEXCEPT
 {
 	if (size < gate_max_packet_size)
-		gate_exit(1);
+		__gate_exit(1);
 
-	unsigned other_flags = flags & ~(unsigned) GATE_RECV_FLAG_NONBLOCK;
-
-	if ((flags & GATE_RECV_FLAG_NONBLOCK) != 0) {
-		size_t remain = __gate_recv(buf, sizeof (struct gate_packet), flags);
-		if (remain == sizeof (struct gate_packet))
-			return 0;
-
-		if (remain > 0) {
-			size_t n = sizeof (struct gate_packet) - remain;
-			__gate_recv((char *) buf + n, remain, other_flags);
-		}
+	if (flags & GATE_RECV_FLAG_NONBLOCK) {
+		return __gate_recv_packet_nonblock((struct gate_packet *) buf);
 	} else {
-		__gate_recv(buf, sizeof (struct gate_packet), other_flags);
+		__gate_recv_packet((struct gate_packet *) buf);
+		return ((const struct gate_packet *) buf)->size;
 	}
-
-	const struct gate_packet *header = (struct gate_packet *) buf;
-
-	__gate_recv((char *) buf + sizeof (struct gate_packet), header->size - sizeof (struct gate_packet), other_flags);
-
-	return header->size;
 }
 
-static inline void gate_send_packet(const struct gate_packet *packet)
+static inline size_t gate_send_packet(const struct gate_packet *data, unsigned flags)
 	GATE_NOEXCEPT
 {
-	__gate_send(packet, packet->size);
+	if (data->__flags)
+		__gate_exit(1);
+
+	if (flags & GATE_SEND_FLAG_NONBLOCK) {
+		return __gate_send_packet_nonblock(data);
+	} else {
+		__gate_send_packet(data);
+		return data->size;
+	}
+}
+
+GATE_PURE
+static inline size_t gate_nonblock_send_size() GATE_NOEXCEPT
+{
+	return __gate_nonblock_send_size();
 }
 
 #ifdef __cplusplus

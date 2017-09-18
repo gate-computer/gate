@@ -20,7 +20,7 @@ static inline void origin_send_packet(void *buf, size_t size, int16_t code)
 	header->size = size;
 	header->code = code;
 
-	gate_send_packet(header);
+	gate_send_packet(header, 0);
 }
 
 static inline void origin_send(int16_t code, const void *msg, size_t msglen)

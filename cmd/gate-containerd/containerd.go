@@ -146,13 +146,6 @@ func main() {
 func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, infoLog *log.Logger) {
 	infoLog.Printf("%d: connection", client)
 
-	nullFile, err := os.Open(os.DevNull)
-	if err != nil {
-		errLog.Printf("%d: %v", client, err)
-		return
-	}
-	defer nullFile.Close()
-
 	connFile, err := conn.File()
 	conn.Close()
 	if err != nil {
@@ -166,7 +159,6 @@ func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, i
 		Dir:    "/",
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
-			nullFile, // GATE_NULL_FD
 			connFile, // GATE_CONTROL_FD
 		},
 		SysProcAttr: &syscall.SysProcAttr{

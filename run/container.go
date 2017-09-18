@@ -26,7 +26,7 @@ func startContainer(ctx context.Context, limiter FileLimiter, config *Config,
 	// Acquire files before cred.Parse() because it may allocate temporary file
 	// descriptors (one at a time).
 
-	numFiles := 3 + 5 // Trying to guess how many file descriptors cmd.Start() uses
+	numFiles := 2 + 5 // Trying to guess how many file descriptors cmd.Start() uses
 	err = limiter.acquire(ctx, numFiles)
 	if err != nil {
 		return
@@ -55,12 +55,6 @@ func startContainer(ctx context.Context, limiter FileLimiter, config *Config,
 		return
 	}
 
-	nullFile, err := os.Open(os.DevNull)
-	if err != nil {
-		return
-	}
-	defer nullFile.Close()
-
 	cmd = &exec.Cmd{
 		Path: containerPath,
 		Args: []string{
@@ -75,7 +69,6 @@ func startContainer(ctx context.Context, limiter FileLimiter, config *Config,
 		Dir:    "/",
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
-			nullFile,    // GATE_NULL_FD
 			controlFile, // GATE_CONTROL_FD
 		},
 		SysProcAttr: &syscall.SysProcAttr{

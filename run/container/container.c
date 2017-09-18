@@ -413,7 +413,6 @@ int main(int argc, char **argv)
 
 static int parent_main(pid_t child_pid)
 {
-	xclose(GATE_NULL_FD);
 	xclose(GATE_CONTROL_FD);
 	xclose(syncpipe[0]);
 
@@ -542,8 +541,7 @@ static int child_main(void *dummy_arg)
 	xlimit(RLIMIT_CORE, 0);
 	xlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1));
 
-	xdup2(GATE_NULL_FD, STDERR_FILENO);
-	close(GATE_NULL_FD);
+	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
 	char *envp[] = {loader, NULL};
 	char **empty = envp + 1;

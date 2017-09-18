@@ -30,7 +30,7 @@ type Config struct {
 	//
 	// An Image requires one file descriptor.
 	//
-	// Process initialization requires 5 file descriptors (or 7 if debug output
+	// Process initialization requires 4 file descriptors (or 6 if debug output
 	// is enabled), of which 2 (or 3) are required for the lifetime of the
 	// process.
 	FileLimiter *FileLimiter

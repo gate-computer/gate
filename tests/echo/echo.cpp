@@ -30,7 +30,7 @@ static void send_message()
 		.content = CONTENT,
 	};
 
-	gate_send_packet(&packet.header);
+	gate_send_packet(&packet.header, 0);
 }
 
 static message_ev *recv_message(char *buf, size_t bufsize)

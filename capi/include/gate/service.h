@@ -48,7 +48,7 @@ GATE_SERVICE_DECL void gate_service_registry_destroy(struct gate_service_registr
 
 GATE_SERVICE_DECL bool gate_register_service(struct gate_service_registry *, struct gate_service *) GATE_NOEXCEPT;
 GATE_SERVICE_DECL bool gate_discover_services(struct gate_service_registry *) GATE_NOEXCEPT;
-GATE_SERVICE_DECL int gate_recv_for_services(struct gate_service_registry *, unsigned int flags) GATE_NOEXCEPT;
+GATE_SERVICE_DECL bool gate_recv_for_services(struct gate_service_registry *, unsigned flags) GATE_NOEXCEPT;
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@ namespace {
 void implementation(const gate_packet *p)
 {
 	discover_service("origin");
-	gate_send_packet(p);
+	gate_send_packet(p, 0);
 }
 
 template <int PayloadSize>
@@ -43,11 +43,10 @@ public:
 		return buf + header_size;
 	}
 
-	const gate_packet *op_data(int16_t code, uint16_t flags = 0)
+	const gate_packet *op_data(int16_t code)
 	{
 		gate_packet *header = reinterpret_cast<gate_packet *> (buf);
 		header->size = size;
-		header->flags = flags;
 		header->code = code;
 		return header;
 	}

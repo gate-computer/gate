@@ -120,7 +120,7 @@ int main()
 			auto ophead = reinterpret_cast<gate_packet *> (opdata);
 			ophead->size = sizeof (gate_packet) + outlen;
 
-			gate_send_packet(ophead);
+			gate_send_packet(ophead, 0);
 		}
 	}
 

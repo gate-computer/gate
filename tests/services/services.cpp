@@ -19,7 +19,7 @@ int main()
 	op->header.code = GATE_PACKET_CODE_SERVICES;
 	op->count = 2;
 	memcpy(op->names, NAMES, sizeof (NAMES));
-	gate_send_packet(&op->header);
+	gate_send_packet(&op->header, 0);
 
 	char ev_buf[gate_max_packet_size];
 	const gate_service_info_packet *ev;

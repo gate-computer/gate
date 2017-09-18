@@ -92,14 +92,13 @@ static inline void execute_child(char *loader, const int *fds, int num_fds)
 	// file descriptor duplication order is fragile
 
 	int debugfd = STDOUT_FILENO; // /dev/null
-	if (num_fds > 4)
-		debugfd = fds[4];
+	if (num_fds > 3)
+		debugfd = fds[3];
 
 	xdup2(debugfd, GATE_DEBUG_FD);
-	xdup2(fds[0], GATE_BLOCK_FD);
-	xdup2(fds[1], GATE_NONBLOCK_FD);
-	xdup2(fds[2], GATE_OUTPUT_FD);
-	xdup2(fds[3], GATE_MAPS_FD);
+	xdup2(fds[0], GATE_INPUT_FD);
+	xdup2(fds[1], GATE_OUTPUT_FD);
+	xdup2(fds[2], GATE_MAPS_FD);
 
 	if (nice(CHILD_NICE) != CHILD_NICE)
 		_exit(16);
@@ -189,10 +188,10 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 		_exit(21);
 
 	int num_fds;
-	if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof (int)))
+	if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof (int)))
+		num_fds = 3;
+	else if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof (int)))
 		num_fds = 4;
-	else if (cmsg->cmsg_len == CMSG_LEN(5 * sizeof (int)))
-		num_fds = 5;
 	else
 		_exit(22);
 
@@ -233,7 +232,7 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 
 	for (size_t receive_len = 0; receive_len < sizeof (receive.buf); ) {
 		union {
-			char buf[CMSG_SPACE(5 * sizeof (int))];
+			char buf[CMSG_SPACE(4 * sizeof (int))];
 			struct cmsghdr alignment;
 		} ctl;
 

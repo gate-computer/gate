@@ -123,7 +123,7 @@ bool gate_discover_services(struct gate_service_registry *registry)
 		namebuf += size;
 	}
 
-	gate_send_packet(&req->header);
+	gate_send_packet(&req->header, 0);
 	gate_recv_packet(registry->packet_buf, gate_max_packet_size, 0);
 
 	const struct gate_service_info_packet *resp = registry->packet_buf;
@@ -141,11 +141,11 @@ bool gate_discover_services(struct gate_service_registry *registry)
 }
 
 GATE_SERVICE_DECL
-int gate_recv_for_services(struct gate_service_registry *r, unsigned flags)
+bool gate_recv_for_services(struct gate_service_registry *r, unsigned flags)
 {
 	size_t size = gate_recv_packet(r->packet_buf, gate_max_packet_size, flags);
 	if (size == 0)
-		return -1;
+		return false;
 
 	const struct gate_packet *header = r->packet_buf;
 	if (header->code >= 0 && header->code < r->service_count) {
@@ -166,5 +166,5 @@ int gate_recv_for_services(struct gate_service_registry *r, unsigned flags)
 		}
 	}
 
-	return (unsigned int) header->flags; // zero-extend
+	return true;
 }

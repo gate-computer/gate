@@ -13,7 +13,7 @@ CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
 CPPFLAGS	+= -isystem $(GATEDIR)/capi/include
 
 prog.wasm: $(OBJECTS)
-	$(CC) -nostdlib -Wl,--allow-undefined-file=$(GATEDIR)/capi/abi.list -Wl,--check-signatures $(CFLAGS) $(LDFLAGS) -o $@ $(GATEDIR)/crt/crt.bc $(OBJECTS) $(LIBS)
+	$(CC) -nostdlib -Wl,--allow-undefined-file=$(GATEDIR)/capi/abi.list -Wl,--check-signatures $(CFLAGS) $(LDFLAGS) -o $@ $(GATEDIR)/crt/crt.bc $(OBJECTS) $(LIBS) $(GATEDIR)/capi/gate.bc
 
 %.bc: %.c
 	$(CC) --target=wasm32-unknown-unknown -emit-llvm $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c

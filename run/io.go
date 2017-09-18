@@ -20,21 +20,22 @@ const (
 	packetFlagsOffset    = 4
 	packetReservedOffset = 5
 
-	packetFlagPollout uint8 = 0x1
-	packetFlagsMask         = packetFlagPollout
+	packetFlagSync  uint8 = 0x1
+	packetFlagsMask       = packetFlagSync
 
 	packetCodeNothing  = -1
 	packetCodeServices = -2
+	packetCodeLoopback = -3
 	packetCodeTrap     = -20408
 )
 
-var polloutPacket packet.Buf
+var syncPacket packet.Buf
 
 func init() {
-	polloutPacket = make([]byte, packet.HeaderSize)
-	endian.PutUint32(polloutPacket[packetSizeOffset:], packet.HeaderSize)
-	polloutPacket[packetFlagsOffset] = packetFlagPollout
-	endian.PutUint16(polloutPacket[packet.CodeOffset:], 0x10000+packetCodeNothing)
+	syncPacket = make([]byte, packet.HeaderSize)
+	endian.PutUint32(syncPacket[packetSizeOffset:], packet.HeaderSize)
+	syncPacket[packetFlagsOffset] = packetFlagSync
+	endian.PutUint16(syncPacket[packet.CodeOffset:], 0x10000+packetCodeNothing)
 }
 
 type read struct {
@@ -60,13 +61,13 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 
 	defer cancel() // undo StartServing
 
-	subjectInput := subjectReadLoop(subject.stdout)
+	subjectInput := subjectReadLoop(subject.reader)
 	defer func() {
 		for range subjectInput {
 		}
 	}()
 
-	subjectOutput, subjectOutputEnd := subjectWriteLoop(subject.stdin)
+	subjectOutput, subjectOutputEnd := subjectWriteLoop(subject.writer)
 	defer func() {
 		<-subjectOutputEnd
 	}()
@@ -77,7 +78,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 	var (
 		pendingMsg   packet.Buf
 		pendingEvs   []packet.Buf
-		pendingPolls int
+		pendingSyncs int
 	)
 
 	for {
@@ -92,8 +93,11 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 
 		if len(pendingEvs) > 0 {
 			doEv = pendingEvs[0]
-		} else if pendingPolls > 0 {
-			doEv = polloutPacket
+			if pendingSyncs > 0 {
+				doEv[packetFlagsOffset] |= packetFlagSync
+			}
+		} else if pendingSyncs > 0 {
+			doEv = syncPacket
 		}
 
 		if pendingMsg != nil {
@@ -123,7 +127,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 				return
 			}
 
-			msg, ev, poll, trap, opErr := handlePacket(read.buf, discoverer)
+			msg, ev, sync, trap, opErr := handlePacket(read.buf, discoverer)
 			if opErr != nil {
 				err = opErr
 				return
@@ -135,8 +139,8 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 			if ev != nil {
 				pendingEvs = append(pendingEvs, ev)
 			}
-			if poll {
-				pendingPolls++
+			if sync {
+				pendingSyncs++
 			}
 			if trap != 0 {
 				// TODO
@@ -151,8 +155,9 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 		case doSubjectOutput <- doEv:
 			if len(pendingEvs) > 0 {
 				pendingEvs = pendingEvs[1:]
-			} else {
-				pendingPolls--
+			}
+			if pendingSyncs > 0 {
+				pendingSyncs--
 			}
 
 		case <-ctx.Done():
@@ -216,11 +221,6 @@ func subjectWriteLoop(w *os.File) (chan<- packet.Buf, <-chan struct{}) {
 	return writes, end
 }
 
-func clearPacketFlags(p packet.Buf) {
-	p[packetFlagsOffset+0] = 0
-	p[packetFlagsOffset+1] = 0
-}
-
 func initMessagePacket(p packet.Buf) packet.Buf {
 	if len(p) < packet.HeaderSize || len(p) > maxPacketSize {
 		panic(errors.New("invalid outgoing message packet buffer length"))
@@ -232,20 +232,21 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 
 	// service implementations only need to initialize the code field
 	endian.PutUint32(p[packetSizeOffset:], uint32(len(p)))
-	clearPacketFlags(p)
+	p[packetFlagsOffset] = 0
 
 	return p
 }
 
 func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
-) (msg, reply packet.Buf, poll bool, trap traps.Id, err error) {
+) (msg, reply packet.Buf, sync bool, trap traps.Id, err error) {
 	flags := p[packetFlagsOffset]
 	if (flags &^ packetFlagsMask) != 0 {
 		err = fmt.Errorf("invalid incoming packet flags: 0x%x", flags)
 		return
 	}
 
-	poll = (flags & packetFlagPollout) != 0
+	sync = (flags & packetFlagSync) != 0
+	p[packetFlagsOffset] = 0
 
 	code := p.Code().Int16()
 
@@ -257,7 +258,9 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 
 		if p.ContentSize() != 0 || flags != 0 || code != packetCodeTrap || trap == 0 {
 			err = errors.New("incoming packet is corrupted")
+			return
 		}
+
 		return
 	}
 
@@ -268,17 +271,23 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 			return
 		}
 
-		// hide packet flags from service implementations
-		clearPacketFlags(p)
 		msg = p
 
 	case code == packetCodeNothing:
 
 	case code == packetCodeServices:
 		reply, err = handleServicesPacket(p, discoverer)
+		if err != nil {
+			return
+		}
+
+	case code == packetCodeLoopback:
+		reply = p
 
 	default:
 		err = fmt.Errorf("invalid code in incoming packet: %d", code)
+		return
 	}
+
 	return
 }

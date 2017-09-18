@@ -47,7 +47,7 @@ int main()
 	buf[sizeof (struct gate_packet) + 1] = idle >> 8;
 	buf[sizeof (struct gate_packet) + 2] = payload;
 
-	gate_send_packet(op);
+	gate_send_packet(op, 0);
 
 	return 0;
 }

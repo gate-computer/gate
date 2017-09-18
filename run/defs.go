@@ -26,7 +26,8 @@ const (
 
 const (
 	abiVersion    = 0
-	maxPacketSize = 0x10000 // coincides with default pipe buffer size on Linux
+	pipeBufSize   = 0x10000 // Linux default
+	maxPacketSize = pipeBufSize / 2
 	maxServices   = 100
 
 	magicNumber = 0x7e1c5d67

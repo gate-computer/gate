@@ -81,13 +81,7 @@ func (env *runtimeEnv) init(config *Config, checksum io.Writer) (err error) {
 				Args: []types.T{types.I32},
 			}}
 
-		case "__gate_recv":
-			env.funcs[name] = runtimeFunc{addr, types.Function{
-				Args:   []types.T{types.I32, types.I32, types.I32},
-				Result: types.I32,
-			}}
-
-		case "__gate_send", "__gate_debug_write":
+		case "__gate_recv", "__gate_send", "__gate_debug_write":
 			env.funcs[name] = runtimeFunc{addr, types.Function{
 				Args: []types.T{types.I32, types.I32},
 			}}

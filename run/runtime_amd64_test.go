@@ -13,7 +13,7 @@ import (
 )
 
 // Update this when making a change to the runtime on purpose.
-const runtimeEnvironmentChecksum = 0x1ded1b0deed12a0d
+const runtimeEnvironmentChecksum = 0xf9202d2b9c064d49
 
 func TestRuntimeEnvironmentChecksumUnchanged(t *testing.T) {
 	rt := runtest.NewRuntime(nil)

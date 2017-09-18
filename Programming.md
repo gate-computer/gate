@@ -110,8 +110,8 @@ struct gate_packet {
 >
 > Sending a packet with code `GATE_PACKET_CODE_NOTHING` causes the flags to be
 > processed by the runtime, but has no other effect.  Likewise, the runtime may
-> send a packet with that code if it needs to send a notification, but has no
-> queued packet to piggy-back it on.
+> send an empty packet with that code if it needs to send a notification, but
+> has no queued packet to piggy-back it on.
 >
 > The size of the unsigned integer type of the flags field is unspecified.  The
 > struct declaration may contain additional reserved fields which must be
