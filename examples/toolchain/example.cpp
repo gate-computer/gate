@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include <cstddef>
-#include <cstdlib>
 #include <cstring>
 
 #include <gate.h>
@@ -12,7 +10,7 @@
 int main()
 {
 	struct gate_service_registry *no_services = gate_service_registry_create();
-	if (no_services == NULL)
+	if (no_services == nullptr)
 		gate_exit(1);
 
 	if (!gate_discover_services(no_services))
@@ -20,11 +18,11 @@ int main()
 
 	const char *str = "ok\n";
 
-	auto buf = new char[strlen(str) + 1];
-	if (buf == NULL)
+	auto buf = new char[std::strlen(str) + 1];
+	if (buf == nullptr)
 		gate_exit(1);
 
-	strcpy(buf, str);
+	std::strcpy(buf, str);
 	gate_debug(buf);
 
 	gate_service_registry_destroy(no_services);
