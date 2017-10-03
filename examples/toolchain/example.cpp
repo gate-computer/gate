@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
 
 #include <gate.h>
 #include <gate/service.h>
@@ -20,7 +20,7 @@ int main()
 
 	const char *str = "ok\n";
 
-	char *buf = malloc(strlen(str) + 1);
+	auto buf = new char[strlen(str) + 1];
 	if (buf == NULL)
 		gate_exit(1);
 

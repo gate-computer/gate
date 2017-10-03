@@ -61,6 +61,7 @@ bin: get
 devlibs:
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
+	$(MAKE) -C libcxx
 	$(MAKE) -C capi
 
 tests: devlibs
@@ -81,6 +82,7 @@ check: lib bin tests
 	$(GO) vet $(GOPACKAGES)
 	$(GO) test -race $(GOPACKAGES)
 	bin/runner tests/echo/prog.wasm
+	bin/runner tests/cxx/prog.wasm
 	bin/runner -repeat=2 tests/hello/prog.wasm
 	bin/runner -arg=-32 tests/hello/prog.wasm | grep "HELLO WORLD"
 	bin/runner -repeat=100 tests/nop/prog.wasm
@@ -102,6 +104,7 @@ clean:
 	$(MAKE) -C run/loader/tests clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
+	$(MAKE) -C libcxx clean
 	$(MAKE) -C capi clean
 	$(MAKE) -C examples/gate-talk/payload clean
 	$(MAKE) -C examples/toolchain clean

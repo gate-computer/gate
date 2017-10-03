@@ -6,7 +6,6 @@ GATEDIR		:= ..
 
 CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
 CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
-CXXFLAGS	+= -std=c++11
 
 include $(GATEDIR)/crt/rules.mk
 
@@ -25,7 +24,7 @@ libc-objects: $(patsubst %.ll,%.bc,$(wildcard libc_build/*.ll))
 libc_build/%.bc: libc_build/%.ll
 	$(LLVMAS) -o $@ libc_build/$*.ll
 
-compat.bc: compat.cpp $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
+compat.bc: compat.c $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 
 clean:
 	rm -f *.bc *.wast

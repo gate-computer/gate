@@ -13,7 +13,8 @@ to write JavaScript glue between the browser's functionality and the
 WebAssembly program.  In other words,
 currently binaries built with [binaryen](https://github.com/WebAssembly/binaryen)
 don't work.  Everything has to be built around the import functions provided by
-Gate.  Luckily the gate-toolchain produces binaries which do work (see below).
+Gate.  Luckily the gate-toolchain produces binaries which do work;
+[see below](#toolchain).
 
 
 ## API
@@ -180,16 +181,16 @@ programs which work with Gate.
 The [gate-toolchain](https://hub.docker.com/r/tsavola/gate-toolchain) Docker image
 is built on [wag-toolchain](https://hub.docker.com/r/tsavola/wag-toolchain) and contains
 partial [musl](https://www.musl-libc.org) C standard library,
+[libc++](https://libcxx.llvm.org) C++ standard library,
 [dlmalloc](http://g.oswego.edu/dl/html/malloc.html), and the Gate API headers.
-It's currently the easiest way to build C programs for Gate.  C++ can also be
-used, but there is no C++ library support.
+It's currently the easiest way to build C or C++ programs for Gate.
 
 When building your program, sources must first be compiled into LLVM bitcode
 files, which are then linked into a WebAssembly binary.  The sources of musl
 and malloc libraries have been compiled into individual LLVM bitcode files,
-found in the `/lib/wasm32` directory inside the Docker image.  When using the
-libraries, all necessary library functions need to be manually linked to the
-program.
+found in the `/lib/wasm32` directory inside the Docker image.  libc++'s files
+are in the `/lib/wasm32/c++` directory.  When using the libraries, all
+necessary library functions need to be explicitly linked to the program.
 
 When invoking the Docker image, the container should run with your credentials
 and have access to the working directory.  Like this:
@@ -206,7 +207,7 @@ docker ... tsavola/gate-toolchain compile -Wall -o example.bc example.c
 docker ... tsavola/gate-toolchain link -o example.wasm example.bc /lib/wasm32/malloc.bc
 ```
 
-There's also [example.c](examples/toolchain/example.c)
+There's also [example.cpp](examples/toolchain/example.cpp)
 and its [Makefile](examples/toolchain/Makefile).
 Build and run it with `make check-toolchain`.
 

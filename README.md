@@ -101,7 +101,7 @@ See the complete [list of Go packages](https://godoc.org/github.com/tsavola/gate
 
 Primary goals:
 
-  - [x] Supports simple C/C++ programs (mostly limited by immature toolchain)
+  - [x] Support C and C++ programs, with limited standard library support
   - [x] Linux x86-64 host support
   - [x] All planned security measures have been implemented
   - [x] Bare-bones HTTP server for running programs
@@ -120,10 +120,14 @@ Primary goals:
 
 Secondary goals:
 
-  - [x] Partial support for running unmodified programs in the browser
-  - [ ] Support for more complex, real-world programs (needs toolchain/ecosystem support)
+  - [ ] Support C and C++ programs which require more extensive standard library support
+  - [ ] Support Rust programs
   - [ ] Non-Linux host support
   - [ ] Additional security measures?
+
+Tentative features:
+
+  - [x] Partial support for running unmodified programs in the browser
 
 
 ## Build requirements

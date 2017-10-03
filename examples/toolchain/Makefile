@@ -15,7 +15,11 @@ CC		:= $(dockertoolchain) compile
 CXX		:= $(dockertoolchain) compile++
 LINKER		:= $(dockertoolchain) link
 
+CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
+CXXFLAGS	+= -std=c++14
+
 LIBS := \
+	/lib/wasm32/c++/new.bc \
 	/lib/wasm32/gate/service.bc \
 	/lib/wasm32/malloc.bc \
 	/lib/wasm32/memcpy.bc \
@@ -27,8 +31,8 @@ LIBS := \
 example.wasm: example.bc
 	$(LINKER) -o $@ example.bc $(LIBS)
 
-example.bc: example.c Makefile
-	$(CC) -o $@ example.c
+example.bc: example.cpp Makefile
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -o $@ example.cpp
 
 clean:
 	rm -f *.wasm *.bc

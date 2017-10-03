@@ -45,4 +45,4 @@ prog.wasm: $(OBJECTS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
 
 %.bc: %.cpp
-	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -include $(GATEDIR)/crt/main.hpp -fno-exceptions -c -o $@ $*.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_HAS_NO_THREADS -D__ELF__ -isystem $(GATEDIR)/libcxx/libcxx/include -include $(GATEDIR)/crt/main.hpp -fno-exceptions -c -o $@ $*.cpp
