@@ -218,10 +218,10 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if running.InstanceId == "" {
-		t.Fatal("no instance id")
+		t.Error("no instance id")
 	}
 	if running.ProgramId == "" {
-		t.Fatal("no program id")
+		t.Error("no program id")
 	}
 
 	frameType, data, err := conn.ReadMessage()
@@ -229,7 +229,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if frameType != websocket.BinaryMessage || string(data) != "hello world\n" {
-		t.Fatal(data)
+		t.Error(string(data))
 	}
 
 	var result api.Result
@@ -237,6 +237,6 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.ExitStatus == nil || *result.ExitStatus != 0 || result.TrapId != 0 {
-		t.Fatalf("result: %#v", result)
+		t.Errorf("result: %#v", result)
 	}
 }
