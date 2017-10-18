@@ -4,8 +4,6 @@
 
 GATEDIR		:= ..
 
-CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -isystem include -DNDEBUG
-
 LIBC_SOURCES	:= $(shell find musl/src -maxdepth 2 -name '*.c' \
 	-not -name vfwscanf.c \
 	-not -name wcstod.c \
@@ -14,11 +12,9 @@ LIBC_SOURCES	:= $(shell find musl/src -maxdepth 2 -name '*.c' \
 
 LIBC_OBJECTS	:= $(LIBC_SOURCES:musl/%.c=libc_build/obj/%.bc)
 
-include $(GATEDIR)/crt/rules.mk
-
-.DEFAULT_GOAL	:= build
-
 build: libc_build/done compat.bc
+
+include $(GATEDIR)/crt/rules.mk
 
 libc_build/done: $(LIBC_OBJECTS)
 	@ set -e; for obj in $(LIBC_OBJECTS:libc_build/%=%); do ln -sf $$obj libc_build/; done
@@ -30,7 +26,7 @@ libc_build/obj/%.bc: musl/%.c libc_build/config.mak
 
 libc_build/config.mak:
 	mkdir -p libc_build
-	cd libc_build && ../musl/configure CC="$(CC) --target=wasm32-unknown-unknown -emit-llvm"
+	cd libc_build && ../musl/configure CC="$(CC) -emit-llvm"
 
 compat.bc: compat.c $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 

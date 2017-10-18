@@ -4,8 +4,6 @@
 
 GATEDIR		:= ..
 
-CPPFLAGS	+= -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include -isystem $(GATEDIR)/libc/include
-
 build: gate.bc service.bc
 
 gate.bc: $(GATEDIR)/capi/include/gate.h

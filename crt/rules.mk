@@ -4,19 +4,33 @@
 
 LLVMPREFIX	?= $(GATEDIR)/../wag-toolchain/out
 
-CC		:= $(LLVMPREFIX)/bin/clang
-CXX		:= $(LLVMPREFIX)/bin/clang
+CC		:= $(LLVMPREFIX)/bin/clang --target=wasm32-unknown-unknown
+CXX		:= $(LLVMPREFIX)/bin/clang --target=wasm32-unknown-unknown
 LLVMAS		:= $(LLVMPREFIX)/bin/llvm-as
 LLVMLINK	:= $(LLVMPREFIX)/bin/llvm-link
 
+CPPFLAGS	+= \
+	-D_LIBCPP_HAS_MUSL_LIBC \
+	-D_LIBCPP_HAS_NO_THREADS \
+	-D_LIBCPP_NO_EXCEPTIONS \
+	-D__ELF__ \
+	-nostdlibinc \
+	-I$(GATEDIR)/capi/include \
+	-I$(GATEDIR)/libcxx/libcxx/include \
+	-I$(GATEDIR)/libc/include \
+	-I$(GATEDIR)/libc/musl/include \
+	-I$(GATEDIR)/libc/musl/arch/wasm32
+
 CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
-CPPFLAGS	+= -isystem $(GATEDIR)/capi/include
+CXXFLAGS	+= -std=c++14 -fno-exceptions
+LDFLAGS		+= -nostdlib -Wl,--allow-undefined-file=$(GATEDIR)/capi/abi.list -Wl,--check-signatures
+LIBS		+= $(GATEDIR)/crt/crt.bc $(GATEDIR)/capi/gate.bc
 
 prog.wasm: $(OBJECTS)
-	$(CC) -nostdlib -Wl,--allow-undefined-file=$(GATEDIR)/capi/abi.list -Wl,--check-signatures $(CFLAGS) $(LDFLAGS) -o $@ $(GATEDIR)/crt/crt.bc $(OBJECTS) $(LIBS) $(GATEDIR)/capi/gate.bc
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJECTS) $(LIBS)
 
 %.bc: %.c
-	$(CC) --target=wasm32-unknown-unknown -emit-llvm $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -emit-llvm -c -o $@ $*.c
 
 %.bc: %.cpp
-	$(CXX) --target=wasm32-unknown-unknown -emit-llvm $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_HAS_NO_THREADS -D__ELF__ -isystem $(GATEDIR)/libcxx/libcxx/include -include $(GATEDIR)/crt/main.hpp -fno-exceptions -c -o $@ $*.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -include $(GATEDIR)/crt/main.hpp -emit-llvm -c -o $@ $*.cpp

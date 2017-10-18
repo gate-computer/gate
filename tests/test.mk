@@ -6,9 +6,6 @@ export WAGTOOLCHAIN_ALLOCATE_STACK := 1048576
 
 SHA512SUM	?= sha512sum
 
-CPPFLAGS	+= -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include -isystem $(GATEDIR)/libc/include
-CXXFLAGS	+= -std=c++14
-
 SOURCE		?= $(firstword $(wildcard *.c *.cpp))
 OBJECT		?= $(patsubst %.cpp,%.bc,$(patsubst %.c,%.bc,$(SOURCE)))
 

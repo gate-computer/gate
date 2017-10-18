@@ -5,9 +5,6 @@
 GATEDIR		:= ..
 
 CPPFLAGS	+= \
-	-isystem $(GATEDIR)/libc/musl/arch/wasm32 \
-	-isystem $(GATEDIR)/libc/musl/include \
-	-isystem $(GATEDIR)/libc/include \
 	-include $(GATEDIR)/capi/include/gate.h \
 	-include morecore.h \
 	-DABORT='gate_exit(1)' \

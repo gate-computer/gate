@@ -4,8 +4,7 @@
 
 GATEDIR		:= ..
 
-CPPFLAGS	+= -D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_HAS_NO_THREADS -D__ELF__ -isystem libcxx/include -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include -isystem $(GATEDIR)/libc/include
-CXXFLAGS	+= -std=c++14 -fno-exceptions
+CPPFLAGS	+= -D_LIBCPP_BUILDING_LIBRARY
 
 build: \
 	algorithm.bc \
@@ -37,12 +36,15 @@ build: \
 	variant.bc \
 	vector.bc
 
+include $(GATEDIR)/crt/rules.mk
+
+compat.bc: compat.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -emit-llvm -c -o $@ compat.cpp
+
 %.bc: libcxx/src/%.cpp
-	$(CXX) --target=wasm32-unknown-unknown -emit-llvm $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -c -o $@ libcxx/src/$*.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -emit-llvm -c -o $@ libcxx/src/$*.cpp
 
 clean:
 	rm -f *.bc
 
 .PHONY: build clean
-
-include $(GATEDIR)/crt/rules.mk

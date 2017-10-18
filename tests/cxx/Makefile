@@ -4,8 +4,6 @@
 
 GATEDIR		:= ../..
 
-CXXFLAGS	+= -std=c++14
-
 LIBS := \
 	$(GATEDIR)/libc/compat.bc \
 	$(GATEDIR)/libc/libc_build/memcpy.bc \
