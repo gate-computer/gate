@@ -4,14 +4,20 @@
 
 #include <gate.h>
 
-int *__errno_location()
+int *__errno_location(void)
 {
 	static int errno_storage;
 	return &errno_storage;
 }
 
-void abort()
+void abort(void)
 {
 	__gate_debug_write("\nAborted\n", 9);
-	gate_exit(1);
+	__gate_exit(1);
+}
+
+GATE_NORETURN
+void exit(int status)
+{
+	__gate_exit(status);
 }
