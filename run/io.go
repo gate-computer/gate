@@ -67,10 +67,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 		}
 	}()
 
-	subjectOutput, subjectOutputEnd := subjectWriteLoop(subject.writer)
-	defer func() {
-		<-subjectOutputEnd
-	}()
+	subjectOutput := subjectWriteLoop(subject.writer)
 	defer close(subjectOutput)
 
 	defer subject.kill()
@@ -83,12 +80,11 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 
 	for {
 		var (
-			doEv               packet.Buf
-			doMessageInput     <-chan packet.Buf
-			doMessageOutput    chan<- packet.Buf
-			doSubjectInput     <-chan read
-			doSubjectOutputEnd <-chan struct{}
-			doSubjectOutput    chan<- packet.Buf
+			doEv            packet.Buf
+			doMessageInput  <-chan packet.Buf
+			doMessageOutput chan<- packet.Buf
+			doSubjectInput  <-chan read
+			doSubjectOutput chan<- packet.Buf
 		)
 
 		if len(pendingEvs) > 0 {
@@ -109,7 +105,6 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 			if pendingMsg == nil {
 				doSubjectInput = subjectInput
 			}
-			doSubjectOutputEnd = subjectOutputEnd
 		} else {
 			doSubjectOutput = subjectOutput
 		}
@@ -148,9 +143,6 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 
 		case doMessageOutput <- pendingMsg:
 			pendingMsg = nil
-
-		case <-doSubjectOutputEnd:
-			return
 
 		case doSubjectOutput <- doEv:
 			if len(pendingEvs) > 0 {
@@ -204,12 +196,14 @@ func subjectReadLoop(r *os.File) <-chan read {
 	return reads
 }
 
-func subjectWriteLoop(w *os.File) (chan<- packet.Buf, <-chan struct{}) {
+func subjectWriteLoop(w *os.File) chan<- packet.Buf {
 	writes := make(chan packet.Buf)
-	end := make(chan struct{})
 
 	go func() {
-		defer close(end)
+		defer func() {
+			for range writes {
+			}
+		}()
 
 		for buf := range writes {
 			if _, err := w.Write(buf); err != nil {
@@ -218,7 +212,7 @@ func subjectWriteLoop(w *os.File) (chan<- packet.Buf, <-chan struct{}) {
 		}
 	}()
 
-	return writes, end
+	return writes
 }
 
 func initMessagePacket(p packet.Buf) packet.Buf {
