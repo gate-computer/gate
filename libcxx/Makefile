@@ -11,6 +11,7 @@ build: \
 	any.bc \
 	bind.bc \
 	chrono.bc \
+	compat.bc \
 	condition_variable.bc \
 	functional.bc \
 	future.bc \
@@ -20,7 +21,6 @@ build: \
 	locale.bc \
 	memory.bc \
 	mutex.bc \
-	new.bc \
 	optional.bc \
 	random.bc \
 	regex.bc \

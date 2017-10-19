@@ -8,7 +8,7 @@ LIBS := \
 	$(GATEDIR)/libc/compat.bc \
 	$(GATEDIR)/libc/libc_build/memcpy.bc \
 	$(GATEDIR)/libc/libc_build/memset.bc \
-	$(GATEDIR)/libcxx/new.bc \
+	$(GATEDIR)/libcxx/compat.bc \
 	$(GATEDIR)/libcxx/vector.bc \
 	$(GATEDIR)/malloc/all.bc
 

@@ -19,7 +19,7 @@ CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
 CXXFLAGS	+= -std=c++17
 
 LIBS := \
-	/lib/wasm32/c++/new.bc \
+	/lib/wasm32/c++/compat.bc \
 	/lib/wasm32/gate/service.bc \
 	/lib/wasm32/malloc.bc \
 	/lib/wasm32/memcpy.bc \
