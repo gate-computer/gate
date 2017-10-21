@@ -125,10 +125,6 @@ Secondary goals:
   - [ ] Non-Linux host support
   - [ ] Additional security measures?
 
-Tentative features:
-
-  - [x] Partial support for running unmodified programs in the browser
-
 
 ## Build requirements
 

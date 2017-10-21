@@ -36,7 +36,6 @@ bin: generate
 	$(GO) build $(GOBUILDFLAGS) -o bin/containerd ./cmd/gate-containerd
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner ./cmd/gate-runner
 	$(GO) build $(GOBUILDFLAGS) -o bin/server ./cmd/gate-server
-	$(GO) build $(GOBUILDFLAGS) -o bin/webio ./cmd/gate-webio
 
 devlibs:
 	$(MAKE) -C crt
