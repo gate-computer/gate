@@ -22,7 +22,7 @@ CPPFLAGS	+= \
 	-I$(GATEDIR)/libc/musl/arch/wasm32
 
 CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
-CXXFLAGS	+= -std=c++14 -fno-exceptions -fno-rtti
+CXXFLAGS	+= -std=c++17 -fno-exceptions -fno-rtti
 LDFLAGS		+= -nostdlib -Wl,--allow-undefined-file=$(GATEDIR)/capi/abi.list -Wl,--check-signatures
 LIBS		+= $(GATEDIR)/crt/crt.bc $(GATEDIR)/capi/gate.bc
 

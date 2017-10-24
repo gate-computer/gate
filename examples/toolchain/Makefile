@@ -16,7 +16,7 @@ CXX		:= $(dockertoolchain) compile++
 LINKER		:= $(dockertoolchain) link
 
 CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -Oz
-CXXFLAGS	+= -std=c++14
+CXXFLAGS	+= -std=c++17
 
 LIBS := \
 	/lib/wasm32/c++/new.bc \
