@@ -13,6 +13,10 @@ Capabilities needed by the container binary:
     capabilities have been set for the binary, the sd-bus library's use of
     secure_getenv(3) prevents it from finding the user bus.
 
+  - If any capabilities have been granted, also the CAP_DAC_OVERRIDE capability
+    needs to be granted.  Otherwise updating the container process's
+    oom_score_adj fails.
+
 
 Privileged things controlled by users who can execute a capable container
 binary:
