@@ -101,14 +101,12 @@ func containerWaiter(cmd *exec.Cmd, done <-chan struct{}, errorLog Logger) {
 
 	select {
 	case <-done:
-		if exit, ok := err.(*exec.ExitError); ok && exit.Success() {
-			// expected and clean
-		} else {
-			errorLog.Printf("container process exited with an error: %v", err)
+		if err != nil {
+			errorLog.Printf("container process exited with error: %v", err)
 		}
 
 	default:
-		errorLog.Printf("container process exited unexpectedly: %v", err)
+		errorLog.Printf("container process exited unexpectedly with error: %v", err)
 	}
 }
 
