@@ -12,7 +12,7 @@ build: signal stack
 
 check: signal stack
 	./signal
-	$(PYTHON) ./stack.py
+	$(PYTHON) stack.py
 
 signal: signal.o ../runtime.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -Wl,-Ttext-segment=0x40000000 -Wl,--section-start=.runtime=0x50000000 -o $@ signal.o ../runtime.o
@@ -21,7 +21,10 @@ signal.o: signal.c ../../defs.h Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ signal.c
 
 stack: stack.o ../start.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -nostartfiles -o $@ ../start.o stack.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -nostartfiles -nostdlib -o $@ ../start.o stack.o
+
+stack-debug: stack.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ stack.o
 
 stack.o: stack.c Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ stack.c
