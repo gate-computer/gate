@@ -216,21 +216,21 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	buf := data[:image.info.MemoryOffset]
 	fmt.Fprintf(w, "--- GLOBALS (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 8 {
-		fmt.Fprintf(w, "%08x: %x\n", i, buf[0:8])
+		fmt.Fprintf(w, "%08x: %016x\n", i, endian.Uint64(buf[0:8]))
 		buf = buf[8:]
 	}
 
 	buf = data[image.info.MemoryOffset : image.info.MemoryOffset+globalsMemorySize]
 	fmt.Fprintf(w, "--- MEMORY (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 32 {
-		fmt.Fprintf(w, "%08x: %x %x %x %x\n", i, buf[0:8], buf[8:16], buf[16:24], buf[24:32])
+		fmt.Fprintf(w, "%08x: %016x %016x %016x %016x\n", i, endian.Uint64(buf[0:8]), endian.Uint64(buf[8:16]), endian.Uint64(buf[16:24]), endian.Uint64(buf[24:32]))
 		buf = buf[32:]
 	}
 
 	buf = data[globalsMemorySize:]
 	fmt.Fprintf(w, "--- STACK (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 32 {
-		fmt.Fprintf(w, "%08x: %x %x %x %x\n", i, buf[0:8], buf[8:16], buf[16:24], buf[24:32])
+		fmt.Fprintf(w, "%08x: %016x %016x %016x %016x\n", i, endian.Uint64(buf[0:8]), endian.Uint64(buf[8:16]), endian.Uint64(buf[16:24]), endian.Uint64(buf[24:32]))
 		buf = buf[32:]
 	}
 
