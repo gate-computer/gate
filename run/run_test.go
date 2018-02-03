@@ -19,6 +19,7 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/dewag"
+	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/wasm"
 )
 
@@ -67,7 +68,11 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	wasm := openProgram(testName)
 	defer wasm.Close()
 
-	var m wag.Module
+	var nameSection sections.NameSection
+
+	m := wag.Module{
+		UnknownSectionLoader: sections.UnknownLoaders{"name": nameSection.Load}.Load,
+	}
 
 	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, new(bytes.Buffer), nil, nil)
 	if err != nil {
@@ -105,13 +110,37 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		t.Fatalf("image error: %v", err)
 	}
 
+	if false {
+		var buf bytes.Buffer
+
+		if err := dewag.PrintTo(&buf, m.Text(), m.FunctionMap(), &nameSection); err == nil {
+			t.Logf("disassembly:\n%s", string(buf.Bytes()))
+		} else {
+			t.Errorf("disassembly error: %v", err)
+		}
+	}
+
+	stacktrace := true
+
 	exit, trap, err := run.Run(context.Background(), rt.Runtime, &proc, &image, &testServiceRegistry{origin: &output})
 	if err != nil {
-		t.Fatalf("run error: %v", err)
+		t.Errorf("run error: %v", err)
 	} else if trap != 0 {
-		t.Fatalf("run trap: %s", trap)
+		t.Errorf("run trap: %s", trap)
 	} else if exit != 0 {
-		t.Fatalf("run exit: %d", exit)
+		t.Errorf("run exit: %d", exit)
+	} else {
+		stacktrace = false
+	}
+
+	if stacktrace {
+		var buf bytes.Buffer
+
+		if err := image.DumpStacktrace(&buf, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &nameSection); err == nil {
+			t.Logf("stacktrace:\n%s", string(buf.Bytes()))
+		} else {
+			t.Errorf("stacktrace error: %v", err)
+		}
 	}
 
 	if name := os.Getenv("GATE_TEST_DUMP"); name != "" {
@@ -122,7 +151,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 		defer f.Close()
 
 		if err := image.DumpGlobalsMemoryStack(f); err != nil {
-			t.Fatalf("dump error: %v", err)
+			t.Errorf("dump error: %v", err)
 		}
 	}
 
