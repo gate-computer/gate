@@ -20,6 +20,8 @@ const (
 	maxHeapAddr  = 0x554b00000000
 	minStackAddr = 0x554d00000000
 	maxStackAddr = 0x7ff000000000
+
+	signalStackReserve = 0x600 // TODO
 )
 
 const (
