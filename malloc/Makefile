@@ -21,7 +21,7 @@ CPPFLAGS	+= \
 	-DUSE_LOCKS=0 \
 	-Dmalloc_getpagesize=4096
 
-CFLAGS		+= -Wall -Wextra -fomit-frame-pointer -ffreestanding -Oz
+CFLAGS		+= -Wall -Wextra -Wno-null-pointer-arithmetic -fomit-frame-pointer -ffreestanding -Oz
 
 OBJECTS		:= malloc.bc morecore.bc wasm.bc
 
