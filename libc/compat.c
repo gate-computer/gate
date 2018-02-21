@@ -12,5 +12,6 @@ int *__errno_location()
 
 void abort()
 {
+	__gate_debug_write("\nAborted\n", 9);
 	gate_exit(1);
 }
