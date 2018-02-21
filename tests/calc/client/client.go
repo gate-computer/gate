@@ -17,7 +17,7 @@ import (
 func main() {
 	var (
 		url      = "ws://localhost:8888"
-		wasmName = "tests/test2/prog.wasm"
+		wasmName = "tests/calc/prog.wasm"
 	)
 
 	flag.StringVar(&url, "url", url, "WebSocket address")
