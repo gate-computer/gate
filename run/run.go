@@ -77,7 +77,7 @@ type imageInfo struct {
 	PageSize       uint32
 	RODataSize     uint32
 	TextSize       uint32
-	MemoryOffset   uint32
+	GlobalsSize    uint32
 	InitMemorySize uint32
 	GrowMemorySize uint32
 	StackSize      uint32
@@ -142,7 +142,7 @@ func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stac
 
 	roData := m.ROData()
 	text := m.Text()
-	data, memoryOffset := m.Data()
+	data, globalsDataSize := m.Data()
 
 	_, err = image.maps.Write(roData)
 	if err != nil {
@@ -157,14 +157,15 @@ func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stac
 	}
 
 	textSize := roundToPage(len(text))
+	globalsMapSize := roundToPage(globalsDataSize)
+	globalsDataOffset := int(globalsMapSize) - globalsDataSize
 
-	_, err = image.maps.WriteAt(data, int64(roDataSize)+int64(textSize))
+	_, err = image.maps.WriteAt(data, int64(roDataSize)+int64(textSize)+int64(globalsDataOffset))
 	if err != nil {
 		return
 	}
 
-	globalsMemorySize := roundToPage(memoryOffset + int(growMemorySize))
-	totalSize := int64(roDataSize) + int64(textSize) + int64(globalsMemorySize) + int64(stackSize)
+	totalSize := int64(roDataSize) + int64(textSize) + int64(globalsMapSize) + int64(growMemorySize) + int64(stackSize)
 
 	err = image.maps.Truncate(totalSize)
 	if err != nil {
@@ -185,7 +186,7 @@ func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stac
 		PageSize:       uint32(pageSize),
 		RODataSize:     roDataSize,
 		TextSize:       textSize,
-		MemoryOffset:   uint32(memoryOffset),
+		GlobalsSize:    uint32(globalsMapSize),
 		InitMemorySize: uint32(initMemorySize),
 		GrowMemorySize: uint32(growMemorySize),
 		StackSize:      uint32(stackSize),
@@ -203,9 +204,7 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	fd := int(image.maps.Fd())
 
 	dataMapOffset := int64(image.info.RODataSize) + int64(image.info.TextSize)
-
-	globalsMemorySize := image.info.MemoryOffset + image.info.GrowMemorySize
-	dataSize := int(globalsMemorySize) + int(image.info.StackSize)
+	dataSize := int(image.info.GlobalsSize) + int(image.info.GrowMemorySize) + int(image.info.StackSize)
 
 	data, err := syscall.Mmap(fd, dataMapOffset, dataSize, syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
@@ -213,21 +212,21 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	}
 	defer syscall.Munmap(data)
 
-	buf := data[:image.info.MemoryOffset]
+	buf := data[:image.info.GlobalsSize]
 	fmt.Fprintf(w, "--- GLOBALS (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 8 {
 		fmt.Fprintf(w, "%08x: %016x\n", i, endian.Uint64(buf[0:8]))
 		buf = buf[8:]
 	}
 
-	buf = data[image.info.MemoryOffset : image.info.MemoryOffset+globalsMemorySize]
+	buf = data[image.info.GlobalsSize : image.info.GlobalsSize+image.info.GrowMemorySize]
 	fmt.Fprintf(w, "--- MEMORY (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 32 {
 		fmt.Fprintf(w, "%08x: %016x %016x %016x %016x\n", i, endian.Uint64(buf[0:8]), endian.Uint64(buf[8:16]), endian.Uint64(buf[16:24]), endian.Uint64(buf[24:32]))
 		buf = buf[32:]
 	}
 
-	buf = data[globalsMemorySize:]
+	buf = data[image.info.GlobalsSize+image.info.GrowMemorySize:]
 	fmt.Fprintf(w, "--- STACK (%d kB) ---\n", len(buf)/1024)
 	for i := 0; len(buf) > 0; i += 32 {
 		fmt.Fprintf(w, "%08x: %016x %016x %016x %016x\n", i, endian.Uint64(buf[0:8]), endian.Uint64(buf[8:16]), endian.Uint64(buf[16:24]), endian.Uint64(buf[24:32]))
@@ -242,8 +241,7 @@ func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSig
 ) (err error) {
 	fd := int(image.maps.Fd())
 
-	offset := int64(image.info.RODataSize) + int64(image.info.TextSize) + int64(image.info.MemoryOffset) + int64(image.info.GrowMemorySize)
-
+	offset := int64(image.info.RODataSize) + int64(image.info.TextSize) + int64(image.info.GlobalsSize) + int64(image.info.GrowMemorySize)
 	size := int(image.info.StackSize)
 
 	stack, err := syscall.Mmap(fd, offset, size, syscall.PROT_READ, syscall.MAP_PRIVATE)

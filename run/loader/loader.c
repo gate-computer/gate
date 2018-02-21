@@ -193,7 +193,7 @@ int main(int argc, char **argv, char **envp)
 		uint32_t page_size;
 		uint32_t rodata_size;
 		uint32_t text_size;
-		uint32_t memory_offset;
+		uint32_t globals_size;
 		uint32_t init_memory_size;
 		uint32_t grow_memory_size;
 		uint32_t stack_size;
@@ -218,7 +218,7 @@ int main(int argc, char **argv, char **envp)
 		return 53;
 
 	size_t globals_memory_offset = (size_t) info.rodata_size + (size_t) info.text_size;
-	size_t globals_memory_size = info.memory_offset + info.grow_memory_size;
+	size_t globals_memory_size = info.globals_size + info.grow_memory_size;
 
 	void *memory_ptr = NULL;
 
@@ -227,7 +227,7 @@ int main(int argc, char **argv, char **envp)
 		if (ptr != (void *) info.heap_addr)
 			return 54;
 
-		memory_ptr = ptr + info.memory_offset;
+		memory_ptr = ptr + info.globals_size;
 	}
 
 	void *init_memory_limit = memory_ptr + info.init_memory_size;
