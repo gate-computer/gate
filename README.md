@@ -153,14 +153,15 @@ be granted by running `make capabilities` as root.  That requires:
 The Go programs can be built with `make bin`.  It downloads some dependencies
 to various directories under GOPATH.  In addition to them, these are required:
 
-  - Go 1.8 (or 1.7 if you don't build the webserver)
+  - Go 1.8
   - libcapstone-dev is needed by gate-runner
 
 The programming interface libraries can be built with `make devlibs`:
 
   - Git submodules need to be checked out
-  - wag-toolchain is used via Docker by default, but a manually built one can
-    also be used by setting TOOLCHAINDIR for make
+  - [wag-toolchain](https://github.com/tsavola/wag-toolchain) needs to be built
+    separately, and LLVMPREFIX needs to be set to point to its "out" directory
+    (or you can just get wasm-enabled llvm, clang and lld some other way)
 
 See the Makefile for more interesting targets like `check` and `benchmark`.
 The capabilities need to be granted for them to work.

@@ -172,16 +172,13 @@ struct gate_service_info {
 
 ## Toolchain
 
-[LLVM](https://llvm.org) and [clang](https://clang.llvm.org) have preliminary
-support for WebAssembly.
-The [wag-toolchain](https://github.com/tsavola/wag-toolchain) repository ties
-them together with other tools, and provides scripts for building C and C++
-programs which work with Gate.
-
-The [gate-toolchain](https://hub.docker.com/r/tsavola/gate-toolchain) Docker image
-is built on [wag-toolchain](https://hub.docker.com/r/tsavola/wag-toolchain) and contains
-partial [musl](https://www.musl-libc.org) C standard library,
-[libc++](https://libcxx.llvm.org) C++ standard library,
+[LLVM](https://llvm.org), [clang](https://clang.llvm.org) and
+[ldd](https://lld.llvm.org) have preliminary support for WebAssembly.  The
+[wag-toolchain](https://github.com/tsavola/wag-toolchain) repository ties them
+together.  The
+[gate-toolchain](https://hub.docker.com/r/tsavola/gate-toolchain) Docker image
+is built on that, adding partial [musl](https://www.musl-libc.org) C standard
+library, [libc++](https://libcxx.llvm.org) C++ standard library,
 [dlmalloc](http://g.oswego.edu/dl/html/malloc.html), and the Gate API headers.
 It's currently the easiest way to build C or C++ programs for Gate.
 
@@ -203,11 +200,6 @@ It contains the `compile`, `compile++` and `link` scripts.  They can be invoked
 more or less like gcc.  For example:
 
 ```sh
-docker ... tsavola/gate-toolchain compile -Wall -o example.bc example.c
+docker ... tsavola/gate-toolchain compile -Wall -c -o example.bc example.c
 docker ... tsavola/gate-toolchain link -o example.wasm example.bc /lib/wasm32/malloc.bc
 ```
-
-There's also [example.cpp](examples/toolchain/example.cpp)
-and its [Makefile](examples/toolchain/Makefile).
-Build and run it with `make check-toolchain`.
-
