@@ -81,7 +81,7 @@ capabilities:
 check: lib bin tests
 	$(MAKE) -C run/loader/tests check
 	$(GO) vet $(GOPACKAGES)
-	$(GO) test -race $(GOPACKAGES)
+	$(GO) test $(GOTESTFLAGS) $(GOPACKAGES)
 	bin/runner tests/echo/prog.wasm
 	bin/runner tests/cxx/prog.wasm
 	bin/runner -repeat=2 tests/hello/prog.wasm
