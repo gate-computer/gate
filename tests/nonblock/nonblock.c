@@ -8,7 +8,7 @@
 
 #include "../discover.h"
 
-void main()
+int main()
 {
 	discover_service("origin");
 
@@ -48,4 +48,6 @@ void main()
 	buf[sizeof (struct gate_packet) + 2] = payload;
 
 	gate_send_packet(op);
+
+	return 0;
 }

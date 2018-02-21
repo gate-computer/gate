@@ -45,10 +45,12 @@ static void do_it(int c, int n)
 	}
 }
 
-void main()
+int main()
 {
 	discover_service("origin");
 
 	for (int i = 33; i < 127; i++)
 		do_it(i, i - 32);
+
+	return 0;
 }

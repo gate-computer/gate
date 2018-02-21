@@ -158,7 +158,7 @@ static void peer_packet_received(struct gate_service *service, void *data, size_
 	}
 }
 
-void main()
+int main()
 {
 	struct gate_service_registry *r = gate_service_registry_create();
 	if (r == NULL)
@@ -191,4 +191,6 @@ void main()
 		gate_recv_for_services(r, 0);
 
 	gate_debug("payload exiting\n");
+
+	return 0;
 }

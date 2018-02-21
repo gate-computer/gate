@@ -73,9 +73,9 @@ struct gate_service_info_packet {
 	struct gate_service_info infos[0]; // variable length
 } GATE_PACKED;
 
-extern GATE_CONSTFUNC int __gate_get_abi_version() GATE_NOEXCEPT;
-extern GATE_CONSTFUNC int32_t __gate_get_arg() GATE_NOEXCEPT;
-extern GATE_CONSTFUNC size_t __gate_get_max_packet_size() GATE_NOEXCEPT;
+extern GATE_CONSTFUNC int __gate_get_abi_version(void) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC int32_t __gate_get_arg(void) GATE_NOEXCEPT;
+extern GATE_CONSTFUNC size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
 
 #define gate_abi_version     (__gate_get_abi_version())
 #define gate_arg             (__gate_get_arg())

@@ -31,7 +31,7 @@ void gate_service_registry_deinit(struct gate_service_registry *r)
 }
 
 GATE_SERVICE_DECL
-struct gate_service_registry *gate_service_registry_create()
+struct gate_service_registry *gate_service_registry_create(void)
 {
 	void *buf = malloc(gate_max_packet_size);
 	if (buf == NULL)

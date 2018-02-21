@@ -87,7 +87,7 @@ static struct peer_service peer_service = {
 	},
 };
 
-void main()
+int main()
 {
 	struct gate_service_registry *r = gate_service_registry_create();
 	if (r == NULL)
@@ -118,4 +118,6 @@ void main()
 			message_sent = true;
 		}
 	}
+
+	return 0;
 }
