@@ -132,10 +132,6 @@ Tentative features:
 
 ## Build requirements
 
-Due to the nature of the Go toolchain, it's best to checkout the Git repository
-at `$GOPATH/src/github.com/tsavola/gate`.  If you haven't set GOPATH, it
-defaults to `~/go`.
-
 The non-Go components can be built with `make`.  They require:
 
   - Linux
@@ -150,10 +146,10 @@ be granted by running `make capabilities` as root.  That requires:
 
   - libcap2-bin
 
-The Go programs can be built with `make bin`.  It downloads some dependencies
-to various directories under GOPATH.  In addition to them, these are required:
+The Go programs can be built with `make bin`.  It requires:
 
   - Go 1.8
+  - vgo - install it with `go get golang.org/x/vgo`
   - libcapstone-dev is needed by gate-runner
 
 The programming interface libraries can be built with `make devlibs`:
@@ -166,7 +162,7 @@ The programming interface libraries can be built with `make devlibs`:
 See the Makefile for more interesting targets like `check` and `benchmark`.
 The capabilities need to be granted for them to work.
 
-(The dependencies are listed using Debian/Ubuntu package names.  Other Linux
+(Some dependencies are listed using Debian/Ubuntu package names.  Other Linux
 distributions may use other names.)
 
 

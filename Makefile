@@ -4,42 +4,15 @@
 
 PWD		:= $(shell pwd)
 
-ifeq ($(GOPATH),)
-GOPATH		:= $(HOME)/go
-endif
-
-GO		?= go
+GO		?= vgo
 SETCAP		?= setcap
 
 CGROUP_BACKEND	?= systemd
 
-GOPACKAGEPREFIX	:= github.com/tsavola/gate
-
+GOPACKAGES	:= $(shell find . -name '*.go' -printf '%h\n' | sort -u)
 TESTS		:= $(dir $(wildcard tests/*/Makefile))
 
 -include config.mk
-
-GOPACKAGES := \
-	$(GOPACKAGEPREFIX)/cmd/gate-containerd \
-	$(GOPACKAGEPREFIX)/cmd/gate-runner \
-	$(GOPACKAGEPREFIX)/cmd/gate-server \
-	$(GOPACKAGEPREFIX)/cmd/gate-webio \
-	$(GOPACKAGEPREFIX)/examples/gate-talk \
-	$(GOPACKAGEPREFIX)/internal/cred \
-	$(GOPACKAGEPREFIX)/internal/memfd \
-	$(GOPACKAGEPREFIX)/internal/server \
-	$(GOPACKAGEPREFIX)/packet \
-	$(GOPACKAGEPREFIX)/packet/packetchan \
-	$(GOPACKAGEPREFIX)/run \
-	$(GOPACKAGEPREFIX)/server \
-	$(GOPACKAGEPREFIX)/server/serverconfig \
-	$(GOPACKAGEPREFIX)/service \
-	$(GOPACKAGEPREFIX)/service/defaults \
-	$(GOPACKAGEPREFIX)/service/echo \
-	$(GOPACKAGEPREFIX)/service/origin \
-	$(GOPACKAGEPREFIX)/service/peer \
-	$(GOPACKAGEPREFIX)/webapi \
-	$(GOPACKAGEPREFIX)/webserver
 
 export GATE_TEST_LIBDIR		:= $(PWD)/lib
 export GATE_TEST_DIR		:= $(PWD)/tests
@@ -49,14 +22,11 @@ lib:
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 
-get:
-	test $(PWD) = $(GOPATH)/src/$(GOPACKAGEPREFIX) && $(GO) get -d $(GOPACKAGES)
-
-bin: get
-	$(GO) build $(GOBUILDFLAGS) -o bin/containerd $(GOPACKAGEPREFIX)/cmd/gate-containerd
-	$(GO) build $(GOBUILDFLAGS) -o bin/runner $(GOPACKAGEPREFIX)/cmd/gate-runner
-	$(GO) build $(GOBUILDFLAGS) -o bin/server $(GOPACKAGEPREFIX)/cmd/gate-server
-	$(GO) build $(GOBUILDFLAGS) -o bin/webio $(GOPACKAGEPREFIX)/cmd/gate-webio
+bin:
+	$(GO) build $(GOBUILDFLAGS) -o bin/containerd ./cmd/gate-containerd
+	$(GO) build $(GOBUILDFLAGS) -o bin/runner ./cmd/gate-runner
+	$(GO) build $(GOBUILDFLAGS) -o bin/server ./cmd/gate-server
+	$(GO) build $(GOBUILDFLAGS) -o bin/webio ./cmd/gate-webio
 
 devlibs:
 	$(MAKE) -C crt
@@ -68,7 +38,7 @@ devlibs:
 tests: devlibs
 	$(MAKE) -C run/loader/tests
 	$(MAKE) -C examples/gate-talk/payload
-	$(GO) build $(GOBUILDFLAGS) -o bin/talk $(GOPACKAGEPREFIX)/examples/gate-talk
+	$(GO) build $(GOBUILDFLAGS) -o bin/talk ./examples/gate-talk
 	set -e; $(foreach dir,$(TESTS),$(MAKE) -C $(dir);)
 
 all: lib bin devlibs tests
@@ -112,4 +82,4 @@ clean:
 	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: lib get bin devlibs tests all capabilities check check-toolchain benchmark clean
+.PHONY: lib bin devlibs tests all capabilities check check-toolchain benchmark clean
