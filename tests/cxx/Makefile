@@ -12,8 +12,6 @@ LIBS := \
 	$(GATEDIR)/libc/libc_build/memset.bc \
 	$(GATEDIR)/libcxx/new.bc \
 	$(GATEDIR)/libcxx/vector.bc \
-	$(GATEDIR)/malloc/malloc.bc \
-	$(GATEDIR)/malloc/morecore.bc \
-	$(GATEDIR)/malloc/wasm.bc
+	$(GATEDIR)/malloc/all.bc
 
 include $(GATEDIR)/tests/test.mk

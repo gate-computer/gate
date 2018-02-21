@@ -12,8 +12,9 @@
 
 #include "../discover.h"
 
-static const int num_garbage_slots = 2;
-static void *garbage[num_garbage_slots];
+#define NUM_GARBAGE_SLOTS 2
+
+static void *garbage[NUM_GARBAGE_SLOTS];
 
 static void do_it(int c, int n)
 {
@@ -31,13 +32,13 @@ static void do_it(int c, int n)
 	gate_send_packet(buf);
 
 	while (true) {
-		for (int i = 0; i < num_garbage_slots; i++)
+		for (int i = 0; i < NUM_GARBAGE_SLOTS; i++)
 			if (garbage[i] == NULL) {
 				garbage[i] = buf;
 				return;
 			}
 
-		for (int i = 0; i < num_garbage_slots; i++) {
+		for (int i = 0; i < NUM_GARBAGE_SLOTS; i++) {
 			free(garbage[i]);
 			garbage[i] = NULL;
 		}

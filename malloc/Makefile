@@ -19,11 +19,11 @@ CPPFLAGS	+= \
 	-DNO_MALLINFO=1 \
 	-DNO_MALLOC_STATS=1 \
 	-DUSE_LOCKS=0 \
-	-Dmalloc_getpagesize=4096
+	-Dmalloc_getpagesize=65536
 
 CFLAGS		+= -Wall -Wextra -Wno-null-pointer-arithmetic -fomit-frame-pointer -ffreestanding -Oz
 
-OBJECTS		:= malloc.bc morecore.bc wasm.bc
+OBJECTS		:= malloc.bc wasm.bc
 
 build: all.bc
 
@@ -33,7 +33,6 @@ all.bc: $(OBJECTS)
 	$(LLVMLINK) -o $@ $(OBJECTS)
 
 malloc.bc: malloc.c morecore.h $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
-morecore.bc: morecore.c morecore.h $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 
 wasm.bc: wasm.ll Makefile $(GATEDIR)/crt/rules.mk
 	$(LLVMAS) -o $@ wasm.ll
