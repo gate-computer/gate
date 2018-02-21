@@ -464,7 +464,7 @@ func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *P
 
 func Load(m *wag.Module, r reader.Reader, rt *Runtime, textBuf wag.Buffer, roDataBuf []byte, startTrigger chan<- struct{},
 ) error {
-	m.MainSymbol = MainSymbol
+	m.EntrySymbol = EntrySymbol
 	return m.Load(r, rt.Environment(), textBuf, roDataBuf, RODataAddr, startTrigger)
 }
 

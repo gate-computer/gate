@@ -11,8 +11,8 @@ import (
 // some of these are also defined in defs.h, run.js and work.js
 
 const (
-	MainSymbol = "main"
-	RODataAddr = 0x10000
+	EntrySymbol = "_start"
+	RODataAddr  = 0x10000
 
 	minTextAddr  = 0x000400000000
 	maxTextAddr  = 0x2aa700000000

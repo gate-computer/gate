@@ -9,6 +9,7 @@ COPY libc/musl/include/ /usr/include/
 COPY libcxx/libcxx/include/ /usr/include/c++/
 COPY capi/include/ /usr/include/
 
+COPY crt/crt.bc /lib/wasm32/
 COPY crt/main.hpp /lib/wasm32/
 COPY libc/compat.bc /lib/wasm32/
 COPY libc/libc_build/*.bc /lib/wasm32/
