@@ -22,7 +22,7 @@ prog.wasm.sha512sum: prog.wasm
 	$(SHA512SUM) prog.wasm > $@
 
 clean:
-	rm -f prog.* *.bc *.s *.wast
+	rm -f prog.* *.bc
 
 .PHONY: build clean
 
