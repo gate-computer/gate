@@ -9,6 +9,7 @@ CXX		:= $(LLVMPREFIX)/bin/clang
 LLVMAS		:= $(LLVMPREFIX)/bin/llvm-as
 LLVMLINK	:= $(LLVMPREFIX)/bin/llvm-link
 
+CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
 CPPFLAGS	+= -isystem $(GATEDIR)/capi/include
 
 prog.wasm: $(OBJECTS)

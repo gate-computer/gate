@@ -7,6 +7,7 @@ GATEDIR		:= ..
 CPPFLAGS	+= \
 	-isystem $(GATEDIR)/libc/musl/arch/wasm32 \
 	-isystem $(GATEDIR)/libc/musl/include \
+	-isystem $(GATEDIR)/libc/include \
 	-include $(GATEDIR)/capi/include/gate.h \
 	-include morecore.h \
 	-DABORT='gate_exit(1)' \
@@ -21,13 +22,13 @@ CPPFLAGS	+= \
 	-DUSE_LOCKS=0 \
 	-Dmalloc_getpagesize=65536
 
-CFLAGS		+= -Wall -Wextra -Wno-null-pointer-arithmetic -fomit-frame-pointer -ffreestanding -Oz
-
 OBJECTS		:= malloc.bc wasm.bc
 
 build: all.bc
 
 include $(GATEDIR)/crt/rules.mk
+
+CFLAGS		+= -Wno-null-pointer-arithmetic
 
 all.bc: $(OBJECTS)
 	$(LLVMLINK) -o $@ $(OBJECTS)

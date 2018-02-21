@@ -4,30 +4,38 @@
 
 GATEDIR		:= ..
 
-CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -DNDEBUG
-CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
+CPPFLAGS	+= -isystem musl/arch/wasm32 -isystem musl/include -isystem include -DNDEBUG
+
+LIBC_SOURCES	:= $(shell find musl/src -maxdepth 2 -name '*.c' \
+	-not -name vfwscanf.c \
+	-not -name wcstod.c \
+	-not -name wcstol.c \
+)
+
+LIBC_OBJECTS	:= $(LIBC_SOURCES:musl/%.c=libc_build/obj/%.bc)
 
 include $(GATEDIR)/crt/rules.mk
 
 .DEFAULT_GOAL	:= build
 
 build: libc_build/done compat.bc
-	$(MAKE) libc-objects
 
-libc_build/done:
+libc_build/done: $(LIBC_OBJECTS)
+	@ set -e; for obj in $(LIBC_OBJECTS:libc_build/%=%); do ln -sf $$obj libc_build/; done
+	touch libc_build/done
+
+libc_build/obj/%.bc: musl/%.c libc_build/config.mak
+	$(MAKE) -C libc_build obj/$*.o
+	mv libc_build/obj/$*.o libc_build/obj/$*.bc
+
+libc_build/config.mak:
 	mkdir -p libc_build
-	export PYTHONPATH=musl && $(PYTHON) -B musl.py --clang_dir=$(LLVMBINDIR) --binaryen_dir=$(BINARYENBINDIR) --musl=$(realpath musl) --save-temps
-	touch $@
-
-libc-objects: $(patsubst %.ll,%.bc,$(wildcard libc_build/*.ll))
-
-libc_build/%.bc: libc_build/%.ll
-	$(LLVMAS) -o $@ libc_build/$*.ll
+	cd libc_build && ../musl/configure CC="$(CC) --target=wasm32-unknown-unknown -emit-llvm"
 
 compat.bc: compat.c $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
 
 clean:
-	rm -f *.bc *.wast
+	rm -f *.bc
 	rm -rf libc_build
 
-.PHONY: build libc-objects clean
+.PHONY: build clean

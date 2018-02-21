@@ -4,8 +4,7 @@
 
 GATEDIR		:= ..
 
-CPPFLAGS	+= -D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_HAS_NO_THREADS -D__ELF__ -isystem libcxx/include -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include
-CFLAGS		+= -Wall -Wextra -Wno-unused-parameter -fomit-frame-pointer -Oz
+CPPFLAGS	+= -D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_HAS_NO_THREADS -D__ELF__ -isystem libcxx/include -isystem $(GATEDIR)/libc/musl/arch/wasm32 -isystem $(GATEDIR)/libc/musl/include -isystem $(GATEDIR)/libc/include
 CXXFLAGS	+= -std=c++14 -fno-exceptions
 
 build: \
