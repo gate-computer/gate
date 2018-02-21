@@ -98,7 +98,7 @@ benchmark: lib bin tests
 	bin/runner -repeat=10000 -dump-time tests/nop/prog.wasm
 
 clean:
-	rm -rf bin lib pkg
+	rm -rf bin lib
 	$(MAKE) -C run/container clean
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
