@@ -1,8 +1,5 @@
 FROM tsavola/wag-toolchain
 
-RUN mv /usr/local/bin/compile /usr/local/bin/wag-compile && \
-    mv /usr/local/bin/link /usr/local/bin/wag-link
-
 COPY docker/toolchain/compile /usr/local/bin/compile
 COPY docker/toolchain/compile++ /usr/local/bin/compile++
 COPY docker/toolchain/link /usr/local/bin/link

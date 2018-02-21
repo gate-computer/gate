@@ -39,7 +39,7 @@ build: \
 	vector.bc
 
 %.bc: libcxx/src/%.cpp
-	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -c -o $@ libcxx/src/$*.cpp
+	$(CXX) --target=wasm32-unknown-unknown -emit-llvm $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -c -o $@ libcxx/src/$*.cpp
 
 clean:
 	rm -f *.bc

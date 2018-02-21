@@ -9,7 +9,7 @@ GATETOOLCHAIN	?= tsavola/gate-toolchain
 uid		:= $(shell id -u)
 gid		:= $(shell id -g)
 pwd		:= $(shell pwd)
-dockertoolchain	:= $(DOCKER) run --rm -i -u $(uid):$(gid) -v $(pwd):$(pwd) -w $(pwd) -e WAGTOOLCHAIN_ALLOCATE_STACK=$(WAGTOOLCHAIN_ALLOCATE_STACK) $(GATETOOLCHAIN)
+dockertoolchain	:= $(DOCKER) run --rm -i -u $(uid):$(gid) -v $(pwd):$(pwd) -w $(pwd) $(GATETOOLCHAIN)
 
 CC		:= $(dockertoolchain) compile
 CXX		:= $(dockertoolchain) compile++
@@ -32,7 +32,7 @@ example.wasm: example.bc
 	$(LINKER) -o $@ example.bc $(LIBS)
 
 example.bc: example.cpp Makefile
-	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -o $@ example.cpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -emit-llvm -c -o $@ example.cpp
 
 clean:
 	rm -f *.wasm *.bc
