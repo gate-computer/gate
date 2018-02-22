@@ -10,6 +10,7 @@ import (
 	"io"
 	"sort"
 
+	"github.com/ianlancetaylor/demangle"
 	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/types"
 )
@@ -136,7 +137,12 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []b
 			sigStr = funcSigs[funcNum].StringWithNames(localNames)
 		}
 
-		fmt.Fprintf(w, "#%d  %s%s\n", depth, name, sigStr)
+		prettyName, err := demangle.ToString(name)
+		if err != nil {
+			prettyName = name
+		}
+
+		fmt.Fprintf(w, "#%d  %s%s\n", depth, prettyName, sigStr)
 	}
 
 	if len(stack) != 0 {
