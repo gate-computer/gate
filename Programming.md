@@ -200,6 +200,6 @@ It contains the `compile`, `compile++` and `link` scripts.  They can be invoked
 more or less like gcc.  For example:
 
 ```sh
-docker ... tsavola/gate-toolchain compile -Wall -c -o example.bc example.c
+docker ... tsavola/gate-toolchain compile -Wall -emit-llvm -c -o example.bc example.c
 docker ... tsavola/gate-toolchain link -o example.wasm example.bc /lib/wasm32/malloc.bc
 ```
