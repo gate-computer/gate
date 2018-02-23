@@ -19,6 +19,7 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/dewag"
+	"github.com/tsavola/wag/insnmap"
 	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/wasm"
 )
@@ -68,10 +69,14 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	wasm := openProgram(testName)
 	defer wasm.Close()
 
-	var nameSection sections.NameSection
+	var (
+		nameSection sections.NameSection
+		insnMap     insnmap.InsnMap
+	)
 
 	m := wag.Module{
 		UnknownSectionLoader: sections.UnknownLoaders{"name": nameSection.Load}.Load,
+		InsnMap:              &insnMap,
 	}
 
 	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, new(bytes.Buffer), nil, nil)
