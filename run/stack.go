@@ -131,18 +131,15 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []b
 			name = fmt.Sprintf("func-%d", funcNum)
 		}
 
-		var sigStr string
-
-		if funcNum < len(funcSigs) {
-			sigStr = funcSigs[funcNum].StringWithNames(localNames)
-		}
-
 		prettyName, err := demangle.ToString(name)
 		if err != nil {
 			prettyName = name
+			if funcNum < len(funcSigs) {
+				prettyName += funcSigs[funcNum].StringWithNames(localNames)
+			}
 		}
 
-		fmt.Fprintf(w, "#%d  %s%s\n", depth, prettyName, sigStr)
+		fmt.Fprintf(w, "#%d  %s\n", depth, prettyName)
 	}
 
 	if len(stack) != 0 {
