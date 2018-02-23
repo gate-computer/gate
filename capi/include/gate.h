@@ -43,6 +43,78 @@ extern "C" {
 
 #define GATE_SERVICE_FLAG_AVAILABLE 0x1
 
+#ifdef __cplusplus
+#define __gate_debug_bool_type bool
+#else
+#define __gate_debug_bool_type _Bool
+#endif
+
+// clang-format off
+#define __gate_debug_generic_func(x) _Generic((x), \
+		__gate_debug_bool_type: gate_debug_uint, \
+		signed char:            gate_debug_int,  \
+		signed short int:       gate_debug_int,  \
+		signed int:             gate_debug_int,  \
+		signed long int:        gate_debug_int,  \
+		signed long long int:   gate_debug_int,  \
+		unsigned char:          gate_debug_uint, \
+		unsigned short int:     gate_debug_uint, \
+		unsigned int:           gate_debug_uint, \
+		unsigned long int:      gate_debug_uint, \
+		unsigned long long int: gate_debug_uint, \
+		const char *:           gate_debug_str,  \
+		char *:                 gate_debug_str,  \
+		default:                __gate_debug_type_not_supported \
+	)
+// clang-format on
+
+#define gate_debug1(a)                           \
+	do {                                     \
+		__gate_debug_generic_func(a)(a); \
+	} while (0)
+
+#define gate_debug2(a, b)                        \
+	do {                                     \
+		__gate_debug_generic_func(a)(a); \
+		__gate_debug_generic_func(b)(b); \
+	} while (0)
+
+#define gate_debug3(a, b, c)                     \
+	do {                                     \
+		__gate_debug_generic_func(a)(a); \
+		__gate_debug_generic_func(b)(b); \
+		__gate_debug_generic_func(c)(c); \
+	} while (0)
+
+#define gate_debug4(a, b, c, d)                  \
+	do {                                     \
+		__gate_debug_generic_func(a)(a); \
+		__gate_debug_generic_func(b)(b); \
+		__gate_debug_generic_func(c)(c); \
+		__gate_debug_generic_func(d)(d); \
+	} while (0)
+
+#define gate_debug5(a, b, c, d, e)               \
+	do {                                     \
+		__gate_debug_generic_func(a)(a); \
+		__gate_debug_generic_func(b)(b); \
+		__gate_debug_generic_func(c)(c); \
+		__gate_debug_generic_func(d)(d); \
+		__gate_debug_generic_func(e)(e); \
+	} while (0)
+
+#define gate_debug6(a, b, c, d, e, f)            \
+	do {                                     \
+		__gate_debug_generic_func(a)(a); \
+		__gate_debug_generic_func(b)(b); \
+		__gate_debug_generic_func(c)(c); \
+		__gate_debug_generic_func(d)(d); \
+		__gate_debug_generic_func(e)(e); \
+		__gate_debug_generic_func(f)(f); \
+	} while (0)
+
+#define gate_debug gate_debug1
+
 enum gate_func_id {
 	__GATE_FUNC_RESERVED
 };
@@ -88,23 +160,51 @@ extern void __gate_debug_write(const void *data, size_t size) GATE_NOEXCEPT;
 extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
 extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
 
+void __gate_debug_int(int64_t n) GATE_NOEXCEPT;
+void __gate_debug_str(const char *s) GATE_NOEXCEPT;
+void __gate_debug_uint(uint64_t n) GATE_NOEXCEPT;
+void __gate_debug_type_not_supported(void); // no implementation
 void __gate_recv_packet(struct gate_packet *buf) GATE_NOEXCEPT;
 size_t __gate_recv_packet_nonblock(struct gate_packet *buf) GATE_NOEXCEPT;
 void __gate_send_packet(const struct gate_packet *data) GATE_NOEXCEPT;
 size_t __gate_send_packet_nonblock(const struct gate_packet *data) GATE_NOEXCEPT;
 GATE_PURE size_t __gate_nonblock_send_size() GATE_NOEXCEPT;
 
-static inline void gate_debug(const char *s)
+static inline void gate_debug_int(int64_t n) GATE_NOEXCEPT
+{
+#ifdef NDEBUG
+	(void) n;
+#else
+	__gate_debug_int(n);
+#endif
+}
+
+static inline void gate_debug_str(const char *s) GATE_NOEXCEPT
 {
 #ifdef NDEBUG
 	(void) s; // attempt to suppress most warnings
 #else
-	size_t size = 0;
+	__gate_debug_str(s);
+#endif
+}
 
-	for (const char *ptr = s; *ptr != '\0'; ptr++)
-		size++;
+static inline void gate_debug_uint(uint64_t n) GATE_NOEXCEPT
+{
+#ifdef NDEBUG
+	(void) n;
+#else
+	__gate_debug_uint(n);
+#endif
+}
 
-	__gate_debug_write(s, size);
+static inline void gate_debug_write(const char *data, size_t size)
+	GATE_NOEXCEPT
+{
+#ifdef NDEBUG
+	(void) data;
+	(void) size;
+#else
+	__gate_debug_write(data, size);
 #endif
 }
 

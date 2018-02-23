@@ -9,7 +9,7 @@
 
 extern "C" void __cxa_pure_virtual()
 {
-	__gate_debug_write("\nPure virtual method called\n", 28);
+	__gate_debug_str("\nPure virtual method called\n");
 	__gate_exit(1);
 }
 
@@ -21,7 +21,7 @@ void* operator new(size_t size)
 {
 	void* ptr = operator new(size, std::nothrow);
 	if (ptr == nullptr) {
-		__gate_debug_write("\nOut of memory\n", 15);
+		__gate_debug_str("\nOut of memory\n");
 		__gate_exit(1);
 	}
 	return ptr;

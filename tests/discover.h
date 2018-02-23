@@ -38,9 +38,7 @@ static inline void discover_service(const char *name)
 	}
 
 	if ((ev->infos[0].flags & GATE_SERVICE_FLAG_AVAILABLE) == 0) {
-		gate_debug("Service not available: ");
-		gate_debug(name);
-		gate_debug("\n");
+		gate_debug3("Service not available: ", name, "\n");
 		gate_exit(1);
 	}
 }

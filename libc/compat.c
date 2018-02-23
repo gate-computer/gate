@@ -12,7 +12,7 @@ int *__errno_location(void)
 
 void abort(void)
 {
-	__gate_debug_write("\nAborted\n", 9);
+	__gate_debug_str("\nAborted\n");
 	__gate_exit(1);
 }
 

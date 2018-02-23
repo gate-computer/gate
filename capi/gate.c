@@ -126,3 +126,42 @@ size_t __gate_nonblock_send_size()
 	else
 		return 0;
 }
+
+void __gate_debug_str(const char *s)
+{
+	size_t size = 0;
+
+	for (const char *ptr = s; *ptr != '\0'; ptr++)
+		size++;
+
+	__gate_debug_write(s, size);
+}
+
+void __gate_debug_uint(uint64_t n)
+{
+	char buf[20];
+	int i = sizeof buf;
+
+	do {
+		buf[--i] = '0' + (n % 10);
+		n /= 10;
+	} while (n);
+
+	__gate_debug_write(buf + i, sizeof buf - i);
+}
+
+void __gate_debug_int(int64_t n)
+{
+	uint64_t u;
+
+	if (n >= 0) {
+		u = n;
+	} else {
+		const char sign[1] = {'-'};
+		__gate_debug_write(sign, sizeof sign);
+
+		u = ~n + 1;
+	}
+
+	__gate_debug_uint(u);
+}
