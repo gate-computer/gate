@@ -11,8 +11,8 @@ import (
 	"sort"
 
 	"github.com/ianlancetaylor/demangle"
+	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/sections"
-	"github.com/tsavola/wag/types"
 )
 
 type callSite struct {
@@ -20,7 +20,7 @@ type callSite struct {
 	stackOffset int
 }
 
-func findCaller(funcMap []byte, retAddr uint32) (num int, initial, ok bool) {
+func findCaller(funcMap []byte, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
 	count := len(funcMap) / 4
 	if count == 0 {
 		return
@@ -43,6 +43,7 @@ func findCaller(funcMap []byte, retAddr uint32) (num int, initial, ok bool) {
 	})
 
 	if num < count {
+		funcAddr = endian.Uint32(funcMap[num*4 : (num+1)*4])
 		ok = true
 	}
 	return
@@ -64,8 +65,12 @@ func getCallSites(callMap []byte) (callSites map[int]callSite) {
 	return
 }
 
-func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection,
+func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module, ns *sections.NameSection,
 ) (err error) {
+	funcMap := m.FunctionMap()
+	callMap := m.CallMap()
+	funcSigs := m.FunctionSignatures()
+
 	stack = stack[signalStackReserve:]
 
 	unused := endian.Uint64(stack)
@@ -92,7 +97,7 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []b
 			return
 		}
 
-		funcNum, start, ok := findCaller(funcMap, uint32(retAddr))
+		funcNum, funcAddr, start, ok := findCaller(funcMap, uint32(retAddr))
 		if !ok {
 			fmt.Fprintf(w, "#%d  <function not found for return address 0x%x>\n", depth, retAddr)
 			return
@@ -119,8 +124,6 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []b
 			return
 		}
 
-		stack = stack[site.stackOffset:]
-
 		var name string
 		var localNames []string
 
@@ -139,7 +142,9 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack, funcMap, callMap []b
 			}
 		}
 
-		fmt.Fprintf(w, "#%d  %s\n", depth, prettyName)
+		fmt.Fprintf(w, "#%d  %s  +0x%x\n", depth, prettyName, uint32(retAddr)-funcAddr)
+
+		stack = stack[site.stackOffset:]
 	}
 
 	if len(stack) != 0 {

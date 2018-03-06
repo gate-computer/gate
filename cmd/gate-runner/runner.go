@@ -242,7 +242,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	}
 
 	if dumpStack {
-		err := image.DumpStacktrace(os.Stderr, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &ns)
+		err := image.DumpStacktrace(os.Stderr, &m, &ns)
 		if err != nil {
 			log.Printf("stacktrace: %v", err)
 		}

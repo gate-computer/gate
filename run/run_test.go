@@ -136,7 +136,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	if stacktrace {
 		var buf bytes.Buffer
 
-		if err := image.DumpStacktrace(&buf, m.FunctionMap(), m.CallMap(), m.FunctionSignatures(), &nameSection); err == nil {
+		if err := image.DumpStacktrace(&buf, &m, &nameSection); err == nil {
 			t.Logf("stacktrace:\n%s", string(buf.Bytes()))
 		} else {
 			t.Errorf("stacktrace error: %v", err)

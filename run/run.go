@@ -17,7 +17,6 @@ import (
 	"github.com/tsavola/wag/reader"
 	"github.com/tsavola/wag/sections"
 	"github.com/tsavola/wag/traps"
-	"github.com/tsavola/wag/types"
 	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate/internal/memfd"
@@ -237,7 +236,7 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSigs []types.Function, ns *sections.NameSection,
+func (image *Image) DumpStacktrace(w io.Writer, m *wag.Module, ns *sections.NameSection,
 ) (err error) {
 	fd := int(image.maps.Fd())
 
@@ -250,7 +249,7 @@ func (image *Image) DumpStacktrace(w io.Writer, funcMap, callMap []byte, funcSig
 	}
 	defer syscall.Munmap(stack)
 
-	return writeStacktraceTo(w, image.info.TextAddr, stack, funcMap, callMap, funcSigs, ns)
+	return writeStacktraceTo(w, image.info.TextAddr, stack, m, ns)
 }
 
 type Process struct {
