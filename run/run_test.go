@@ -59,7 +59,7 @@ func TestServices(t *testing.T) {
 func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	const (
 		memorySizeLimit = 24 * wasm.Page
-		stackSize       = 4096
+		stackSize       = 24 * 4096
 	)
 
 	rt := runtest.NewRuntime(nil)
