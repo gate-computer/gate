@@ -2,8 +2,6 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-export WAGTOOLCHAIN_ALLOCATE_STACK := 1048576
-
 SHA512SUM	?= sha512sum
 
 SOURCE		?= $(firstword $(wildcard *.c *.cpp))
