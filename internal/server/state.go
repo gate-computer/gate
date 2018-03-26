@@ -19,7 +19,6 @@ import (
 
 	"github.com/tsavola/gate/internal/defaultlog"
 	"github.com/tsavola/gate/run"
-	config "github.com/tsavola/gate/server/serverconfig"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/wasm"
@@ -41,7 +40,7 @@ func ParseId(hex string) (id uint64, ok bool) {
 }
 
 type State struct {
-	config.Config
+	Config
 
 	instanceFactory <-chan *Instance
 
@@ -51,7 +50,7 @@ type State struct {
 	instances      map[uint64]*Instance
 }
 
-func (s *State) Init(ctx context.Context, conf config.Config) {
+func (s *State) Init(ctx context.Context, conf Config) {
 	if conf.ErrorLog == nil {
 		conf.ErrorLog = defaultlog.StandardLogger{}
 	}
@@ -61,19 +60,19 @@ func (s *State) Init(ctx context.Context, conf config.Config) {
 	}
 
 	if conf.MemorySizeLimit > 0 {
-		conf.MemorySizeLimit = (conf.MemorySizeLimit + int(wasm.Page-1)) &^ int(wasm.Page-1)
+		conf.MemorySizeLimit = (conf.MemorySizeLimit + wasm.Page - 1) &^ (wasm.Page - 1)
 	} else {
-		conf.MemorySizeLimit = config.DefaultMemorySizeLimit
+		conf.MemorySizeLimit = DefaultMemorySizeLimit
 	}
 
 	if conf.StackSize > maxStackSize {
 		conf.StackSize = maxStackSize
 	} else if conf.StackSize <= 0 {
-		conf.StackSize = config.DefaultStackSize
+		conf.StackSize = DefaultStackSize
 	}
 
 	if conf.PreforkProcs <= 0 {
-		conf.PreforkProcs = config.DefaultPreforkProcs
+		conf.PreforkProcs = DefaultPreforkProcs
 	}
 
 	s.Config = conf
@@ -530,11 +529,11 @@ func (inst *Instance) kill(s *State) {
 func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State,
 ) (err error) {
 	_, memorySize := m.MemoryLimits()
-	if limit := wasm.MemorySize(s.MemorySizeLimit); memorySize > limit {
-		memorySize = limit
+	if memorySize > s.MemorySizeLimit {
+		memorySize = s.MemorySizeLimit
 	}
 
-	err = inst.run.Populate(m, memorySize, int32(s.StackSize))
+	err = inst.run.Populate(m, memorySize, s.StackSize)
 	if err != nil {
 		return
 	}
@@ -581,8 +580,8 @@ func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader,
 		}
 	}()
 
-	services := s.Services(&config.Server{
-		Origin: config.Origin{
+	services := s.Services(&Server{
+		Origin: Origin{
 			R: r,
 			W: w,
 		},

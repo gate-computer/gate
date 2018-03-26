@@ -148,7 +148,7 @@ be granted by running `make capabilities` as root.  That requires:
 
 The Go programs can be built with `make bin`.  It requires:
 
-  - Go 1.8
+  - Go 1.10 (or 1.9 if not using vgo)
   - vgo - install it with `go get golang.org/x/vgo`
   - libcapstone-dev is needed by gate-runner
 

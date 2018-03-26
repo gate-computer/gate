@@ -20,7 +20,6 @@ import (
 	"github.com/tsavola/config"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/serverconfig"
 	"github.com/tsavola/gate/service"
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
@@ -45,7 +44,7 @@ type Config struct {
 	Runtime run.Config
 
 	Server struct {
-		serverconfig.Config
+		server.Config
 		MaxConns int
 		Debug    string
 	}
@@ -92,9 +91,9 @@ func main() {
 	c.Runtime.LibDir = "lib"
 	c.Runtime.CgroupTitle = run.DefaultCgroupTitle
 	c.Server.Services = services
-	c.Server.MemorySizeLimit = serverconfig.DefaultMemorySizeLimit
-	c.Server.StackSize = serverconfig.DefaultStackSize
-	c.Server.PreforkProcs = serverconfig.DefaultPreforkProcs
+	c.Server.MemorySizeLimit = server.DefaultMemorySizeLimit
+	c.Server.StackSize = server.DefaultStackSize
+	c.Server.PreforkProcs = server.DefaultPreforkProcs
 	c.Server.MaxConns = int(nofile.Cur-globalFileOverhead-procInitFilePool) / connFileOverhead
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
@@ -217,7 +216,7 @@ func main() {
 	critLog.Fatal(s.Serve(l))
 }
 
-func services(s *serverconfig.Server) run.ServiceRegistry {
+func services(s *server.Server) run.ServiceRegistry {
 	r := service.Defaults.Clone()
 	origin.New(s.Origin.R, s.Origin.W).Register(r)
 	return r

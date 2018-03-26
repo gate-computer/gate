@@ -22,19 +22,18 @@ import (
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/serverconfig"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	api "github.com/tsavola/gate/webapi"
 )
 
-func services(s *serverconfig.Server) run.ServiceRegistry {
+func services(s *server.Server) run.ServiceRegistry {
 	r := service.Defaults.Clone()
 	origin.New(s.Origin.R, s.Origin.W).Register(r)
 	return r
 }
 
-var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &serverconfig.Config{
+var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &server.Config{
 	Runtime:  runtest.NewRuntime(nil).Runtime,
 	Services: services,
 	ErrorLog: log.New(os.Stderr, "ERROR: ", 0),

@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package serverconfig
+package server
 
 import (
 	"io"
 
 	"github.com/tsavola/gate/run"
+	"github.com/tsavola/wag/wasm"
 )
 
 const (
@@ -32,7 +33,7 @@ type Config struct {
 	InfoLog  run.Logger
 	Debug    io.Writer
 
-	MemorySizeLimit int
-	StackSize       int
+	MemorySizeLimit wasm.MemorySize
+	StackSize       int32
 	PreforkProcs    int
 }
