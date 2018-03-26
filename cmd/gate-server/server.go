@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"log"
 	"log/syslog"
 	"net"
@@ -18,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tsavola/config"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/serverconfig"
@@ -25,94 +25,99 @@ import (
 	_ "github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/webserver"
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
 )
 
 const (
-	renewCertBefore = 30 * 24 * time.Hour
-
 	// stdio, syslog, runtime, listener, debug, autocert (guess)
 	globalFileOverhead = 3 + 3 + 1 + 1 + 1 + 2
 
 	// conn, image, process
 	connFileOverhead = 1 + 1 + 3
 
-	processInitParallelism = 10
-	processInitFilePool    = (7 - connFileOverhead) * processInitParallelism
+	procInitParallelism = 10
+	procInitFilePool    = (7 - connFileOverhead) * procInitParallelism
 )
 
+type Config struct {
+	Runtime run.Config
+
+	Server struct {
+		serverconfig.Config
+		MaxConns int
+		Debug    string
+	}
+
+	HTTP struct {
+		Net  string
+		Addr string
+
+		TLS struct {
+			Enabled bool
+			Domains []string
+		}
+	}
+
+	API webserver.Config
+
+	ACME struct {
+		AcceptTOS    bool
+		CacheDir     string
+		RenewBefore  time.Duration
+		DirectoryURL string
+		Email        string
+		ForceRSA     bool
+	}
+
+	Log struct {
+		Syslog  bool
+		Verbose bool
+	}
+}
+
 func main() {
-	var nofile syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &nofile); err != nil {
+	var (
+		nofile syscall.Rlimit
+	)
+	err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &nofile)
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	var (
-		runconf = run.Config{
-			MaxProcs:    run.DefaultMaxProcs,
-			LibDir:      "lib",
-			CgroupTitle: run.DefaultCgroupTitle,
-		}
-		serverconf = serverconfig.Config{
-			MemorySizeLimit: serverconfig.DefaultMemorySizeLimit,
-			StackSize:       serverconfig.DefaultStackSize,
-			PreforkProcs:    serverconfig.DefaultPreforkProcs,
-		}
-		webconf = webserver.Config{
-			MaxProgramSize: webserver.DefaultMaxProgramSize,
-		}
-		addr          = "localhost:8888"
-		maxConns      = int(nofile.Cur-globalFileOverhead-processInitFilePool) / connFileOverhead
-		letsencrypt   = false
-		email         = ""
-		acceptTOS     = false
-		certCacheDir  = "/var/lib/gate-server-letsencrypt"
-		syslogging    = false
-		clientLogging = false
-		debug         = false
-	)
+	c := new(Config)
 
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [options] [domain...]\nOptions:\n", os.Args[0])
-		flag.PrintDefaults()
-	}
+	c.Runtime.MaxProcs = run.DefaultMaxProcs
+	c.Runtime.LibDir = "lib"
+	c.Runtime.CgroupTitle = run.DefaultCgroupTitle
+	c.Server.Services = services
+	c.Server.MemorySizeLimit = serverconfig.DefaultMemorySizeLimit
+	c.Server.StackSize = serverconfig.DefaultStackSize
+	c.Server.PreforkProcs = serverconfig.DefaultPreforkProcs
+	c.Server.MaxConns = int(nofile.Cur-globalFileOverhead-procInitFilePool) / connFileOverhead
+	c.HTTP.Net = "tcp"
+	c.HTTP.Addr = "localhost:8888"
+	c.HTTP.TLS.Domains = []string{"example.invalid"}
+	c.API.MaxProgramSize = webserver.DefaultMaxProgramSize
+	c.ACME.CacheDir = "/var/lib/gate-server-acme"
+	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 
-	flag.IntVar(&runconf.MaxProcs, "max-procs", runconf.MaxProcs, "limit number of simultaneous programs")
-	flag.StringVar(&runconf.DaemonSocket, "daemon-socket", runconf.DaemonSocket, "use containerd via unix socket")
-	flag.UintVar(&runconf.ContainerCred.Uid, "container-uid", runconf.ContainerCred.Uid, "user id for bootstrapping executor")
-	flag.UintVar(&runconf.ContainerCred.Gid, "container-gid", runconf.ContainerCred.Gid, "group id for bootstrapping executor")
-	flag.UintVar(&runconf.ExecutorCred.Uid, "executor-uid", runconf.ExecutorCred.Uid, "user id for executing code")
-	flag.UintVar(&runconf.ExecutorCred.Gid, "executor-gid", runconf.ExecutorCred.Gid, "group id for executing code")
-	flag.StringVar(&runconf.LibDir, "libdir", runconf.LibDir, "path")
-	flag.StringVar(&runconf.CgroupParent, "cgroup-parent", runconf.CgroupParent, "slice")
-	flag.StringVar(&runconf.CgroupTitle, "cgroup-title", runconf.CgroupTitle, "prefix of dynamic name")
-	flag.IntVar(&serverconf.MemorySizeLimit, "memory-size-limit", serverconf.MemorySizeLimit, "memory size limit")
-	flag.IntVar(&serverconf.StackSize, "stack-size", serverconf.StackSize, "stack size")
-	flag.IntVar(&serverconf.PreforkProcs, "prefork-procs", serverconf.PreforkProcs, "number of processes to create in advance")
-	flag.IntVar(&webconf.MaxProgramSize, "max-program-size", webconf.MaxProgramSize, "maximum accepted WebAssembly module upload size")
-	flag.StringVar(&addr, "addr", addr, "listening [address]:port")
-	flag.IntVar(&maxConns, "max-conns", maxConns, "limit number of simultaneous connections")
-	flag.BoolVar(&letsencrypt, "letsencrypt", letsencrypt, "enable automatic TLS; domain names should be listed after the options")
-	flag.StringVar(&email, "email", email, "contact address for Let's Encrypt")
-	flag.BoolVar(&acceptTOS, "accept-tos", acceptTOS, "accept Let's Encrypt's terms of service")
-	flag.StringVar(&certCacheDir, "cert-cache-dir", certCacheDir, "certificate storage")
-	flag.BoolVar(&syslogging, "syslog", syslogging, "send log messages to syslog instead of stderr")
-	flag.BoolVar(&clientLogging, "client-logging", clientLogging, "log client connection errors")
-	flag.BoolVar(&debug, "debug", debug, "write payload programs' debug output to stderr")
-
+	flag.Var(config.FileReader(c), "f", "read YAML configuration file")
+	flag.Var(config.Assigner(c), "c", "set a configuration key (path.to.key=value)")
+	flag.Usage = config.FlagUsage(c)
 	flag.Parse()
 
-	domains := flag.Args()
-
-	ctx := context.Background()
+	if true {
+		log.Fatal(config.Write(os.Stdout, c))
+	}
 
 	var (
 		critLog *log.Logger
 		errLog  *log.Logger
+		infoLog *log.Logger
 	)
-
-	if syslogging {
+	if c.Log.Syslog {
 		tag := path.Base(os.Args[0])
 
 		w, err := syslog.New(syslog.LOG_CRIT, tag)
@@ -127,82 +132,88 @@ func main() {
 		}
 		errLog = log.New(w, "", 0)
 
-		if clientLogging {
+		if c.Log.Verbose {
 			w, err = syslog.New(syslog.LOG_INFO, tag)
 			if err != nil {
 				critLog.Fatal(err)
 			}
-			serverconf.InfoLog = log.New(w, "", 0)
+			infoLog = log.New(w, "", 0)
 		}
 	} else {
 		critLog = log.New(os.Stderr, "", 0)
 		errLog = critLog
 
-		if clientLogging {
-			serverconf.InfoLog = critLog
+		if c.Log.Verbose {
+			infoLog = critLog
 		}
 	}
+	c.Runtime.ErrorLog = errLog
+	c.Server.ErrorLog = errLog
+	c.Server.InfoLog = infoLog
 
-	runconf.ErrorLog = errLog
+	ctx := context.Background()
 
-	runtimeFileLimit := int(nofile.Cur) - globalFileOverhead - maxConns
-	runconf.FileLimiter = run.NewFileLimiter(runtimeFileLimit)
-
-	errLog.Printf("process file limit = %d", nofile.Cur)
-	errLog.Printf("runtime file limit = %d", runtimeFileLimit)
-	errLog.Printf("max conns          = %d", maxConns)
-
-	rt, err := run.NewRuntime(ctx, &runconf)
+	c.Runtime.FileLimiter = run.NewFileLimiter(int(nofile.Cur) - globalFileOverhead - c.Server.MaxConns)
+	c.Server.Runtime, err = run.NewRuntime(ctx, &c.Runtime)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 
 	go func() {
-		<-rt.Done()
+		<-c.Server.Runtime.Done()
 		critLog.Fatal("executor died")
 	}()
 
-	serverconf.Runtime = rt
-	serverconf.Services = services
-	serverconf.ErrorLog = errLog
+	switch c.Server.Debug {
+	case "":
 
-	if debug {
-		serverconf.Debug = os.Stderr
+	case "unsafe-stderr":
+		c.Server.Config.Debug = os.Stderr
+
+	default:
+		log.Fatalf("unknown server.debug option: %q", c.Server.Debug)
 	}
 
-	state := server.NewState(ctx, &serverconf)
-	handler := webserver.NewHandler(ctx, "/", state, &webconf)
+	var (
+		acmeCache  autocert.Cache
+		acmeClient *acme.Client
+	)
+	if c.ACME.AcceptTOS {
+		acmeCache = autocert.DirCache(c.ACME.CacheDir)
+		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
+	}
 
-	l, err := net.Listen("tcp", addr)
+	state := server.NewState(ctx, &c.Server.Config)
+	handler := webserver.NewHandler(ctx, "/", state, &c.API)
+
+	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 
-	if maxConns > 0 {
-		l = netutil.LimitListener(l, maxConns)
+	if n := c.Server.MaxConns; n > 0 {
+		l = netutil.LimitListener(l, n)
 	}
 
-	if letsencrypt {
-		if !acceptTOS {
-			critLog.Fatal("-accept-tos option not set")
+	if c.HTTP.TLS.Enabled {
+		if !c.ACME.AcceptTOS {
+			log.Fatal("http.tls requires acme.accepttos")
 		}
 
-		m := autocert.Manager{
+		m := &autocert.Manager{
 			Prompt:      autocert.AcceptTOS,
-			Cache:       autocert.DirCache(certCacheDir),
-			HostPolicy:  autocert.HostWhitelist(domains...),
-			RenewBefore: renewCertBefore,
-			Email:       email,
+			Cache:       acmeCache,
+			HostPolicy:  autocert.HostWhitelist(c.HTTP.TLS.Domains...),
+			RenewBefore: c.ACME.RenewBefore,
+			Client:      acmeClient,
+			Email:       c.ACME.Email,
+			ForceRSA:    c.ACME.ForceRSA,
 		}
 
-		l = tls.NewListener(l, &tls.Config{
-			GetCertificate: m.GetCertificate,
-		})
+		l = tls.NewListener(l, &tls.Config{GetCertificate: m.GetCertificate})
 	}
 
-	s := http.Server{
-		Handler: handler,
-	}
+	s := http.Server{Handler: handler}
 	critLog.Fatal(s.Serve(l))
 }
 

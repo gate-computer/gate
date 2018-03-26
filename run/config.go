@@ -36,9 +36,9 @@ type Config struct {
 	FileLimiter *FileLimiter
 
 	// The rest are only applicable if DaemonSocket is not set:
-	ContainerCred Cred
-	ExecutorCred  Cred
-	LibDir        string
+	Container struct{ Cred }
+	Executor  struct{ Cred }
+	LibDir    string
 
 	// These have no effect if container was compiled without cgroup support:
 	CgroupParent string

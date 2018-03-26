@@ -16,6 +16,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/tsavola/config"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/service"
 	_ "github.com/tsavola/gate/service/defaults"
@@ -42,47 +43,47 @@ func init() {
 	echo.Default.Log = log.New(os.Stderr, "echo service: ", 0)
 }
 
-var (
-	stackSize = 65536
-	dumpTime  = false
-	dumpText  = false
-	dumpStack = false
-	repeat    = 1
-)
+type Config struct {
+	Runtime run.Config
+
+	Program struct {
+		StackSize int32
+		Arg       int32
+
+		Dump struct {
+			Text  bool
+			Stack bool
+		}
+	}
+
+	Origin struct {
+		Net  string
+		Addr string
+	}
+
+	Benchmark struct {
+		Repeat int
+		Timing bool
+	}
+}
+
+var c = new(Config)
 
 func main() {
-	var (
-		config = run.Config{
-			MaxProcs:    run.DefaultMaxProcs,
-			LibDir:      "lib",
-			CgroupTitle: run.DefaultCgroupTitle,
-		}
-		addr = ""
-		arg  = 0
-	)
+	c.Runtime.MaxProcs = 100
+	c.Runtime.LibDir = "lib"
+	c.Runtime.CgroupTitle = run.DefaultCgroupTitle
+	c.Program.StackSize = 65536
+	c.Benchmark.Repeat = 1
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] wasm...\nOptions:\n", os.Args[0])
 		flag.PrintDefaults()
 	}
+	flag.Usage = config.FlagUsage(c)
 
-	flag.IntVar(&config.MaxProcs, "max-procs", config.MaxProcs, "limit number of simultaneous programs")
-	flag.StringVar(&config.DaemonSocket, "daemon-socket", config.DaemonSocket, "use containerd via unix socket")
-	flag.UintVar(&config.ContainerCred.Uid, "container-uid", config.ContainerCred.Uid, "user id for bootstrapping executor")
-	flag.UintVar(&config.ContainerCred.Gid, "container-gid", config.ContainerCred.Gid, "group id for bootstrapping executor")
-	flag.UintVar(&config.ExecutorCred.Uid, "executor-uid", config.ExecutorCred.Uid, "user id for executing code")
-	flag.UintVar(&config.ExecutorCred.Gid, "executor-gid", config.ExecutorCred.Gid, "group id for executing code")
-	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
-	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
-	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
-	flag.IntVar(&stackSize, "stack-size", stackSize, "stack size")
-	flag.BoolVar(&dumpTime, "dump-time", dumpTime, "print average timings per program")
-	flag.BoolVar(&dumpText, "dump-text", dumpText, "disassemble before running")
-	flag.BoolVar(&dumpStack, "dump-stack", dumpStack, "print stacktrace after running")
-	flag.IntVar(&repeat, "repeat", repeat, "repeat the program execution(s) multiple times")
-	flag.StringVar(&addr, "addr", addr, "I/O socket path (replaces stdio)")
-	flag.IntVar(&arg, "arg", arg, "32-bit signed integer argument for the program instance(s)")
-
+	flag.Var(config.FileReader(c), "f", "read YAML configuration file")
+	flag.Var(config.Assigner(c), "c", "set a configuration key (path.to.key=value)")
 	flag.Parse()
 
 	filenames := flag.Args()
@@ -95,9 +96,12 @@ func main() {
 
 	originalDefaultOriginReader := origin.Default.R
 
-	if addr != "" {
-		os.Remove(addr)
-		l, err := net.Listen("unix", addr)
+	if c.Origin.Addr != "" {
+		if c.Origin.Net == "unix" {
+			os.Remove(c.Origin.Addr)
+		}
+
+		l, err := net.Listen(c.Origin.Net, c.Origin.Addr)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -117,7 +121,7 @@ func main() {
 
 	var rtClosed bool
 
-	rt, err := run.NewRuntime(ctx, &config)
+	rt, err := run.NewRuntime(ctx, &c.Runtime)
 	if err != nil {
 		log.Fatalf("runtime: %v", err)
 	}
@@ -136,7 +140,7 @@ func main() {
 	timings := make([]timing, len(filenames))
 	exitCode := 0
 
-	for round := 0; round < repeat; round++ {
+	for round := 0; round < c.Benchmark.Repeat; round++ {
 		done := make(chan int, len(filenames))
 
 		for i, filename := range filenames {
@@ -147,7 +151,7 @@ func main() {
 				origin.New(originalDefaultOriginReader, os.Stdout).Register(r)
 			}
 
-			go execute(ctx, rt, filename, int32(arg), r, &timings[i], done)
+			go execute(ctx, rt, filename, c.Program.Arg, r, &timings[i], done)
 		}
 
 		for range filenames {
@@ -157,10 +161,10 @@ func main() {
 		}
 	}
 
-	if dumpTime {
+	if c.Benchmark.Timing {
 		for i, filename := range filenames {
 			output := func(title string, sum time.Duration) {
-				avg := sum / time.Duration(repeat)
+				avg := sum / time.Duration(c.Benchmark.Repeat)
 				log.Printf("%s "+title+": %6d.%03dµs", filename, avg/time.Microsecond, avg%time.Microsecond)
 			}
 
@@ -213,14 +217,14 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	_, memorySize := m.MemoryLimits()
 
-	err = image.Populate(&m, memorySize, int32(stackSize))
+	err = image.Populate(&m, memorySize, c.Program.StackSize)
 	if err != nil {
 		log.Fatalf("image: %v", err)
 	}
 
 	image.SetArg(arg)
 
-	if dumpText {
+	if c.Program.Dump.Text {
 		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
 	}
 
@@ -241,7 +245,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 		log.Printf("exit: %d", exit)
 	}
 
-	if dumpStack {
+	if c.Program.Dump.Stack {
 		err := image.DumpStacktrace(os.Stderr, &m, &ns)
 		if err != nil {
 			log.Printf("stacktrace: %v", err)

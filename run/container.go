@@ -35,7 +35,7 @@ func startContainer(ctx context.Context, limiter FileLimiter, config *Config,
 		limiter.release(numFiles)
 	}()
 
-	creds, err := cred.Parse(config.ContainerCred.Uid, config.ContainerCred.Gid, config.ExecutorCred.Uid, config.ExecutorCred.Gid)
+	creds, err := cred.Parse(config.Container.Uid, config.Container.Gid, config.Executor.Uid, config.Executor.Gid)
 	if err != nil {
 		return
 	}

@@ -16,29 +16,29 @@ import (
 	"syscall"
 
 	"github.com/coreos/go-systemd/activation"
+	"github.com/tsavola/config"
 	"github.com/tsavola/gate/internal/cred"
 	"github.com/tsavola/gate/run"
 )
 
+type Config struct {
+	Runtime run.Config
+
+	Log struct {
+		Syslog bool
+	}
+}
+
 func main() {
-	var (
-		config = run.Config{
-			LibDir:      "lib",
-			CgroupTitle: run.DefaultCgroupTitle,
-		}
-		syslogging = false
-	)
+	c := new(Config)
 
-	flag.StringVar(&config.DaemonSocket, "listen", config.DaemonSocket, "unix socket")
-	flag.UintVar(&config.ContainerCred.Uid, "container-uid", config.ContainerCred.Uid, "user id for bootstrapping executor")
-	flag.UintVar(&config.ContainerCred.Gid, "container-gid", config.ContainerCred.Gid, "group id for bootstrapping executor")
-	flag.UintVar(&config.ExecutorCred.Uid, "executor-uid", config.ExecutorCred.Uid, "user id for executing code")
-	flag.UintVar(&config.ExecutorCred.Gid, "executor-gid", config.ExecutorCred.Gid, "group id for executing code")
-	flag.StringVar(&config.LibDir, "libdir", config.LibDir, "path")
-	flag.StringVar(&config.CgroupParent, "cgroup-parent", config.CgroupParent, "slice")
-	flag.StringVar(&config.CgroupTitle, "cgroup-title", config.CgroupTitle, "prefix of dynamic name")
-	flag.BoolVar(&syslogging, "syslog", syslogging, "send log messages to syslog instead of stderr")
+	c.Runtime.MaxProcs = run.DefaultMaxProcs
+	c.Runtime.LibDir = "lib"
+	c.Runtime.CgroupTitle = run.DefaultCgroupTitle
 
+	flag.Var(config.FileReader(c), "f", "read YAML configuration file")
+	flag.Var(config.Assigner(c), "c", "set a configuration key (path.to.key=value)")
+	flag.Usage = config.FlagUsage(c)
 	flag.Parse()
 
 	var (
@@ -46,8 +46,7 @@ func main() {
 		errLog  *log.Logger
 		infoLog *log.Logger
 	)
-
-	if syslogging {
+	if c.Log.Syslog {
 		tag := path.Base(os.Args[0])
 
 		w, err := syslog.New(syslog.LOG_CRIT, tag)
@@ -73,12 +72,12 @@ func main() {
 		infoLog = critLog
 	}
 
-	containerPath, err := filepath.Abs(path.Join(config.LibDir, "gate-container"))
+	containerPath, err := filepath.Abs(path.Join(c.Runtime.LibDir, "gate-container"))
 	if err != nil {
 		return
 	}
 
-	creds, err := cred.Parse(config.ContainerCred.Uid, config.ContainerCred.Gid, config.ExecutorCred.Uid, config.ExecutorCred.Gid)
+	creds, err := cred.Parse(c.Runtime.Container.Uid, c.Runtime.Container.Gid, c.Runtime.Executor.Uid, c.Runtime.Executor.Gid)
 	if err != nil {
 		return
 	}
@@ -89,8 +88,8 @@ func main() {
 		creds[1],
 		creds[2],
 		creds[3],
-		config.CgroupTitle,
-		config.CgroupParent,
+		c.Runtime.CgroupTitle,
+		c.Runtime.CgroupParent,
 	}
 
 	listeners, err := activation.Listeners(true)
@@ -102,11 +101,11 @@ func main() {
 
 	switch len(listeners) {
 	case 0:
-		if config.DaemonSocket == "" {
+		if c.Runtime.DaemonSocket == "" {
 			critLog.Fatal("-listen option or socket activation required")
 		}
 
-		addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
+		addr, err := net.ResolveUnixAddr("unix", c.Runtime.DaemonSocket)
 		if err != nil {
 			critLog.Fatal(err)
 		}
@@ -123,7 +122,7 @@ func main() {
 		}
 
 	case 1:
-		if config.DaemonSocket != "" {
+		if c.Runtime.DaemonSocket != "" {
 			critLog.Fatal("-listen option used with socket activation")
 		}
 
