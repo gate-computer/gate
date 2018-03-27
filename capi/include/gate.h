@@ -9,36 +9,36 @@
 #include <stdint.h>
 
 #ifndef GATE_CONSTFUNC
-# define GATE_CONSTFUNC __attribute__ ((const))
+#define GATE_CONSTFUNC __attribute__((const))
 #endif
 
 #ifndef GATE_PURE
-# define GATE_PURE __attribute__ ((pure))
+#define GATE_PURE __attribute__((pure))
 #endif
 
 #ifndef GATE_NORETURN
-# define GATE_NORETURN __attribute__ ((noreturn))
+#define GATE_NORETURN __attribute__((noreturn))
 #endif
 
 #ifndef GATE_PACKED
-# define GATE_PACKED __attribute__ ((packed))
+#define GATE_PACKED __attribute__((packed))
 #endif
 
 #ifdef __cplusplus
 extern "C" {
-# ifndef GATE_NOEXCEPT
-#  define GATE_NOEXCEPT noexcept
-# endif
+#ifndef GATE_NOEXCEPT
+#define GATE_NOEXCEPT noexcept
+#endif
 #else
-# ifndef GATE_NOEXCEPT
-#  define GATE_NOEXCEPT
-# endif
+#ifndef GATE_NOEXCEPT
+#define GATE_NOEXCEPT
+#endif
 #endif
 
 #define GATE_RECV_FLAG_NONBLOCK 0x1
 #define GATE_SEND_FLAG_NONBLOCK 0x1
 
-#define GATE_PACKET_CODE_NOTHING  -1
+#define GATE_PACKET_CODE_NOTHING -1
 #define GATE_PACKET_CODE_SERVICES -2
 
 #define GATE_SERVICE_FLAG_AVAILABLE 0x1
@@ -80,13 +80,12 @@ extern GATE_CONSTFUNC int __gate_get_abi_version(void) GATE_NOEXCEPT;
 extern GATE_CONSTFUNC int32_t __gate_get_arg(void) GATE_NOEXCEPT;
 extern GATE_CONSTFUNC size_t __gate_get_max_packet_size(void) GATE_NOEXCEPT;
 
-#define gate_abi_version     (__gate_get_abi_version())
-#define gate_arg             (__gate_get_arg())
+#define gate_abi_version (__gate_get_abi_version())
+#define gate_arg (__gate_get_arg())
 #define gate_max_packet_size (__gate_get_max_packet_size())
 
 extern void __gate_debug_write(const void *data, size_t size) GATE_NOEXCEPT;
-extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id)
-	GATE_NOEXCEPT;
+extern GATE_CONSTFUNC void *__gate_func_ptr(enum gate_func_id id) GATE_NOEXCEPT;
 extern GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
 
 void __gate_recv_packet(struct gate_packet *buf) GATE_NOEXCEPT;
@@ -115,8 +114,7 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 	__gate_exit(status);
 }
 
-static inline size_t gate_recv_packet(void *buf, size_t size, unsigned flags)
-	GATE_NOEXCEPT
+static inline size_t gate_recv_packet(void *buf, size_t size, unsigned flags) GATE_NOEXCEPT
 {
 	if (size < gate_max_packet_size)
 		__gate_exit(1);
@@ -129,8 +127,8 @@ static inline size_t gate_recv_packet(void *buf, size_t size, unsigned flags)
 	}
 }
 
-static inline size_t gate_send_packet(const struct gate_packet *data, unsigned flags)
-	GATE_NOEXCEPT
+static inline size_t gate_send_packet(
+	const struct gate_packet *data, unsigned flags) GATE_NOEXCEPT
 {
 	if (data->__flags)
 		__gate_exit(1);

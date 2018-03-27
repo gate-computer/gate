@@ -11,22 +11,22 @@
 
 int main()
 {
-	auto op_size = sizeof (gate_service_name_packet) + sizeof (NAMES);
+	auto op_size = sizeof(gate_service_name_packet) + sizeof NAMES;
 	char op_buf[op_size];
 	memset(op_buf, 0, op_size);
-	auto op = reinterpret_cast<gate_service_name_packet *> (op_buf);
+	auto op = reinterpret_cast<gate_service_name_packet *>(op_buf);
 	op->header.size = op_size;
 	op->header.code = GATE_PACKET_CODE_SERVICES;
 	op->count = 2;
-	memcpy(op->names, NAMES, sizeof (NAMES));
+	memcpy(op->names, NAMES, sizeof NAMES);
 	gate_send_packet(&op->header, 0);
 
 	char ev_buf[gate_max_packet_size];
 	const gate_service_info_packet *ev;
 	do {
 		gate_recv_packet(ev_buf, gate_max_packet_size, 0);
-		ev = reinterpret_cast<gate_service_info_packet *> (ev_buf);
-	} while (ev->header.code != GATE_PACKET_CODE_SERVICES || ev->header.size == sizeof (gate_packet));
+		ev = reinterpret_cast<gate_service_info_packet *>(ev_buf);
+	} while (ev->header.code != GATE_PACKET_CODE_SERVICES || ev->header.size == sizeof(gate_packet));
 
 	if (ev->count != 2) {
 		gate_debug("Unexpected number of service entries\n");
@@ -53,8 +53,8 @@ int main()
 		return 1;
 	}
 
-	auto codes_size = ev->header.size - sizeof (ev->header) - 8;
-	if (codes_size != ev->count * sizeof (gate_service_info)) {
+	auto codes_size = ev->header.size - sizeof ev->header - 8;
+	if (codes_size != ev->count * sizeof(gate_service_info)) {
 		gate_debug("Inconsistent packet size\n");
 		return 1;
 	}

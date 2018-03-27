@@ -25,20 +25,24 @@
 #include "../defs.h"
 #include "buffer.h"
 
+#define NOINLINE __attribute__((noinline))
+#define NORETURN __attribute__((noreturn))
+#define PACKED __attribute__((packed))
+
 #define CHILD_NICE 19
 
-#define SENDING_CAPACITY (BUFFER_MAX_ENTRIES * sizeof (struct send_entry))
-#define KILLED_CAPACITY  (BUFFER_MAX_ENTRIES * sizeof (pid_t))
-#define DIED_CAPACITY    (BUFFER_MAX_ENTRIES * sizeof (pid_t))
+#define SENDING_CAPACITY (BUFFER_MAX_ENTRIES * sizeof(struct send_entry))
+#define KILLED_CAPACITY (BUFFER_MAX_ENTRIES * sizeof(pid_t))
+#define DIED_CAPACITY (BUFFER_MAX_ENTRIES * sizeof(pid_t))
 
 // executor.go relies on this assumption
-static_assert(sizeof (pid_t) == sizeof (int32_t), "pid_t size");
+static_assert(sizeof(pid_t) == sizeof(int32_t), "pid_t size");
 
 // send_entry is like recvEntry in executor.go
 struct send_entry {
 	pid_t pid;      // negated value acknowledges execution request
 	int32_t status; // defined only if pid is positive
-} __attribute__ ((packed));
+} PACKED;
 
 // Set close-on-exec flag on a file descriptor or die.
 static void xcloexec(int fd)
@@ -47,7 +51,7 @@ static void xcloexec(int fd)
 	if (flags < 0)
 		_exit(10);
 
-	if (fcntl(fd, F_SETFD, flags|FD_CLOEXEC) < 0)
+	if (fcntl(fd, F_SETFD, flags | FD_CLOEXEC) < 0)
 		_exit(11);
 }
 
@@ -86,7 +90,7 @@ static void init_sigchld()
 		_exit(15);
 }
 
-__attribute__ ((noreturn))
+NORETURN
 static inline void execute_child(char *loader, const int *fds, int num_fds)
 {
 	// file descriptor duplication order is fragile
@@ -120,7 +124,7 @@ static inline void execute_child(char *loader, const int *fds, int num_fds)
 	_exit(18);
 }
 
-__attribute__ ((noinline))
+NOINLINE
 static pid_t spawn_child(char *loader, const int *fds, int num_fds)
 {
 	pid_t pid = vfork();
@@ -132,16 +136,17 @@ static pid_t spawn_child(char *loader, const int *fds, int num_fds)
 
 // Set up polling and signal mask according to buffer status and return revents
 // by value.
-static inline int do_ppoll(struct buffer *sending, struct buffer *killed, struct buffer *died)
+static inline int do_ppoll(
+	struct buffer *sending, struct buffer *killed, struct buffer *died)
 {
 	struct pollfd pollfd = {
-		.fd     = GATE_CONTROL_FD,
+		.fd = GATE_CONTROL_FD,
 	};
 
 	sigset_t pollmask_storage;
 	sigset_t *pollmask = NULL;
 
-	if (buffer_space(sending, sizeof (struct send_entry))) {
+	if (buffer_space(sending, sizeof(struct send_entry))) {
 		if (buffer_space_pid(killed))
 			pollfd.events |= POLLIN;
 
@@ -166,11 +171,12 @@ static inline int do_ppoll(struct buffer *sending, struct buffer *killed, struct
 	return (unsigned short) pollfd.revents; // zero extension
 }
 
-static inline ssize_t do_recvmsg(struct msghdr *msg, void *buf, size_t buflen, int flags)
+static inline ssize_t do_recvmsg(
+	struct msghdr *msg, void *buf, size_t buflen, int flags)
 {
 	struct iovec io = {
-		.iov_base       = buf,
-		.iov_len        = buflen,
+		.iov_base = buf,
+		.iov_len = buflen,
 	};
 
 	msg->msg_iov = &io;
@@ -179,7 +185,8 @@ static inline ssize_t do_recvmsg(struct msghdr *msg, void *buf, size_t buflen, i
 	return recvmsg(GATE_CONTROL_FD, msg, flags);
 }
 
-static inline void handle_control_message(struct buffer *sending, struct cmsghdr *cmsg, char *loader)
+static inline void handle_control_message(
+	struct buffer *sending, struct cmsghdr *cmsg, char *loader)
 {
 	if (cmsg->cmsg_level != SOL_SOCKET)
 		_exit(20);
@@ -188,9 +195,9 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 		_exit(21);
 
 	int num_fds;
-	if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof (int)))
+	if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof(int)))
 		num_fds = 3;
-	else if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof (int)))
+	else if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof(int)))
 		num_fds = 4;
 	else
 		_exit(22);
@@ -205,11 +212,12 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 		close(fds[i]);
 
 	const struct send_entry entry = {-pid, 0};
-	if (buffer_append(sending, &entry, sizeof (entry)) != 0)
+	if (buffer_append(sending, &entry, sizeof entry) != 0)
 		_exit(24);
 }
 
-static inline void handle_pid_message(struct buffer *killed, struct buffer *died, pid_t pid)
+static inline void handle_pid_message(
+	struct buffer *killed, struct buffer *died, pid_t pid)
 {
 	if (pid <= 1)
 		_exit(25);
@@ -223,29 +231,33 @@ static inline void handle_pid_message(struct buffer *killed, struct buffer *died
 	}
 }
 
-static inline void handle_receiving(struct buffer *sending, struct buffer *killed, struct buffer *died, char *loader)
+static inline void handle_receiving(
+	struct buffer *sending,
+	struct buffer *killed,
+	struct buffer *died,
+	char *loader)
 {
 	union {
-		char buf[sizeof (pid_t)];
+		char buf[sizeof(pid_t)];
 		pid_t pid;
 	} receive;
 
-	for (size_t receive_len = 0; receive_len < sizeof (receive.buf); ) {
+	for (size_t receive_len = 0; receive_len < sizeof receive.buf;) {
 		union {
-			char buf[CMSG_SPACE(4 * sizeof (int))];
+			char buf[CMSG_SPACE(4 * sizeof(int))];
 			struct cmsghdr alignment;
 		} ctl;
 
 		struct msghdr msg = {
-			.msg_control    = ctl.buf,
-			.msg_controllen = sizeof (ctl.buf),
+			.msg_control = ctl.buf,
+			.msg_controllen = sizeof ctl.buf,
 		};
 
 		int flags = MSG_CMSG_CLOEXEC;
 		if (receive_len == 0)
 			flags |= MSG_DONTWAIT;
 
-		ssize_t len = do_recvmsg(&msg, receive.buf + receive_len, sizeof (receive.buf) - receive_len, flags);
+		ssize_t len = do_recvmsg(&msg, receive.buf + receive_len, sizeof receive.buf - receive_len, flags);
 		if (len <= 0) {
 			if (len == 0)
 				_exit(0);
@@ -295,7 +307,8 @@ static inline void handle_sending(struct buffer *sending)
 	}
 }
 
-static inline void handle_reaping(struct buffer *sending, struct buffer *killed, struct buffer *died)
+static inline void handle_reaping(
+	struct buffer *sending, struct buffer *killed, struct buffer *died)
 {
 	while (1) {
 		int status;
@@ -311,7 +324,7 @@ static inline void handle_reaping(struct buffer *sending, struct buffer *killed,
 			continue;
 
 		const struct send_entry entry = {pid, status};
-		if (buffer_append(sending, &entry, sizeof (entry)) != 0)
+		if (buffer_append(sending, &entry, sizeof entry) != 0)
 			_exit(33);
 
 		if (!buffer_remove_pid(killed, pid))

@@ -16,7 +16,7 @@ static inline void origin_send_packet(void *buf, size_t size, int16_t code)
 {
 	struct gate_packet *header = (struct gate_packet *) buf;
 
-	memset(buf, 0, sizeof (struct gate_packet));
+	memset(buf, 0, sizeof(struct gate_packet));
 	header->size = size;
 	header->code = code;
 
@@ -25,13 +25,13 @@ static inline void origin_send_packet(void *buf, size_t size, int16_t code)
 
 static inline void origin_send(int16_t code, const void *msg, size_t msglen)
 {
-	if (msglen > gate_max_packet_size - sizeof (struct gate_packet))
+	if (msglen > gate_max_packet_size - sizeof(struct gate_packet))
 		gate_exit(1);
 
-	size_t size = sizeof (struct gate_packet) + msglen;
+	size_t size = sizeof(struct gate_packet) + msglen;
 	char buf[size];
 
-	memcpy(buf + sizeof (struct gate_packet), msg, msglen);
+	memcpy(buf + sizeof(struct gate_packet), msg, msglen);
 
 	origin_send_packet(buf, size, code);
 }

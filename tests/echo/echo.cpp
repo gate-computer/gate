@@ -13,7 +13,7 @@
 
 struct message_op {
 	gate_packet header;
-	char content[sizeof (CONTENT)];
+	char content[sizeof CONTENT];
 } GATE_PACKED;
 
 struct message_ev {
@@ -25,7 +25,7 @@ static void send_message()
 {
 	const message_op packet = {
 		.header = {
-			.size = sizeof (packet),
+			.size = sizeof packet,
 		},
 		.content = CONTENT,
 	};
@@ -35,7 +35,7 @@ static void send_message()
 
 static message_ev *recv_message(char *buf, size_t bufsize)
 {
-	auto packet = reinterpret_cast<message_ev *> (buf);
+	auto packet = reinterpret_cast<message_ev *>(buf);
 
 	do {
 		gate_recv_packet(buf, bufsize, 0);
@@ -52,8 +52,8 @@ int main()
 	char buf[gate_max_packet_size];
 	const auto reply = recv_message(buf, gate_max_packet_size);
 
-	auto length = reply->header.size - sizeof (reply->header);
-	if (length != sizeof (CONTENT)) {
+	auto length = reply->header.size - sizeof reply->header;
+	if (length != sizeof CONTENT) {
 		gate_debug("Length mismatch\n");
 		return 1;
 	}

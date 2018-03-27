@@ -10,7 +10,8 @@
 #include <string.h>
 
 GATE_SERVICE_DECL
-bool gate_service_registry_init(struct gate_service_registry *r, void *packet_buf, size_t packet_size)
+bool gate_service_registry_init(
+	struct gate_service_registry *r, void *packet_buf, size_t packet_size)
 {
 	if (packet_size < gate_max_packet_size)
 		return false;
@@ -20,7 +21,7 @@ bool gate_service_registry_init(struct gate_service_registry *r, void *packet_bu
 	r->service_tail = NULL;
 	r->service_count = 0;
 	r->service_table = NULL;
-	r->request_size = sizeof (struct gate_service_name_packet);
+	r->request_size = sizeof(struct gate_service_name_packet);
 	return true;
 }
 
@@ -37,7 +38,7 @@ struct gate_service_registry *gate_service_registry_create(void)
 	if (buf == NULL)
 		goto no_buf;
 
-	struct gate_service_registry *r = malloc(sizeof (struct gate_service_registry));
+	struct gate_service_registry *r = malloc(sizeof(struct gate_service_registry));
 	if (r == NULL)
 		goto no_r;
 
@@ -65,7 +66,8 @@ void gate_service_registry_destroy(struct gate_service_registry *r)
 }
 
 GATE_SERVICE_DECL
-bool gate_register_service(struct gate_service_registry *registry, struct gate_service *s)
+bool gate_register_service(
+	struct gate_service_registry *registry, struct gate_service *s)
 {
 	if (registry->service_count == INT16_MAX)
 		return false;
@@ -88,7 +90,9 @@ bool gate_register_service(struct gate_service_registry *registry, struct gate_s
 	return true;
 }
 
-static void update_services(struct gate_service_registry *r, const struct gate_service_info_packet *p)
+static void update_services(
+	struct gate_service_registry *r,
+	const struct gate_service_info_packet *p)
 {
 	struct gate_service *s = r->service_head;
 
@@ -111,7 +115,7 @@ GATE_SERVICE_DECL
 bool gate_discover_services(struct gate_service_registry *registry)
 {
 	struct gate_service_name_packet *req = registry->packet_buf;
-	memset(&req->header, 0, sizeof (req->header));
+	memset(&req->header, 0, sizeof req->header);
 	req->header.size = registry->request_size;
 	req->header.code = GATE_PACKET_CODE_SERVICES;
 	req->count = registry->service_count;
@@ -132,7 +136,7 @@ bool gate_discover_services(struct gate_service_registry *registry)
 		gate_exit(1);
 	}
 
-	registry->service_table = calloc(registry->service_count, sizeof (struct gate_service *));
+	registry->service_table = calloc(registry->service_count, sizeof(struct gate_service *));
 	if (registry->service_table == NULL)
 		return false;
 

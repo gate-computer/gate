@@ -20,16 +20,15 @@ void implementation(const gate_packet *p)
 }
 
 template <int PayloadSize>
-class Packet
-{
+class Packet {
 	Packet(const Packet &) = delete;
 	Packet &operator=(const Packet &) = delete;
 
 public:
 	enum {
-		header_size  = 8,
+		header_size = 8,
 		payload_size = PayloadSize,
-		size         = header_size + payload_size,
+		size = header_size + payload_size,
 	};
 
 	Packet()
@@ -45,7 +44,7 @@ public:
 
 	const gate_packet *op_data(int16_t code)
 	{
-		gate_packet *header = reinterpret_cast<gate_packet *> (buf);
+		gate_packet *header = reinterpret_cast<gate_packet *>(buf);
 		header->size = size;
 		header->code = code;
 		return header;
@@ -62,12 +61,12 @@ int main()
 	indirection = implementation;
 
 	char str[] = "hello world\n";
-	Packet<sizeof (str) - 1> p;
+	Packet<sizeof str - 1> p;
 
 	for (int i = 0; i < p.payload_size; i++) {
 		char c = str[i];
 		if (c >= 'a' && c <= 'z')
-		    c += gate_arg;
+			c += gate_arg;
 		p.payload()[i] = c;
 	}
 

@@ -74,15 +74,15 @@ size_t Calculator::eval(Buf<const char> expr, Buf<char> out)
 		return 0;
 
 	Buf<int64_t> values = {
-		reinterpret_cast<int64_t *> (out.data),
-		out.size / sizeof (int64_t),
+		reinterpret_cast<int64_t *>(out.data),
+		out.size / sizeof(int64_t),
 	};
 
 	if (values.size < 1)
 		gate_exit(1);
 
 	values.data[0] = m_value;
-	return sizeof (values.data[0]);
+	return sizeof values.data[0];
 }
 
 int main()
@@ -94,12 +94,12 @@ int main()
 	while (1) {
 		char evdata[gate_max_packet_size];
 		gate_recv_packet(evdata, gate_max_packet_size, 0);
-		auto evhead = reinterpret_cast<const gate_packet *> (evdata);
+		auto evhead = reinterpret_cast<const gate_packet *>(evdata);
 
 		if (evhead->code == 0) {
 			const Buf<const char> expr = {
-				evdata + sizeof (gate_packet),
-				evhead->size - sizeof (gate_packet),
+				evdata + sizeof(gate_packet),
+				evhead->size - sizeof(gate_packet),
 			};
 
 			if (expr.size == 0)
@@ -107,18 +107,18 @@ int main()
 
 			char opdata[gate_max_packet_size];
 
-			for (unsigned int i = 0; i < sizeof (gate_packet); i++)
+			for (unsigned int i = 0; i < sizeof(gate_packet); i++)
 				opdata[i] = 0;
 
 			const Buf<char> out = {
-				opdata + sizeof (gate_packet),
-				sizeof (opdata) - sizeof (gate_packet),
+				opdata + sizeof(gate_packet),
+				sizeof opdata - sizeof(gate_packet),
 			};
 
 			auto outlen = state.eval(expr, out);
 
-			auto ophead = reinterpret_cast<gate_packet *> (opdata);
-			ophead->size = sizeof (gate_packet) + outlen;
+			auto ophead = reinterpret_cast<gate_packet *>(opdata);
+			ophead->size = sizeof(gate_packet) + outlen;
 
 			gate_send_packet(ophead, 0);
 		}

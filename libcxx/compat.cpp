@@ -7,17 +7,15 @@
 
 #include <gate.h>
 
-extern "C" {
-	void __cxa_pure_virtual()
-	{
-		__gate_debug_write("\nPure virtual method called\n", 28);
-		__gate_exit(1);
-	}
+extern "C" void __cxa_pure_virtual()
+{
+	__gate_debug_write("\nPure virtual method called\n", 28);
+	__gate_exit(1);
 }
 
 namespace std {
-	const nothrow_t nothrow;
-}
+const nothrow_t nothrow;
+} // namespace std
 
 void* operator new(size_t size)
 {
@@ -26,7 +24,7 @@ void* operator new(size_t size)
 		__gate_debug_write("\nOut of memory\n", 15);
 		__gate_exit(1);
 	}
-    return ptr;
+	return ptr;
 }
 
 void* operator new(size_t size, const std::nothrow_t&) noexcept
@@ -38,17 +36,17 @@ void* operator new(size_t size, const std::nothrow_t&) noexcept
 
 void* operator new[](size_t size)
 {
-    return operator new(size);
+	return operator new(size);
 }
 
 void* operator new[](size_t size, const std::nothrow_t&) noexcept
 {
-    return operator new(size, std::nothrow);
+	return operator new(size, std::nothrow);
 }
 
 void operator delete(void* ptr)
 {
-    operator delete(ptr, std::nothrow);
+	operator delete(ptr, std::nothrow);
 }
 
 void operator delete(void* ptr, const std::nothrow_t&) noexcept
@@ -58,10 +56,10 @@ void operator delete(void* ptr, const std::nothrow_t&) noexcept
 
 void operator delete[](void* ptr)
 {
-    operator delete(ptr);
+	operator delete(ptr);
 }
 
 void operator delete[](void* ptr, const std::nothrow_t&) noexcept
 {
-    operator delete(ptr, std::nothrow);
+	operator delete(ptr, std::nothrow);
 }

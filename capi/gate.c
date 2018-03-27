@@ -24,8 +24,8 @@ static uint64_t recv_markers;
 
 static void recv_packet(struct gate_packet *buf, long io_maxsize)
 {
-	__gate_recv(buf, sizeof (struct gate_packet));
-	__gate_recv(buf + 1, buf->size - sizeof (struct gate_packet));
+	__gate_recv(buf, sizeof(struct gate_packet));
+	__gate_recv(buf + 1, buf->size - sizeof(struct gate_packet));
 
 	if (buf->__flags & PACKET_FLAG_SYNC)
 		send_buflen -= io_maxsize;
@@ -53,7 +53,7 @@ size_t __gate_recv_packet_nonblock(struct gate_packet *buf)
 
 			struct loopback_packet packet = {
 				.header = {
-					.size = sizeof (packet),
+					.size = sizeof packet,
 					.code = PACKET_CODE_LOOPBACK,
 				},
 				.marker = my_marker,
@@ -76,7 +76,8 @@ size_t __gate_recv_packet_nonblock(struct gate_packet *buf)
 	}
 }
 
-static void send_packet(const struct gate_packet *data, long io_maxsize, long pipe_bufsize)
+static void send_packet(
+	const struct gate_packet *data, long io_maxsize, long pipe_bufsize)
 {
 	long before = send_buflen;
 	send_buflen += (long) data->size;
@@ -120,7 +121,7 @@ size_t __gate_nonblock_send_size()
 
 	if (avail >= (long) io_maxsize)
 		return io_maxsize;
-	else if (avail >= (long) sizeof (struct gate_packet))
+	else if (avail >= (long) sizeof(struct gate_packet))
 		return avail;
 	else
 		return 0;

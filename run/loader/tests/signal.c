@@ -19,26 +19,24 @@ static void *stackptr_signal;
 
 static void test_handler(int signum)
 {
-	asm volatile (
+	asm volatile(
 		"       mov      %%rsp, %%rax    \n"
-		: "=a" (stackptr_signal)
+		: "=a"(stackptr_signal)
 		:
-		:
-	);
+		:);
 }
 
 int main()
 {
-	static_assert(GATE_SIGNAL_STACK_R9_OFFSET == sizeof (void *) + (size_t) &(((ucontext_t *) 0)->uc_mcontext.gregs[1]), "position of saved r9 on signal stack");
+	static_assert(GATE_SIGNAL_STACK_R9_OFFSET == sizeof(void *) + (size_t) & (((ucontext_t *) 0)->uc_mcontext.gregs[1]), "position of saved r9 on signal stack");
 
 	void *stackptr_main;
 
-	asm volatile (
+	asm volatile(
 		"       mov      %%rsp, %%rax    \n"
-		: "=a" (stackptr_main)
+		: "=a"(stackptr_main)
 		:
-		:
-	);
+		:);
 
 	printf("stack pointer in main   = %p\n", stackptr_main);
 
@@ -54,17 +52,16 @@ int main()
 
 	unsigned long rounds;
 
-	asm volatile (
+	asm volatile(
 		"        xor     %%rax, %%rax    \n"
 		"        xor     %%r9, %%r9      \n"
 		".Lloop:                         \n"
 		"        inc     %%rax           \n"
 		"        test    %%r9, %%r9      \n"
 		"        je      .Lloop          \n"
-		: "=a" (rounds)
+		: "=a"(rounds)
 		:
-		: "r9"
-	);
+		: "r9");
 
 	printf("rounds = %ld\n", rounds);
 	return 0;

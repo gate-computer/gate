@@ -64,12 +64,12 @@ void init_cgroup(pid_t pid, const struct cgroup_config *config)
 			&error,
 			&reply,
 			"ssa(sv)a(sa(sv))",
-			scope,                  // name
-			"fail",                 // mode
-			2,                      // properties
-			"PIDs", "au", 1, pid,
-			"Slice", "s", config->parent,
-			0);                     // aux
+			scope,                        // name
+			"fail",                       // mode
+			2,                            // properties
+			"PIDs", "au", 1, pid,         //
+			"Slice", "s", config->parent, //
+			0);                           // aux
 	} else {
 		ret = sd_bus_call_method(
 			bus,
@@ -80,11 +80,11 @@ void init_cgroup(pid_t pid, const struct cgroup_config *config)
 			&error,
 			&reply,
 			"ssa(sv)a(sa(sv))",
-			scope,                  // name
-			"fail",                 // mode
-			1,                      // properties
-			"PIDs", "au", 1, pid,
-			0);                     // aux
+			scope,                // name
+			"fail",               // mode
+			1,                    // properties
+			"PIDs", "au", 1, pid, //
+			0);                   // aux
 	}
 	if (ret < 0) {
 		fprintf(stderr, "sd_bus_call_method: StartTransientUnit: %s\n", error.message);

@@ -10,7 +10,7 @@ static inline void discover_service(const char *name)
 {
 	char buf[gate_max_packet_size];
 
-	for (size_t i = 0; i < sizeof (struct gate_packet); i++)
+	for (size_t i = 0; i < sizeof(struct gate_packet); i++)
 		buf[i] = 0;
 
 	struct gate_service_name_packet *op = (struct gate_service_name_packet *) buf;
@@ -20,7 +20,7 @@ static inline void discover_service(const char *name)
 		op->names[n] = name[n];
 	} while (name[n++]);
 
-	op->header.size = sizeof (struct gate_service_name_packet) + n;
+	op->header.size = sizeof(struct gate_service_name_packet) + n;
 	op->header.code = GATE_PACKET_CODE_SERVICES;
 	op->count = 1;
 

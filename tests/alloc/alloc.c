@@ -18,9 +18,9 @@ static void *garbage[NUM_GARBAGE_SLOTS];
 
 static void do_it(int c, int n)
 {
-	size_t size = sizeof (struct gate_packet) + n + 1;
+	size_t size = sizeof(struct gate_packet) + n + 1;
 
-	struct gate_packet *buf = calloc(size, sizeof (char));
+	struct gate_packet *buf = calloc(size, sizeof(char));
 	if (buf == NULL)
 		gate_exit(1);
 

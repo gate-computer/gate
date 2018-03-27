@@ -1,3 +1,5 @@
+// clang-format off
+
 #define _Addr int
 #define _Int64 long long
 #define _Reg int
@@ -383,3 +385,5 @@ typedef unsigned short sa_family_t;
 #undef _Addr
 #undef _Int64
 #undef _Reg
+
+// clang-format on

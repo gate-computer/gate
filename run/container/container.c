@@ -38,7 +38,7 @@
 #define NEWGIDMAP_PATH "/usr/bin/newgidmap"
 
 #define EXECUTOR_FILENAME "gate-executor"
-#define LOADER_FILENAME   "gate-loader"
+#define LOADER_FILENAME "gate-loader"
 
 extern char **environ;
 
@@ -60,7 +60,7 @@ static void xerror(const char *s)
 // Get random bytes or die.
 static void xgetentropy(void *buf, size_t buflen)
 {
-	for (size_t got = 0; got < buflen; ) {
+	for (size_t got = 0; got < buflen;) {
 		ssize_t len = syscall(SYS_getrandom, buf + got, buflen - got, 0);
 		if (len <= 0) {
 			if (len == 0)
@@ -95,7 +95,7 @@ static void xread_until_eof(int fd)
 {
 	while (1) {
 		char buf[1];
-		ssize_t len = read(fd, buf, sizeof (buf));
+		ssize_t len = read(fd, buf, sizeof buf);
 		if (len <= 0) {
 			if (len == 0)
 				return;
@@ -159,7 +159,7 @@ static int xclone(int (*fn)(void *), int flags)
 		__int128 alignment;
 	} clobbered;
 
-	void *stack_top = clobbered.stack + sizeof (clobbered.stack);
+	void *stack_top = clobbered.stack + sizeof clobbered.stack;
 
 	int pid = clone(fn, stack_top, flags, NULL);
 	if (pid <= 0)
@@ -212,7 +212,12 @@ static char *xuitoa(unsigned int i)
 }
 
 // Configure given process's uid_map or gid_map, or die.
-static void xwrite_id_map(pid_t target, const char *prog, unsigned int current, unsigned int container, unsigned int executor)
+static void xwrite_id_map(
+	pid_t target,
+	const char *prog,
+	unsigned int current,
+	unsigned int container,
+	unsigned int executor)
 {
 	char *target_str = xuitoa(target);
 	char *current_str = xuitoa(current);
@@ -220,6 +225,7 @@ static void xwrite_id_map(pid_t target, const char *prog, unsigned int current, 
 	char *executor_str = xuitoa(executor);
 
 	char *args[] = {
+		// clang-format off
 		(char *) prog,
 		target_str,
 		// inside, outside, count
@@ -227,6 +233,7 @@ static void xwrite_id_map(pid_t target, const char *prog, unsigned int current, 
 		"2", container_str, "1",
 		"3", executor_str,  "1",
 		NULL,
+		// clang-format on
 	};
 
 	pid_t prog_pid;
@@ -315,8 +322,8 @@ static int xopen_executor_and_loader()
 {
 	// lstat'ing a symlink in /proc doesn't yield target path length :(
 	char linkbuf[PATH_MAX];
-	ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof (linkbuf));
-	if (linklen <= 0 || linklen >= (ssize_t) sizeof (linkbuf))
+	ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof linkbuf);
+	if (linklen <= 0 || linklen >= (ssize_t) sizeof linkbuf)
 		xerror("readlink /proc/self/exe");
 	linkbuf[linklen] = '\0';
 
@@ -328,7 +335,7 @@ static int xopen_executor_and_loader()
 		exit(1);
 	}
 
-	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_RDONLY|O_CLOEXEC);
+	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_RDONLY | O_CLOEXEC);
 }
 
 // Wait for the child process, or die.  The return code is returned.
@@ -453,7 +460,7 @@ static int child_main(void *dummy_arg)
 		xerror("setgroups to empty list");
 
 	uint64_t rand;
-	xgetentropy(&rand, sizeof (rand));
+	xgetentropy(&rand, sizeof rand);
 
 	char *tmp_proc;
 	if (asprintf(&tmp_proc, "/tmp/.%016lx", rand) < 0)
@@ -471,10 +478,10 @@ static int child_main(void *dummy_arg)
 	if (setdomainname("", 0) != 0)
 		xerror("setdomainname to empty");
 
-	if (mount("", "/", "", MS_PRIVATE|MS_REC, NULL) != 0)
+	if (mount("", "/", "", MS_PRIVATE | MS_REC, NULL) != 0)
 		xerror("remount old root as private recursively");
 
-	int mount_options = MS_NODEV|MS_NOEXEC|MS_NOSUID;
+	int mount_options = MS_NODEV | MS_NOEXEC | MS_NOSUID;
 
 	// abuse /tmp as staging area for new root
 	if (mount("tmpfs", "/tmp", "tmpfs", mount_options, "mode=0111,nr_blocks=1,nr_inodes=3") != 0)
@@ -503,7 +510,7 @@ static int child_main(void *dummy_arg)
 
 	mount_options |= MS_RDONLY;
 
-	if (mount("", "/", "", MS_REMOUNT|mount_options, NULL) != 0)
+	if (mount("", "/", "", MS_REMOUNT | mount_options, NULL) != 0)
 		xerror("remount new root as read-only");
 
 	if (chdir("/x") != 0)
@@ -539,7 +546,7 @@ static int child_main(void *dummy_arg)
 
 	xlimit(RLIMIT_AS, GATE_LIMIT_AS);
 	xlimit(RLIMIT_CORE, 0);
-	xlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1));
+	xlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE + page - 1) & ~(page - 1));
 
 	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 

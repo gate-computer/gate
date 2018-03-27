@@ -14,7 +14,10 @@
 #include "../defs.h"
 
 #define xstr(s) str(s)
-#define str(s)  #s
+#define str(s) #s
+
+#define NORETURN __attribute__((noreturn))
+#define PACKED __attribute__((packed))
 
 #define SYS_SA_RESTORER 0x04000000
 #define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER)
@@ -30,12 +33,11 @@ static int sys_personality(unsigned long persona)
 {
 	int retval;
 
-	asm volatile (
+	asm volatile(
 		"syscall"
-		: "=a" (retval)
-		: "a" (SYS_personality), "D" (persona)
-		: "cc", "rcx", "r11", "memory"
-	);
+		: "=a"(retval)
+		: "a"(SYS_personality), "D"(persona)
+		: "cc", "rcx", "r11", "memory");
 
 	return retval;
 }
@@ -44,12 +46,11 @@ static int sys_prctl(int option, unsigned long arg2)
 {
 	int retval;
 
-	asm volatile (
+	asm volatile(
 		"syscall"
-		: "=a" (retval)
-		: "a" (SYS_prctl), "D" (option), "S" (arg2)
-		: "cc", "rcx", "r11", "memory"
-	);
+		: "=a"(retval)
+		: "a"(SYS_prctl), "D"(option), "S"(arg2)
+		: "cc", "rcx", "r11", "memory");
 
 	return retval;
 }
@@ -58,33 +59,32 @@ static ssize_t sys_read(int fd, void *buf, size_t count)
 {
 	ssize_t retval;
 
-	asm volatile (
+	asm volatile(
 		"syscall"
-		: "=a" (retval)
-		: "a" (SYS_read), "D" (fd), "S" (buf), "d" (count)
-		: "cc", "rcx", "r11", "memory"
-	);
+		: "=a"(retval)
+		: "a"(SYS_read), "D"(fd), "S"(buf), "d"(count)
+		: "cc", "rcx", "r11", "memory");
 
 	return retval;
 }
 
-static void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+static void *sys_mmap(
+	void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *retval;
 
-	register void *rdi asm ("rdi") = addr;
-	register size_t rsi asm ("rsi") = length;
-	register int rdx asm ("rdx") = prot;
-	register int r10 asm ("r10") = flags;
-	register int r8 asm ("r8") = fd;
-	register off_t r9 asm ("r9") = offset;
+	register void *rdi asm("rdi") = addr;
+	register size_t rsi asm("rsi") = length;
+	register int rdx asm("rdx") = prot;
+	register int r10 asm("r10") = flags;
+	register int r8 asm("r8") = fd;
+	register off_t r9 asm("r9") = offset;
 
-	asm volatile (
+	asm volatile(
 		"syscall"
-		: "=a" (retval)
-		: "a" (SYS_mmap), "r" (rdi), "r" (rsi), "r" (rdx), "r" (r10), "r" (r8), "r" (r9)
-		: "cc", "rcx", "r11", "memory"
-	);
+		: "=a"(retval)
+		: "a"(SYS_mmap), "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
+		: "cc", "rcx", "r11", "memory");
 
 	return retval;
 }
@@ -93,19 +93,18 @@ static int sys_close(int fd)
 {
 	int retval;
 
-	asm volatile (
+	asm volatile(
 		"syscall"
-		: "=a" (retval)
-		: "a" (SYS_close), "D" (fd)
-		: "cc", "rcx", "r11", "memory"
-	);
+		: "=a"(retval)
+		: "a"(SYS_close), "D"(fd)
+		: "cc", "rcx", "r11", "memory");
 
 	return retval;
 }
 
 static int read_full(void *buf, size_t size)
 {
-	for (size_t pos = 0; pos < size; ) {
+	for (size_t pos = 0; pos < size;) {
 		ssize_t len = sys_read(0, buf + pos, size - pos);
 		if (len < 0)
 			return -1;
@@ -115,23 +114,32 @@ static int read_full(void *buf, size_t size)
 	return 0;
 }
 
-__attribute__ ((noreturn))
-static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_memory_limit, void *grow_memory_limit, void *stack_ptr, void *stack_limit, int32_t arg)
+NORETURN
+static void enter(
+	uint64_t page,
+	void *text_ptr,
+	void *memory_ptr,
+	void *init_memory_limit,
+	void *grow_memory_limit,
+	void *stack_ptr,
+	void *stack_limit,
+	int32_t arg)
 {
-	register void *rax asm ("rax") = stack_ptr;
-	register void *rdx asm ("rdx") = &trap_handler;
-	register void *rcx asm ("rcx") = grow_memory_limit;
-	register uint64_t rsi asm ("rsi") = (GATE_LOADER_STACK_SIZE+page-1) & ~(page-1);
-	register int64_t rdi asm ("rdi") = arg;
-	register void *r9 asm ("r9") = &signal_handler;
-	register void *r10 asm ("r10") = &signal_restorer;
-	register uint64_t r11 asm ("r11") = page;
-	register void *r12 asm ("r12") = text_ptr;
-	register void *r13 asm ("r13") = stack_limit;
-	register void *r14 asm ("r14") = memory_ptr;
-	register void *r15 asm ("r15") = init_memory_limit;
+	register void *rax asm("rax") = stack_ptr;
+	register void *rdx asm("rdx") = &trap_handler;
+	register void *rcx asm("rcx") = grow_memory_limit;
+	register uint64_t rsi asm("rsi") = (GATE_LOADER_STACK_SIZE + page - 1) & ~(page - 1);
+	register int64_t rdi asm("rdi") = arg;
+	register void *r9 asm("r9") = &signal_handler;
+	register void *r10 asm("r10") = &signal_restorer;
+	register uint64_t r11 asm("r11") = page;
+	register void *r12 asm("r12") = text_ptr;
+	register void *r13 asm("r13") = stack_limit;
+	register void *r14 asm("r14") = memory_ptr;
+	register void *r15 asm("r15") = init_memory_limit;
 
-	asm volatile (
+	asm volatile(
+		// clang-format off
 		// runtime MMX registers
 		"        movq    %%rdx, %%mm0                            \n" // trap handler
 		"        movq    %%rcx, %%mm1                            \n" // grow memory limit
@@ -170,9 +178,10 @@ static void enter(uint64_t page, void *text_ptr, void *memory_ptr, void *init_me
 		"        mov     $"xstr(GATE_LOADER_TEXT_SIZE)", %%esi   \n"
 		"        mov     $"xstr(SYS_munmap)", %%eax              \n"
 		"        jmp     runtime_start_with_syscall              \n"
+		// clang-format on
 		:
-		: "r" (rax), "r" (rdx), "r" (rcx), "r" (rsi), "r" (rdi), "r" (r9), "r" (r10), "r" (r11), "r" (r12), "r" (r13), "r" (r14), "r" (r15)
-	);
+		: "r"(rax), "r"(rdx), "r"(rcx), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r11), "r"(r12), "r"(r13), "r"(r14), "r"(r15));
+
 	__builtin_unreachable();
 }
 
@@ -186,7 +195,7 @@ int main(int argc, char **argv, char **envp)
 		return 49;
 
 	// this is like imageInfo in run.go
-	struct __attribute__ ((packed)) {
+	struct PACKED {
 		uint64_t text_addr;
 		uint64_t heap_addr;
 		uint64_t stack_addr;
@@ -198,22 +207,22 @@ int main(int argc, char **argv, char **envp)
 		uint32_t grow_memory_size;
 		uint32_t stack_size;
 		uint32_t magic_number;
-		int32_t  arg;
+		int32_t arg;
 	} info;
 
-	if (read_full(&info, sizeof (info)) != 0)
+	if (read_full(&info, sizeof info) != 0)
 		return 50;
 
 	if (info.magic_number != GATE_MAGIC_NUMBER)
 		return 51;
 
 	if (info.rodata_size > 0) {
-		void *ptr = sys_mmap((void *) GATE_RODATA_ADDR, info.rodata_size, PROT_READ, MAP_PRIVATE|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, 0);
+		void *ptr = sys_mmap((void *) GATE_RODATA_ADDR, info.rodata_size, PROT_READ, MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE, GATE_MAPS_FD, 0);
 		if (ptr != (void *) GATE_RODATA_ADDR)
 			return 52;
 	}
 
-	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_EXEC, MAP_PRIVATE|MAP_NORESERVE|MAP_FIXED, GATE_MAPS_FD, info.rodata_size);
+	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_EXEC, MAP_PRIVATE | MAP_NORESERVE | MAP_FIXED, GATE_MAPS_FD, info.rodata_size);
 	if (text_ptr != (void *) info.text_addr)
 		return 53;
 
@@ -223,7 +232,7 @@ int main(int argc, char **argv, char **envp)
 	void *memory_ptr = NULL;
 
 	if (globals_memory_size > 0) {
-		void *ptr = sys_mmap((void *) info.heap_addr, globals_memory_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, globals_memory_offset);
+		void *ptr = sys_mmap((void *) info.heap_addr, globals_memory_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, GATE_MAPS_FD, globals_memory_offset);
 		if (ptr != (void *) info.heap_addr)
 			return 54;
 
@@ -235,7 +244,7 @@ int main(int argc, char **argv, char **envp)
 
 	size_t stack_offset = globals_memory_offset + globals_memory_size;
 
-	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_NORESERVE, GATE_MAPS_FD, stack_offset);
+	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, GATE_MAPS_FD, stack_offset);
 	if (stack_buf != (void *) info.stack_addr)
 		return 55;
 

@@ -9,11 +9,12 @@
 #include <gate/services/origin.h>
 #include <gate/services/peer.h>
 
-#define container_of(ptr, type, member) ({ \
-	const typeof( ((type *)0)->member ) *__mptr = (ptr); \
-	(type *)( (char *)__mptr - offsetof(type,member) );})
+#define container_of(ptr, type, member) ({                  \
+	const typeof(((type *) 0)->member) *__mptr = (ptr); \
+	(type *) ((char *) __mptr - offsetof(type, member)); })
 
-static void origin_packet_received(struct gate_service *service, void *data, size_t size)
+static void origin_packet_received(
+	struct gate_service *service, void *data, size_t size)
 {
 	gate_debug("origin packet received\n");
 }
@@ -38,7 +39,8 @@ struct peer_service {
 	bool done;
 };
 
-static void peer_packet_received(struct gate_service *parent, void *data, size_t size)
+static void peer_packet_received(
+	struct gate_service *parent, void *data, size_t size)
 {
 	struct peer_service *service = container_of(parent, struct peer_service, parent);
 	const struct peer_packet *packet = data;

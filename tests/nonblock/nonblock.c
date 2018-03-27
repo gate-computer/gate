@@ -27,14 +27,14 @@ int main()
 		if (ev->code != 0)
 			continue;
 
-		if (len < sizeof (struct gate_packet) + 1)
+		if (len < sizeof(struct gate_packet) + 1)
 			gate_exit(1);
 
-		payload = buf[sizeof (struct gate_packet)];
+		payload = buf[sizeof(struct gate_packet)];
 		break;
 	}
 
-	size_t size = sizeof (struct gate_packet) + 3;
+	size_t size = sizeof(struct gate_packet) + 3;
 	char buf[size];
 
 	for (size_t i = 0; i < size; i++)
@@ -43,9 +43,9 @@ int main()
 	struct gate_packet *op = (void *) buf;
 	op->size = size;
 
-	buf[sizeof (struct gate_packet) + 0] = idle;
-	buf[sizeof (struct gate_packet) + 1] = idle >> 8;
-	buf[sizeof (struct gate_packet) + 2] = payload;
+	buf[sizeof(struct gate_packet) + 0] = idle;
+	buf[sizeof(struct gate_packet) + 1] = idle >> 8;
+	buf[sizeof(struct gate_packet) + 2] = payload;
 
 	gate_send_packet(op, 0);
 

@@ -33,11 +33,13 @@ static size_t message_packet_size(const struct message_packet *packet)
 
 static size_t message_payload_size(const struct message_packet *packet)
 {
-	return message_packet_size(packet) - sizeof (struct peer_id_packet);
+	return message_packet_size(packet) - sizeof(struct peer_id_packet);
 }
 
-static void origin_packet_received(struct gate_service *service, void *data, size_t size);
-static void peer_packet_received(struct gate_service *service, void *data, size_t size);
+static void origin_packet_received(
+	struct gate_service *service, void *data, size_t size);
+static void peer_packet_received(
+	struct gate_service *service, void *data, size_t size);
 
 static struct gate_service origin = {
 	.name = ORIGIN_SERVICE_NAME,
@@ -57,11 +59,12 @@ struct peer {
 static bool exit_requested;
 static struct peer *peer_list;
 
-static void origin_packet_received(struct gate_service *service, void *input, size_t inputsize)
+static void origin_packet_received(
+	struct gate_service *service, void *input, size_t inputsize)
 {
 	gate_debug("origin packet received\n");
 
-	for (size_t i = sizeof (struct gate_packet); i < inputsize; i++) {
+	for (size_t i = sizeof(struct gate_packet); i < inputsize; i++) {
 		if (((const char *) input)[i] == 0) {
 			exit_requested = true;
 			inputsize = i;
@@ -69,12 +72,12 @@ static void origin_packet_received(struct gate_service *service, void *input, si
 		}
 	}
 
-	void *msg = input + sizeof (struct gate_packet);
-	size_t msglen = inputsize - sizeof (struct gate_packet);
+	void *msg = input + sizeof(struct gate_packet);
+	size_t msglen = inputsize - sizeof(struct gate_packet);
 	if (msglen == 0)
 		return;
 
-	size_t outputsize = sizeof (struct peer_id_packet) + msglen;
+	size_t outputsize = sizeof(struct peer_id_packet) + msglen;
 	char output[outputsize];
 
 	struct message_packet *packet = (struct message_packet *) output;
@@ -95,7 +98,7 @@ static void add_peer(const struct peer_id_packet *packet)
 			return;
 		}
 
-	struct peer *node = xalloc(sizeof (struct peer));
+	struct peer *node = xalloc(sizeof(struct peer));
 	node->peer_id = packet->peer_id;
 
 	*end = node;
@@ -105,7 +108,7 @@ static void remove_peer(const struct peer_id_packet *packet)
 {
 	origin_send_str(origin.code, "removing peer\n");
 
-	for (struct peer **p = &peer_list; ; p = &(*p)->next) {
+	for (struct peer **p = &peer_list;; p = &(*p)->next) {
 		if (*p == NULL) {
 			gate_debug("peer not found\n");
 			return;
@@ -129,7 +132,8 @@ static void message_from_peer(const struct message_packet *packet)
 		origin_send_str(origin.code, "empty message from peer\n");
 }
 
-static void peer_packet_received(struct gate_service *service, void *data, size_t size)
+static void peer_packet_received(
+	struct gate_service *service, void *data, size_t size)
 {
 	const struct peer_packet *packet = data;
 	enum peer_ev_type type = packet->type;

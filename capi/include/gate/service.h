@@ -40,15 +40,22 @@ struct gate_service_registry {
 	size_t request_size;
 };
 
-GATE_SERVICE_DECL bool gate_service_registry_init(struct gate_service_registry *, void *packet_buf, size_t packet_size) GATE_NOEXCEPT;
-GATE_SERVICE_DECL void gate_service_registry_deinit(struct gate_service_registry *) GATE_NOEXCEPT;
+GATE_SERVICE_DECL bool gate_service_registry_init(
+	struct gate_service_registry *, void *packet_buf, size_t packet_size) GATE_NOEXCEPT;
+GATE_SERVICE_DECL void gate_service_registry_deinit(
+	struct gate_service_registry *) GATE_NOEXCEPT;
 
-GATE_SERVICE_DECL struct gate_service_registry *gate_service_registry_create(void) GATE_NOEXCEPT;
-GATE_SERVICE_DECL void gate_service_registry_destroy(struct gate_service_registry *) GATE_NOEXCEPT;
+GATE_SERVICE_DECL struct gate_service_registry *gate_service_registry_create(
+	void) GATE_NOEXCEPT;
+GATE_SERVICE_DECL void gate_service_registry_destroy(
+	struct gate_service_registry *) GATE_NOEXCEPT;
 
-GATE_SERVICE_DECL bool gate_register_service(struct gate_service_registry *, struct gate_service *) GATE_NOEXCEPT;
-GATE_SERVICE_DECL bool gate_discover_services(struct gate_service_registry *) GATE_NOEXCEPT;
-GATE_SERVICE_DECL bool gate_recv_for_services(struct gate_service_registry *, unsigned flags) GATE_NOEXCEPT;
+GATE_SERVICE_DECL bool gate_register_service(
+	struct gate_service_registry *, struct gate_service *) GATE_NOEXCEPT;
+GATE_SERVICE_DECL bool gate_discover_services(
+	struct gate_service_registry *) GATE_NOEXCEPT;
+GATE_SERVICE_DECL bool gate_recv_for_services(
+	struct gate_service_registry *, unsigned flags) GATE_NOEXCEPT;
 
 #ifdef __cplusplus
 }
