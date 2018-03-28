@@ -5,9 +5,7 @@
 GATEDIR		:= ..
 
 CPPFLAGS	+= \
-	-include $(GATEDIR)/capi/include/gate.h \
 	-include morecore.h \
-	-DABORT='gate_exit(1)' \
 	-DHAVE_MMAP=0 \
 	-DHAVE_MREMAP=0 \
 	-DLACKS_TIME_H=1 \
@@ -25,12 +23,12 @@ build: all.bc
 
 include $(GATEDIR)/crt/rules.mk
 
-CFLAGS		+= -Wno-null-pointer-arithmetic
+CFLAGS		+= -fno-builtin-calloc -fno-builtin-free -fno-builtin-malloc -fno-builtin-memalign -fno-builtin-posix_memalign -fno-builtin-pvalloc -fno-builtin-realloc -fno-builtin-valloc -Wno-null-pointer-arithmetic
 
 all.bc: $(OBJECTS)
 	$(LLVMLINK) -o $@ $(OBJECTS)
 
-malloc.bc: malloc.c morecore.h $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/crt/rules.mk
+malloc.bc: malloc.c morecore.h Makefile $(GATEDIR)/crt/rules.mk
 
 wasm.bc: wasm.ll Makefile $(GATEDIR)/crt/rules.mk
 	$(LLVMAS) -o $@ wasm.ll
