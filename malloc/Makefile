@@ -23,7 +23,7 @@ build: all.bc
 
 include $(GATEDIR)/crt/rules.mk
 
-CFLAGS		+= -fno-builtin-calloc -fno-builtin-free -fno-builtin-malloc -fno-builtin-memalign -fno-builtin-posix_memalign -fno-builtin-pvalloc -fno-builtin-realloc -fno-builtin-valloc -Wno-null-pointer-arithmetic
+CFLAGS		+= -fno-builtin-calloc -fno-builtin-free -fno-builtin-malloc -fno-builtin-memalign -fno-builtin-posix_memalign -fno-builtin-pvalloc -fno-builtin-realloc -fno-builtin-valloc -Wno-bitwise-op-parentheses -Wno-null-pointer-arithmetic -Wno-shift-op-parentheses
 
 all.bc: $(OBJECTS)
 	$(LLVMLINK) -o $@ $(OBJECTS)
