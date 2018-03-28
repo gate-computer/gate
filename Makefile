@@ -54,9 +54,9 @@ check: lib bin tests
 	$(GO) test $(GOTESTFLAGS) $(GOPACKAGES)
 	bin/runner tests/echo/prog.wasm
 	bin/runner tests/cxx/prog.wasm
-	bin/runner -repeat=2 tests/hello/prog.wasm
-	bin/runner -arg=-32 tests/hello/prog.wasm | grep "HELLO WORLD"
-	bin/runner -repeat=100 tests/nop/prog.wasm
+	bin/runner -c benchmark.repeat=2 tests/hello/prog.wasm
+	bin/runner -c program.arg=-32 tests/hello/prog.wasm | grep "HELLO WORLD"
+	bin/runner -c benchmark.repeat=100 tests/nop/prog.wasm
 	bin/runner tests/peer/prog.wasm tests/peer/prog.wasm
 
 check-toolchain:
@@ -65,7 +65,7 @@ check-toolchain:
 
 benchmark: lib bin tests
 	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
-	bin/runner -repeat=10000 -dump-time tests/nop/prog.wasm
+	bin/runner -c benchmark.repeat=10000 -benchmark.timing tests/nop/prog.wasm
 
 clean:
 	rm -rf bin lib
