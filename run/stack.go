@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
-	"github.com/ianlancetaylor/demangle"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/sections"
 )
@@ -134,15 +134,11 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module
 			name = fmt.Sprintf("func-%d", funcNum)
 		}
 
-		prettyName, err := demangle.ToString(name)
-		if err != nil {
-			prettyName = name
-			if funcNum < len(funcSigs) {
-				prettyName += funcSigs[funcNum].StringWithNames(localNames)
-			}
+		if !strings.Contains(name, "(") && funcNum < len(funcSigs) {
+			name += funcSigs[funcNum].StringWithNames(localNames)
 		}
 
-		fmt.Fprintf(w, "#%d  %s  +0x%x\n", depth, prettyName, uint32(retAddr)-funcAddr)
+		fmt.Fprintf(w, "#%d  %s  +0x%x\n", depth, name, uint32(retAddr)-funcAddr)
 
 		stack = stack[site.stackOffset:]
 	}
