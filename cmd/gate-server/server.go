@@ -62,8 +62,6 @@ type Config struct {
 		}
 	}
 
-	API webserver.Config
-
 	ACME struct {
 		AcceptTOS    bool
 		CacheDir     string
@@ -104,6 +102,7 @@ func main() {
 	c.Runtime.LibDir = "lib"
 	c.Runtime.CgroupTitle = run.DefaultCgroupTitle
 	c.Server.Services = services
+	c.Server.MaxProgramSize = server.DefaultMaxProgramSize
 	c.Server.MemorySizeLimit = server.DefaultMemorySizeLimit
 	c.Server.StackSize = server.DefaultStackSize
 	c.Server.PreforkProcs = server.DefaultPreforkProcs
@@ -111,7 +110,6 @@ func main() {
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
 	c.HTTP.TLS.Domains = []string{"example.invalid"}
-	c.API.MaxProgramSize = webserver.DefaultMaxProgramSize
 	c.ACME.CacheDir = "/var/lib/gate-server-acme"
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 	c.Monitor.BufSize = monitor.DefaultBufSize
@@ -217,7 +215,7 @@ func main() {
 	}
 
 	state := server.NewState(ctx, &c.Server.Config)
-	handler := webserver.NewHandler(ctx, "/", state, &c.API)
+	handler := webserver.NewHandler(ctx, "/", state)
 
 	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {

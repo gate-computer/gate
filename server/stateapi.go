@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	DefaultMaxProgramSize  = internal.DefaultMaxProgramSize
 	DefaultMemorySizeLimit = internal.DefaultMemorySizeLimit
 	DefaultStackSize       = internal.DefaultStackSize
 	DefaultPreforkProcs    = internal.DefaultPreforkProcs

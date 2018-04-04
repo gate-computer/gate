@@ -60,6 +60,10 @@ func (s *State) Init(ctx context.Context, conf Config) {
 		conf.MonitorEvent = defaultMonitorEvent
 	}
 
+	if conf.MaxProgramSize <= 0 {
+		conf.MaxProgramSize = DefaultMaxProgramSize
+	}
+
 	if conf.MemorySizeLimit > 0 {
 		conf.MemorySizeLimit = (conf.MemorySizeLimit + wasm.Page - 1) &^ (wasm.Page - 1)
 	} else {

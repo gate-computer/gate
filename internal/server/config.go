@@ -13,6 +13,7 @@ import (
 )
 
 const (
+	DefaultMaxProgramSize  = 16777216
 	DefaultMemorySizeLimit = 16777216
 	DefaultStackSize       = 65536
 	DefaultPreforkProcs    = 1
@@ -46,6 +47,7 @@ type Config struct {
 	Monitor
 	Debug io.Writer
 
+	MaxProgramSize  int // enforced by webserver
 	MemorySizeLimit wasm.MemorySize
 	StackSize       int32
 	PreforkProcs    int
