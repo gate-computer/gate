@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
 )
@@ -41,7 +42,9 @@ func TestFileLimiter(t *testing.T) {
 	}()
 
 	if err := lastImage.Init(cancelCtx, rt.Runtime); err != context.Canceled {
-		t.Fatal(err)
+		if puberr, ok := err.(publicerror.PublicError); !ok || puberr.PrivateErr() != context.Canceled {
+			t.Fatal(err)
+		}
 	}
 
 	if err := images[0].Release(rt.Runtime); err != nil {

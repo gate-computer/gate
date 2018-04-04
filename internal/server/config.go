@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/tsavola/gate/run"
+	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/wag/wasm"
 )
 
@@ -26,12 +27,24 @@ type Server struct {
 	Origin Origin
 }
 
+type Event interface {
+	EventName() string
+	EventType() int32
+	ProtoMessage()
+	Reset()
+	String() string
+}
+
+type Monitor struct {
+	MonitorError func(*detail.Position, error)
+	MonitorEvent func(Event, error)
+}
+
 type Config struct {
 	Runtime  *run.Runtime
 	Services func(*Server) run.ServiceRegistry
-	ErrorLog run.Logger
-	InfoLog  run.Logger
-	Debug    io.Writer
+	Monitor
+	Debug io.Writer
 
 	MemorySizeLimit wasm.MemorySize
 	StackSize       int32

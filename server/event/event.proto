@@ -1,0 +1,95 @@
+// Copyright (c) 2018 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package event;
+
+option go_package = "github.com/tsavola/gate/server/event";
+
+import "server/detail/detail.proto";
+
+message Event {
+	enum Type {
+		FailNetwork = 0;
+		FailProtocol = 1;
+		ServerAccess = 2;
+		FailRequest = 3;
+		ProgramLoad = 4;
+		ProgramCreate = 5;
+		ProgramCheck = 6;
+		InstanceCreate = 7;
+		InstanceAttach = 8;
+		InstanceDetach = 9;
+		InstanceDelete = 10;
+	}
+}
+
+message FailNetwork {
+	detail.Context context = 1;
+}
+
+message FailProtocol {
+	detail.Context context = 1;
+}
+
+message ServerAccess {
+	detail.Context context = 1;
+	string protocol = 2;
+	string method = 3;
+	string url = 4;
+}
+
+message FailRequest {
+	enum Type {
+		PAYLOAD_ERROR = 0;
+		PROGRAM_NOT_FOUND = 1;
+		PROGRAM_HASH_MISMATCH = 2;
+		INSTANCE_NOT_FOUND = 3;
+		IO_CONFLICT = 4;
+	}
+
+	detail.Context context = 1;
+	Type type = 2;
+	string program_id = 3;
+	int32 instance_arg = 4;
+	string instance_id = 5;
+}
+
+message ProgramLoad {
+	detail.Context context = 1;
+	string program_hash = 2;
+}
+
+message ProgramCreate {
+	detail.Context context = 1;
+	string program_hash = 2;
+	string program_id = 3;
+}
+
+message ProgramCheck {
+	detail.Context context = 1;
+	string program_id = 2;
+}
+
+message InstanceCreate {
+	detail.Context context = 1;
+	string program_id = 2;
+	string instance_id = 3;
+}
+
+message InstanceAttach {
+	detail.Context context = 1;
+	string instance_id = 2;
+}
+
+message InstanceDetach {
+	detail.Context context = 1;
+	string instance_id = 2;
+}
+
+message InstanceDelete {
+	detail.Context context = 1;
+	string instance_id = 2;
+}

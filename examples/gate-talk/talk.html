@@ -57,12 +57,8 @@
 	prog.send()
 
 	prog.onload = () => {
-		let checksum = new XMLHttpRequest()
-		checksum.open("GET", PROG + ".sha512sum")
-		checksum.send()
-
-		checksum.onload = () => {
-			let hash = checksum.response.split(" ")[0]
+		crypto.subtle.digest("SHA-384", prog.response).then((digest) => {
+			let hash = btoa(digest).replace(/+/g, "-").replace(/\//g, "_")
 
 			if (RUN_WEBSOCKET) {
 				let run = new WebSocket("ws://" + ADDR + "/run")
@@ -82,7 +78,7 @@
 				let load = new XMLHttpRequest()
 				load.open("POST", "http://" + ADDR + "/load")
 				load.setRequestHeader("Content-Type", "application/wasm")
-				load.setRequestHeader("X-Gate-Program-Sha512", hash)
+				load.setRequestHeader("X-Gate-Program-Sha384", hash)
 				load.send(prog.response)
 
 				load.onload = () => {
@@ -94,7 +90,7 @@
 						run.responseType = "arraybuffer"
 						run.open("POST", "http://" + ADDR + "/run")
 						run.setRequestHeader("X-Gate-Program-Id", loaded.program.id)
-						run.setRequestHeader("X-Gate-Program-Sha512", hash)
+						run.setRequestHeader("X-Gate-Program-Sha384", hash)
 						run.send()
 
 						run.onload = () => {
@@ -130,7 +126,7 @@
 							}
 
 							if (COMM_WEBSOCKET) {
-								let comm = new WebSocket("ws://" + ADDR + "/communicate")
+								let comm = new WebSocket("ws://" + ADDR + "/io")
 								comm.binaryType = "arraybuffer"
 
 								comm.onopen = () => {
@@ -146,7 +142,7 @@
 							} else {
 								let comm = new XMLHttpRequest()
 								comm.responseType = "arraybuffer"
-								comm.open("POST", "http://" + ADDR + "/communicate")
+								comm.open("POST", "http://" + ADDR + "/io")
 								comm.setRequestHeader("X-Gate-Instance-Id", spawned.instance.id)
 								comm.send()
 
@@ -162,7 +158,7 @@
 					}
 				}
 			}
-		}
+		})
 	}
 }())
 

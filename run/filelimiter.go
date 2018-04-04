@@ -7,9 +7,11 @@ package run
 import (
 	"context"
 	"errors"
+
+	"github.com/tsavola/gate/internal/publicerror"
 )
 
-var errFileLimiterClosed = errors.New("file limiter closed")
+var errFileLimiterClosed = publicerror.Shutdown("file limiter", errors.New("file limiter closed"))
 
 type FileLimiter struct {
 	get1 chan struct{}
@@ -140,7 +142,7 @@ func (limiter FileLimiter) acquire(ctx context.Context, num int) (err error) {
 			}
 
 		case <-ctx.Done():
-			err = ctx.Err()
+			err = publicerror.Shutdown("file limiter", ctx.Err())
 		}
 	}
 

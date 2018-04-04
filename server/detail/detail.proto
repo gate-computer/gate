@@ -1,0 +1,27 @@
+// Copyright (c) 2018 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package detail;
+
+option go_package = "github.com/tsavola/gate/server/detail";
+
+enum Iface {
+	DEFAULT = 0;
+}
+
+message Context {
+	Iface iface = 1;
+	string client = 2;
+	string call = 3;
+}
+
+message Position {
+	Context context = 1;
+	string program_id = 2;
+	string instance_id = 3;
+	int32 instance_arg = 4;
+	string subsystem = 5;
+}

@@ -7,8 +7,8 @@ package run
 import (
 	"bytes"
 	"context"
-	"errors"
 
+	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/gate/packet"
 )
 
@@ -91,14 +91,14 @@ func handleServicesPacket(reqPacket packet.Buf, discoverer ServiceDiscoverer,
 ) (respPacket packet.Buf, err error) {
 	reqContent := reqPacket.Content()
 	if len(reqContent) < serviceHeaderSize {
-		err = errors.New("service discovery packet is too short")
+		err = publicerror.New("run: service discovery packet is too short")
 		return
 	}
 
 	reqCount := endian.Uint16(reqContent[serviceCountOffset:])
 	totalCount := discoverer.NumServices() + int(reqCount)
 	if totalCount > maxServices {
-		err = errors.New("too many services")
+		err = publicerror.New("run: too many services")
 		return
 	}
 
@@ -108,7 +108,7 @@ func handleServicesPacket(reqPacket packet.Buf, discoverer ServiceDiscoverer,
 	for i := range names {
 		nameLen := bytes.IndexByte(nameBuf, 0)
 		if nameLen < 0 {
-			err = errors.New("name data is truncated in service discovery packet")
+			err = publicerror.New("run: name data is truncated in service discovery packet")
 			return
 		}
 

@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/tsavola/gate/internal/defaultlog"
+	"github.com/tsavola/gate/internal/publicerror"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -103,7 +104,7 @@ func (e *executor) execute(ctx context.Context, p *process, files *execFiles,
 		return errExecutorDead
 
 	case <-ctx.Done():
-		return ctx.Err()
+		return publicerror.Shutdown("executor", ctx.Err())
 	}
 }
 

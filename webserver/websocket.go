@@ -6,16 +6,21 @@ package webserver
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/gorilla/websocket"
 )
 
 var (
-	websocketNormalClosure        = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
-	websocketUnsupportedData      = websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "")
-	websocketAlreadyCommunicating = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "Already communicating")
-	websocketInternalServerErr    = websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "")
+	errWrongWebsocketMessageType = errors.New("wrong websocket message type")
+)
+
+var (
+	websocketNormalClosure     = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+	websocketUnsupportedData   = websocket.FormatCloseMessage(websocket.CloseUnsupportedData, "")
+	websocketIOAlreadyAttached = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "I/O origin already attached")
+	websocketInternalServerErr = websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "")
 )
 
 type websocketReader struct {

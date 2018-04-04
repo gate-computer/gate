@@ -7,24 +7,37 @@ package webserver
 import (
 	"compress/gzip"
 	"context"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/tsavola/gate/internal/publicerror"
 	internal "github.com/tsavola/gate/internal/server"
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/detail"
+	"github.com/tsavola/gate/server/event"
 	api "github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag/traps"
 )
 
 const (
 	accessControlMaxAge = "86400"
+)
+
+var (
+	errContentHashMismatch  = errors.New("Program SHA-384 hash does not match content")
+	errEncodingNotSupported = errors.New("The only supported Content-Encoding is gzip")
+	errLengthRequired       = errors.New(http.StatusText(http.StatusLengthRequired))
+	errMethodNotAllowed     = errors.New(http.StatusText(http.StatusMethodNotAllowed))
+	errProgramTooLarge      = errors.New("Program content is too large")
+	errUnsupportedMediaType = errors.New(http.StatusText(http.StatusUnsupportedMediaType))
 )
 
 // NewHandler should be called with the same context that was passed to
@@ -37,347 +50,356 @@ func NewHandler(ctx context.Context, pattern string, state *server.State, conf *
 	}
 
 	var (
-		s      = &state.Internal
-		prefix = strings.TrimRight(pattern, "/")
-		mux    = http.NewServeMux()
+		s   = &state.Internal
+		mux = http.NewServeMux()
 	)
 
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		ctx := server.WithClient(ctx, r.RemoteAddr)
+
+		s.MonitorEvent(&event.ServerAccess{
+			Context:  server.Context(ctx),
+			Protocol: r.Proto,
+			Method:   r.Method,
+			Url:      r.URL.String(),
+		}, nil)
+
+		mux.ServeHTTP(w, r.WithContext(ctx))
+	}
+
 	{
+		const call = "load"
+
 		var (
-			path          = prefix + "/load"
 			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
-			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramId, api.HeaderProgramSHA512)
+			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramSHA384, api.HeaderProgramId)
 			exposeHeaders = joinHeader(api.HeaderProgramId)
 		)
 
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc(path.Join(pattern, call), func(w http.ResponseWriter, r *http.Request) {
+			ctx := server.WithCall(r.Context(), call)
+
 			writeCORS(w, r, allowMethods, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodPost:
 				switch getContentType(r) {
 				case "application/wasm":
-					handleLoadContent(w, r, s, maxProgramSize)
+					ctx = server.WithCall(ctx, call+" content")
+					handleLoadContent(ctx, w, r, s, maxProgramSize)
 
 				case "":
-					handleLoadId(w, r, s)
+					ctx = server.WithCall(ctx, call+" id")
+					handleLoadId(ctx, w, r, s)
 
 				default:
-					writeUnsupportedMediaType(w)
+					writeUnsupportedMediaType(ctx, w, r, s)
 				}
 
 			case http.MethodOptions:
 				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allowMethods)
+				writeMethodNotAllowed(ctx, w, r, s, allowMethods)
 			}
 		})
 	}
 
 	{
+		const call = "spawn"
+
 		var (
-			path          = prefix + "/spawn"
 			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
-			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramId, api.HeaderProgramSHA512, api.HeaderInstanceArg)
+			allowHeaders  = joinHeader("Content-Type", api.HeaderProgramSHA384, api.HeaderProgramId, api.HeaderInstanceArg)
 			exposeHeaders = joinHeader(api.HeaderInstanceId, api.HeaderProgramId)
 		)
 
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc(path.Join(pattern, call), func(w http.ResponseWriter, r *http.Request) {
+			ctx := server.WithCall(r.Context(), call)
+
 			writeCORS(w, r, allowMethods, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodPost:
 				switch getContentType(r) {
 				case "application/wasm":
+					ctx = server.WithCall(ctx, call+" content")
 					handleSpawnContent(ctx, w, r, s, maxProgramSize)
 
 				case "":
+					ctx = server.WithCall(ctx, call+" id")
 					handleSpawnId(ctx, w, r, s)
 
 				default:
-					writeUnsupportedMediaType(w)
+					writeUnsupportedMediaType(ctx, w, r, s)
 				}
 
 			case http.MethodOptions:
 				writeOptions(w, allowHeaders)
 
 			default:
-				writeMethodNotAllowed(w, allowHeaders)
+				writeMethodNotAllowed(ctx, w, r, s, allowHeaders)
 			}
 		})
 	}
 
 	{
+		const call = "run"
+
 		var (
-			path             = prefix + "/run"
 			allowMethods     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
 			allowMethodsCORS = joinHeader(http.MethodPost, http.MethodOptions) // exclude websocket
-			allowHeaders     = joinHeader(api.HeaderProgramId, api.HeaderProgramSHA512, api.HeaderInstanceArg)
+			allowHeaders     = joinHeader(api.HeaderProgramSHA384, api.HeaderProgramId, api.HeaderInstanceArg)
 			exposeHeaders    = joinHeader(api.HeaderInstanceId, api.HeaderProgramId)
 		)
 
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc(path.Join(pattern, call), func(w http.ResponseWriter, r *http.Request) {
+			ctx := server.WithCall(r.Context(), call)
+
 			writeCORS(w, r, allowMethodsCORS, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodGet:
-				handleRunWebsocket(ctx, w, r, s)
+				ctx = server.WithCall(ctx, call+" socket")
+				handleRunSocket(ctx, w, r, s)
 
 			case http.MethodPost:
+				ctx = server.WithCall(ctx, call+" post")
 				handleRunPost(ctx, w, r, s)
 
 			case http.MethodOptions:
 				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allowMethods)
+				writeMethodNotAllowed(ctx, w, r, s, allowMethods)
 			}
 		})
 	}
 
 	{
+		const call = "io"
+
 		var (
-			path             = prefix + "/communicate"
 			allowMethods     = joinHeader(http.MethodGet, http.MethodPost, http.MethodOptions)
 			allowMethodsCORS = joinHeader(http.MethodPost, http.MethodOptions) // exclude websocket
 			allowHeaders     = joinHeader(api.HeaderInstanceId)
 		)
 
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc(path.Join(pattern, call), func(w http.ResponseWriter, r *http.Request) {
+			ctx := server.WithCall(r.Context(), call)
+
 			writeCORSWithoutExposeHeaders(w, r, allowMethodsCORS, allowHeaders)
 
 			switch r.Method {
 			case http.MethodGet:
-				handleCommunicateWebsocket(w, r, s)
+				ctx = server.WithCall(ctx, call+" socket")
+				handleIOSocket(ctx, w, r, s)
 
 			case http.MethodPost:
-				handleCommunicatePost(w, r, s)
+				ctx = server.WithCall(ctx, call+" post")
+				handleIOPost(ctx, w, r, s)
 
 			case http.MethodOptions:
 				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allowMethods)
+				writeMethodNotAllowed(ctx, w, r, s, allowMethods)
 			}
 		})
 	}
 
 	{
+		const call = "wait"
+
 		var (
-			path          = prefix + "/wait"
 			allowMethods  = joinHeader(http.MethodPost, http.MethodOptions)
 			allowHeaders  = joinHeader(api.HeaderInstanceId)
 			exposeHeaders = joinHeader(api.HeaderError, api.HeaderExitStatus, api.HeaderTrap, api.HeaderTrapId)
 		)
 
-		mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc(path.Join(pattern, call), func(w http.ResponseWriter, r *http.Request) {
+			ctx := server.WithCall(r.Context(), call)
+
 			writeCORS(w, r, allowMethods, allowHeaders, exposeHeaders)
 
 			switch r.Method {
 			case http.MethodPost:
 				switch getContentType(r) {
 				case "":
-					handleWait(w, r, s)
+					handleWait(ctx, w, r, s)
 
 				default:
-					writeUnsupportedMediaType(w)
+					writeUnsupportedMediaType(ctx, w, r, s)
 				}
 
 			case http.MethodOptions:
 				writeOptions(w, allowMethods)
 
 			default:
-				writeMethodNotAllowed(w, allowMethods)
+				writeMethodNotAllowed(ctx, w, r, s, allowMethods)
 			}
 		})
 	}
 
-	return mux
+	{
+		var (
+			allowMethods = joinHeader(http.MethodGet, http.MethodHead, http.MethodPost, http.MethodOptions)
+		)
+
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			switch r.Method {
+			case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodOptions:
+				handleNotFound(ctx, w, r, s)
+
+			default:
+				writeMethodNotAllowed(ctx, w, r, s, allowMethods)
+			}
+		})
+	}
+
+	return http.HandlerFunc(handler)
 }
 
-func handleLoadContent(w http.ResponseWriter, r *http.Request, s *internal.State, maxProgramSize int) {
-	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+func handleLoadContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, maxProgramSize int) {
+	progHash, ok := requireHeader(ctx, w, r, s, api.HeaderProgramSHA384)
 	if !ok {
 		return
 	}
 
-	var (
-		progHash []byte
-		progId   uint64
-		valid    bool
-		err      error
-	)
+	body := decodeProgramContent(ctx, w, r, s, maxProgramSize)
+	if body == nil {
+		return
+	}
 
-	if progHash, err = hex.DecodeString(progHexHash); err == nil {
-		body := decodeContent(w, r, s, maxProgramSize)
-		if body == nil {
-			return
-		}
+	// Upload method closes body to check for decoding errors
 
-		// upload method closes body to check for decoding errors
-
-		progId, progHash, valid, err = s.Upload(body, progHash)
-		if err != nil {
-			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-			return
-		}
+	progId, valid, err := s.Upload(ctx, body, progHash)
+	if err != nil {
+		writeError(ctx, w, r, s, "", 0, "", err)
+		return
 	}
 	if !valid {
-		writeText(w, r, http.StatusBadRequest, "SHA-512 hash mismatch")
+		writeProtocolError(ctx, w, r, s, http.StatusBadRequest, errContentHashMismatch)
 		return
 	}
 
-	w.Header().Set(api.HeaderProgramId, internal.FormatId(progId))
+	w.Header().Set(api.HeaderProgramId, progId)
 }
 
-func handleLoadId(w http.ResponseWriter, r *http.Request, s *internal.State) {
-	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
+func handleLoadId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+	progHash, ok := requireHeader(ctx, w, r, s, api.HeaderProgramSHA384)
 	if !ok {
 		return
 	}
 
-	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	progId, ok := requireHeader(ctx, w, r, s, api.HeaderProgramId)
 	if !ok {
 		return
 	}
 
-	var (
-		valid bool
-		found bool
-	)
-
-	if progId, ok := internal.ParseId(progHexId); ok {
-		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			valid, found = s.Check(progId, progHash)
-		}
-	}
+	valid, found := s.Check(ctx, progHash, progId)
 	if !found {
-		http.NotFound(w, r)
+		writeProgramNotFound(ctx, w, r, s, progId)
 		return
 	}
 	if !valid {
-		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		writeProgramHashMismatch(ctx, w, r, s, http.StatusForbidden, progId)
 		return
 	}
 }
 
 func handleSpawnContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, maxProgramSize int) {
-	r = r.WithContext(ctx)
-
-	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	progHash, ok := requireHeader(ctx, w, r, s, api.HeaderProgramSHA384)
 	if !ok {
 		return
 	}
 
-	instArg, ok := parseInstanceArgHeader(w, r)
+	instArg, ok := parseInstanceArgHeader(ctx, w, r, s)
 	if !ok {
 		return
 	}
+
+	body := decodeProgramContent(ctx, w, r, s, maxProgramSize)
+	if body == nil {
+		return
+	}
+
+	// uploadAndInstantiate method closes body to check for decoding errors
 
 	in, out, originPipe := internal.NewPipe()
 
-	var (
-		inst     *internal.Instance
-		instId   uint64
-		progId   uint64
-		progHash []byte
-		valid    bool
-		err      error
-	)
-
-	if progHash, err = hex.DecodeString(progHexHash); err == nil {
-		body := decodeContent(w, r, s, maxProgramSize)
-		if body == nil {
-			return
-		}
-
-		// uploadAndInstantiate method closes body to check for decoding errors
-
-		inst, instId, progId, progHash, valid, err = s.UploadAndInstantiate(r.Context(), body, progHash, originPipe)
-		if err != nil {
-			writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-			return
-		}
+	inst, instId, progId, valid, err := s.UploadAndInstantiate(ctx, body, progHash, originPipe)
+	if err != nil {
+		writeInstantiationError(ctx, w, r, s, "", instArg, err)
+		return
 	}
 	if !valid {
-		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		writeProtocolError(ctx, w, r, s, http.StatusBadRequest, errContentHashMismatch)
 		return
 	}
 
-	w.Header().Set(api.HeaderInstanceId, internal.FormatId(instId))
-	w.Header().Set(api.HeaderProgramId, internal.FormatId(progId))
+	w.Header().Set(api.HeaderInstanceId, instId)
+	w.Header().Set(api.HeaderProgramId, progId)
 
 	go func() {
 		defer out.Close()
-		inst.Run(ctx, s, instArg, in, out)
+		inst.Run(ctx, progId, instArg, instId, in, out, s)
 	}()
 }
 
 func handleSpawnId(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
-	r = r.WithContext(ctx)
-
-	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
+	progHash, ok := requireHeader(ctx, w, r, s, api.HeaderProgramSHA384)
 	if !ok {
 		return
 	}
 
-	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	progId, ok := requireHeader(ctx, w, r, s, api.HeaderProgramId)
 	if !ok {
 		return
 	}
 
-	instArg, ok := parseInstanceArgHeader(w, r)
+	instArg, ok := parseInstanceArgHeader(ctx, w, r, s)
 	if !ok {
 		return
 	}
 
 	in, out, originPipe := internal.NewPipe()
 
-	var (
-		inst   *internal.Instance
-		instId uint64
-		valid  bool
-		found  bool
-	)
-
-	if progId, ok := internal.ParseId(progHexId); ok {
-		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.Instantiate(r.Context(), progId, progHash, originPipe)
-			if err != nil {
-				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-				return
-			}
-		}
+	inst, instId, valid, found, err := s.Instantiate(ctx, progHash, progId, originPipe)
+	if err != nil {
+		writeInstantiationError(ctx, w, r, s, progId, instArg, err)
+		return
 	}
 	if !found {
-		http.NotFound(w, r)
+		writeProgramNotFound(ctx, w, r, s, progId)
 		return
 	}
 	if !valid {
-		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		writeProgramHashMismatch(ctx, w, r, s, http.StatusForbidden, progId)
 		return
 	}
 
-	w.Header().Set(api.HeaderInstanceId, internal.FormatId(instId))
+	w.Header().Set(api.HeaderInstanceId, instId)
 
 	go func() {
 		defer out.Close()
-		inst.Run(ctx, s, instArg, in, out)
+		inst.Run(ctx, progId, instArg, instId, in, out, s)
 	}()
 }
 
-func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+func handleRunSocket(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	u := websocket.Upgrader{
-		CheckOrigin: func(*http.Request) bool { return true },
+		CheckOrigin: allowAnyOrigin,
 	}
 
 	conn, err := u.Upgrade(w, r, nil)
 	if err != nil {
-		s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
+		reportProtocolError(ctx, s, err)
 		return
 	}
 	defer conn.Close()
@@ -394,17 +416,14 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 	err = conn.ReadJSON(&run)
 	if err != nil {
-		// TODO
-		s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
+		reportNetworkError(ctx, s, err)
 		return
 	}
 
 	var (
 		inst   *internal.Instance
-		instId uint64
+		instId string
 		valid  bool
-
-		progHexId string
 	)
 
 	if run.ProgramId != "" {
@@ -412,69 +431,57 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 			found bool
 		)
 
-		if progId, ok := internal.ParseId(run.ProgramId); ok {
-			if progHash, err := hex.DecodeString(run.ProgramSHA512); err == nil {
-				inst, instId, valid, found, err = s.Instantiate(ctx, progId, progHash, nil)
-				if err != nil {
-					// TODO
-					s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
-					return
-				}
-			}
+		inst, instId, valid, found, err = s.Instantiate(ctx, run.ProgramSHA384, run.ProgramId, nil)
+		if err != nil {
+			writeInstantiationError(ctx, w, r, s, run.ProgramId, run.InstanceArg, err)
+			return
 		}
 		if !found {
-			// TODO
-			s.InfoLog.Printf("%s: run: program not found", r.RemoteAddr)
+			writeProgramNotFound(ctx, w, r, s, run.ProgramId)
+			return
+		}
+		if !valid {
+			writeProgramHashMismatch(ctx, w, r, s, http.StatusForbidden, run.ProgramId)
 			return
 		}
 	} else {
 		frameType, frame, err := conn.NextReader()
 		if err != nil {
-			s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
+			reportNetworkError(ctx, s, err)
 			return
 		}
 		if frameType != websocket.BinaryMessage {
 			conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedData)
+			reportProtocolError(ctx, s, errWrongWebsocketMessageType)
 			return
 		}
 
 		// TODO: size limit
 
-		var (
-			progId   uint64
-			progHash []byte
-		)
-
-		if progHash, err = hex.DecodeString(run.ProgramSHA512); err == nil {
-			inst, instId, progId, progHash, valid, err = s.UploadAndInstantiate(ctx, ioutil.NopCloser(frame), progHash, nil)
-			if err != nil {
-				// TODO
-				s.InfoLog.Printf("%s: run: %v", r.RemoteAddr, err)
-				return
-			}
+		inst, instId, run.ProgramId, valid, err = s.UploadAndInstantiate(ctx, ioutil.NopCloser(frame), run.ProgramSHA384, nil)
+		if err != nil {
+			writeInstantiationError(ctx, w, r, s, "", run.InstanceArg, err)
+			return
 		}
-
-		progHexId = internal.FormatId(progId)
-	}
-	if !valid {
-		// TODO
-		s.InfoLog.Printf("%s: run: invalid hash", r.RemoteAddr)
-		return
+		if !valid {
+			writeProtocolError(ctx, w, r, s, http.StatusBadRequest, errContentHashMismatch)
+			return
+		}
 	}
 
 	err = conn.WriteJSON(&api.Running{
-		InstanceId: internal.FormatId(instId),
-		ProgramId:  progHexId,
+		InstanceId: instId,
+		ProgramId:  run.ProgramId,
 	})
 	if err != nil {
 		cancel()
 	}
 
-	inst.Run(ctx, s, run.InstanceArg, newWebsocketReadCanceler(conn, cancel), websocketWriter{conn})
+	inst.Run(ctx, run.ProgramId, run.InstanceArg, instId, newWebsocketReadCanceler(conn, cancel), websocketWriter{conn}, s)
 
 	closeMsg := websocketNormalClosure
 
-	if result, ok := s.WaitInstance(inst, instId); ok {
+	if result, ok := s.WaitInstance(ctx, inst, instId); ok {
 		if result != nil {
 			var doc api.Result
 
@@ -487,6 +494,7 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 
 			err = conn.WriteJSON(&doc)
 			if err != nil {
+				reportNetworkError(ctx, s, err)
 				return
 			}
 		} else {
@@ -498,53 +506,40 @@ func handleRunWebsocket(ctx context.Context, w http.ResponseWriter, r *http.Requ
 }
 
 func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
-	r = r.WithContext(ctx)
-
-	progHexId, ok := requireHeader(w, r, api.HeaderProgramId)
+	progHash, ok := requireHeader(ctx, w, r, s, api.HeaderProgramSHA384)
 	if !ok {
 		return
 	}
 
-	progHexHash, ok := requireHeader(w, r, api.HeaderProgramSHA512)
+	progId, ok := requireHeader(ctx, w, r, s, api.HeaderProgramId)
 	if !ok {
 		return
 	}
 
-	instArg, ok := parseInstanceArgHeader(w, r)
+	instArg, ok := parseInstanceArgHeader(ctx, w, r, s)
 	if !ok {
 		return
 	}
 
-	var (
-		inst   *internal.Instance
-		instId uint64
-		valid  bool
-		found  bool
-	)
-
-	if progId, ok := internal.ParseId(progHexId); ok {
-		if progHash, err := hex.DecodeString(progHexHash); err == nil {
-			inst, instId, valid, found, err = s.Instantiate(r.Context(), progId, progHash, nil)
-			if err != nil {
-				writeBadRequest(w, r, err) // TODO: don't leak sensitive information
-				return
-			}
-		}
+	inst, instId, valid, found, err := s.Instantiate(ctx, progHash, progId, nil)
+	if err != nil {
+		writeInstantiationError(ctx, w, r, s, progId, instArg, err)
+		return
 	}
 	if !found {
-		http.NotFound(w, r)
+		writeProgramNotFound(ctx, w, r, s, progId)
 		return
 	}
 	if !valid {
-		writeText(w, r, http.StatusForbidden, "SHA-512 hash mismatch")
+		writeProgramHashMismatch(ctx, w, r, s, http.StatusForbidden, progId)
 		return
 	}
 
-	w.Header().Set(api.HeaderInstanceId, internal.FormatId(instId))
+	w.Header().Set(api.HeaderInstanceId, instId)
 
-	inst.Run(r.Context(), s, instArg, r.Body, w)
+	inst.Run(ctx, progId, instArg, instId, r.Body, w, s)
 
-	if result, ok := s.WaitInstance(inst, instId); ok {
+	if result, ok := s.WaitInstance(ctx, inst, instId); ok {
 		if result != nil {
 			setResultHeader(w, http.TrailerPrefix, result)
 		} else {
@@ -553,47 +548,44 @@ func handleRunPost(ctx context.Context, w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *internal.State) {
+func handleIOSocket(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
 	u := websocket.Upgrader{
-		CheckOrigin: func(*http.Request) bool { return true },
+		CheckOrigin: allowAnyOrigin,
 	}
 
 	conn, err := u.Upgrade(w, r, nil)
 	if err != nil {
-		s.InfoLog.Printf("%s: communicate: %v", r.RemoteAddr, err)
+		reportProtocolError(ctx, s, err)
 		return
 	}
 	defer conn.Close()
 
 	// TODO: size limit
 
-	var communicate api.Communicate
+	var io api.IO
 
-	err = conn.ReadJSON(&communicate)
+	err = conn.ReadJSON(&io)
 	if err != nil {
-		// TODO
+		reportNetworkError(ctx, s, err)
 		return
 	}
 
-	var (
-		originPipe *internal.Pipe
-		found      bool
-	)
-
-	if instId, ok := internal.ParseId(communicate.InstanceId); ok {
-		originPipe, found = s.AttachOrigin(instId)
-	}
+	originPipe, found := s.AttachOrigin(ctx, io.InstanceId)
 	if !found {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
+		reportInstanceNotFound(ctx, s, io.InstanceId)
 		return
 	}
 	if originPipe == nil {
-		conn.WriteMessage(websocket.CloseMessage, websocketAlreadyCommunicating)
+		conn.WriteMessage(websocket.CloseMessage, websocketIOAlreadyAttached)
+		reportIOConflict(ctx, s, io.InstanceId)
 		return
 	}
+	defer originPipe.DetachOrigin(ctx, io.InstanceId, s)
 
-	err = conn.WriteJSON(api.Communicating{})
+	err = conn.WriteJSON(api.IOState{})
 	if err != nil {
+		reportNetworkError(ctx, s, err)
 		return
 	}
 
@@ -602,62 +594,59 @@ func handleCommunicateWebsocket(w http.ResponseWriter, r *http.Request, s *inter
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 }
 
-func handleCommunicatePost(w http.ResponseWriter, r *http.Request, s *internal.State) {
-	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
+func handleIOPost(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+	instId, ok := requireHeader(ctx, w, r, s, api.HeaderInstanceId)
 	if !ok {
 		return
 	}
 
-	body := decodeUnlimitedContent(w, r, s)
+	body := decodeUnlimitedContent(ctx, w, r, s)
 	if body == nil {
 		return
 	}
 	defer body.Close()
 
-	var (
-		originPipe *internal.Pipe
-		found      bool
-	)
-
-	if instId, ok := internal.ParseId(instHexId); ok {
-		originPipe, found = s.AttachOrigin(instId)
-	}
+	originPipe, found := s.AttachOrigin(ctx, instId)
 	if !found {
-		http.NotFound(w, r)
+		writeInstanceNotFound(ctx, w, r, s, instId)
 		return
 	}
 	if originPipe == nil {
-		writeText(w, r, http.StatusConflict, "Already communicating")
+		writeIOConflict(ctx, w, r, s, instId)
 		return
 	}
+	defer originPipe.DetachOrigin(ctx, instId, s)
 
 	originPipe.IO(body, w)
 }
 
-func handleWait(w http.ResponseWriter, r *http.Request, s *internal.State) {
-	instHexId, ok := requireHeader(w, r, api.HeaderInstanceId)
+func handleWait(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+	instId, ok := requireHeader(ctx, w, r, s, api.HeaderInstanceId)
 	if !ok {
 		return
 	}
 
-	var (
-		result *internal.Result
-		found  bool
-	)
-
-	if instId, ok := internal.ParseId(instHexId); ok {
-		result, found = s.Wait(instId)
-	}
+	result, found := s.Wait(ctx, instId)
 	if !found {
-		http.NotFound(w, r)
+		writeInstanceNotFound(ctx, w, r, s, instId)
 		return
 	}
 	if result == nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		writeHeader(w, r, http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))
+		// MonitorError already invoked by server.Instance.Run
 		return
 	}
 
 	setResultHeader(w, "", result)
+}
+
+func handleNotFound(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+	writeHeader(w, r, http.StatusNotFound, http.StatusText(http.StatusNotFound))
+	reportProtocolError(ctx, s, fmt.Errorf("Path not found: %q", r.URL.Path))
+}
+
+func allowAnyOrigin(*http.Request) bool {
+	return true
 }
 
 func setResultHeader(w http.ResponseWriter, prefix string, result *internal.Result) {
@@ -700,7 +689,7 @@ func getContentType(r *http.Request) (value string) {
 	return
 }
 
-func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string,
+func requireHeader(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, canonicalKey string,
 ) (value string, ok bool) {
 	fields := r.Header[canonicalKey]
 
@@ -709,16 +698,16 @@ func requireHeader(w http.ResponseWriter, r *http.Request, canonicalKey string,
 		return fields[0], true
 
 	case 0:
-		writeText(w, r, http.StatusBadRequest, canonicalKey, " header is missing")
+		writeProtocolError(ctx, w, r, s, http.StatusBadRequest, fmt.Errorf("%s header is missing", canonicalKey))
 		return "", false
 
 	default:
-		writeText(w, r, http.StatusBadRequest, canonicalKey, " header is invalid")
+		writeProtocolError(ctx, w, r, s, http.StatusBadRequest, fmt.Errorf("%s header is invalid", canonicalKey))
 		return "", false
 	}
 }
 
-func parseInstanceArgHeader(w http.ResponseWriter, r *http.Request,
+func parseInstanceArgHeader(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State,
 ) (arg int32, ok bool) {
 	fields := r.Header[api.HeaderInstanceArg]
 
@@ -735,11 +724,11 @@ func parseInstanceArgHeader(w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	writeText(w, r, http.StatusBadRequest, api.HeaderInstanceArg, " header is invalid")
+	writeProtocolError(ctx, w, r, s, http.StatusBadRequest, fmt.Errorf("%s header is invalid", api.HeaderInstanceArg))
 	return
 }
 
-func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.State,
+func decodeUnlimitedContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State,
 ) io.ReadCloser {
 	// TODO: support nested encodings
 
@@ -757,30 +746,30 @@ func decodeUnlimitedContent(w http.ResponseWriter, r *http.Request, s *internal.
 		decoder, err := gzip.NewReader(r.Body)
 		if err == nil {
 			return decoder
+		} else {
+			writeProtocolError(ctx, w, r, s, http.StatusBadRequest, err)
+			return nil
 		}
-
-		s.InfoLog.Printf("%s: %v", r.RemoteAddr, err)
 
 	default:
 		w.Header().Set("Accept-Encoding", "gzip") // non-standard for response
+		writeProtocolError(ctx, w, r, s, http.StatusBadRequest, errEncodingNotSupported)
+		return nil
 	}
-
-	w.WriteHeader(http.StatusBadRequest)
-	return nil
 }
 
-func decodeContent(w http.ResponseWriter, r *http.Request, s *internal.State, limit int,
+func decodeProgramContent(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, limit int,
 ) (cr *contentReader) {
 	if r.ContentLength < 0 {
-		w.WriteHeader(http.StatusLengthRequired)
+		writeProtocolError(ctx, w, r, s, http.StatusLengthRequired, errLengthRequired)
 		return
 	}
 	if r.ContentLength > int64(limit) {
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		writePayloadError(ctx, w, r, s, http.StatusRequestEntityTooLarge, errProgramTooLarge)
 		return
 	}
 
-	if c := decodeUnlimitedContent(w, r, s); c != nil {
+	if c := decodeUnlimitedContent(ctx, w, r, s); c != nil {
 		cr = newContentReader(c, limit)
 	}
 	return
@@ -820,25 +809,145 @@ func writeOptions(w http.ResponseWriter, allow string) {
 	w.Header().Set("Allow", allow)
 }
 
-func writeMethodNotAllowed(w http.ResponseWriter, allow string) {
+func writeMethodNotAllowed(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, allow string) {
 	w.Header().Set("Allow", allow)
-	w.WriteHeader(http.StatusMethodNotAllowed)
+	writeProtocolError(ctx, w, r, s, http.StatusMethodNotAllowed, errMethodNotAllowed)
 }
 
-func writeUnsupportedMediaType(w http.ResponseWriter) {
-	w.WriteHeader(http.StatusUnsupportedMediaType)
+func writeUnsupportedMediaType(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+	writeProtocolError(ctx, w, r, s, http.StatusUnsupportedMediaType, errUnsupportedMediaType)
 }
 
-func writeBadRequest(w http.ResponseWriter, r *http.Request, err error) {
-	writeText(w, r, http.StatusBadRequest, err)
+func writeProtocolError(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, status int, err error) {
+	writeHeader(w, r, status, err.Error())
+	reportProtocolError(ctx, s, err)
 }
 
-func writeText(w http.ResponseWriter, r *http.Request, status int, v ...interface{}) {
+func writePayloadError(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, status int, err error) {
+	writeHeader(w, r, status, err.Error())
+	reportPayloadError(ctx, s, "", 0, "", err)
+}
+
+func writeProgramNotFound(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, progId string) {
+	writeHeader(w, r, http.StatusNotFound, "Program id is unknown")
+	reportProgramNotFound(ctx, s, progId)
+}
+
+func writeProgramHashMismatch(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, status int, progId string) {
+	writeHeader(w, r, status, "Program SHA-384 hash mismatch")
+	reportProgramHashMismatch(ctx, s, progId)
+}
+
+func writeInstanceNotFound(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, instId string) {
+	writeHeader(w, r, http.StatusNotFound, "Instance id is unknown")
+	reportInstanceNotFound(ctx, s, instId)
+}
+
+func writeIOConflict(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, instId string) {
+	writeHeader(w, r, http.StatusConflict, "I/O origin already attached")
+	reportIOConflict(ctx, s, instId)
+}
+
+func writeInstantiationError(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, progId string, instArg int32, err error) {
+	writeError(ctx, w, r, s, progId, instArg, "", err)
+}
+
+func writeError(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, progId string, instArg int32, instId string, err error) {
+	var (
+		status    int
+		text      string
+		subsystem string
+	)
+
+	if puberr, ok := err.(publicerror.PublicError); ok {
+		err = puberr.PrivateErr()
+		text = puberr.PublicError()
+		subsystem = puberr.Internal()
+		if subsystem != "" {
+			status = http.StatusInternalServerError
+		} else {
+			status = http.StatusBadRequest
+		}
+	} else {
+		status = http.StatusInternalServerError
+		text = http.StatusText(status)
+	}
+
+	writeHeader(w, r, status, text)
+
+	if status >= 500 {
+		s.MonitorError(&detail.Position{
+			Context:     server.Context(ctx),
+			ProgramId:   progId,
+			InstanceArg: instArg,
+			InstanceId:  instId,
+			Subsystem:   subsystem,
+		}, err)
+	} else {
+		reportPayloadError(ctx, s, progId, instArg, instId, err)
+	}
+}
+
+func writeHeader(w http.ResponseWriter, r *http.Request, status int, text string) {
 	if acceptsText(r) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(status)
-		fmt.Fprintln(w, v...)
+		fmt.Fprintln(w, text)
 	} else {
 		w.WriteHeader(status)
 	}
+}
+
+func reportNetworkError(ctx context.Context, s *internal.State, err error) {
+	s.MonitorEvent(&event.FailNetwork{
+		Context: server.Context(ctx),
+	}, err)
+}
+
+func reportProtocolError(ctx context.Context, s *internal.State, err error) {
+	s.MonitorEvent(&event.FailProtocol{
+		Context: server.Context(ctx),
+	}, err)
+}
+
+func reportPayloadError(ctx context.Context, s *internal.State, progId string, instArg int32, instId string, err error) {
+	s.MonitorEvent(&event.FailRequest{
+		Context:     server.Context(ctx),
+		Type:        event.FailRequest_PAYLOAD_ERROR,
+		ProgramId:   progId,
+		InstanceArg: instArg,
+		InstanceId:  instId,
+	}, err)
+}
+
+func reportProgramNotFound(ctx context.Context, s *internal.State, progId string) {
+	s.MonitorEvent(&event.FailRequest{
+		Context:   server.Context(ctx),
+		Type:      event.FailRequest_PROGRAM_NOT_FOUND,
+		ProgramId: progId,
+	}, nil)
+}
+
+func reportProgramHashMismatch(ctx context.Context, s *internal.State, progId string) {
+	s.MonitorEvent(&event.FailRequest{
+		Context:   server.Context(ctx),
+		Type:      event.FailRequest_PROGRAM_HASH_MISMATCH,
+		ProgramId: progId,
+	}, nil)
+}
+
+func reportInstanceNotFound(ctx context.Context, s *internal.State, instId string) {
+	s.MonitorEvent(&event.FailRequest{
+		Context:    server.Context(ctx),
+		Type:       event.FailRequest_INSTANCE_NOT_FOUND,
+		InstanceId: instId,
+	}, nil)
+}
+
+func reportIOConflict(ctx context.Context, s *internal.State, instId string) {
+	s.MonitorEvent(&event.FailRequest{
+		Context:    server.Context(ctx),
+		Type:       event.FailRequest_IO_CONFLICT,
+		InstanceId: instId,
+	}, nil)
 }

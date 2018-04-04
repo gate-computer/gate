@@ -20,6 +20,7 @@ import (
 	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate/internal/memfd"
+	"github.com/tsavola/gate/internal/publicerror"
 )
 
 var (
@@ -135,7 +136,7 @@ func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stac
 	initMemorySize, _ := m.MemoryLimits()
 
 	if initMemorySize > growMemorySize {
-		err = fmt.Errorf("initial memory size %d exceeds maximum memory size %d", initMemorySize, growMemorySize)
+		err = publicerror.Errorf("initial memory size %d exceeds maximum memory size %d", initMemorySize, growMemorySize)
 		return
 	}
 
@@ -207,7 +208,7 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 
 	data, err := syscall.Mmap(fd, dataMapOffset, dataSize, syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
-		panic(err)
+		return
 	}
 	defer syscall.Munmap(data)
 

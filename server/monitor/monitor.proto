@@ -1,0 +1,29 @@
+// Copyright (c) 2018 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package monitor;
+
+option go_package = "github.com/tsavola/gate/server/monitor";
+
+import "server/detail/detail.proto";
+import "server/event/event.proto";
+
+message State {
+	uint32 programs_loaded = 1;
+	uint32 program_links = 2;
+	uint32 instances = 3;
+}
+
+message Error {
+	detail.Position position = 1;
+	string error = 2;
+}
+
+message Event {
+	event.Event.Type type = 1;
+	bytes event = 2;
+	string error = 3;
+}

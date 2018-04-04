@@ -11,14 +11,15 @@ import (
 	"crypto/rand"
 	"crypto/sha512"
 	"crypto/subtle"
-	"encoding/binary"
-	"fmt"
+	"encoding/base64"
 	"io"
-	"strconv"
+	"log"
 	"sync"
 
-	"github.com/tsavola/gate/internal/defaultlog"
+	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/gate/run"
+	"github.com/tsavola/gate/server/detail"
+	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/traps"
 	"github.com/tsavola/wag/wasm"
@@ -28,15 +29,16 @@ const (
 	maxStackSize = 0x40000000 // crazy but valid
 )
 
-func FormatId(id uint64) (hex string) {
-	hex = fmt.Sprintf("%016x", id)
-	return
+var (
+	newHash  = sha512.New384
+	encoding = base64.RawURLEncoding
+)
+
+func defaultMonitorError(p *detail.Position, err error) {
+	log.Printf("%v: %v", p, err)
 }
 
-func ParseId(hex string) (id uint64, ok bool) {
-	id, err := strconv.ParseUint(hex, 16, 64)
-	ok = (err == nil)
-	return
+func defaultMonitorEvent(Event, error) {
 }
 
 type State struct {
@@ -45,18 +47,17 @@ type State struct {
 	instanceFactory <-chan *Instance
 
 	lock           sync.Mutex
-	programsByHash map[[sha512.Size]byte]*program
-	programs       map[uint64]*program
-	instances      map[uint64]*Instance
+	programsByHash map[string]*program
+	programs       map[string]*program
+	instances      map[string]*Instance
 }
 
 func (s *State) Init(ctx context.Context, conf Config) {
-	if conf.ErrorLog == nil {
-		conf.ErrorLog = defaultlog.StandardLogger{}
+	if conf.MonitorError == nil {
+		conf.MonitorError = defaultMonitorError
 	}
-
-	if conf.InfoLog == nil {
-		conf.InfoLog = defaultlog.NoLogger{}
+	if conf.MonitorEvent == nil {
+		conf.MonitorEvent = defaultMonitorEvent
 	}
 
 	if conf.MemorySizeLimit > 0 {
@@ -77,42 +78,58 @@ func (s *State) Init(ctx context.Context, conf Config) {
 
 	s.Config = conf
 	s.instanceFactory = makeInstanceFactory(ctx, s)
-	s.programsByHash = make(map[[sha512.Size]byte]*program)
-	s.programs = make(map[uint64]*program)
-	s.instances = make(map[uint64]*Instance)
+	s.programsByHash = make(map[string]*program)
+	s.programs = make(map[string]*program)
+	s.instances = make(map[string]*Instance)
 }
 
 func (s *State) newInstance(ctx context.Context) (inst *Instance, err error) {
 	select {
 	case inst = <-s.instanceFactory:
 		if inst == nil {
-			err = context.Canceled
+			err = publicerror.Shutdown("instance factory", context.Canceled)
 		}
 
 	case <-ctx.Done():
-		err = ctx.Err()
+		err = publicerror.Shutdown("instance factory", ctx.Err())
 	}
 	return
 }
 
-func (s *State) getProgram(progId uint64) (prog *program, found bool) {
+func (s *State) mustBeUniqueProgramId(progId string) {
+	if _, exists := s.programs[progId]; exists {
+		panic("duplicate program id")
+	}
+}
+
+func (s *State) mustBeUniqueInstanceId(instId string) {
+	if _, exists := s.instances[instId]; exists {
+		panic("duplicate instance id")
+	}
+}
+
+func (s *State) getProgram(progId string) (prog *program, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
 	prog, found = s.programs[progId]
 	return
 }
 
-func (s *State) setProgramForOwner(progId uint64, prog *program) {
+func (s *State) setProgramForOwner(progId string, prog *program) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.mustBeUniqueProgramId(progId)
+
 	prog.ownerCount++
 	s.programs[progId] = prog
 }
 
-func (s *State) getProgramForInstance(progId uint64,
-) (prog *program, found bool) {
+func (s *State) getProgramForInstance(progId string) (prog *program, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
 	prog, found = s.programs[progId]
 	if found {
 		prog.instanceCount++
@@ -123,62 +140,74 @@ func (s *State) getProgramForInstance(progId uint64,
 func (s *State) unrefProgramForInstance(prog *program) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
 	prog.instanceCount--
 }
 
-func (s *State) getProgramByHash(hash []byte) (prog *program, found bool) {
-	var key [sha512.Size]byte
-	copy(key[:], hash)
-
+func (s *State) getProgramByHash(progHash string) (prog *program, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	prog, found = s.programsByHash[key]
+
+	prog, found = s.programsByHash[progHash]
 	return
 }
 
-func (s *State) getInstance(instId uint64) (inst *Instance, found bool) {
+func (s *State) getInstance(instId string) (inst *Instance, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
 	inst, found = s.instances[instId]
 	return
 }
 
-func (s *State) setInstance(instId uint64, inst *Instance) {
+func (s *State) setInstance(instId string, inst *Instance) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.mustBeUniqueInstanceId(instId)
+
 	s.instances[instId] = inst
 }
 
-func (s *State) Upload(wasm io.ReadCloser, clientHash []byte,
-) (progId uint64, progHash []byte, valid bool, err error) {
-	if len(clientHash) != sha512.Size {
-		return
-	}
-
-	prog, progId, valid, found, err := s.uploadKnown(wasm, clientHash)
+func (s *State) Upload(ctx context.Context, wasm io.ReadCloser, clientHash string,
+) (progId string, valid bool, err error) {
+	progId, valid, found, err := s.uploadKnown(wasm, clientHash)
 	if err != nil {
 		return
 	}
 
 	if !found {
-		prog, progId, valid, err = s.uploadUnknown(wasm, clientHash)
+		var loaded bool
+
+		progId, valid, loaded, err = s.uploadUnknown(wasm, clientHash)
 		if err != nil {
 			return
 		}
+
+		if loaded {
+			s.MonitorEvent(&event.ProgramLoad{
+				Context:     Context(ctx),
+				ProgramHash: clientHash,
+			}, nil)
+		}
 	}
 
-	progHash = prog.hash[:]
+	s.MonitorEvent(&event.ProgramCreate{
+		Context:     Context(ctx),
+		ProgramHash: clientHash,
+		ProgramId:   progId,
+	}, nil)
 	return
 }
 
-func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte,
-) (prog *program, progId uint64, valid, found bool, err error) {
-	prog, found = s.getProgramByHash(clientHash)
+func (s *State) uploadKnown(wasm io.ReadCloser, clientHash string,
+) (progId string, valid, found bool, err error) {
+	prog, found := s.getProgramByHash(clientHash)
 	if !found {
 		return
 	}
 
-	valid, err = validateReadHash(prog, wasm)
+	valid, err = validateReadHash(prog.hash, wasm)
 	if err != nil {
 		return
 	}
@@ -191,9 +220,9 @@ func (s *State) uploadKnown(wasm io.ReadCloser, clientHash []byte,
 	return
 }
 
-func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte,
-) (prog *program, progId uint64, valid bool, err error) {
-	prog, valid, err = loadProgram(wasm, clientHash, s.Runtime)
+func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash string,
+) (progId string, valid, loaded bool, err error) {
+	prog, valid, err := loadProgram(wasm, clientHash, s.Runtime)
 	if err != nil {
 		return
 	}
@@ -205,31 +234,42 @@ func (s *State) uploadUnknown(wasm io.ReadCloser, clientHash []byte,
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.mustBeUniqueProgramId(progId)
+
 	if existing, found := s.programsByHash[prog.hash]; found {
+		// Some other connection uploaded same program before we finished
 		prog = existing
 	} else {
 		s.programsByHash[prog.hash] = prog
+		loaded = true
 	}
 	prog.ownerCount++
 	s.programs[progId] = prog
 	return
 }
 
-func (s *State) Check(progId uint64, progHash []byte) (valid, found bool) {
+func (s *State) Check(ctx context.Context, clientHash, progId string) (valid, found bool) {
 	prog, found := s.getProgram(progId)
 	if !found {
 		return
 	}
 
-	valid = validateHash(prog, progHash)
+	valid = validateStringHash(clientHash, prog.hash)
+	if !valid {
+		return
+	}
+
+	s.MonitorEvent(&event.ProgramCheck{
+		Context:   Context(ctx),
+		ProgramId: progId,
+	}, nil)
 	return
 }
 
-func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash []byte, originPipe *Pipe,
-) (inst *Instance, instId, progId uint64, progHash []byte, valid bool, err error) {
-	if len(clientHash) != sha512.Size {
-		return
-	}
+func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, clientHash string, originPipe *Pipe,
+) (inst *Instance, instId, progId string, valid bool, err error) {
+	var loaded bool
 
 	inst, err = s.newInstance(ctx)
 	if err != nil {
@@ -249,7 +289,7 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 	}
 
 	if !found {
-		instId, prog, progId, valid, err = s.uploadAndInstantiateUnknown(wasm, clientHash, inst)
+		instId, prog, progId, valid, loaded, err = s.uploadAndInstantiateUnknown(wasm, clientHash, inst)
 		if err != nil {
 			return
 		}
@@ -272,21 +312,38 @@ func (s *State) UploadAndInstantiate(ctx context.Context, wasm io.ReadCloser, cl
 		return
 	}
 
-	progHash = prog.hash[:]
-
 	removeProgAndInst = false
 	killInst = false
+
+	if loaded {
+		s.MonitorEvent(&event.ProgramLoad{
+			Context:     Context(ctx),
+			ProgramHash: clientHash,
+		}, nil)
+	}
+
+	s.MonitorEvent(&event.ProgramCreate{
+		Context:     Context(ctx),
+		ProgramHash: clientHash,
+		ProgramId:   progId,
+	}, nil)
+
+	s.MonitorEvent(&event.InstanceCreate{
+		Context:    Context(ctx),
+		ProgramId:  progId,
+		InstanceId: instId,
+	}, nil)
 	return
 }
 
-func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte, inst *Instance,
-) (instId uint64, prog *program, progId uint64, valid, found bool, err error) {
+func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash string, inst *Instance,
+) (instId string, prog *program, progId string, valid, found bool, err error) {
 	prog, found = s.getProgramByHash(clientHash)
 	if !found {
 		return
 	}
 
-	valid, err = validateReadHash(prog, wasm)
+	valid, err = validateReadHash(prog.hash, wasm)
 	if err != nil {
 		return
 	}
@@ -299,6 +356,10 @@ func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte,
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.mustBeUniqueProgramId(progId)
+	s.mustBeUniqueInstanceId(instId)
+
 	prog.ownerCount++
 	prog.instanceCount++
 	s.programs[progId] = prog
@@ -307,8 +368,8 @@ func (s *State) uploadAndInstantiateKnown(wasm io.ReadCloser, clientHash []byte,
 	return
 }
 
-func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byte, inst *Instance,
-) (instId uint64, prog *program, progId uint64, valid bool, err error) {
+func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash string, inst *Instance,
+) (instId string, prog *program, progId string, valid, loaded bool, err error) {
 	prog, valid, err = loadProgram(wasm, clientHash, s.Runtime)
 	if err != nil {
 		return
@@ -319,10 +380,16 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	s.mustBeUniqueProgramId(progId)
+	s.mustBeUniqueInstanceId(instId)
+
 	if existing, found := s.programsByHash[prog.hash]; found {
+		// Some other connection uploaded same program before we finished
 		prog = existing
 	} else {
 		s.programsByHash[prog.hash] = prog
+		loaded = true
 	}
 	prog.ownerCount++
 	prog.instanceCount++
@@ -332,8 +399,8 @@ func (s *State) uploadAndInstantiateUnknown(wasm io.ReadCloser, clientHash []byt
 	return
 }
 
-func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte, originPipe *Pipe,
-) (inst *Instance, instId uint64, valid, found bool, err error) {
+func (s *State) Instantiate(ctx context.Context, clientHash, progId string, originPipe *Pipe,
+) (inst *Instance, instId string, valid, found bool, err error) {
 	prog, found := s.getProgramForInstance(progId)
 	if !found {
 		return
@@ -346,7 +413,7 @@ func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte,
 		}
 	}()
 
-	valid = validateHash(prog, progHash)
+	valid = validateStringHash(prog.hash, clientHash)
 	if !valid {
 		return
 	}
@@ -374,40 +441,58 @@ func (s *State) Instantiate(ctx context.Context, progId uint64, progHash []byte,
 
 	killInst = false
 	unrefProg = false
+
+	s.MonitorEvent(&event.InstanceCreate{
+		Context:    Context(ctx),
+		ProgramId:  progId,
+		InstanceId: instId,
+	}, nil)
 	return
 }
 
-func (s *State) AttachOrigin(instId uint64) (pipe *Pipe, found bool) {
+func (s *State) AttachOrigin(ctx context.Context, instId string) (pipe *Pipe, found bool) {
 	inst, found := s.getInstance(instId)
 	if !found {
 		return
 	}
 
 	pipe = inst.attachOrigin()
+	if pipe == nil {
+		return
+	}
+
+	s.MonitorEvent(&event.InstanceAttach{
+		Context:    Context(ctx),
+		InstanceId: instId,
+	}, nil)
 	return
 }
 
-func (s *State) Wait(instId uint64) (result *Result, found bool) {
+func (s *State) Wait(ctx context.Context, instId string) (result *Result, found bool) {
 	inst, found := s.getInstance(instId)
 	if !found {
 		return
 	}
 
-	result, found = s.WaitInstance(inst, instId)
+	result, found = s.WaitInstance(ctx, inst, instId)
 	return
 }
 
-func (s *State) WaitInstance(inst *Instance, instId uint64,
-) (result *Result, found bool) {
+func (s *State) WaitInstance(ctx context.Context, inst *Instance, instId string) (result *Result, found bool) {
 	result, found = <-inst.exit
 	if !found {
 		return
 	}
 
 	s.lock.Lock()
-	defer s.lock.Unlock()
 	delete(s.instances, instId)
 	inst.program.instanceCount--
+	s.lock.Unlock()
+
+	s.MonitorEvent(&event.InstanceDelete{
+		Context:    Context(ctx),
+		InstanceId: instId,
+	}, nil)
 	return
 }
 
@@ -416,17 +501,17 @@ type program struct {
 	instanceCount int
 	module        wag.Module
 	wasm          []byte
-	hash          [sha512.Size]byte
+	hash          string
 }
 
-func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime,
+func loadProgram(body io.ReadCloser, clientHash string, rt *run.Runtime,
 ) (p *program, valid bool, err error) {
 	var (
-		wasm bytes.Buffer
-		hash = sha512.New()
+		wasm     bytes.Buffer
+		realHash = newHash()
 	)
 
-	r := bufio.NewReader(io.TeeReader(io.TeeReader(body, &wasm), hash))
+	r := bufio.NewReader(io.TeeReader(io.TeeReader(body, &wasm), realHash))
 
 	p = new(program)
 
@@ -434,35 +519,57 @@ func loadProgram(body io.ReadCloser, clientHash []byte, rt *run.Runtime,
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:
-		err = loadErr
+		err = publicerror.Tag(loadErr)
 		return
 
 	case closeErr != nil:
-		err = closeErr
+		err = publicerror.Tag(closeErr)
 		return
 	}
 
 	p.wasm = wasm.Bytes()
 
-	hash.Sum(p.hash[:0])
-	valid = validateHash(p, clientHash)
+	realDigest := realHash.Sum(nil)
+	p.hash = encoding.EncodeToString(realDigest)
+
+	valid = validateHash(clientHash, realDigest)
 	return
 }
 
-func validateHash(p *program, hash []byte) bool {
-	return subtle.ConstantTimeCompare(hash, p.hash[:]) == 1
+func validateHash(hash1 string, digest2 []byte) bool {
+	digest1, err := encoding.DecodeString(hash1)
+	if err == nil {
+		return subtle.ConstantTimeCompare(digest1, digest2) == 1
+	} else {
+		return false
+	}
 }
 
-func validateReadHash(p *program, r io.ReadCloser) (valid bool, err error) {
-	h := sha512.New()
+func validateStringHash(hash1, hash2 string) bool {
+	digest2, err := encoding.DecodeString(hash2)
+	if err == nil {
+		return validateHash(hash1, digest2)
+	} else {
+		return false
+	}
+}
 
-	_, err = io.Copy(h, r)
-	r.Close()
-	if err != nil {
+func validateReadHash(hash1 string, r io.ReadCloser) (valid bool, err error) {
+	hash2 := newHash()
+
+	_, copyErr := io.Copy(hash2, r)
+	closeErr := r.Close()
+	switch {
+	case copyErr != nil:
+		err = publicerror.Tag(copyErr)
+		return
+
+	case closeErr != nil:
+		err = publicerror.Tag(closeErr)
 		return
 	}
 
-	valid = validateHash(p, h.Sum(nil))
+	valid = validateHash(hash1, hash2.Sum(nil))
 	return
 }
 
@@ -493,8 +600,9 @@ func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
 		}()
 
 		for {
-			inst := newInstance(ctx, s)
-			if inst == nil {
+			inst, err := newInstance(ctx, s)
+			if err != nil {
+				reportError(ctx, s, "instance allocation", "", 0, "", err)
 				return
 			}
 
@@ -511,23 +619,21 @@ func makeInstanceFactory(ctx context.Context, s *State) <-chan *Instance {
 	return channel
 }
 
-func newInstance(ctx context.Context, s *State) *Instance {
+func newInstance(ctx context.Context, s *State) (*Instance, error) {
 	inst := new(Instance)
 
-	if err := inst.run.Init(ctx, s.Runtime, s.Debug); err != nil {
-		s.ErrorLog.Printf("instance init: %v", err)
-		return nil
+	if err := inst.run.Init(ctx, s.Runtime, s.Debug); err == nil {
+		return inst, nil
+	} else {
+		return nil, err
 	}
-
-	return inst
 }
 
 func (inst *Instance) kill(s *State) {
 	inst.run.Kill(s.Runtime)
 }
 
-func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State,
-) (err error) {
+func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err error) {
 	_, memorySize := m.MemoryLimits()
 	if memorySize > s.MemorySizeLimit {
 		memorySize = s.MemorySizeLimit
@@ -550,7 +656,7 @@ func (inst *Instance) attachOrigin() (pipe *Pipe) {
 	return
 }
 
-func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader, w io.Writer) {
+func (inst *Instance) Run(ctx context.Context, progId string, instArg int32, instId string, r io.Reader, w io.Writer, s *State) {
 	defer inst.kill(s)
 
 	var (
@@ -587,11 +693,11 @@ func (inst *Instance) Run(ctx context.Context, s *State, arg int32, r io.Reader,
 		},
 	})
 
-	inst.run.SetArg(arg)
+	inst.run.SetArg(instArg)
 
 	status, trap, err = inst.run.Run(ctx, s.Runtime, services)
 	if err != nil {
-		s.ErrorLog.Printf("run: %v", err)
+		reportError(ctx, s, "run", progId, instArg, instId, err)
 	}
 }
 
@@ -644,9 +750,32 @@ func (p *Pipe) IO(in io.Reader, out io.Writer) {
 	<-outDone
 }
 
-func makeId() (id uint64) {
-	if err := binary.Read(rand.Reader, binary.LittleEndian, &id); err != nil {
+func (p *Pipe) DetachOrigin(ctx context.Context, instId string, s *State) {
+	s.MonitorEvent(&event.InstanceDetach{
+		Context:    Context(ctx),
+		InstanceId: instId,
+	}, nil)
+}
+
+func makeId() string {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
 		panic(err)
 	}
-	return
+	return encoding.EncodeToString(buf[:])
+}
+
+func reportError(ctx context.Context, s *State, subsystem, progId string, instArg int32, instId string, err error) {
+	if puberr, ok := err.(publicerror.PublicError); ok {
+		err = puberr.PrivateErr()
+		subsystem = puberr.Internal()
+	}
+
+	s.MonitorError(&detail.Position{
+		Context:     Context(ctx),
+		ProgramId:   progId,
+		InstanceArg: instArg,
+		InstanceId:  instId,
+		Subsystem:   subsystem,
+	}, err)
 }

@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/wag/traps"
 )
@@ -153,7 +154,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 			}
 
 		case <-ctx.Done():
-			err = ctx.Err()
+			err = publicerror.Shutdown("io loop", ctx.Err())
 			return
 		}
 	}
@@ -177,7 +178,7 @@ func subjectReadLoop(r *os.File) <-chan read {
 
 			size := endian.Uint32(header)
 			if size < packet.HeaderSize || size > maxPacketSize {
-				reads <- read{err: fmt.Errorf("invalid op packet size: %d", size)}
+				reads <- read{err: publicerror.Errorf("run: invalid op packet size: %d", size)}
 				return
 			}
 
@@ -235,7 +236,7 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 ) (msg, reply packet.Buf, sync bool, trap traps.Id, err error) {
 	flags := p[packetFlagsOffset]
 	if (flags &^ packetFlagsMask) != 0 {
-		err = fmt.Errorf("invalid incoming packet flags: 0x%x", flags)
+		err = publicerror.Errorf("run: invalid incoming packet flags: 0x%x", flags)
 		return
 	}
 
@@ -251,7 +252,7 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 		}
 
 		if p.ContentSize() != 0 || flags != 0 || code != packetCodeTrap || trap == 0 {
-			err = errors.New("incoming packet is corrupted")
+			err = publicerror.New("run: incoming packet is corrupted")
 			return
 		}
 
@@ -261,7 +262,7 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 	switch {
 	case code >= 0:
 		if int(code) >= discoverer.NumServices() {
-			err = errors.New("invalid service code")
+			err = publicerror.New("run: invalid service code")
 			return
 		}
 
@@ -279,7 +280,7 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 		reply = p
 
 	default:
-		err = fmt.Errorf("invalid code in incoming packet: %d", code)
+		err = publicerror.Errorf("run: invalid code in incoming packet: %d", code)
 		return
 	}
 

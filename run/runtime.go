@@ -13,6 +13,7 @@ import (
 	"path"
 	"runtime"
 
+	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/types"
 )
@@ -96,7 +97,7 @@ func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function,
 	if module == wasmRuntimeModule {
 		if f, found := env.funcs[field]; found {
 			if !f.sig.Equal(sig) {
-				err = fmt.Errorf("function %s %s imported with wrong signature: %s", field, f.sig, sig)
+				err = publicerror.Errorf("function %s %s imported with wrong signature: %s", field, f.sig, sig)
 				return
 			}
 
@@ -105,13 +106,13 @@ func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function,
 		}
 	}
 
-	err = fmt.Errorf("imported function not found: %s %s %s", module, field, sig)
+	err = publicerror.Errorf("imported function not found: %s %s %s", module, field, sig)
 	return
 }
 
 func (env *runtimeEnv) ImportGlobal(module, field string, t types.T,
 ) (value uint64, err error) {
-	err = fmt.Errorf("imported global not found: %s %s %s", module, field, t)
+	err = publicerror.Errorf("imported global not found: %s %s %s", module, field, t)
 	return
 }
 

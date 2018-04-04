@@ -5,11 +5,18 @@
 PWD		:= $(shell pwd)
 
 GO		?= vgo
+GOFMT		?= gofmt
+PROTOC		?= protoc
 SETCAP		?= setcap
 
 CGROUP_BACKEND	?= systemd
 
-GOPACKAGES	:= $(shell find . -name '*.go' -printf '%h\n' | sort -u)
+GEN_SOURCES := \
+	server/detail/detail.pb.go \
+	server/event/event.pb.go \
+	server/event/type.gen.go \
+	server/monitor/monitor.pb.go
+
 TESTS		:= $(dir $(wildcard tests/*/Makefile))
 
 -include config.mk
@@ -22,7 +29,9 @@ lib:
 	$(MAKE) -C run/executor
 	$(MAKE) -C run/loader
 
-bin:
+generate: $(GEN_SOURCES)
+
+bin: generate
 	$(GO) build $(GOBUILDFLAGS) -o bin/containerd ./cmd/gate-containerd
 	$(GO) build $(GOBUILDFLAGS) -o bin/runner ./cmd/gate-runner
 	$(GO) build $(GOBUILDFLAGS) -o bin/server ./cmd/gate-server
@@ -50,8 +59,8 @@ capabilities:
 
 check: lib bin tests
 	$(MAKE) -C run/loader/tests check
-	$(GO) vet $(GOPACKAGES)
-	$(GO) test $(GOTESTFLAGS) $(GOPACKAGES)
+	$(GO) vet ./...
+	$(GO) test $(GOTESTFLAGS) ./...
 	bin/runner tests/echo/prog.wasm
 	bin/runner tests/cxx/prog.wasm
 	bin/runner -c benchmark.repeat=2 tests/hello/prog.wasm
@@ -64,11 +73,27 @@ check-toolchain:
 	bin/runner examples/toolchain/example.wasm
 
 benchmark: lib bin tests
-	$(GO) test -run=^$$ -bench=.* -v $(GOPACKAGES)
+	$(GO) test -run=^$$ -bench=.* -v ./...
 	bin/runner -c benchmark.repeat=10000 -benchmark.timing tests/nop/prog.wasm
 
+bin/protoc-gen-gate: go.mod $(wildcard internal/protoc-gen/*.go)
+	$(GO) build -o bin/protoc-gen-gate ./internal/protoc-gen
+
+%.pb.go: %.proto bin/protoc-gen-gate
+	mkdir -p tmp
+	PATH=$(PWD)/bin:$(PATH) $(PROTOC) --gate_out=tmp $*.proto
+	mv tmp/github.com/tsavola/gate/$@ $@
+
+server/event/event.pb.go: server/detail/detail.proto
+
+server/event/type.gen.go: server/event/event.pb.go $(wildcard internal/event-type-gen/*.go)
+	[ ! -e $@ ] || (echo "package event" > tmp/empty.go && touch --reference=$@ tmp/empty.go)
+	$(GO) run ./internal/event-type-gen/main.go | $(GOFMT) > tmp/$(notdir $@)
+	mv tmp/$(notdir $@) $@
+	$(GO) build ./server/event || (mv tmp/empty.go $@; false)
+
 clean:
-	rm -rf bin lib
+	rm -rf bin lib tmp
 	$(MAKE) -C run/container clean
 	$(MAKE) -C run/executor clean
 	$(MAKE) -C run/loader clean
@@ -82,4 +107,4 @@ clean:
 	$(MAKE) -C examples/toolchain clean
 	$(foreach dir,$(TESTS),$(MAKE) -C $(dir) clean;)
 
-.PHONY: lib bin devlibs tests all capabilities check check-toolchain benchmark clean
+.PHONY: lib generate bin devlibs tests all capabilities check check-toolchain benchmark clean

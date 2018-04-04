@@ -5,10 +5,10 @@
 package webapi
 
 const (
-	HeaderProgramId     = "X-Gate-Program-Id"     // opaque
-	HeaderProgramSHA512 = "X-Gate-Program-Sha512" // hexadecimal
-	HeaderInstanceArg   = "X-Gate-Instance-Arg"   // 32-bit signed integer
-	HeaderInstanceId    = "X-Gate-Instance-Id"    // opaque
+	HeaderProgramSHA384 = "X-Gate-Program-Sha384" // unpadded base64url-encoded digest
+	HeaderProgramId     = "X-Gate-Program-Id"     // unpadded base64url-encoded token
+	HeaderInstanceArg   = "X-Gate-Instance-Arg"   // signed 32-bit integer
+	HeaderInstanceId    = "X-Gate-Instance-Id"    // unpadded base64url-encoded token
 	HeaderExitStatus    = "X-Gate-Exit-Status"    // non-negative integer
 	HeaderTrapId        = "X-Gate-Trap-Id"        // positive integer
 	HeaderTrap          = "X-Gate-Trap"           // human-readable string
@@ -16,21 +16,21 @@ const (
 )
 
 type Run struct {
+	ProgramSHA384 string `json:"program_sha384,omitempty"`
 	ProgramId     string `json:"program_id,omitempty"`
-	ProgramSHA512 string `json:"program_sha512,omitempty"`
 	InstanceArg   int32  `json:"instance_arg"`
 }
 
 type Running struct {
 	InstanceId string `json:"instance_id"`
-	ProgramId  string `json:"program_id,omitempty"`
+	ProgramId  string `json:"program_id"`
 }
 
-type Communicate struct {
+type IO struct {
 	InstanceId string `json:"instance_id"`
 }
 
-type Communicating struct {
+type IOState struct {
 }
 
 type Result struct {

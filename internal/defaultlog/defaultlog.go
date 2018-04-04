@@ -13,8 +13,3 @@ type StandardLogger struct{}
 func (StandardLogger) Printf(fmt string, v ...interface{}) {
 	log.Printf(fmt, v...)
 }
-
-type NoLogger struct{}
-
-func (NoLogger) Printf(string, ...interface{}) {
-}

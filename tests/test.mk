@@ -2,19 +2,14 @@
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-SHA512SUM	?= sha512sum
-
 SOURCE		?= $(firstword $(wildcard *.c *.cpp))
 OBJECT		?= $(patsubst %.cpp,%.bc,$(patsubst %.c,%.bc,$(SOURCE)))
 
 OBJECTS		:= $(OBJECT)
 
-build: prog.wasm prog.wasm.sha512sum
+build: prog.wasm
 
 $(OBJECT): $(SOURCE) $(GATEDIR)/capi/include/gate.h Makefile $(GATEDIR)/tests/test.mk $(GATEDIR)/crt/rules.mk
-
-prog.wasm.sha512sum: prog.wasm
-	$(SHA512SUM) prog.wasm > $@
 
 clean:
 	rm -f prog.* *.bc

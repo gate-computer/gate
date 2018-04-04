@@ -10,3 +10,4 @@ prog.*
 /lib/
 /pkg/
 /src/
+/tmp/

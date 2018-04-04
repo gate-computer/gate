@@ -8,9 +8,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha512"
-	"encoding/hex"
+	"encoding/base64"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,8 +35,6 @@ func services(s *server.Server) run.ServiceRegistry {
 var handler = NewHandler(context.Background(), "/", server.NewState(context.Background(), &server.Config{
 	Runtime:  runtest.NewRuntime(nil).Runtime,
 	Services: services,
-	ErrorLog: log.New(os.Stderr, "ERROR: ", 0),
-	InfoLog:  log.New(os.Stderr, "INFO: ", 0),
 	Debug:    os.Stdout,
 }), nil)
 
@@ -54,13 +51,12 @@ func init() {
 		panic(err)
 	}
 
-	hash := sha512.New()
+	hash := sha512.New384()
 	hash.Write(progData)
-	progHash = hex.EncodeToString(hash.Sum(nil))
+	progHash = base64.URLEncoding.EncodeToString(hash.Sum(nil)) // same as RawURLEncoding for 384 bits
 }
 
-func do(t *testing.T, req *http.Request,
-) (resp *http.Response, content []byte) {
+func do(t *testing.T, req *http.Request) (resp *http.Response, content []byte) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	resp = w.Result()
@@ -73,8 +69,8 @@ func do(t *testing.T, req *http.Request,
 
 func TestLoadNotFound(t *testing.T) {
 	req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(nil))
-	req.Header.Set(api.HeaderProgramId, "535561601a3a8550")
-	req.Header.Set(api.HeaderProgramSHA512, "c4d28256984e0fc6cc645ee184a49fbd9efc07d29a07bf43baab07deeac21f255a3796c6d04132a86a141847d118a3e0bf729681ad7910ae2d8e99fec1327430")
+	req.Header.Set(api.HeaderProgramSHA384, "wPiUnP5xEA4TO-ZDP4flg1zPb3Y1ffH5Awh5oyjIpMrt4y-PwguVBnxxGMAhE9HP")
+	req.Header.Set(api.HeaderProgramId, "GmNxdAm1dT0")
 
 	resp, _ := do(t, req)
 	if resp.StatusCode != http.StatusNotFound {
@@ -82,13 +78,13 @@ func TestLoadNotFound(t *testing.T) {
 	}
 }
 
-func TestLoadSpawnCommunicateWait(t *testing.T) {
+func TestLoadSpawnIOWait(t *testing.T) {
 	var progId string
 
 	{
 		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(progData))
 		req.Header.Set("Content-Type", "application/wasm")
-		req.Header.Set(api.HeaderProgramSHA512, progHash)
+		req.Header.Set(api.HeaderProgramSHA384, progHash)
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
@@ -103,8 +99,8 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 
 	{
 		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderProgramSHA384, "wPiUnP5xEA4TO-ZDP4flg1zPb3Y1ffH5Awh5oyjIpMrt4y-PwguVBnxxGMAhE9HP")
 		req.Header.Set(api.HeaderProgramId, progId)
-		req.Header.Set(api.HeaderProgramSHA512, "c4d28256984e0fc6cc645ee184a49fbd9efc07d29a07bf43baab07deeac21f255a3796c6d04132a86a141847d118a3e0bf729681ad7910ae2d8e99fec1327430")
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusForbidden {
@@ -114,8 +110,8 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 
 	{
 		req := httptest.NewRequest("POST", "/load", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderProgramSHA384, progHash)
 		req.Header.Set(api.HeaderProgramId, progId)
-		req.Header.Set(api.HeaderProgramSHA512, progHash)
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
@@ -127,8 +123,8 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 
 	{
 		req := httptest.NewRequest("POST", "/spawn", bytes.NewBuffer(nil))
+		req.Header.Set(api.HeaderProgramSHA384, progHash)
 		req.Header.Set(api.HeaderProgramId, progId)
-		req.Header.Set(api.HeaderProgramSHA512, progHash)
 
 		resp, _ := do(t, req)
 		if resp.StatusCode != http.StatusOK {
@@ -142,7 +138,7 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/communicate", bytes.NewBufferString(""))
+		req := httptest.NewRequest("POST", "/io", bytes.NewBufferString(""))
 		req.Header.Set(api.HeaderInstanceId, instId)
 
 		resp, content := do(t, req)
@@ -156,7 +152,7 @@ func TestLoadSpawnCommunicateWait(t *testing.T) {
 	}
 
 	{
-		req := httptest.NewRequest("POST", "/communicate", bytes.NewBufferString("garbage"))
+		req := httptest.NewRequest("POST", "/io", bytes.NewBufferString("garbage"))
 		req.Header.Set(api.HeaderInstanceId, instId)
 
 		resp, _ := do(t, req)
@@ -202,7 +198,7 @@ func TestRun(t *testing.T) {
 	defer conn.Close()
 
 	err = conn.WriteJSON(api.Run{
-		ProgramSHA512: progHash,
+		ProgramSHA384: progHash,
 	})
 	if err != nil {
 		panic(err)

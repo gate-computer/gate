@@ -6,7 +6,7 @@ package main
 
 import (
 	"crypto/sha512"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -66,9 +66,9 @@ func mainResult() (ok bool) {
 		return
 	}
 
-	hash := sha512.New()
+	hash := sha512.New384()
 	hash.Write(wasmData)
-	wasmHash := hex.EncodeToString(hash.Sum(nil))
+	wasmHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
 	var d websocket.Dialer
 
@@ -78,7 +78,7 @@ func mainResult() (ok bool) {
 	}
 	defer conn.Close()
 
-	err = conn.WriteJSON(webapi.Run{ProgramSHA512: wasmHash})
+	err = conn.WriteJSON(webapi.Run{ProgramSHA384: wasmHash})
 	if err != nil {
 		log.Fatal(err)
 	}
