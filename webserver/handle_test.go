@@ -36,7 +36,7 @@ var handler = NewHandler(context.Background(), "/", server.NewState(context.Back
 	Runtime:  runtest.NewRuntime(nil).Runtime,
 	Services: services,
 	Debug:    os.Stdout,
-}), nil)
+}))
 
 var (
 	progData []byte
