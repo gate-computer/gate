@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"path"
 	"strconv"
@@ -410,7 +411,11 @@ func handleRunSocket(ctx context.Context, w http.ResponseWriter, r *http.Request
 
 	err = conn.ReadJSON(&run)
 	if err != nil {
-		reportNetworkError(ctx, s, err)
+		if _, ok := err.(net.Error); ok {
+			reportNetworkError(ctx, s, err)
+		} else {
+			reportProtocolError(ctx, s, err)
+		}
 		return
 	}
 
@@ -560,7 +565,11 @@ func handleIOSocket(ctx context.Context, w http.ResponseWriter, r *http.Request,
 
 	err = conn.ReadJSON(&io)
 	if err != nil {
-		reportNetworkError(ctx, s, err)
+		if _, ok := err.(net.Error); ok {
+			reportNetworkError(ctx, s, err)
+		} else {
+			reportProtocolError(ctx, s, err)
+		}
 		return
 	}
 
