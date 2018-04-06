@@ -33,6 +33,7 @@ const (
 
 var (
 	errContentHashMismatch  = errors.New("Program SHA-384 hash does not match content")
+	errContentNotEmpty      = errors.New("Request content must be empty")
 	errEncodingNotSupported = errors.New("The only supported Content-Encoding is gzip")
 	errLengthRequired       = errors.New(http.StatusText(http.StatusLengthRequired))
 	errMethodNotAllowed     = errors.New(http.StatusText(http.StatusMethodNotAllowed))
@@ -219,12 +220,10 @@ func NewHandler(ctx context.Context, pattern string, state *server.State) http.H
 
 			switch r.Method {
 			case http.MethodPost:
-				switch getContentType(r) {
-				case "":
+				if r.ContentLength == 0 {
 					handleWait(ctx, w, r, s)
-
-				default:
-					writeUnsupportedMediaType(ctx, w, r, s)
+				} else {
+					writeContentNotEmpty(ctx, w, r, s)
 				}
 
 			case http.MethodOptions:
@@ -811,6 +810,10 @@ func writeMethodNotAllowed(ctx context.Context, w http.ResponseWriter, r *http.R
 
 func writeUnsupportedMediaType(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
 	writeProtocolError(ctx, w, r, s, http.StatusUnsupportedMediaType, errUnsupportedMediaType)
+}
+
+func writeContentNotEmpty(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State) {
+	writeProtocolError(ctx, w, r, s, http.StatusRequestEntityTooLarge, errContentNotEmpty)
 }
 
 func writeProtocolError(ctx context.Context, w http.ResponseWriter, r *http.Request, s *internal.State, status int, err error) {
