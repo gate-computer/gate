@@ -53,6 +53,11 @@ func TestHello(t *testing.T) {
 	}
 }
 
+func TestRust(t *testing.T) {
+	output := testRun(t, "rust")
+	t.Log(string(output.Bytes()))
+}
+
 func TestServices(t *testing.T) {
 	testRun(t, "services")
 }
