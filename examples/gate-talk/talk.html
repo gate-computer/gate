@@ -41,15 +41,15 @@
 		li.classList.add("info")
 	}
 
-	function displayCommMessage(data) {
+	function displayIOMessage(data) {
 		displayMessage(new TextDecoder("utf-8").decode(data))
 	}
 
 	const PROG = "payload/prog.wasm" // "../../tests/hello/prog.wasm"
 	const ADDR = "localhost:8888"
-	const RUN_WEBSOCKET = true
+	const RUN_SOCKET = true
 	const RUN_POST = false
-	const COMM_WEBSOCKET = true
+	const IO_SOCKET = true
 
 	let prog = new XMLHttpRequest()
 	prog.responseType = "arraybuffer"
@@ -58,13 +58,14 @@
 
 	prog.onload = () => {
 		crypto.subtle.digest("SHA-384", prog.response).then((digest) => {
-			let hash = btoa(digest).replace(/+/g, "-").replace(/\//g, "_")
+			let hash = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, "-").replace(/\//g, "_")
 
-			if (RUN_WEBSOCKET) {
+			if (RUN_SOCKET) {
 				let run = new WebSocket("ws://" + ADDR + "/run")
 				run.binaryType = "arraybuffer"
 
 				run.onopen = () => {
+					run.send(JSON.stringify({program_sha384: hash}))
 					run.send(prog.response)
 				}
 
@@ -72,7 +73,7 @@
 					if (typeof event.data === "string")
 						displayInfoMessage(event.data)
 					else
-						displayCommMessage(event.data)
+						displayIOMessage(event.data)
 				}
 			} else {
 				let load = new XMLHttpRequest()
@@ -95,7 +96,7 @@
 
 						run.onload = () => {
 							displayInfoMessage("X-Gate-Instance-Id: " + run.getResponseHeader("X-Gate-Instance-Id"))
-							displayCommMessage(run.response)
+							displayIOMessage(run.response)
 						}
 					} else {
 						let spawn = new XMLHttpRequest()
@@ -125,33 +126,33 @@
 								}
 							}
 
-							if (COMM_WEBSOCKET) {
-								let comm = new WebSocket("ws://" + ADDR + "/io")
-								comm.binaryType = "arraybuffer"
+							if (IO_SOCKET) {
+								let io = new WebSocket("ws://" + ADDR + "/io")
+								io.binaryType = "arraybuffer"
 
-								comm.onopen = () => {
-									comm.send(JSON.stringify({instance: spawned.instance}))
+								io.onopen = () => {
+									io.send(JSON.stringify({instance: spawned.instance}))
 								}
 
-								comm.onmessage = (event) => {
+								io.onmessage = (event) => {
 									if (typeof event.data === "string")
 										wait()
 									else
-										displayCommMessage(event.data)
+										displayIOMessage(event.data)
 								}
 							} else {
-								let comm = new XMLHttpRequest()
-								comm.responseType = "arraybuffer"
-								comm.open("POST", "http://" + ADDR + "/io")
-								comm.setRequestHeader("X-Gate-Instance-Id", spawned.instance.id)
-								comm.send()
+								let io = new XMLHttpRequest()
+								io.responseType = "arraybuffer"
+								io.open("POST", "http://" + ADDR + "/io")
+								io.setRequestHeader("X-Gate-Instance-Id", spawned.instance.id)
+								io.send()
 
-								comm.onloadstart = wait
-								comm.onprogress = wait
-								comm.onloadend = wait
+								io.onloadstart = wait
+								io.onprogress = wait
+								io.onloadend = wait
 
-								comm.onload = () => {
-									displayCommMessage(comm.response)
+								io.onload = () => {
+									displayIOMessage(io.response)
 								}
 							}
 						}
