@@ -49,10 +49,6 @@ type Registry struct {
 	parent *Registry
 }
 
-// Defaults gets populated with the built-in services if the service/defaults
-// package is imported.
-var Defaults = new(Registry)
-
 // Register a service implementation.  See
 // https://github.com/tsavola/gate/blob/master/Service.md for service naming
 // conventions.  The version parameter may be used to communicate changes in

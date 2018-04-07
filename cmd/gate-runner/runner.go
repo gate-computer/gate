@@ -18,8 +18,7 @@ import (
 
 	"github.com/tsavola/config"
 	"github.com/tsavola/gate/run"
-	"github.com/tsavola/gate/service"
-	_ "github.com/tsavola/gate/service/defaults"
+	"github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/echo"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/wag"
@@ -92,6 +91,8 @@ func main() {
 		os.Exit(2)
 	}
 
+	registry := defaults.Register(nil)
+
 	ctx := context.Background()
 
 	originalDefaultOriginReader := origin.Default.R
@@ -144,7 +145,7 @@ func main() {
 		done := make(chan int, len(filenames))
 
 		for i, filename := range filenames {
-			r := service.Defaults
+			r := registry
 
 			if i > 0 {
 				r = r.Clone()

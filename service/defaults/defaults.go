@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Importing this package causes the service.Defaults registry to get populated
-// with the built-in services.
+// Package defaults defines the list of built-in services.
 package defaults
 
 import (
@@ -13,8 +12,15 @@ import (
 	"github.com/tsavola/gate/service/peer"
 )
 
-func init() {
-	echo.Default.Register(service.Defaults)
-	origin.Default.Register(service.Defaults)
-	peer.Default.Register(service.Defaults)
+// Register the built-in services.  The registry may be nil.
+func Register(r *service.Registry) *service.Registry {
+	if r == nil {
+		r = new(service.Registry)
+	}
+
+	echo.Default.Register(r)
+	origin.Default.Register(r)
+	peer.Default.Register(r)
+
+	return r
 }

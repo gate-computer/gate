@@ -27,7 +27,7 @@ import (
 )
 
 func services(s *server.Server) run.ServiceRegistry {
-	r := service.Defaults.Clone()
+	r := new(service.Registry)
 	origin.New(s.Origin.R, s.Origin.W).Register(r)
 	return r
 }

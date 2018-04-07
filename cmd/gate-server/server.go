@@ -23,8 +23,7 @@ import (
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/monitor"
 	"github.com/tsavola/gate/server/monitor/webmonitor"
-	"github.com/tsavola/gate/service"
-	_ "github.com/tsavola/gate/service/defaults"
+	"github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/webserver"
 	"golang.org/x/crypto/acme"
@@ -101,7 +100,6 @@ func main() {
 	c.Runtime.MaxProcs = run.DefaultMaxProcs
 	c.Runtime.LibDir = "lib"
 	c.Runtime.CgroupTitle = run.DefaultCgroupTitle
-	c.Server.Services = services
 	c.Server.MaxProgramSize = server.DefaultMaxProgramSize
 	c.Server.MemorySizeLimit = server.DefaultMemorySizeLimit
 	c.Server.StackSize = server.DefaultStackSize
@@ -120,6 +118,13 @@ func main() {
 	flag.Var(config.Assigner(c), "c", "set a configuration key (path.to.key=value)")
 	flag.Usage = config.FlagUsage(c)
 	flag.Parse()
+
+	registry := defaults.Register(nil)
+	c.Server.Services = func(s *server.Server) run.ServiceRegistry {
+		r := registry.Clone()
+		origin.New(s.Origin.R, s.Origin.W).Register(r)
+		return r
+	}
 
 	ctx := context.Background()
 
@@ -246,10 +251,4 @@ func main() {
 
 	s := http.Server{Handler: handler}
 	critLog.Fatal(s.Serve(l))
-}
-
-func services(s *server.Server) run.ServiceRegistry {
-	r := service.Defaults.Clone()
-	origin.New(s.Origin.R, s.Origin.W).Register(r)
-	return r
 }
