@@ -41,7 +41,7 @@ Important packages:
   - [**run**](https://godoc.org/github.com/tsavola/gate/run):
     Core functionality. Interface to the execution mechanism.
 
-  - [**webserver**](https://godoc.org/github.com/tsavola/gate/webserver):
+  - [**webserver**](https://godoc.org/github.com/tsavola/gate/server/webserver):
     HTTP server which executes your code on purpose.
 
   - [**service**](https://godoc.org/github.com/tsavola/gate/service):

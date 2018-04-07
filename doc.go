@@ -9,9 +9,9 @@ Package gate contains documentation for its subpackages.
 
 Errors
 
-Some errors returned by the run, server, and webserver packages are wrappers
-for an underlying error.  If direct access to the underlying error object is
-needed, the wrapper can be opened using this interface definition:
+Some errors returned by the run and server packages are wrappers for an
+underlying error.  If direct access to the underlying error object is needed,
+the wrapper can be opened using this interface definition:
 
 	interface {
 		Cause() error
