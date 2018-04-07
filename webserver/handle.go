@@ -867,7 +867,7 @@ func writeError(ctx context.Context, w http.ResponseWriter, r *http.Request, s *
 	)
 
 	if puberr, ok := err.(publicerror.PublicError); ok {
-		err = puberr.PrivateErr()
+		err = puberr.Cause()
 		text = puberr.PublicError()
 		subsystem = puberr.Internal()
 		if subsystem != "" {

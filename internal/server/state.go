@@ -771,7 +771,7 @@ func makeId() string {
 
 func reportError(ctx context.Context, s *State, subsystem, progId string, instArg int32, instId string, err error) {
 	if puberr, ok := err.(publicerror.PublicError); ok {
-		err = puberr.PrivateErr()
+		err = puberr.Cause()
 		subsystem = puberr.Internal()
 	}
 

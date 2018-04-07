@@ -9,10 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
 )
+
+type causer interface {
+	Cause() error
+}
 
 func TestFileLimiter(t *testing.T) {
 	rt := runtest.NewRuntime(&run.Config{
@@ -41,8 +44,11 @@ func TestFileLimiter(t *testing.T) {
 		cancel()
 	}()
 
-	if err := lastImage.Init(cancelCtx, rt.Runtime); err != context.Canceled {
-		if puberr, ok := err.(publicerror.PublicError); !ok || puberr.PrivateErr() != context.Canceled {
+	if err := lastImage.Init(cancelCtx, rt.Runtime); err != nil {
+		if x, ok := err.(causer); ok {
+			err = x.Cause()
+		}
+		if err != context.Canceled {
 			t.Fatal(err)
 		}
 	}
