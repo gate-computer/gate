@@ -7,28 +7,24 @@
 #![no_std]
 
 extern {
-    fn __gate_debug_write(data: *const u8, size: usize);
     fn __gate_exit(status: i32) -> !;
-}
 
-fn gate_exit(status: i32) -> ! {
-    unsafe {
-        __gate_exit(status)
-    }
-}
+    fn __wasm_call_ctors();
 
-fn gate_debug(s: &str) {
-    unsafe {
-        __gate_debug_write(s.as_ptr(), s.len())
-    }
+    pub fn main();
 }
 
 #[no_mangle]
-pub fn main() {
-    gate_debug("rusty world\n")
+pub fn _start() {
+    unsafe {
+        __wasm_call_ctors();
+        main()
+    }
 }
 
 #[lang = "panic_fmt"]
 fn panic_fmt() -> ! {
-    gate_exit(1)
+    unsafe {
+        __gate_exit(1)
+    }
 }

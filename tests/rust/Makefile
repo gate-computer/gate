@@ -4,12 +4,26 @@
 
 RUSTC		?= rustc
 
-SOURCES		:= $(wildcard *.rs)
+LLVMPREFIX	?= $(GATEDIR)/../wag-toolchain/out
+CC		:= $(LLVMPREFIX)/bin/clang --target=wasm32-unknown-unknown
+
+GATEDIR		:= ../..
+
+SOURCE		:= $(firstword $(wildcard *.rs))
+OBJECT		:= $(SOURCE:%.rs=%.bc)
+
+LDFLAGS		:= -nostdlib -Wl,--allow-undefined-file=$(GATEDIR)/capi/abi.list -Wl,--check-signatures
+
+LIBS := \
+	$(GATEDIR)/rustrt/rustrt.bc
 
 build: prog.wasm
 
-prog.wasm: $(SOURCES) Makefile
-	$(RUSTC) --target=wasm32-unknown-unknown -o $@ $(SOURCES)
+prog.wasm: $(OBJECT)
+	$(CC) $(LDFLAGS) -o $@ $(OBJECT) $(LIBS)
+
+$(OBJECT): $(SOURCE) Makefile
+	$(RUSTC) --target=wasm32-unknown-unknown --emit=llvm-bc -o $@ $(SOURCE)
 
 clean:
 	rm -f prog.* *.bc

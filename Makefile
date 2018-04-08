@@ -39,6 +39,7 @@ bin: generate
 
 devlibs:
 	$(MAKE) -C crt
+	$(MAKE) -C rustrt
 	$(MAKE) -C libc
 	$(MAKE) -C malloc
 	$(MAKE) -C libcxx
@@ -99,6 +100,7 @@ clean:
 	$(MAKE) -C run/loader clean
 	$(MAKE) -C run/loader/tests clean
 	$(MAKE) -C crt clean
+	$(MAKE) -C rustrt clean
 	$(MAKE) -C libc clean
 	$(MAKE) -C malloc clean
 	$(MAKE) -C libcxx clean
