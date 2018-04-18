@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/sections"
+	"github.com/tsavola/wag/section"
 )
 
 type callSite struct {
@@ -20,52 +20,47 @@ type callSite struct {
 	stackOffset int
 }
 
-func findCaller(funcMap []byte, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
-	count := len(funcMap) / 4
-	if count == 0 {
+func findCaller(funcMap []int32, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
+	if len(funcMap) == 0 {
 		return
 	}
 
-	firstFuncAddr := endian.Uint32(funcMap[:4])
-	if retAddr > 0 && retAddr < firstFuncAddr {
+	firstFuncAddr := funcMap[0]
+	if retAddr > 0 && retAddr < uint32(firstFuncAddr) {
 		initial = true
 		ok = true
 		return
 	}
 
-	num = sort.Search(count, func(i int) bool {
+	num = sort.Search(len(funcMap), func(i int) bool {
 		i++
-		if i == count {
+		if i == len(funcMap) {
 			return true
 		} else {
-			return retAddr <= endian.Uint32(funcMap[i*4:(i+1)*4])
+			return retAddr <= uint32(funcMap[i])
 		}
 	})
 
-	if num < count {
-		funcAddr = endian.Uint32(funcMap[num*4 : (num+1)*4])
+	if num < len(funcMap) {
 		ok = true
 	}
 	return
 }
 
-func getCallSites(callMap []byte) (callSites map[int]callSite) {
+func getCallSites(callMap []wag.CallSite) (callSites map[int]callSite) {
 	callSites = make(map[int]callSite)
 
-	for i := 0; len(callMap) > 0; i++ {
-		entry := endian.Uint64(callMap[:8])
-		callMap = callMap[8:]
-
-		addr := int(uint32(entry))
-		stackOffset := int(entry >> 32)
-
-		callSites[addr] = callSite{uint64(i), stackOffset}
+	for i, site := range callMap {
+		callSites[int(site.ReturnAddr)] = callSite{
+			uint64(i),
+			int(site.StackOffset),
+		}
 	}
 
 	return
 }
 
-func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module, ns *sections.NameSection,
+func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module, ns *section.NameSection,
 ) (err error) {
 	funcMap := m.FunctionMap()
 	callMap := m.CallMap()
@@ -125,17 +120,15 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module
 		}
 
 		var name string
-		var localNames []string
 
 		if ns != nil && funcNum < len(ns.FunctionNames) {
 			name = ns.FunctionNames[funcNum].FunName
-			localNames = ns.FunctionNames[funcNum].LocalNames
 		} else {
 			name = fmt.Sprintf("func-%d", funcNum)
 		}
 
 		if !strings.Contains(name, "(") && funcNum < len(funcSigs) {
-			name += funcSigs[funcNum].StringWithNames(localNames)
+			name += funcSigs[funcNum].String() // TODO: parameter names
 		}
 
 		fmt.Fprintf(w, "#%d  %s  +0x%x\n", depth, name, uint32(retAddr)-funcAddr)

@@ -25,7 +25,7 @@ import (
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
 	api "github.com/tsavola/gate/webapi"
-	"github.com/tsavola/wag/traps"
+	"github.com/tsavola/wag/trap"
 )
 
 const (
@@ -484,7 +484,7 @@ func handleRunSocket(ctx context.Context, w http.ResponseWriter, r *http.Request
 		if result != nil {
 			var doc api.Result
 
-			if result.Trap == traps.Exit {
+			if result.Trap == trap.Exit {
 				doc.ExitStatus = &result.Status
 			} else {
 				doc.TrapId = int(result.Trap)
@@ -653,7 +653,7 @@ func allowAnyOrigin(*http.Request) bool {
 }
 
 func setResultHeader(w http.ResponseWriter, prefix string, result *internal.Result) {
-	if result.Trap == traps.Exit {
+	if result.Trap == trap.Exit {
 		w.Header().Set(prefix+api.HeaderExitStatus, strconv.Itoa(result.Status))
 	} else {
 		w.Header().Set(prefix+api.HeaderTrapId, strconv.Itoa(int(result.Trap)))

@@ -15,7 +15,8 @@ import (
 
 	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/types"
+	"github.com/tsavola/wag/wasm"
+	"github.com/tsavola/wag/wasm/function"
 )
 
 const (
@@ -24,7 +25,7 @@ const (
 
 type runtimeFunc struct {
 	addr uint64
-	sig  types.Function
+	sig  function.Type
 }
 
 type runtimeEnv struct {
@@ -67,24 +68,24 @@ func (env *runtimeEnv) init(config *Config, checksum io.Writer) (err error) {
 
 		switch name {
 		case "__gate_get_abi_version", "__gate_get_arg", "__gate_get_max_packet_size":
-			env.funcs[name] = runtimeFunc{addr, types.Function{
-				Result: types.I32,
+			env.funcs[name] = runtimeFunc{addr, function.Type{
+				Result: wasm.I32,
 			}}
 
 		case "__gate_func_ptr":
-			env.funcs[name] = runtimeFunc{addr, types.Function{
-				Args:   []types.T{types.I32},
-				Result: types.I32,
+			env.funcs[name] = runtimeFunc{addr, function.Type{
+				Args:   []wasm.Type{wasm.I32},
+				Result: wasm.I32,
 			}}
 
 		case "__gate_exit":
-			env.funcs[name] = runtimeFunc{addr, types.Function{
-				Args: []types.T{types.I32},
+			env.funcs[name] = runtimeFunc{addr, function.Type{
+				Args: []wasm.Type{wasm.I32},
 			}}
 
 		case "__gate_recv", "__gate_send", "__gate_debug_write":
-			env.funcs[name] = runtimeFunc{addr, types.Function{
-				Args: []types.T{types.I32, types.I32},
+			env.funcs[name] = runtimeFunc{addr, function.Type{
+				Args: []wasm.Type{wasm.I32, wasm.I32},
 			}}
 		}
 	}
@@ -92,11 +93,11 @@ func (env *runtimeEnv) init(config *Config, checksum io.Writer) (err error) {
 	return
 }
 
-func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function,
+func (env *runtimeEnv) ImportFunction(module, field string, sig function.Type,
 ) (variadic bool, addr uint64, err error) {
 	if module == wasmRuntimeModule {
 		if f, found := env.funcs[field]; found {
-			if !f.sig.Equal(sig) {
+			if !equalFunctionSignatures(f.sig, sig) {
 				err = publicerror.Errorf("function %s %s imported with wrong signature: %s", field, f.sig, sig)
 				return
 			}
@@ -110,10 +111,28 @@ func (env *runtimeEnv) ImportFunction(module, field string, sig types.Function,
 	return
 }
 
-func (env *runtimeEnv) ImportGlobal(module, field string, t types.T,
+func (env *runtimeEnv) ImportGlobal(module, field string, t wasm.Type,
 ) (value uint64, err error) {
 	err = publicerror.Errorf("imported global not found: %s %s %s", module, field, t)
 	return
+}
+
+func equalFunctionSignatures(a, b function.Type) bool {
+	if a.Result != b.Result {
+		return false
+	}
+
+	if len(a.Args) != len(b.Args) {
+		return false
+	}
+
+	for i := range a.Args {
+		if a.Args[i] != b.Args[i] {
+			return false
+		}
+	}
+
+	return true
 }
 
 type Runtime struct {
@@ -152,7 +171,7 @@ func (rt *Runtime) Done() <-chan struct{} {
 	return rt.executor.doneReceiving
 }
 
-func (rt *Runtime) Environment() wag.Environment {
+func (rt *Runtime) Env() wag.Env {
 	return &rt.env
 }
 

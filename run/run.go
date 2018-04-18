@@ -14,9 +14,8 @@ import (
 	"syscall"
 
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/reader"
-	"github.com/tsavola/wag/sections"
-	"github.com/tsavola/wag/traps"
+	"github.com/tsavola/wag/section"
+	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wasm"
 
 	"github.com/tsavola/gate/internal/memfd"
@@ -237,7 +236,7 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func (image *Image) DumpStacktrace(w io.Writer, m *wag.Module, ns *sections.NameSection,
+func (image *Image) DumpStacktrace(w io.Writer, m *wag.Module, ns *section.NameSection,
 ) (err error) {
 	fd := int(image.maps.Fd())
 
@@ -447,14 +446,14 @@ func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *P
 	return
 }
 
-func Load(m *wag.Module, r reader.Reader, rt *Runtime, textBuf wag.Buffer, roDataBuf []byte, startTrigger chan<- struct{},
+func Load(m *wag.Module, r wag.Reader, rt *Runtime, textBuf wag.TextBuffer, roDataBuf wag.DataBuffer,
 ) error {
 	m.EntrySymbol = EntrySymbol
-	return m.Load(r, rt.Environment(), textBuf, roDataBuf, RODataAddr, startTrigger)
+	return m.Load(r, rt.Env(), textBuf, roDataBuf, RODataAddr, nil)
 }
 
 func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry,
-) (exit int, trap traps.Id, err error) {
+) (exit int, trapId trap.Id, err error) {
 	if services == nil {
 		services = noServices{}
 	}
@@ -484,8 +483,8 @@ func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services
 			return
 		}
 
-		if n := code - 100; n >= 0 && n < int(traps.NumTraps) {
-			trap = traps.Id(n)
+		if n := code - 100; n >= 0 && n < int(trap.NumTraps) {
+			trapId = trap.Id(n)
 			return
 		}
 
@@ -520,6 +519,6 @@ func (inst *Instance) Kill(rt *Runtime) (err error) {
 }
 
 func (inst *Instance) Run(ctx context.Context, rt *Runtime, services ServiceRegistry,
-) (exit int, trap traps.Id, err error) {
+) (exit int, trapId trap.Id, err error) {
 	return Run(ctx, rt, &inst.proc, &inst.Image, services)
 }

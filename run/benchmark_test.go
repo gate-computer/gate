@@ -15,7 +15,7 @@ import (
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/traps"
+	"github.com/tsavola/wag/trap"
 )
 
 func readProgram(testName string) []byte {
@@ -45,7 +45,7 @@ var (
 func compileBenchmark(prog []byte) (m *wag.Module) {
 	m = new(wag.Module)
 
-	err := run.Load(m, bytes.NewReader(prog), benchRT.Runtime, new(bytes.Buffer), nil, nil)
+	err := run.Load(m, bytes.NewReader(prog), benchRT.Runtime, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -70,7 +70,7 @@ func prepareBenchmark(m *wag.Module) (image *run.Image) {
 }
 
 func executeBenchmark(image *run.Image, output io.Writer,
-) (exit int, trap traps.Id, err error) {
+) (exit int, trapId trap.Id, err error) {
 	var proc run.Process
 
 	err = proc.Init(context.Background(), benchRT.Runtime, image, nil)
@@ -79,7 +79,7 @@ func executeBenchmark(image *run.Image, output io.Writer,
 	}
 	defer proc.Kill(benchRT.Runtime)
 
-	exit, trap, err = run.Run(context.Background(), benchRT.Runtime, &proc, image, &testServiceRegistry{output})
+	exit, trapId, err = run.Run(context.Background(), benchRT.Runtime, &proc, image, &testServiceRegistry{output})
 	return
 }
 
@@ -142,12 +142,12 @@ func benchmarkExecute(b *testing.B, prog []byte, expectOutput string) {
 	for i := 0; i < b.N; i++ {
 		var output bytes.Buffer
 
-		exit, trap, err := executeBenchmark(image, &output)
+		exit, trapId, err := executeBenchmark(image, &output)
 		if err != nil {
 			panic(err)
 		}
-		if trap != 0 {
-			panic(trap)
+		if trapId != 0 {
+			panic(trapId)
 		}
 		if exit != 0 {
 			panic(exit)

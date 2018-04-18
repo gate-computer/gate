@@ -21,7 +21,7 @@ import (
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/traps"
+	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wasm"
 )
 
@@ -519,7 +519,7 @@ func loadProgram(body io.ReadCloser, clientHash string, rt *run.Runtime,
 
 	p = new(program)
 
-	loadErr := run.Load(&p.module, r, rt, new(bytes.Buffer), nil, nil)
+	loadErr := run.Load(&p.module, r, rt, nil, nil)
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:
@@ -579,7 +579,7 @@ func validateReadHash(hash1 string, r io.ReadCloser) (valid bool, err error) {
 
 type Result struct {
 	Status int
-	Trap   traps.Id
+	Trap   trap.Id
 	Err    error
 }
 
@@ -665,7 +665,7 @@ func (inst *Instance) Run(ctx context.Context, progId string, instArg int32, ins
 
 	var (
 		status int
-		trap   traps.Id
+		trapId trap.Id
 		err    error
 	)
 
@@ -683,8 +683,8 @@ func (inst *Instance) Run(ctx context.Context, progId string, instArg int32, ins
 
 		r = new(Result)
 
-		if trap != 0 {
-			r.Trap = trap
+		if trapId != 0 {
+			r.Trap = trapId
 		} else {
 			r.Status = status
 		}
@@ -699,7 +699,7 @@ func (inst *Instance) Run(ctx context.Context, progId string, instArg int32, ins
 
 	inst.run.SetArg(instArg)
 
-	status, trap, err = inst.run.Run(ctx, s.Runtime, services)
+	status, trapId, err = inst.run.Run(ctx, s.Runtime, services)
 	if err != nil {
 		reportError(ctx, s, "run", progId, instArg, instId, err)
 	}

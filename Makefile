@@ -4,7 +4,7 @@
 
 PWD		:= $(shell pwd)
 
-GO		?= vgo
+GO		?= go
 GOFMT		?= gofmt
 PROTOC		?= protoc
 SETCAP		?= setcap
@@ -21,6 +21,7 @@ TESTS		:= $(dir $(wildcard tests/*/Makefile))
 
 -include config.mk
 
+export GO111MODULE		:= on
 export GATE_TEST_LIBDIR		:= $(PWD)/lib
 export GATE_TEST_DIR		:= $(PWD)/tests
 

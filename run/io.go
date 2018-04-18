@@ -13,7 +13,7 @@ import (
 
 	"github.com/tsavola/gate/internal/publicerror"
 	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/wag/traps"
+	"github.com/tsavola/wag/trap"
 )
 
 const (
@@ -123,7 +123,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 				return
 			}
 
-			msg, ev, sync, trap, opErr := handlePacket(read.buf, discoverer)
+			msg, ev, sync, trapId, opErr := handlePacket(read.buf, discoverer)
 			if opErr != nil {
 				err = opErr
 				return
@@ -138,7 +138,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process,
 			if sync {
 				pendingSyncs++
 			}
-			if trap != 0 {
+			if trapId != 0 {
 				// TODO
 			}
 
@@ -233,7 +233,7 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 }
 
 func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
-) (msg, reply packet.Buf, sync bool, trap traps.Id, err error) {
+) (msg, reply packet.Buf, sync bool, trapId trap.Id, err error) {
 	flags := p[packetFlagsOffset]
 	if (flags &^ packetFlagsMask) != 0 {
 		err = publicerror.Errorf("run: invalid incoming packet flags: 0x%x", flags)
@@ -246,12 +246,12 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer,
 	code := p.Code().Int16()
 
 	if reserved := p[packetReservedOffset]; reserved != 0 {
-		switch t := traps.Id(reserved); t {
-		case traps.MissingFunction, traps.Suspended:
-			trap = t
+		switch t := trap.Id(reserved); t {
+		case trap.MissingFunction, trap.Suspended:
+			trapId = t
 		}
 
-		if p.ContentSize() != 0 || flags != 0 || code != packetCodeTrap || trap == 0 {
+		if p.ContentSize() != 0 || flags != 0 || code != packetCodeTrap || trapId == 0 {
 			err = publicerror.New("run: incoming packet is corrupted")
 			return
 		}

@@ -18,9 +18,9 @@ import (
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/dewag"
+	"github.com/tsavola/wag/disasm"
 	"github.com/tsavola/wag/insnmap"
-	"github.com/tsavola/wag/sections"
+	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wasm"
 )
 
@@ -75,22 +75,22 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	defer wasm.Close()
 
 	var (
-		nameSection sections.NameSection
+		nameSection section.NameSection
 		insnMap     insnmap.InsnMap
 	)
 
 	m := wag.Module{
-		UnknownSectionLoader: sections.UnknownLoaders{"name": nameSection.Load}.Load,
+		UnknownSectionLoader: section.UnknownLoaders{"name": nameSection.Load}.Load,
 		InsnMap:              &insnMap,
 	}
 
-	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, new(bytes.Buffer), nil, nil)
+	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, nil, nil)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}
 
 	if dumpText && testing.Verbose() {
-		dewag.PrintTo(os.Stdout, m.Text(), m.FunctionMap(), nil)
+		disasm.Fprint(os.Stdout, m.Text(), m.FunctionMap(), nil)
 	}
 
 	_, memorySize := m.MemoryLimits()
@@ -123,7 +123,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	if false {
 		var buf bytes.Buffer
 
-		if err := dewag.PrintTo(&buf, m.Text(), m.FunctionMap(), &nameSection); err == nil {
+		if err := disasm.Fprint(&buf, m.Text(), m.FunctionMap(), &nameSection); err == nil {
 			t.Logf("disassembly:\n%s", string(buf.Bytes()))
 		} else {
 			t.Errorf("disassembly error: %v", err)
@@ -132,11 +132,11 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 
 	stacktrace := true
 
-	exit, trap, err := run.Run(context.Background(), rt.Runtime, &proc, &image, &testServiceRegistry{origin: &output})
+	exit, trapId, err := run.Run(context.Background(), rt.Runtime, &proc, &image, &testServiceRegistry{origin: &output})
 	if err != nil {
 		t.Errorf("run error: %v", err)
-	} else if trap != 0 {
-		t.Errorf("run trap: %s", trap)
+	} else if trapId != 0 {
+		t.Errorf("run trap: %s", trapId)
 	} else if exit != 0 {
 		t.Errorf("run exit: %d", exit)
 	} else {

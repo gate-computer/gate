@@ -6,7 +6,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -22,8 +21,8 @@ import (
 	"github.com/tsavola/gate/service/echo"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/dewag"
-	"github.com/tsavola/wag/sections"
+	"github.com/tsavola/wag/disasm"
+	"github.com/tsavola/wag/section"
 )
 
 type readWriteCloser struct {
@@ -203,10 +202,10 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 
 	tLoadBegin := tBegin
 
-	var ns sections.NameSection
+	var ns section.NameSection
 
 	m := wag.Module{
-		UnknownSectionLoader: sections.UnknownLoaders{"name": ns.Load}.Load,
+		UnknownSectionLoader: section.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
 	err = load(&m, filename, rt)
@@ -226,12 +225,12 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	image.SetArg(arg)
 
 	if c.Program.Dump.Text {
-		dewag.PrintTo(os.Stderr, m.Text(), m.FunctionMap(), &ns)
+		disasm.Fprint(os.Stderr, m.Text(), m.FunctionMap(), &ns)
 	}
 
 	tRunBegin := time.Now()
 
-	exit, trap, err := run.Run(ctx, rt, &proc, &image, services)
+	exit, trapId, err := run.Run(ctx, rt, &proc, &image, services)
 	if err != nil {
 		log.Fatalf("run: %v", err)
 	}
@@ -239,8 +238,8 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	tRunEnd := time.Now()
 	tEnd := tRunEnd
 
-	if trap != 0 {
-		log.Printf("trap: %s", trap)
+	if trapId != 0 {
+		log.Printf("trap: %s", trapId)
 		exit = 3
 	} else if exit != 0 {
 		log.Printf("exit: %d", exit)
@@ -265,6 +264,6 @@ func load(m *wag.Module, filename string, rt *run.Runtime) (err error) {
 	}
 	defer f.Close()
 
-	err = run.Load(m, bufio.NewReader(f), rt, new(bytes.Buffer), nil, nil)
+	err = run.Load(m, bufio.NewReader(f), rt, nil, nil)
 	return
 }
