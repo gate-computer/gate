@@ -107,7 +107,7 @@ Primary goals:
   - [x] Bare-bones HTTP server for running programs
   - [x] Client can communicate with the program it runs on the server
   - [x] Programs can discover and communicate with their peers on a server
-  - [ ] Support all WebAssembly instructions (wag is missing some floating-point ops)
+  - [x] Support all WebAssembly instructions
   - [ ] 64-bit ARM host support, followed by Android support
   - [ ] Suspend, snapshot, restore (wag already has support)
   - [ ] Support resuming communication with program instance if connection dies
@@ -148,8 +148,7 @@ be granted by running `make capabilities` as root.  That requires:
 
 The Go programs can be built with `make bin`.  It requires:
 
-  - Go 1.10 (or 1.9 if not using vgo)
-  - vgo - install it with `go get golang.org/x/vgo`
+  - Go 1.11 (or 1.9 if not using modules)
   - libcapstone-dev is needed by gate-runner
 
 The programming interface libraries can be built with `make devlibs`:
