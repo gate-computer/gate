@@ -13,8 +13,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/wag/callmap"
 	"github.com/tsavola/wag/compile"
+	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wasm"
@@ -237,7 +237,7 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func (image *Image) DumpStacktrace(w io.Writer, m *compile.Module, mapping *callmap.Map, ns *section.NameSection,
+func (image *Image) DumpStacktrace(w io.Writer, m *compile.Module, objInfo *object.CallMap, ns *section.NameSection,
 ) (err error) {
 	fd := int(image.maps.Fd())
 
@@ -250,7 +250,7 @@ func (image *Image) DumpStacktrace(w io.Writer, m *compile.Module, mapping *call
 	}
 	defer syscall.Munmap(stack)
 
-	return writeStacktraceTo(w, image.info.TextAddr, stack, m, mapping.FuncAddrs, mapping.CallSites, ns)
+	return writeStacktraceTo(w, image.info.TextAddr, stack, m, objInfo.FuncAddrs, objInfo.CallSites, ns)
 }
 
 type Process struct {
@@ -447,10 +447,10 @@ func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *P
 	return
 }
 
-func Load(m *compile.Module, r compile.Reader, rt *Runtime, textBuf compile.TextBuffer, roDataBuf compile.DataBuffer, mapper compile.Mapper,
+func Load(m *compile.Module, r compile.Reader, rt *Runtime, textBuf compile.TextBuffer, roDataBuf compile.DataBuffer, objMap compile.ObjectMap,
 ) error {
 	m.EntrySymbol = EntrySymbol
-	return m.Load(r, rt.Env(), textBuf, roDataBuf, RODataAddr, nil, mapper)
+	return m.Load(r, rt.Env(), textBuf, roDataBuf, RODataAddr, nil, objMap)
 }
 
 func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry,

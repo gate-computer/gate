@@ -19,7 +19,7 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/disasm"
-	"github.com/tsavola/wag/insnmap"
+	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wasm"
 )
@@ -76,20 +76,20 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 
 	var (
 		nameSection section.NameSection
-		insnMap     insnmap.Map
+		debugInfo   debug.InsnMap
 	)
 
 	m := compile.Module{
 		UnknownSectionLoader: section.UnknownLoaders{"name": nameSection.Load}.Load,
 	}
 
-	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, nil, nil, &insnMap)
+	err := run.Load(&m, bufio.NewReader(wasm), rt.Runtime, nil, nil, &debugInfo)
 	if err != nil {
 		t.Fatalf("load error: %v", err)
 	}
 
 	if dumpText && testing.Verbose() {
-		disasm.Fprint(os.Stdout, m.Text(), insnMap.FuncAddrs, nil)
+		disasm.Fprint(os.Stdout, m.Text(), debugInfo.FuncAddrs, nil)
 	}
 
 	_, memorySize := m.MemoryLimits()
@@ -122,7 +122,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	if false {
 		var buf bytes.Buffer
 
-		if err := disasm.Fprint(&buf, m.Text(), insnMap.FuncAddrs, &nameSection); err == nil {
+		if err := disasm.Fprint(&buf, m.Text(), debugInfo.FuncAddrs, &nameSection); err == nil {
 			t.Logf("disassembly:\n%s", string(buf.Bytes()))
 		} else {
 			t.Errorf("disassembly error: %v", err)
@@ -145,7 +145,7 @@ func testRun(t *testing.T, testName string) (output bytes.Buffer) {
 	if stacktrace {
 		var buf bytes.Buffer
 
-		if err := image.DumpStacktrace(&buf, &m, &insnMap.Map, &nameSection); err == nil {
+		if err := image.DumpStacktrace(&buf, &m, &debugInfo.CallMap, &nameSection); err == nil {
 			t.Logf("stacktrace:\n%s", string(buf.Bytes()))
 		} else {
 			t.Errorf("stacktrace error: %v", err)

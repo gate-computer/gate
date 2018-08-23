@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/meta"
+	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/section"
 )
 
@@ -21,7 +21,7 @@ type callSite struct {
 	stackOffset int
 }
 
-func findCaller(funcMap []meta.TextAddr, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
+func findCaller(funcMap []object.TextAddr, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
 	if len(funcMap) == 0 {
 		return
 	}
@@ -48,7 +48,7 @@ func findCaller(funcMap []meta.TextAddr, retAddr uint32) (num int, funcAddr uint
 	return
 }
 
-func getCallSites(callMap []meta.CallSite) (callSites map[int]callSite) {
+func getCallSites(callMap []object.CallSite) (callSites map[int]callSite) {
 	callSites = make(map[int]callSite)
 
 	for i, site := range callMap {
@@ -61,7 +61,7 @@ func getCallSites(callMap []meta.CallSite) (callSites map[int]callSite) {
 	return
 }
 
-func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *compile.Module, funcAddrs []meta.TextAddr, callSiteList []meta.CallSite, ns *section.NameSection,
+func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *compile.Module, funcAddrs []object.TextAddr, callSiteList []object.CallSite, ns *section.NameSection,
 ) (err error) {
 	funcSigs := m.FuncSigs()
 
