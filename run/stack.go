@@ -11,7 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/compile"
+	"github.com/tsavola/wag/meta"
 	"github.com/tsavola/wag/section"
 )
 
@@ -20,7 +21,7 @@ type callSite struct {
 	stackOffset int
 }
 
-func findCaller(funcMap []int32, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
+func findCaller(funcMap []meta.TextAddr, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
 	if len(funcMap) == 0 {
 		return
 	}
@@ -47,7 +48,7 @@ func findCaller(funcMap []int32, retAddr uint32) (num int, funcAddr uint32, init
 	return
 }
 
-func getCallSites(callMap []wag.CallSite) (callSites map[int]callSite) {
+func getCallSites(callMap []meta.CallSite) (callSites map[int]callSite) {
 	callSites = make(map[int]callSite)
 
 	for i, site := range callMap {
@@ -60,11 +61,9 @@ func getCallSites(callMap []wag.CallSite) (callSites map[int]callSite) {
 	return
 }
 
-func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module, ns *section.NameSection,
+func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *compile.Module, funcAddrs []meta.TextAddr, callSiteList []meta.CallSite, ns *section.NameSection,
 ) (err error) {
-	funcMap := m.FunctionMap()
-	callMap := m.CallMap()
-	funcSigs := m.FunctionSignatures()
+	funcSigs := m.FuncSigs()
 
 	stack = stack[signalStackReserve:]
 
@@ -79,7 +78,7 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module
 	}
 	stack = stack[unused:]
 
-	callSites := getCallSites(callMap)
+	callSites := getCallSites(callSiteList)
 
 	depth := 1
 
@@ -92,7 +91,7 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module
 			return
 		}
 
-		funcNum, funcAddr, start, ok := findCaller(funcMap, uint32(retAddr))
+		funcNum, funcAddr, start, ok := findCaller(funcAddrs, uint32(retAddr))
 		if !ok {
 			fmt.Fprintf(w, "#%d  <function not found for return address 0x%x>\n", depth, retAddr)
 			return
@@ -121,8 +120,8 @@ func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *wag.Module
 
 		var name string
 
-		if ns != nil && funcNum < len(ns.FunctionNames) {
-			name = ns.FunctionNames[funcNum].FunName
+		if ns != nil && funcNum < len(ns.FuncNames) {
+			name = ns.FuncNames[funcNum].FunName
 		} else {
 			name = fmt.Sprintf("func-%d", funcNum)
 		}

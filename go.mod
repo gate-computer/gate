@@ -8,7 +8,7 @@ require (
 	github.com/gorilla/websocket v1.2.0
 	github.com/tsavola/config v1.1.2
 	github.com/tsavola/contextack v1.0.1
-	github.com/tsavola/wag v0.3.0
+	github.com/tsavola/wag v0.3.1
 	golang.org/x/crypto v0.0.0-20180322175230-88942b9c40a4
 	golang.org/x/net v0.0.0-20180320002117-6078986fec03
 )

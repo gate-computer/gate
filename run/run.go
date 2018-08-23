@@ -13,7 +13,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/callmap"
+	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wasm"
@@ -130,7 +131,7 @@ func (image *Image) Release(rt *Runtime) (err error) {
 	return
 }
 
-func (image *Image) Populate(m *wag.Module, growMemorySize wasm.MemorySize, stackSize int32,
+func (image *Image) Populate(m *compile.Module, growMemorySize wasm.MemorySize, stackSize int32,
 ) (err error) {
 	initMemorySize, _ := m.MemoryLimits()
 
@@ -236,7 +237,7 @@ func (image *Image) DumpGlobalsMemoryStack(w io.Writer) (err error) {
 	return
 }
 
-func (image *Image) DumpStacktrace(w io.Writer, m *wag.Module, ns *section.NameSection,
+func (image *Image) DumpStacktrace(w io.Writer, m *compile.Module, mapping *callmap.Map, ns *section.NameSection,
 ) (err error) {
 	fd := int(image.maps.Fd())
 
@@ -249,7 +250,7 @@ func (image *Image) DumpStacktrace(w io.Writer, m *wag.Module, ns *section.NameS
 	}
 	defer syscall.Munmap(stack)
 
-	return writeStacktraceTo(w, image.info.TextAddr, stack, m, ns)
+	return writeStacktraceTo(w, image.info.TextAddr, stack, m, mapping.FuncAddrs, mapping.CallSites, ns)
 }
 
 type Process struct {
@@ -446,10 +447,10 @@ func InitImageAndProcess(ctx context.Context, rt *Runtime, image *Image, proc *P
 	return
 }
 
-func Load(m *wag.Module, r wag.Reader, rt *Runtime, textBuf wag.TextBuffer, roDataBuf wag.DataBuffer,
+func Load(m *compile.Module, r compile.Reader, rt *Runtime, textBuf compile.TextBuffer, roDataBuf compile.DataBuffer, mapper compile.Mapper,
 ) error {
 	m.EntrySymbol = EntrySymbol
-	return m.Load(r, rt.Env(), textBuf, roDataBuf, RODataAddr, nil)
+	return m.Load(r, rt.Env(), textBuf, roDataBuf, RODataAddr, nil, mapper)
 }
 
 func Run(ctx context.Context, rt *Runtime, proc *Process, image *Image, services ServiceRegistry,

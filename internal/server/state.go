@@ -20,7 +20,7 @@ import (
 	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wasm"
 )
@@ -503,7 +503,7 @@ func (s *State) WaitInstance(ctx context.Context, inst *Instance, instId string)
 type program struct {
 	ownerCount    int
 	instanceCount int
-	module        wag.Module
+	module        compile.Module
 	wasm          []byte
 	hash          string
 }
@@ -519,7 +519,7 @@ func loadProgram(body io.ReadCloser, clientHash string, rt *run.Runtime,
 
 	p = new(program)
 
-	loadErr := run.Load(&p.module, r, rt, nil, nil)
+	loadErr := run.Load(&p.module, r, rt, nil, nil, nil)
 	closeErr := body.Close()
 	switch {
 	case loadErr != nil:
@@ -637,7 +637,7 @@ func (inst *Instance) kill(s *State) {
 	inst.run.Kill(s.Runtime)
 }
 
-func (inst *Instance) populate(m *wag.Module, originPipe *Pipe, s *State) (err error) {
+func (inst *Instance) populate(m *compile.Module, originPipe *Pipe, s *State) (err error) {
 	_, memorySize := m.MemoryLimits()
 	if memorySize > s.MemorySizeLimit {
 		memorySize = s.MemorySizeLimit

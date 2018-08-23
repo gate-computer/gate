@@ -14,7 +14,7 @@ import (
 
 	"github.com/tsavola/gate/internal/runtest"
 	"github.com/tsavola/gate/run"
-	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/trap"
 )
 
@@ -42,10 +42,10 @@ var (
 	benchProgPeer  = readProgram("peer")
 )
 
-func compileBenchmark(prog []byte) (m *wag.Module) {
-	m = new(wag.Module)
+func compileBenchmark(prog []byte) (m *compile.Module) {
+	m = new(compile.Module)
 
-	err := run.Load(m, bytes.NewReader(prog), benchRT.Runtime, nil, nil)
+	err := run.Load(m, bytes.NewReader(prog), benchRT.Runtime, nil, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -53,7 +53,7 @@ func compileBenchmark(prog []byte) (m *wag.Module) {
 	return
 }
 
-func prepareBenchmark(m *wag.Module) (image *run.Image) {
+func prepareBenchmark(m *compile.Module) (image *run.Image) {
 	image = new(run.Image)
 
 	if err := image.Init(context.Background(), benchRT.Runtime); err != nil {

@@ -20,7 +20,8 @@ import (
 	"github.com/tsavola/gate/service/defaults"
 	"github.com/tsavola/gate/service/echo"
 	"github.com/tsavola/gate/service/origin"
-	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/callmap"
+	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/disasm"
 	"github.com/tsavola/wag/section"
 )
@@ -203,12 +204,13 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	tLoadBegin := tBegin
 
 	var ns section.NameSection
+	var cm callmap.Map
 
-	m := wag.Module{
+	m := compile.Module{
 		UnknownSectionLoader: section.UnknownLoaders{"name": ns.Load}.Load,
 	}
 
-	err = load(&m, filename, rt)
+	err = load(&m, filename, rt, &cm)
 	if err != nil {
 		log.Fatalf("module: %v", err)
 	}
@@ -225,7 +227,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	image.SetArg(arg)
 
 	if c.Program.Dump.Text {
-		disasm.Fprint(os.Stderr, m.Text(), m.FunctionMap(), &ns)
+		disasm.Fprint(os.Stderr, m.Text(), cm.FuncAddrs, &ns)
 	}
 
 	tRunBegin := time.Now()
@@ -246,7 +248,7 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	}
 
 	if c.Program.Dump.Stack {
-		err := image.DumpStacktrace(os.Stderr, &m, &ns)
+		err := image.DumpStacktrace(os.Stderr, &m, &cm, &ns)
 		if err != nil {
 			log.Printf("stacktrace: %v", err)
 		}
@@ -257,13 +259,13 @@ func execute(ctx context.Context, rt *run.Runtime, filename string, arg int32, s
 	timing.overall += tEnd.Sub(tBegin)
 }
 
-func load(m *wag.Module, filename string, rt *run.Runtime) (err error) {
+func load(m *compile.Module, filename string, rt *run.Runtime, mapper compile.Mapper) (err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 
-	err = run.Load(m, bufio.NewReader(f), rt, nil, nil)
+	err = run.Load(m, bufio.NewReader(f), rt, nil, nil, mapper)
 	return
 }
