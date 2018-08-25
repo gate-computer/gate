@@ -21,7 +21,7 @@ type callSite struct {
 	stackOffset int
 }
 
-func findCaller(funcMap []object.TextAddr, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
+func findCaller(funcMap []int32, retAddr uint32) (num int, funcAddr uint32, initial, ok bool) {
 	if len(funcMap) == 0 {
 		return
 	}
@@ -61,7 +61,7 @@ func getCallSites(callMap []object.CallSite) (callSites map[int]callSite) {
 	return
 }
 
-func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *compile.Module, funcAddrs []object.TextAddr, callSiteList []object.CallSite, ns *section.NameSection,
+func writeStacktraceTo(w io.Writer, textAddr uint64, stack []byte, m *compile.Module, funcAddrs []int32, callSiteList []object.CallSite, ns *section.NameSection,
 ) (err error) {
 	funcSigs := m.FuncSigs()
 
