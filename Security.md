@@ -72,18 +72,22 @@ untrusted code.
 [WebAssembly](http://webassembly.org) constrains programs to a logical sandbox,
 and it's designed for easy validation.  Particularly helpful details about wasm
 programs are that they never store buffers in the call stack, and function
-pointer targets addresses are whitelisted by signature.  The [Wag
-compiler](https://github.com/tsavola/wag) has some additional design principles
-for fool-proofing the generated code:
+pointer target addresses are whitelisted by signature.
+[Wag](https://github.com/tsavola/wag) and Gate employ some additional safety
+measures:
 
   - Programs are limited to 32-bit memory addressing, while the compiler
     targets 64-bit hosts.  Linear memory (heap) is mapped at a location which
-    has at least 2GB of unmapped address space in each direction, and is
-    accessed using instructions with at most 32-bit signed displacement; a bug
-    in bounds checking (which affects only the displacement) cannot cause other
-    memory mappings to be accessed.
+    has at least 8 GB of unmapped address space around it, which puts other
+    mappings beyond the maximum displacement which can be encoded by a wasm32
+    program.  This is an additional layer of security on top of the
+    WebAssembly-mandated memory bounds checking.  It mitigates
+	[Spectre attack](https://spectreattack.com) variant 1.
 
   - Program code is mapped the same way as linear memory.
+
+  - [Retpoline](https://support.google.com/faqs/answer/7625886) is used for
+    indirect calls and jumps x86-64.
 
   - The designated function return value register is cleared by void functions
     to avoid information leaks (e.g. internal pointers) if there would be a
@@ -92,35 +96,36 @@ for fool-proofing the generated code:
 
 ### 2. Seccomp sandbox
 
-The process has [seccomp](https://en.wikipedia.org/wiki/Seccomp) enabled in
-strict mode: even if the WebAssembly sandbox could be breached, arbitrary
-syscalls cannot be made.
+The process has [seccomp](https://en.wikipedia.org/wiki/Seccomp) enabled with a
+very restrictive filter, so even if the WebAssembly sandbox could be breached,
+arbitrary system calls cannot be made.
 
-Permitted operations:
+Possible operations:
 
   - Read from/write to the same file descriptors which the program could access
     via the unprivileged Gate runtime ABI functions.
 
-  - Terminate the process with an arbitrary exit status.
+  - Terminate the process with an arbitrary exit status.  It can be used to
+    communicate a fake trap or error condition.
 
-  - Call clock_gettime, getcpu, gettimeofday and time syscalls via vDSO.  (This
-    is worrisome, as it may enable timing attacks.)
+  - Call clock_gettime, getcpu, gettimeofday and time syscalls via vDSO.  This
+    is worrisome, as it may enable timing attacks.
 
 
 ### 3. Process
 
 The process is configured in various ways:
 
-  - CORE, DATA, FSIZE, MEMLOCK, MSGQUEUE, NPROC, RTPRIO, RTTIME and SIGPENDING
-    resource limits are set to zero.
+  - CORE, FSIZE, MEMLOCK, MSGQUEUE, NOFILE, NPROC, RTPRIO, RTTIME and
+    SIGPENDING resource limits are set to zero.
 
-  - AS, NOFILE and STACK resource limits are set to small values.
+  - AS, DATA and STACK resources are limited.
 
   - The process is not dumpable.
 
-  - The process is killed if the rdtsc instruction is executed.
+  - The process is killed if the rdtsc instruction is executed (x86-64).
 
-  - Nice value is set to maximum (19).
+  - Nice value is set to maximum.
 
   - Unnecessary file descriptors are closed.
 
@@ -129,21 +134,20 @@ The process is configured in various ways:
   - Initialization code is unmapped, retaining only the ABI functions needed at
     runtime.
 
-  - Program code, data and stack are mapped at randomized addresses.
-    (Read-only data is mapped at a fixed address.)
+  - Runtime code, and program code, data and stack are mapped at randomized
+    addresses.
 
 
 ### 4. Containerization
 
-The program processes run in a container.  It also includes an init process
-which spawns and kills the programs.  The container has dedicated cgroup, IPC,
-network, mount, pid, user and UTS namespaces.
+The user program processes run in a container.  The container also includes an
+init process which spawns and kills the programs.  The container has dedicated
+cgroup, IPC, network, mount, pid, user and UTS namespaces.
 
 The user namespace contains only two unprivileged user ids, one of which is
 used to run the processes.
 
-The mount namespace contains only a constrained tmpfs as root, and proc mounted
-at a directory with a randomized name.
+The mount namespace contains only a constrained read-only tmpfs as its root.
 
 The UTS namespace has empty host and domain names.
 

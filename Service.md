@@ -1,7 +1,7 @@
 # Service implementation
 
 See the
-[ServiceRegistry](https://godoc.org/github.com/tsavola/gate/run#ServiceRegistry)
+[ServiceRegistry](https://godoc.org/github.com/tsavola/gate/runtime#ServiceRegistry)
 and [service package](https://godoc.org/github.com/tsavola/gate/service)
 documentation.
 

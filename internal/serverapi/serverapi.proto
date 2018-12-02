@@ -1,0 +1,85 @@
+// Copyright (c) 2018 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package server; // Types are alised in the public server package.
+
+option go_package = "github.com/tsavola/gate/internal/serverapi";
+
+message ModuleRef {
+	string key = 1;
+}
+
+message ModuleRefs {
+	repeated ModuleRef modules = 1;
+}
+
+message Status {
+	enum State {
+		option allow_alias = true;
+
+		NONEXISTENT = 0;
+
+		running = 1; // JSON
+		RUNNING = 1;
+
+		hibernating = 2; // JSON
+		HIBERNATING = 2;
+
+		terminated = 3; // JSON
+		TERMINATED = 3;
+	}
+
+	enum Cause {
+		option allow_alias = true;
+
+		TRAP = 0;
+
+		kill = 1; // JSON
+		KILL = 1;
+
+		violation = 2; // JSON
+		VIOLATION = 2;
+	}
+
+	enum TrapId {
+		EXIT = 0;
+
+		// JSON:
+		no_function = 1;
+		suspended = 2;
+		unreachable = 3;
+		call_stack_exhausted = 4;
+		memory_access_out_of_bounds = 5;
+		indirect_call_index_out_of_bounds = 6;
+		indirect_call_signature_mismatch = 7;
+		integer_divide_by_zero = 8;
+		integer_overflow = 9;
+	}
+
+	State state = 1;
+	Cause cause = 2;
+	TrapId trap = 3;
+	int32 exit = 4;
+	string error = 5;
+}
+
+message InstanceStatus {
+	string instance = 1;
+	Status status = 2;
+}
+
+message Instances {
+	repeated InstanceStatus instances = 1;
+}
+
+message IOConnection {
+	bool connected = 1;
+	Status status = 2;
+}
+
+message ConnectionStatus {
+	Status status = 1;
+}

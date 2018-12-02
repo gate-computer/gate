@@ -12,16 +12,27 @@ enum Iface {
 	DEFAULT = 0;
 }
 
-message Context {
-	Iface iface = 1;
-	string client = 2;
-	string call = 3;
+enum Op {
+	Unknown = 0;
+	ModuleList = 1;
+	ModuleUpload = 2;
+	ModuleDownload = 3;	
+	ModuleUnref = 4;
+	CallRef = 5;
+	CallUpload = 6;
+	CallSource = 7;
+	LaunchRef = 8;
+	LaunchUpload = 9;
+	LaunchSource = 10;
+	InstanceList = 11;
+	InstanceConnect = 12;
+	InstanceStatus = 13;
 }
 
-message Position {
-	Context context = 1;
-	string program_id = 2;
-	string instance_id = 3;
-	int32 instance_arg = 4;
-	string subsystem = 5;
+message Context {
+	Iface iface = 1;
+	uint64 req = 2;
+	string addr = 3;
+	Op op = 4;
+	string principal = 5;
 }

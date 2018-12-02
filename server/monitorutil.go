@@ -5,43 +5,24 @@
 package server
 
 import (
-	"github.com/tsavola/gate/run"
-	"github.com/tsavola/gate/server/detail"
+	"log"
+
+	"github.com/tsavola/gate/server/event"
 )
 
-func MultiMonitor(monitors ...Monitor) (combined Monitor) {
-	var (
-		errors []func(*detail.Position, error)
-		events []func(Event, error)
-	)
-
-	for _, m := range monitors {
-		if m.MonitorError != nil {
-			errors = append(errors, m.MonitorError)
-		}
-		if m.MonitorEvent != nil {
-			events = append(events, m.MonitorEvent)
-		}
-	}
-
-	if len(errors) > 0 {
-		combined.MonitorError = MultiError(errors...)
-	}
-	if len(events) > 0 {
-		combined.MonitorEvent = MultiEvent(events...)
-	}
-	return
-}
-
-func MultiError(monitors ...func(*detail.Position, error)) func(*detail.Position, error) {
-	return func(p *detail.Position, err error) {
-		for _, f := range monitors {
-			f(p, err)
+// defaultMonitor prints internal errors to default log.
+func defaultMonitor(ev Event, err error) {
+	if ev.EventType() <= int32(event.Event_FailInternal) {
+		if err == nil {
+			log.Printf("%vevent:%s", ev, ev.EventName())
+		} else {
+			log.Printf("%vevent:%s error:%q", ev, ev.EventName(), err.Error())
 		}
 	}
 }
 
-func MultiEvent(monitors ...func(Event, error)) func(Event, error) {
+// MultiMonitor combines multiple event monitors.
+func MultiMonitor(monitors ...func(Event, error)) func(Event, error) {
 	return func(ev Event, err error) {
 		for _, f := range monitors {
 			f(ev, err)
@@ -49,18 +30,32 @@ func MultiEvent(monitors ...func(Event, error)) func(Event, error) {
 	}
 }
 
-func ErrorLogger(l run.Logger) func(*detail.Position, error) {
-	return func(p *detail.Position, err error) {
-		l.Printf("%v: %v", p, err)
+// ErrorEventLogger creates an event monitor which prints log messages.
+// Internal errors are printed to errorLog and other events to eventLog.
+func ErrorEventLogger(errorLog, eventLog Logger) func(Event, error) {
+	return func(ev Event, err error) {
+		if ev.EventType() <= int32(event.Event_FailInternal) {
+			printToLogger(errorLog, ev, err)
+		} else {
+			printToLogger(eventLog, ev, err)
+		}
 	}
 }
 
-func EventLogger(l run.Logger) func(Event, error) {
+// ErrorLogger creates an event monitor which prints log messages.  Internal
+// errors are printed to errorLog and other events are ignored.
+func ErrorLogger(errorLog Logger) func(Event, error) {
 	return func(ev Event, err error) {
-		if err == nil {
-			l.Printf("%v", ev)
-		} else {
-			l.Printf("%v: %v", ev, err)
+		if ev.EventType() <= int32(event.Event_FailInternal) {
+			printToLogger(errorLog, ev, err)
 		}
+	}
+}
+
+func printToLogger(l Logger, ev Event, err error) {
+	if err == nil {
+		l.Printf("%vevent:%s", ev, ev.EventName())
+	} else {
+		l.Printf("%vevent:%s error:%q", ev, ev.EventName(), err.Error())
 	}
 }

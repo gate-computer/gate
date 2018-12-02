@@ -12,7 +12,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/tsavola/gate/internal/defaultlog"
-	"github.com/tsavola/gate/run"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
@@ -27,7 +26,7 @@ var (
 type Config struct {
 	Origins   []string // nil means any, empty list means none
 	StaticDir string
-	ErrorLog  run.Logger
+	ErrorLog  Logger
 }
 
 func (config *Config) checkOrigin(r *http.Request) bool {
@@ -49,7 +48,7 @@ func (config *Config) checkOrigin(r *http.Request) bool {
 	return false
 }
 
-func New(ctx context.Context, monitorConfig *monitor.Config, handlerConfig *Config) (server.Monitor, http.Handler) {
+func New(ctx context.Context, monitorConfig *monitor.Config, handlerConfig *Config) (func(server.Event, error), http.Handler) {
 	m, s := monitor.New(ctx, monitorConfig)
 	return m, Handler(ctx, s, handlerConfig)
 }
@@ -137,24 +136,12 @@ func handle(ctx context.Context, w http.ResponseWriter, r *http.Request, s *moni
 				return
 			}
 
-			frame := make(map[string]interface{})
-
-			switch {
-			case item.Position != nil:
-				frame["error"] = &monitor.Error{
-					Position: *item.Position,
-					Error:    item.Err.Error(),
-				}
-
-			case item.Event != nil:
-				event := map[string]interface{}{
-					"type":  item.Event.EventType(),
-					"event": item.Event,
-				}
-				if item.Err != nil {
-					event["error"] = item.Err.Error()
-				}
-				frame["event"] = event
+			frame := map[string]interface{}{
+				"type":  item.Event.EventType(),
+				"event": item.Event,
+			}
+			if item.Error != nil {
+				frame["error"] = item.Error.Error()
 			}
 
 			if err := conn.WriteJSON(frame); err != nil {

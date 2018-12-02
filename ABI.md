@@ -1,90 +1,73 @@
-# Application binary interface
+# Application binary interface for user programs
 
 
-#### Functions
+### Functions
 
 ABI functions are accessed using WebAssembly module's import mechanism.
 
 ```wasm
-(import "env" "__gate_debug_write" (func (param i32) (param i32)))
+(import "gate" "debug" (func (param i32) (param i32)))
 ```
-> Output debug data.  The first argument is buffer pointer and the second is
-> length.
-
-
-```wasm
-(import "env" "__gate_exit" (func (param i32)))
-```
-> Terminate the program.  The parameter value 0 indicates success and 1
-> indicates failure.  Other values are reserved.
-
-
-```wasm
-(import "env" "__gate_func_ptr" (func (param i32) (result i32)))
-```
-> Get a pointer to a function.  The parameter is a function id.  If an
-> unsupported id is specified, null is returned.
-
-
-```wasm
-(import "env" "__gate_get_abi_version" (func (result i32)))
-```
-> Get the runtime ABI version.
-
-
-```wasm
-(import "env" "__gate_get_arg" (func (result i32)))
-```
-> Get the argument.
-
-
-```wasm
-(import "env" "__gate_get_max_packet_size" (func (result i32)))
-```
-> Find out how large I/O packets the runtime supports.  It's a fatal error to
-> send a larger packet.
-
-
-```wasm
-(import "env" "__gate_recv" (func (param i32) (param i32) (param i32) (result i32)))
-```
-> Receive part of a packet into a buffer.  The first parameter is buffer
-> pointer, the second is length, and the third contains flags.
+> Write UTF-8 text to debug log, if enabled.  First argument is buffer pointer
+> and second is length.
 >
-> If flags is 0, the call blocks until *length* bytes have been received into
-> the buffer.  The return value is unspecified.
->
-> If flags is 1, the call doesn't block, but all bytes might not be received.
-> The return value indicates the number of remaining bytes (length minus the
-> received bytes).
->
-> Other flags are reserved.
+> Code point 0x1e is interpreted as optional newline: it ensures that text
+> following it will be at the start of a line.
 
 
 ```wasm
-(import "env" "__gate_send" (func (param i32) (param i32)))
+(import "gate" "exit" (func (param i32)))
 ```
-> Send part of a packet.  The first parameter is buffer pointer and the second
-> is length.  The call might block depending on I/O state.
+> Terminate the program.  Parameter value 0 indicates success and 1 indicates
+> failure.  Other values are interpreted as 1.
 
 
-#### Packets
+```wasm
+(import "gate" "io.65536" (func (param i32) (param i32) (param i32) (param i32) (param i32)))
+```
+> Receive and/or send packet data.  First and second parameters are receive
+> buffer and length.  Third and fourth parameters are send buffer and length.
+> Fifth parameter is flags.
+>
+> A length is specified as pointer to 32-bit integer, which is updated to
+> reflect the number of bytes transferred.  Specifying zero length or a null
+> pointer disables transfer.
+>
+> A buffer might contain partial packet, a whole packet, or (parts of) multiple
+> packets.
+>
+> The call is non-blocking by default.  Blocking behavior can be requested by
+> specifying receive buffer and setting bit 1 in flags.  The call may still be
+> interrupted without any bytes having been transferred.  Blocking send without
+> receive is not supported.
 
-The `__gate_recv` and `__gate_send` functions exchange packets with the
-runtime.  Packets have a 8-byte header, followed by contents.
 
-Packet header consists of little-endian integer fields (without implicit
-padding):
+### Packets
 
-  1. 32-bit size - including the header
-  2. 8-bit flags - value 1 indicates *pollout* flag, other values are reserved
-  3. 8 zero bits
-  4. 16-bit code
+The I/O function exchanges packets with the runtime.  Packets have a 8-byte
+header, followed by contents.  Maximum packet size is 65536 bytes.
 
-Built-in codes:
+Packet header consists of little-endian integer fields:
 
-  - -1 is "nothing"
-  - -2 is the service discovery service
+  1. 32-bit size (including this 8-byte header)
+  2. 16-bit code
+  3. 8-bit domain
+  4. 8 reserved bits which must be zero in sent packets
 
-The [Programming interface](Programming.md) documents the semantics.
+Codes:
+
+  - Non-negative codes are used for dynamically discovered services.
+  - Code -1 is used for service discovery.
+  - Other negative codes are reserved.  Packet with one must be ignored.
+
+Domains:
+
+  - 0 - Function calls.  Used to send requests and receive replies.
+  - 1 - State change notifications.  Used by services to notify the program
+        about things which don't require flow control.
+  - 2 - Flow control.  Used to notify when and how much data can be received
+        per stream.
+  - 3 - Data transfers.  Used to stream data according to flow control.
+
+See [C API](C.md) documentation for descriptions of built-in packet types.
 

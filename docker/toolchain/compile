@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec /usr/local/out/bin/clang --target=wasm32-unknown-unknown "$@"

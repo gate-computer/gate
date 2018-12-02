@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec /usr/local/out/bin/clang --target=wasm32-unknown-unknown -D_LIBCPP_HAS_MUSL_LIBC -D_LIBCPP_HAS_NO_THREADS -D_LIBCPP_NO_EXCEPTIONS -D__ELF__ -isystem /usr/include/c++ -include /lib/wasm32/main.hpp -fno-exceptions -fno-rtti "$@"

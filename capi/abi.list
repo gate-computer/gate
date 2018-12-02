@@ -1,8 +1,0 @@
-__gate_debug_write
-__gate_exit
-__gate_func_ptr
-__gate_get_abi_version
-__gate_get_arg
-__gate_get_max_packet_size
-__gate_recv
-__gate_send

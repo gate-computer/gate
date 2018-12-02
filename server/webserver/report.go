@@ -1,0 +1,67 @@
+// Copyright (c) 2018 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+package webserver
+
+import (
+	"context"
+
+	"github.com/tsavola/gate/internal/error/subsystem"
+	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/event"
+)
+
+func reportInternalError(ctx context.Context, s *webserver, pri *server.PrincipalKey, sourceURI, progHash, function, instID string, err error) {
+	var subsys string
+
+	if x, ok := err.(subsystem.Error); ok {
+		subsys = x.Subsystem()
+	}
+
+	s.Monitor(&event.FailInternal{
+		Ctx:       server.Context(ctx, pri),
+		Source:    sourceURI,
+		Module:    progHash,
+		Function:  function,
+		Instance:  instID,
+		Subsystem: subsys,
+	}, err)
+}
+
+func reportNetworkError(ctx context.Context, s *webserver, err error) {
+	s.Monitor(&event.FailNetwork{
+		Ctx: server.Context(ctx, nil),
+	}, err)
+}
+
+func reportProtocolError(ctx context.Context, s *webserver, pri *server.PrincipalKey, err error) {
+	s.Monitor(&event.FailProtocol{
+		Ctx: server.Context(ctx, pri),
+	}, err)
+}
+
+func reportRequestError(ctx context.Context, s *webserver, pri *server.PrincipalKey, failType event.FailRequest_Type, sourceURI, progHash, function, instID string, err error) {
+	s.Monitor(&event.FailRequest{
+		Ctx:      server.Context(ctx, pri),
+		Failure:  failType,
+		Source:   sourceURI,
+		Module:   progHash,
+		Function: function,
+		Instance: instID,
+	}, err)
+}
+
+func reportRequestFailure(ctx context.Context, s *webserver, pri *server.PrincipalKey, failType event.FailRequest_Type) {
+	s.Monitor(&event.FailRequest{
+		Ctx:     server.Context(ctx, pri),
+		Failure: failType,
+	}, nil)
+}
+
+func reportPayloadError(ctx context.Context, s *webserver, pri *server.PrincipalKey, err error) {
+	s.Monitor(&event.FailRequest{
+		Ctx:     server.Context(ctx, pri),
+		Failure: event.FailRequest_PayloadError,
+	}, err)
+}

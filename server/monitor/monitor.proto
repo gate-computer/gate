@@ -17,11 +17,6 @@ message State {
 	uint32 instances = 3;
 }
 
-message Error {
-	detail.Position position = 1;
-	string error = 2;
-}
-
 message Event {
 	event.Event.Type type = 1;
 	bytes event = 2;

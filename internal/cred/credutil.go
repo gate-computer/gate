@@ -15,15 +15,15 @@ import (
 )
 
 const (
-	subUidFilename = "/etc/subuid"
-	subGidFilename = "/etc/subgid"
+	subUIDFilename = "/etc/subuid"
+	subGIDFilename = "/etc/subgid"
 )
 
-func formatId(id uint) string {
+func formatID(id uint) string {
 	return strconv.FormatUint(uint64(id), 10)
 }
 
-type subIdMap struct {
+type subIDMap struct {
 	filename string
 	reserved []uint
 
@@ -31,7 +31,7 @@ type subIdMap struct {
 	end  uint64
 }
 
-func (m *subIdMap) parse(username string) error {
+func (m *subIDMap) parse(username string) error {
 	f, err := os.Open(m.filename)
 	if err != nil {
 		return err
@@ -65,13 +65,13 @@ func (m *subIdMap) parse(username string) error {
 	}
 }
 
-func (m *subIdMap) getId() (id uint, err error) {
+func (m *subIDMap) getID() (id uint, err error) {
 	for m.next < m.end && m.next <= 0xffffffff {
 		id = uint(m.next)
 		m.next++
 
-		for _, reservedId := range m.reserved {
-			if reservedId > 0 && id == reservedId {
+		for _, reservedID := range m.reserved {
+			if reservedID > 0 && id == reservedID {
 				goto skip
 			}
 		}
@@ -85,9 +85,9 @@ func (m *subIdMap) getId() (id uint, err error) {
 	return
 }
 
-func Parse(contUid, contGid, execUid, execGid uint,
+func Parse(contUID, contGID, execUID, execGID uint,
 ) (creds [4]string, err error) {
-	if contUid == 0 || contGid == 0 || execUid == 0 || execGid == 0 {
+	if contUID == 0 || contGID == 0 || execUID == 0 || execGID == 0 {
 		var u *user.User
 
 		u, err = user.Current()
@@ -95,10 +95,10 @@ func Parse(contUid, contGid, execUid, execGid uint,
 			return
 		}
 
-		if contUid == 0 || execUid == 0 {
-			m := subIdMap{
-				filename: subUidFilename,
-				reserved: []uint{uint(syscall.Getuid()), contUid, execUid},
+		if contUID == 0 || execUID == 0 {
+			m := subIDMap{
+				filename: subUIDFilename,
+				reserved: []uint{uint(syscall.Getuid()), contUID, execUID},
 			}
 
 			err = m.parse(u.Username)
@@ -106,25 +106,25 @@ func Parse(contUid, contGid, execUid, execGid uint,
 				return
 			}
 
-			if contUid == 0 {
-				contUid, err = m.getId()
+			if contUID == 0 {
+				contUID, err = m.getID()
 				if err != nil {
 					return
 				}
 			}
 
-			if execUid == 0 {
-				execUid, err = m.getId()
+			if execUID == 0 {
+				execUID, err = m.getID()
 				if err != nil {
 					return
 				}
 			}
 		}
 
-		if contGid == 0 || execGid == 0 {
-			m := subIdMap{
-				filename: subGidFilename,
-				reserved: []uint{uint(syscall.Getgid()), contGid, execGid},
+		if contGID == 0 || execGID == 0 {
+			m := subIDMap{
+				filename: subGIDFilename,
+				reserved: []uint{uint(syscall.Getgid()), contGID, execGID},
 			}
 
 			err = m.parse(u.Username)
@@ -132,15 +132,15 @@ func Parse(contUid, contGid, execUid, execGid uint,
 				return
 			}
 
-			if contGid == 0 {
-				contGid, err = m.getId()
+			if contGID == 0 {
+				contGID, err = m.getID()
 				if err != nil {
 					return
 				}
 			}
 
-			if execGid == 0 {
-				execGid, err = m.getId()
+			if execGID == 0 {
+				execGID, err = m.getID()
 				if err != nil {
 					return
 				}
@@ -149,10 +149,10 @@ func Parse(contUid, contGid, execUid, execGid uint,
 	}
 
 	creds = [4]string{
-		formatId(contUid),
-		formatId(contGid),
-		formatId(execUid),
-		formatId(execGid),
+		formatID(contUID),
+		formatID(contGID),
+		formatID(execUID),
+		formatID(execGID),
 	}
 	return
 }

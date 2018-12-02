@@ -9,7 +9,6 @@ import (
 	"context"
 
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
 )
 
@@ -22,9 +21,8 @@ type Config struct {
 }
 
 type Item struct {
-	Position *detail.Position
-	Event    server.Event
-	Err      error
+	Event server.Event
+	Error error
 }
 
 type req struct {
@@ -41,13 +39,13 @@ type MonitorState struct {
 	done    <-chan struct{}
 }
 
-func New(ctx context.Context, config *Config) (m server.Monitor, s *MonitorState) {
+func New(ctx context.Context, config *Config) (func(server.Event, error), *MonitorState) {
 	bufsize := config.BufSize
 	if bufsize == 0 {
 		bufsize = DefaultBufSize
 	}
 
-	s = &MonitorState{
+	s := &MonitorState{
 		items: make(chan Item, bufsize),
 		kill:  make(chan struct{}),
 		reqs:  make(chan req),
@@ -55,12 +53,9 @@ func New(ctx context.Context, config *Config) (m server.Monitor, s *MonitorState
 		done:  ctx.Done(),
 	}
 
-	m.MonitorError = s.monitorError
-	m.MonitorEvent = s.monitorEvent
-
 	go s.loop()
 
-	return
+	return s.monitor, s
 }
 
 func (s *MonitorState) Subscribe(ctx context.Context, sub chan<- Item) (snapshot State, err error) {
@@ -109,24 +104,18 @@ func (s *MonitorState) Unsubscribe(ctx context.Context, sub chan Item) error {
 	}
 }
 
-func (s *MonitorState) monitorError(p *detail.Position, err error) {
-	s.monitorItem(Item{Position: p, Err: err})
-}
+func (s *MonitorState) monitor(ev server.Event, err error) {
+	item := Item{Event: ev, Error: err}
 
-func (s *MonitorState) monitorEvent(ev server.Event, err error) {
-	s.monitorItem(Item{Event: ev, Err: err})
-}
-
-func (s *MonitorState) monitorItem(i Item) {
 	select {
-	case s.items <- i:
+	case s.items <- item:
 		// ok
 
 	default:
 		select {
 		case s.kill <- struct{}{}:
 			select {
-			case s.items <- i:
+			case s.items <- item:
 				// ok
 
 			case <-s.done:
@@ -179,13 +168,13 @@ func (s *MonitorState) loop() {
 
 func (s *State) update(x server.Event) {
 	switch x.(type) {
-	case *event.ProgramLoad:
+	case *event.ModuleUploadNew, *event.ModuleSourceNew:
 		s.ProgramsLoaded++
 
-	case *event.ProgramCreate:
+	case *event.ModuleUploadExist, *event.ModuleSourceExist:
 		s.ProgramLinks++
 
-	case *event.InstanceCreate:
+	case *event.InstanceCreateStream, *event.InstanceCreateLocal:
 		s.Instances++
 
 	case *event.InstanceDelete:

@@ -1,6 +1,0 @@
-[submodule "libc/musl"]
-	path = libc/musl
-	url = https://github.com/WebAssembly/musl.git
-[submodule "libcxx/libcxx"]
-	path = libcxx/libcxx
-	url = http://llvm.org/git/libcxx.git

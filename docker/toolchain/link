@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec /usr/local/out/bin/clang /lib/wasm32/crt.bc "$@" /lib/wasm32/c++/compat.bc /lib/wasm32/compat.bc /lib/wasm32/gate.bc

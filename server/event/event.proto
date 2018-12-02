@@ -12,84 +12,155 @@ import "server/detail/detail.proto";
 
 message Event {
 	enum Type {
-		FailNetwork = 0;
-		FailProtocol = 1;
-		ServerAccess = 2;
+		FailInternal = 0;
+		FailNetwork = 1;
+		FailProtocol = 2;
 		FailRequest = 3;
-		ProgramLoad = 4;
-		ProgramCreate = 5;
-		ProgramCheck = 6;
-		InstanceCreate = 7;
-		InstanceAttach = 8;
-		InstanceDetach = 9;
-		InstanceDelete = 10;
+		IfaceAccess = 4;
+		ModuleList = 5;
+		ModuleUploadNew = 6;
+		ModuleUploadExist = 7;
+		ModuleSourceNew = 8;
+		ModuleSourceExist = 9;
+		ModuleDownload = 10;
+		ModuleUnref = 11;
+		InstanceList = 12;
+		InstanceCreateStream = 13;
+		InstanceCreateLocal = 14;
+		InstanceDelete = 15;
+		InstanceConnect = 16;
+		InstanceDisconnect = 17;
+		InstanceStatus = 18;
 	}
 }
 
+message FailInternal {
+	detail.Context ctx = 1;
+	string source = 2;
+	string module = 3;
+	string function = 4;
+	string instance = 5;
+	string subsystem = 6;
+}
+
 message FailNetwork {
-	detail.Context context = 1;
+	detail.Context ctx = 1;
 }
 
 message FailProtocol {
-	detail.Context context = 1;
-}
-
-message ServerAccess {
-	detail.Context context = 1;
-	string protocol = 2;
-	string method = 3;
-	string url = 4;
+	detail.Context ctx = 1;
 }
 
 message FailRequest {
 	enum Type {
-		PAYLOAD_ERROR = 0;
-		PROGRAM_NOT_FOUND = 1;
-		PROGRAM_HASH_MISMATCH = 2;
-		INSTANCE_NOT_FOUND = 3;
-		IO_CONFLICT = 4;
+		Unspecified = 0;
+		PayloadError = 1;
+		PrincipalKeyError = 2;
+		AuthMissing = 3;
+		AuthInvalid = 4;
+		AuthExpired = 5;
+		AuthReused = 6;
+		AuthDenied = 7;
+		ResourceDenied = 8;
+		ResourceLimit = 9;
+		RateLimit = 10;
+		ModuleNotFound = 11;
+		ModuleHashMismatch = 12;
+		ModuleError = 13;
+		FunctionNotFound = 14;
+		ProgramError = 15;
+		InstanceNotFound = 16;
+		InstanceIdInvalid = 17;
+		InstanceIdExists = 18;
+		InstanceNoConnect = 19;
 	}
 
-	detail.Context context = 1;
-	Type type = 2;
-	string program_id = 3;
-	int32 instance_arg = 4;
-	string instance_id = 5;
+	detail.Context ctx = 1;
+	Type failure = 2;
+	string source = 3;
+	string module = 4;
+	string function = 5;
+	string instance = 6;
 }
 
-message ProgramLoad {
-	detail.Context context = 1;
-	string program_hash = 2;
+message IfaceAccess {
+	detail.Context ctx = 1;
 }
 
-message ProgramCreate {
-	detail.Context context = 1;
-	string program_hash = 2;
-	string program_id = 3;
+message OpUnsupported {
+	detail.Context ctx = 1;
 }
 
-message ProgramCheck {
-	detail.Context context = 1;
-	string program_id = 2;
+message ModuleList {
+	detail.Context ctx = 1;
 }
 
-message InstanceCreate {
-	detail.Context context = 1;
-	string program_id = 2;
-	string instance_id = 3;
+message ModuleUploadNew {
+	detail.Context ctx = 1;
+	string module = 2;
 }
 
-message InstanceAttach {
-	detail.Context context = 1;
-	string instance_id = 2;
+message ModuleUploadExist {
+	detail.Context ctx = 1;
+	string module = 2;
+	bool compiled = 3;
 }
 
-message InstanceDetach {
-	detail.Context context = 1;
-	string instance_id = 2;
+message ModuleSourceNew {
+	detail.Context ctx = 1;
+	string module = 2;
+	string uri = 3;
+}
+
+message ModuleSourceExist {
+	detail.Context ctx = 1;
+	string module = 2;
+	string uri = 3;
+	bool compiled = 4;
+}
+
+message ModuleDownload {
+	detail.Context ctx = 1;
+	string module = 2;
+}
+
+message ModuleUnref {
+	detail.Context ctx = 1;
+	string module = 2;
+}
+
+message InstanceList {
+	detail.Context ctx = 1;
+}
+
+message InstanceCreateStream {
+	detail.Context ctx = 1;
+	string instance = 2;
+	string module = 3;
+}
+
+message InstanceCreateLocal {
+	detail.Context ctx = 1;
+	string instance = 2;
+	string module = 3;
 }
 
 message InstanceDelete {
-	detail.Context context = 1;
-	string instance_id = 2;
+	detail.Context ctx = 1;
+	string instance = 2;
+}
+
+message InstanceConnect {
+	detail.Context ctx = 1;
+	string instance = 2;
+}
+
+message InstanceDisconnect {
+	detail.Context ctx = 1;
+	string instance = 2;
+}
+
+message InstanceStatus {
+	detail.Context ctx = 1;
+	string instance = 2;
 }

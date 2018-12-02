@@ -6,41 +6,106 @@ package packet
 
 import (
 	"encoding/binary"
+	"fmt"
+	"strconv"
+)
+
+// Code represents the source or destination of a packet.
+type Code int16
+
+const (
+	CodeServices Code = -1
+)
+
+func (code Code) String() string {
+	switch {
+	case code >= 0:
+		return fmt.Sprintf("service[%d]", code)
+
+	case code == CodeServices:
+		return "services"
+
+	default:
+		return fmt.Sprintf("<invalid code %d>", code)
+	}
+}
+
+type Domain uint8
+
+const (
+	DomainCall Domain = iota
+	DomainState
+	DomainFlow
+	DomainData
+)
+
+func (d Domain) String() string {
+	switch d {
+	case DomainCall:
+		return "call"
+
+	case DomainState:
+		return "state"
+
+	case DomainFlow:
+		return "flow"
+
+	case DomainData:
+		return "data"
+
+	default:
+		return "<invalid domain>"
+	}
+}
+
+const (
+	// Packet header
+	OffsetSize     = 0
+	OffsetCode     = 4
+	OffsetDomain   = 6
+	offsetReserved = 7
+	HeaderSize     = 8
+
+	// Services packet header
+	OffsetServicesCount = HeaderSize + 0
+	ServicesHeaderSize  = HeaderSize + 8
+
+	// Flow packet header
+	FlowHeaderSize = HeaderSize
+
+	// Data packet header
+	OffsetDataID   = HeaderSize + 0
+	DataHeaderSize = HeaderSize + 8
 )
 
 const (
-	CodeOffset = 6
-	HeaderSize = 8
+	flowOffsetID        = 0
+	flowOffsetIncrement = 4
+	flowSize            = 8
 )
 
-// Code represents the source/destination of a packet.
-type Code [2]byte
-
-// Int16 is mostly useful for debug purposes.
-func (code Code) Int16() int16 {
-	return int16(binary.LittleEndian.Uint16(code[:]))
-}
-
-// BufSize calculates packet size based on packet content size.
-func BufSize(contentSize int) int {
-	return HeaderSize + contentSize
-}
-
-// Buf holds a packet, including space for its header.
+// Buf holds a packet.
 type Buf []byte
 
-// Make a packet buffer.  Code identifies the service for a given program
-// instance.  The packet contents may be initialized via the Content method.
-func Make(code Code, contentSize int) (b Buf) {
-	b = Buf(make([]byte, BufSize(contentSize)))
-	copy(b[CodeOffset:], code[:])
-	return
+func Make(code Code, packetSize int) Buf {
+	b := Buf(make([]byte, packetSize))
+	binary.LittleEndian.PutUint16(b[OffsetCode:], uint16(code))
+	return b
+}
+
+func MakeFlow(code Code, id int32, increment uint32) Buf {
+	b := MakeFlows(code, 1)
+	b.Set(0, id, increment)
+	return Buf(b)
 }
 
 // Code is the program instance-specific service identifier.
-func (b Buf) Code() (code Code) {
-	copy(code[:], b[CodeOffset:])
-	return
+func (b Buf) Code() Code {
+	return Code(binary.LittleEndian.Uint16(b[OffsetCode:]))
+}
+
+func (b Buf) Domain() Domain {
+	return Domain(b[OffsetDomain])
 }
 
 // Content of a received packet, or buffer for initializing sent packet.
@@ -48,29 +113,130 @@ func (b Buf) Content() []byte {
 	return b[HeaderSize:]
 }
 
-// ContentSize returns a negative value if b is nil.
-func (b Buf) ContentSize() int {
-	return len(b) - HeaderSize
+// Slice off the tail of a packet.
+func (b Buf) Slice(packetSize int) (prefix Buf) {
+	return b[:packetSize]
 }
 
-// Slice returns a subset of the packet buffer.
-func (b Buf) Slice(contentSize int) (prefix Buf) {
-	prefix = b[:HeaderSize+contentSize]
-	return
-}
+func (b Buf) String() (s string) {
+	var (
+		size     string
+		reserved string
+	)
 
-// Split the buffer into two packets.  The first packet's content size is given
-// as a parameter.  The first packet must not be extended with append(),
-// because the underlying storage is shared with the second packet.  The second
-// packet will be nil if there isn't enough space left in the buffer.
-func (b Buf) Split(contentSize int) (head, tail Buf) {
-	head = b.Slice(contentSize)
-	tail = b[HeaderSize+contentSize:]
-	if len(tail) >= HeaderSize {
-		// make the second packet valid by copying the service code
-		copy(tail[CodeOffset:], head[CodeOffset:CodeOffset+2])
+	if n := binary.LittleEndian.Uint32(b); n == 0 || n == uint32(len(b)) {
+		size = strconv.Itoa(len(b))
 	} else {
-		tail = nil
+		size = fmt.Sprintf("%d/%d", n, len(b))
+	}
+
+	if x := b[offsetReserved]; x != 0 {
+		reserved = fmt.Sprintf(" reserved=0x%02x", x)
+	}
+
+	s = fmt.Sprintf("size=%s code=%s domain=%s%s", size, b.Code(), b.Domain(), reserved)
+
+	switch b.Domain() {
+	case DomainFlow:
+		s += FlowBuf(b).string()
+
+	case DomainData:
+		s += DataBuf(b).string()
 	}
 	return
+}
+
+// Split a packet into two parts.  The length of the first part is given as an
+// argument.  The first part must not be extended with append(), because the
+// underlying storage is shared with the second part.  The header size argument
+// determins how many bytes are initialized in the second part.  If the buffer
+// is too short for the second part, nil is returned.
+func (b Buf) Split(headerSize, packetSize int) (prefix, unused Buf) {
+	prefix = b.Slice(packetSize)
+	unused = b[len(prefix):]
+
+	if len(unused) < headerSize {
+		unused = nil
+		return
+	}
+
+	copy(unused, prefix[:headerSize])
+	return
+}
+
+// FlowBuf holds a flow packet.
+type FlowBuf Buf
+
+func MakeFlows(code Code, count int) FlowBuf {
+	b := Make(code, FlowHeaderSize+count*flowSize)
+	b[OffsetDomain] = uint8(DomainFlow)
+	return FlowBuf(b)
+}
+
+func (b FlowBuf) Num() int {
+	return (len(b) - FlowHeaderSize) / flowSize
+}
+
+func (b FlowBuf) Get(i int) (id int32, increment uint32) {
+	flow := b[FlowHeaderSize+i*flowSize:]
+	id = int32(binary.LittleEndian.Uint32(flow[flowOffsetID:]))
+	increment = binary.LittleEndian.Uint32(flow[flowOffsetIncrement:])
+	return
+}
+
+func (b FlowBuf) Set(i int, id int32, increment uint32) {
+	flow := b[FlowHeaderSize+i*flowSize:]
+	binary.LittleEndian.PutUint32(flow[flowOffsetID:], uint32(id))
+	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], increment)
+}
+
+func (b FlowBuf) String() string {
+	return Buf(b).String() + b.string()
+}
+
+func (b FlowBuf) string() (s string) {
+	for i := 0; i < b.Num(); i++ {
+		id, inc := b.Get(i)
+		s += fmt.Sprintf(" stream[%d]+=%d", id, inc)
+	}
+	return
+}
+
+// DataBuf holds a data packet.
+type DataBuf Buf
+
+func MakeData(code Code, id int32, dataSize int) DataBuf {
+	b := Make(code, DataHeaderSize+dataSize)
+	b[OffsetDomain] = uint8(DomainData)
+	binary.LittleEndian.PutUint32(b[OffsetDataID:], uint32(id))
+	return DataBuf(b)
+}
+
+func (b DataBuf) ID() int32 {
+	return int32(binary.LittleEndian.Uint32(b[OffsetDataID:]))
+}
+
+func (b DataBuf) Data() []byte {
+	return b[DataHeaderSize:]
+}
+
+func (b DataBuf) DataLen() int {
+	return len(b) - DataHeaderSize
+}
+
+func (b DataBuf) Split(dataLen int) (prefix Buf, unused DataBuf) {
+	prefix, unusedBuf := Buf(b).Split(DataHeaderSize, DataHeaderSize+dataLen)
+	unused = DataBuf(unusedBuf)
+	return
+}
+
+func (b DataBuf) String() string {
+	return Buf(b).String() + b.string()
+}
+
+func (b DataBuf) string() string {
+	if b.DataLen() == 0 {
+		return fmt.Sprintf(" id=%d eof", b.ID())
+	}
+	return fmt.Sprintf(" id=%d datalen=%d", b.ID(), b.DataLen())
 }

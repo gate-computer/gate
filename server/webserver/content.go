@@ -1,40 +1,48 @@
-// Copyright (c) 2017 Timo Savola. All rights reserved.
+// Copyright (c) 2018 Timo Savola. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package webserver
 
 import (
-	"errors"
+	"compress/gzip"
+	"context"
 	"io"
+	"net/http"
+
+	"github.com/tsavola/gate/server"
 )
 
-var errContentTooLong = errors.New("content length limit exceeded")
+func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webserver, pri *server.PrincipalKey) io.ReadCloser {
+	var encoding string
 
-type contentReader struct {
-	r     io.ReadCloser
-	space int
-}
+	switch fields := wr.request.Header["Content-Encoding"]; len(fields) {
+	case 0:
+		// identity
 
-func newContentReader(r io.ReadCloser, n int) *contentReader {
-	return &contentReader{
-		r:     r,
-		space: n,
+	case 1:
+		encoding = fields[0]
+
+	default:
+		goto bad
 	}
-}
 
-func (c *contentReader) Read(b []byte) (n int, err error) {
-	n, err = c.r.Read(b)
-	if n <= c.space {
-		c.space -= n
-	} else {
-		n = c.space
-		c.space = 0
-		err = errContentTooLong
+	switch encoding {
+	case "", "identity":
+		return wr.request.Body
+
+	case "gzip":
+		decoder, err := gzip.NewReader(wr.request.Body)
+		if err != nil {
+			respondContentDecodeError(ctx, wr, s, pri, err)
+			panic(nil)
+		}
+
+		return http.MaxBytesReader(wr.response, decoder, wr.request.ContentLength)
 	}
-	return
-}
 
-func (c *contentReader) Close() error {
-	return c.r.Close()
+bad:
+	wr.response.Header().Set("Accept-Encoding", "gzip")
+	respondUnsupportedEncoding(ctx, wr, s, pri)
+	panic(nil)
 }
