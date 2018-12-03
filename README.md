@@ -28,7 +28,7 @@ can be added easily, and available services are discovered at run time.  See
 ## Building blocks
 
 Gate appears as [Go](https://golang.org) packages and programs.  The execution
-mechanism is implemented in C and assembly, and needs to be built spearately
+mechanism is implemented in C and assembly, and needs to be built separately
 (see below).  It's highly Linux-dependent.  Currently only x86-64 is supported,
 but ARM64 support is in development.
 

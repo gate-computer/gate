@@ -55,9 +55,10 @@ architecture](#execution-architecture) for details.
 The programs interact with Gate's service I/O loop and the available services,
 implemented in Go.  (A service may be implemented via IPC/RPC, so other
 programming languages may be involved aswell.)  Each service has its own
-interface, and must of its own input validation; as with syscalls, complexity
-leads to bugs, and information is power.  A naive service could enable
-side-channel attacks by providing too detailed information (e.g. precise time).
+interface, and must take care of its own input validation; as with syscalls,
+complexity leads to bugs, and information is power.  A naive service could
+enable side-channel attacks by providing too detailed information (e.g. precise
+time).
 
 
 ## Execution architecture

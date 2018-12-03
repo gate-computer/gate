@@ -33,9 +33,8 @@ type ServiceConfig struct {
 
 // ServiceRegistry is a collection of configured services.
 //
-// StartServing is called once for each program instance.  The context is
-// canceled when the program is being shut down.  (The receive channel will not
-// be closed at any point.)
+// StartServing is called once for each program instance.  The receive channel
+// is closed when the program is being shut down.
 //
 // The maximum packet content size may be used when buffering data.
 //
