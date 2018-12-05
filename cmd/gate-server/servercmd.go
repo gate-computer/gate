@@ -22,6 +22,7 @@ import (
 
 	"github.com/gorilla/handlers"
 	"github.com/tsavola/confi"
+	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/monitor"
@@ -36,6 +37,11 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
+)
+
+const (
+	DefaultInstanceStore  = "memory"
+	DefaultProgramStorage = "memory"
 )
 
 const (
@@ -55,6 +61,11 @@ const (
 type Config struct {
 	Runtime runtime.Config
 
+	Image struct {
+		Filesystem string
+		PageSize   int
+	}
+
 	Plugin struct {
 		LibDir string
 	}
@@ -63,8 +74,10 @@ type Config struct {
 
 	Server struct {
 		server.Config
-		MaxConns int
-		Debug    string
+		InstanceStore  string
+		ProgramStorage string
+		MaxConns       int
+		Debug          string
 	}
 
 	Access struct {
@@ -140,7 +153,10 @@ func main() {
 	c.Runtime.MaxProcs = runtime.DefaultMaxProcs
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
+	c.Image.PageSize = os.Getpagesize()
 	c.Plugin.LibDir = "lib/gate/service"
+	c.Server.InstanceStore = DefaultInstanceStore
+	c.Server.ProgramStorage = DefaultProgramStorage
 	c.Server.PreforkProcs = server.DefaultPreforkProcs
 	c.Principal.AccessConfig = server.DefaultAccessConfig
 	c.HTTP.Net = "tcp"
@@ -266,6 +282,33 @@ func main() {
 	c.Server.Executor, err = runtime.NewExecutor(ctx, &c.Runtime)
 	if err != nil {
 		critLog.Fatal(err)
+	}
+
+	var fs *image.Filesystem
+	if c.Image.Filesystem != "" {
+		fs = image.NewFilesystem(c.Image.Filesystem, c.Image.PageSize)
+	}
+
+	switch c.Server.InstanceStore {
+	case "memory":
+		c.Server.Config.InstanceStore = image.Memory
+
+	case "filesystem":
+		c.Server.Config.InstanceStore = fs
+
+	default:
+		critLog.Fatalf("unknown server.instancestore option: %q", c.Server.InstanceStore)
+	}
+
+	switch c.Server.ProgramStorage {
+	case "memory":
+		c.Server.Config.ProgramStorage = image.Memory
+
+	case "filesystem":
+		c.Server.Config.ProgramStorage = fs
+
+	default:
+		critLog.Fatalf("unknown server.programstorage option: %q", c.Server.ProgramStorage)
 	}
 
 	switch c.Access.Policy {
