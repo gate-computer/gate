@@ -43,7 +43,7 @@ var (
 	testProgSuspend    = runtimeutil.MustReadFile("../testdata/suspend.wasm")
 )
 
-func prepareTest(exec *runtimeutil.Executor, r *bytes.Reader,
+func prepareTest(exec *runtimeutil.Executor, store image.BackingStore, r *bytes.Reader,
 ) (mod *compile.Module, build *image.Build, config *image.BuildConfig) {
 	mod, err := compile.LoadInitialSections(nil, r)
 	if err != nil {
@@ -54,7 +54,7 @@ func prepareTest(exec *runtimeutil.Executor, r *bytes.Reader,
 		panic(err)
 	}
 
-	ref, err := image.NewExecutableRef(image.Memory)
+	ref, err := image.NewExecutableRef(store)
 	if err != nil {
 		panic(err)
 	}
@@ -82,11 +82,11 @@ func prepareTest(exec *runtimeutil.Executor, r *bytes.Reader,
 	return
 }
 
-func compileTest(exec *runtimeutil.Executor, prog []byte, function string,
+func compileTest(exec *runtimeutil.Executor, store image.BackingStore, prog []byte, function string,
 ) (exe *image.Executable, mod *compile.Module) {
 	r := bytes.NewReader(prog)
 
-	mod, build, buildConfig := prepareTest(exec, r)
+	mod, build, buildConfig := prepareTest(exec, store, r)
 	defer build.Close()
 
 	var codeMap = new(debug.InsnMap)
@@ -152,7 +152,7 @@ func startTest(ctx context.Context, t *testing.T, prog []byte, function string, 
 ) (*runtimeutil.Executor, *image.Executable, *runtime.Process) {
 	executor := runtimeutil.NewExecutor(ctx, &runtime.Config{LibDir: "../lib/gate/runtime"})
 
-	exe, _ := compileTest(executor, prog, function)
+	exe, _ := compileTest(executor, image.Memory, prog, function)
 
 	ref := exe.Ref()
 	defer ref.Close()
