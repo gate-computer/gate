@@ -772,7 +772,8 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	err = conn.WriteJSON(&reply)
 	if err != nil {
-		cancel()
+		reportNetworkError(ctx, s, err)
+		return
 	}
 
 	disconnected := inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
