@@ -403,6 +403,8 @@ func main() {
 		l = netutil.LimitListener(l, n)
 	}
 
+	s := http.Server{Handler: handler}
+
 	if c.HTTP.TLS.Enabled {
 		if !c.ACME.AcceptTOS {
 			critLog.Fatal("http.tls requires acme.accepttos")
@@ -418,14 +420,14 @@ func main() {
 			ForceRSA:    c.ACME.ForceRSA,
 		}
 
-		l = tls.NewListener(l, &tls.Config{GetCertificate: m.GetCertificate})
+		s.TLSConfig = &tls.Config{GetCertificate: m.GetCertificate}
+		l = tls.NewListener(l, s.TLSConfig)
 
 		go func() {
 			critLog.Fatal(http.ListenAndServe(":http", m.HTTPHandler(http.HandlerFunc(handleHTTP))))
 		}()
 	}
 
-	s := http.Server{Handler: handler}
 	critLog.Fatal(s.Serve(l))
 }
 
