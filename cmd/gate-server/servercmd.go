@@ -146,6 +146,8 @@ func parseConfig(flags *flag.FlagSet, c *Config) {
 }
 
 func main() {
+	log.SetFlags(0)
+
 	var fileLimit syscall.Rlimit
 	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &fileLimit); err != nil {
 		log.Fatal(err)
