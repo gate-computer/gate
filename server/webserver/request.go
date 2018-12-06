@@ -16,18 +16,20 @@ import (
 )
 
 func acceptsText(r *http.Request) bool {
-	fields := r.Header["Accept"]
-	if len(fields) == 0 {
+	headers := r.Header["Accept"]
+	if len(headers) == 0 {
 		return true
 	}
 
-	for _, field := range fields {
-		tokens := strings.SplitN(field, ";", 2)
-		mediaType := strings.TrimSpace(tokens[0])
+	for _, header := range headers {
+		for _, field := range strings.Split(header, ",") {
+			tokens := strings.SplitN(field, ";", 2)
+			mediaType := strings.TrimSpace(tokens[0])
 
-		switch mediaType {
-		case "*/*", "text/plain", "text/*":
-			return true
+			switch mediaType {
+			case "*/*", "text/plain", "text/*":
+				return true
+			}
 		}
 	}
 
@@ -35,38 +37,28 @@ func acceptsText(r *http.Request) bool {
 }
 
 func mustAcceptJSON(w http.ResponseWriter, r *http.Request, s *webserver) {
-	fields := r.Header["Accept"]
-	if len(fields) == 0 {
-		return
-	}
-
-	for _, field := range fields {
-		tokens := strings.SplitN(field, ";", 2)
-		mediaType := strings.TrimSpace(tokens[0])
-
-		switch mediaType {
-		case "*/*", "application/json", "application/*":
-			return
-		}
-	}
-
-	respondNotAcceptable(w, r, s)
-	panic(nil)
+	mustAcceptApplication(w, r, s, "application/json")
 }
 
 func mustAcceptWebAssembly(w http.ResponseWriter, r *http.Request, s *webserver) {
-	fields := r.Header["Accept"]
-	if len(fields) == 0 {
+	mustAcceptApplication(w, r, s, "application/wasm")
+}
+
+func mustAcceptApplication(w http.ResponseWriter, r *http.Request, s *webserver, requiredType string) {
+	headers := r.Header["Accept"]
+	if len(headers) == 0 {
 		return
 	}
 
-	for _, field := range fields {
-		tokens := strings.SplitN(field, ";", 2)
-		mediaType := strings.TrimSpace(tokens[0])
+	for _, header := range headers {
+		for _, field := range strings.Split(header, ",") {
+			tokens := strings.SplitN(field, ";", 2)
+			mediaType := strings.TrimSpace(tokens[0])
 
-		switch mediaType {
-		case "*/*", "application/wasm", "application/*":
-			return
+			switch mediaType {
+			case requiredType, "*/*", "application/*":
+				return
+			}
 		}
 	}
 
