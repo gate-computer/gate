@@ -318,6 +318,17 @@ static int xopen_executor_and_loader(void)
 	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_PATH | O_NOFOLLOW | O_CLOEXEC);
 }
 
+// Close excess file descriptors or die.
+static void close_excess_fds(void)
+{
+	int max_count = getdtablesize();
+	if (max_count <= 0)
+		xerror("getdtablesize");
+
+	for (int fd = GATE_CONTROL_FD + 1; fd < max_count; fd++)
+		close(fd);
+}
+
 // Wait for the child process, or die.  The return code is returned.
 static int wait_for_child(pid_t child_pid)
 {
@@ -460,6 +471,8 @@ int main(int argc, char **argv)
 	executor_cred.gid = xatoui(argv[4]);
 	cgroup_config.title = argv[5];
 	cgroup_config.parent = argv[6];
+
+	close_excess_fds();
 
 	int clone_flags = SIGCHLD;
 
