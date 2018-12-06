@@ -37,7 +37,7 @@ type websocketWriter struct {
 }
 
 func newWebsocketWriter(conn *websocket.Conn) *websocketWriter {
-	return &websocketWriter{}
+	return &websocketWriter{conn}
 }
 
 func (*websocketWriter) SetHeader(key, value string) {}
