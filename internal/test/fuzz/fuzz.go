@@ -9,11 +9,23 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"syscall"
 
 	"github.com/tsavola/gate/internal/test/fuzz/fuzzutil"
 )
 
 var s = fuzzutil.NewServer(context.Background(), os.Getenv("GATE_FUZZ_RUNTIME_LIBDIR"))
+
+func init() {
+	limit := &syscall.Rlimit{
+		Cur: 100000,
+		Max: 100000,
+	}
+
+	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, limit); err != nil {
+		panic(err)
+	}
+}
 
 func Fuzz(data []byte) int {
 	ctx := context.Background()

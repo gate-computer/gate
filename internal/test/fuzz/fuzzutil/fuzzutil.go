@@ -32,8 +32,7 @@ func (connector) Close() error {
 
 func NewServer(ctx context.Context, libdir string) *server.Server {
 	e, err := gateruntime.NewExecutor(ctx, &gateruntime.Config{
-		MaxProcs: goruntime.GOMAXPROCS(0),
-		LibDir:   libdir,
+		LibDir: libdir,
 	})
 	if err != nil {
 		panic(err)
