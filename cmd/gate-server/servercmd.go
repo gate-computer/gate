@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"log/syslog"
@@ -34,6 +35,7 @@ import (
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/gate/source/ipfs"
+	"github.com/tsavola/gate/webapi"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
@@ -417,8 +419,51 @@ func main() {
 		}
 
 		l = tls.NewListener(l, &tls.Config{GetCertificate: m.GetCertificate})
+
+		go func() {
+			critLog.Fatal(http.ListenAndServe(":http", m.HTTPHandler(http.HandlerFunc(handleHTTP))))
+		}()
 	}
 
 	s := http.Server{Handler: handler}
 	critLog.Fatal(s.Serve(l))
+}
+
+func handleHTTP(w http.ResponseWriter, r *http.Request) {
+	status := http.StatusNotFound
+	message := "not found"
+
+	if r.URL.Path == webapi.Path || strings.HasPrefix(r.URL.Path, webapi.Path+"/") {
+		status = http.StatusMisdirectedRequest
+		message = "HTTP scheme not supported"
+	}
+
+	if acceptsText(r) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(status)
+		fmt.Fprintln(w, message)
+	} else {
+		w.WriteHeader(status)
+	}
+}
+
+func acceptsText(r *http.Request) bool {
+	headers := r.Header["Accept"]
+	if len(headers) == 0 {
+		return true
+	}
+
+	for _, header := range headers {
+		for _, field := range strings.Split(header, ",") {
+			tokens := strings.SplitN(field, ";", 2)
+			mediaType := strings.TrimSpace(tokens[0])
+
+			switch mediaType {
+			case "text/plain", "*/*", "text/*":
+				return true
+			}
+		}
+	}
+
+	return false
 }
