@@ -46,6 +46,8 @@ const (
 	DefaultProgramStorage = "memory"
 )
 
+const shutdownTimeout = 15 * time.Second
+
 const (
 	// stdio, syslog, runtime, listener, debug, autocert (guess)
 	serverFileOverhead = 3 + 3 + 1 + 1 + 1 + 2
@@ -349,11 +351,6 @@ func main() {
 		critLog.Fatalf("unknown access.policy option: %q", c.Access.Policy)
 	}
 
-	go func() {
-		<-c.Server.Executor.Dead()
-		critLog.Fatal("executor died")
-	}()
-
 	switch c.Server.Debug {
 	case "":
 
@@ -406,6 +403,18 @@ func main() {
 	}
 
 	s := http.Server{Handler: handler}
+
+	go func() {
+		<-c.Server.Executor.Dead()
+		critLog.Print("executor died")
+
+		ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+		defer cancel()
+
+		if err := s.Shutdown(ctx); err != nil {
+			critLog.Fatalf("shutdown: %v", err)
+		}
+	}()
 
 	if c.HTTP.TLS.Enabled {
 		if !c.ACME.AcceptTOS {
