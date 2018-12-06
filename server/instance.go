@@ -118,9 +118,15 @@ func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
 	return
 }
 
-func (inst *Instance) PrincipalID() string { return inst.account.PrincipalID }
-func (inst *Instance) ID() string          { return inst.id }
-func (inst *Instance) ModuleKey() string   { return inst.progHash }
+func (inst *Instance) ID() string        { return inst.id }
+func (inst *Instance) ModuleKey() string { return inst.progHash }
+
+func (inst *Instance) PrincipalID() (s string) {
+	if inst.account != nil {
+		s = inst.account.PrincipalID
+	}
+	return
+}
 
 func (inst *Instance) Status() Status {
 	inst.lock.Lock()
@@ -187,10 +193,10 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 			result.State = serverapi.Status_TERMINATED
 			result.Cause = serverapi.Status_VIOLATION
 
-			reportProgramError(ctx, s, inst.account.PrincipalKey, inst.progHash, inst.function, inst.id, err)
+			reportProgramError(ctx, s, inst.account, inst.progHash, inst.function, inst.id, err)
 
 		default:
-			reportInternalError(ctx, s, inst.account.PrincipalKey, inst.progHash, inst.function, inst.id, "service io", err)
+			reportInternalError(ctx, s, inst.account, inst.progHash, inst.function, inst.id, "service io", err)
 		}
 
 		return
@@ -204,9 +210,9 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 	return
 }
 
-func reportProgramError(ctx context.Context, s *Server, pri *PrincipalKey, progHash, function string, instID string, err error) {
+func reportProgramError(ctx context.Context, s *Server, acc *account, progHash, function string, instID string, err error) {
 	s.Monitor(&event.FailRequest{
-		Ctx:      Context(ctx, pri),
+		Ctx:      accountContext(ctx, acc),
 		Failure:  event.FailRequest_ProgramError,
 		Module:   progHash,
 		Function: function,
@@ -214,13 +220,13 @@ func reportProgramError(ctx context.Context, s *Server, pri *PrincipalKey, progH
 	}, err)
 }
 
-func reportInternalError(ctx context.Context, s *Server, pri *PrincipalKey, progHash, function string, instID, subsys string, err error) {
+func reportInternalError(ctx context.Context, s *Server, acc *account, progHash, function string, instID, subsys string, err error) {
 	if x, ok := err.(subsystem.Error); ok {
 		subsys = x.Subsystem()
 	}
 
 	s.Monitor(&event.FailInternal{
-		Ctx:       Context(ctx, pri),
+		Ctx:       accountContext(ctx, acc),
 		Module:    progHash,
 		Function:  function,
 		Instance:  instID,
