@@ -165,6 +165,9 @@ signal_restorer:
 
 // In:  eax = trap id
 trap_handler:
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	test	%eax, %eax
 	je	.Ltrap_exit
 
@@ -176,6 +179,10 @@ trap_handler:
 	mov	$1, %edi			// exit status on failure
 	shrq	$32, %rax			// Program result
 	cmove	%eax, %edi			// exit status on success
+	jmp	.Lruntime_exit
+
+.Lsuspended:
+	mov	$100+2, %edi			// exit status
 	jmp	.Lruntime_exit
 
 .align	16,INT3
@@ -237,6 +244,9 @@ retpoline:
 .type	gate_io,@function
 
 gate_io:
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	// Setup source buffer.
 
 	mov	24(%rsp), %esi			// Relative buffer address
@@ -256,6 +266,9 @@ gate_io:
 	jge	.Lsent
 
 	// Handle write errors.
+
+	test	$1, %ebx
+	jne	.Lsuspended
 
 	cmp	$-EAGAIN, %eax
 	je	.Lnot_sent
@@ -304,6 +317,9 @@ gate_io:
 
 	// Handle read errors.
 
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	cmp	$-EAGAIN, %eax
 	je	.Lnot_received
 	cmp	$-EINTR, %eax
@@ -331,6 +347,9 @@ gate_io:
 .type	gate_nop,@function
 
 gate_nop:
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	xor	%eax, %eax
 	jmp	.Lresume
 
@@ -381,6 +400,9 @@ sys_exit:
 .type	gate_debug,@function
 
 gate_debug:
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	mov	16(%rsp), %esi			// Relative buffer address
 	lea	8(%rsp), %r12			// Absolute length address
 	io_setup .Lskip_debug
