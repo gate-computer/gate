@@ -160,7 +160,11 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (di
 	return
 }
 
-func (inst *Instance) Run(ctx context.Context, s *Server) (result Status) {
+// Run the program.
+//
+// The returned error has already been reported, and its message has been
+// copied to result.Error.
+func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err error) {
 	defer inst.kill()
 	defer close(inst.terminated)
 

@@ -644,7 +644,7 @@ func handleCallPost(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	}
 
 	disconnected := inst.Connect(ctx, r.Body, w)
-	status := inst.Run(ctx, s.Server)
+	status, _ := inst.Run(ctx, s.Server)
 	<-disconnected
 
 	statusJSON := statusInternalServerErrorJSON
@@ -777,7 +777,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 
 	disconnected := inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
-	status := inst.Run(ctx, s.Server)
+	status, _ := inst.Run(ctx, s.Server)
 	<-disconnected
 
 	// TODO: send ConnectionStatus
