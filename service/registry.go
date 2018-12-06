@@ -110,7 +110,7 @@ func serve(ctx context.Context, serviceConfig *runtime.ServiceConfig, r *Registr
 		if inst != nil {
 			inst.Handle(ctx, send, op)
 		} else {
-			panic("TODO: service unavailable: buffer up to max packet size")
+			// TODO: service unavailable: buffer up to max packet size
 		}
 	}
 }
