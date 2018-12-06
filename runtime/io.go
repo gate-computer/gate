@@ -50,7 +50,12 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 	}()
 
 	subjectOutput := subjectWriteLoop(subject.writer)
-	defer close(subjectOutput)
+	subject.writer = nil
+	defer func() {
+		if subjectOutput != nil {
+			close(subjectOutput)
+		}
+	}()
 
 	var (
 		pendingMsg packet.Buf
@@ -120,7 +125,11 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 
 		case <-done:
 			done = nil
+
 			subject.suspend()
+
+			close(subjectOutput)
+			subjectOutput = nil
 		}
 	}
 
@@ -172,6 +181,8 @@ func subjectWriteLoop(w *os.File) chan<- packet.Buf {
 			for range writes {
 			}
 		}()
+
+		defer w.Close()
 
 		for buf := range writes {
 			if _, err := w.Write(buf); err != nil {

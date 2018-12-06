@@ -239,16 +239,19 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry,
 
 // Kill the process.  Serve call will return.  Can be called multiple times.
 func (p *Process) Kill() {
-	if p.writer == nil {
+	if p.reader == nil {
 		return
 	}
 
 	p.execution.kill(false)
-	p.writer.Close()
-	p.reader.Close()
 
-	p.writer = nil
+	p.reader.Close()
 	p.reader = nil
+
+	if p.writer != nil {
+		p.writer.Close()
+		p.writer = nil
+	}
 }
 
 func (p *Process) suspend() {
