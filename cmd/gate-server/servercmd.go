@@ -420,7 +420,10 @@ func main() {
 			ForceRSA:    c.ACME.ForceRSA,
 		}
 
-		s.TLSConfig = &tls.Config{GetCertificate: m.GetCertificate}
+		s.TLSConfig = &tls.Config{
+			GetCertificate: m.GetCertificate,
+			NextProtos:     []string{"h2", "http/1.1"},
+		}
 		l = tls.NewListener(l, s.TLSConfig)
 
 		go func() {
