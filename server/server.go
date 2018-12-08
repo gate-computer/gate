@@ -227,7 +227,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 
 	defer func() {
 		if kill {
-			inst.kill()
+			inst.Close()
 			inst = nil
 		}
 	}()
@@ -339,7 +339,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 
 	defer func() {
 		if kill {
-			inst.kill()
+			inst.Close()
 			inst = nil
 		}
 	}()
@@ -622,6 +622,36 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *PrincipalKey, instID s
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
 	}, nil)
+	return
+}
+
+func (s *Server) SuspendInstance(ctx context.Context, pri *PrincipalKey, instID string,
+) (status Status, err error) {
+	err = s.AccessPolicy.Authorize(ctx, pri)
+	if err != nil {
+		return
+	}
+
+	inst, found := s.getInstance(pri, instID)
+	if !found {
+		err = resourcenotfound.ErrInstance
+		return
+	}
+
+	inst.process.Suspend()
+
+	s.Monitor(&event.InstanceSuspend{
+		Ctx:      Context(ctx, pri),
+		Instance: inst.id,
+	}, nil)
+
+	select {
+	case <-inst.stopped:
+		status = inst.Status()
+
+	case <-ctx.Done():
+		err = ctx.Err()
+	}
 	return
 }
 

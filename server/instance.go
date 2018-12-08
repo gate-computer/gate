@@ -19,6 +19,7 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/wag/trap"
 )
 
 func makeInstanceID() string {
@@ -43,7 +44,7 @@ func makeInstanceFactory(ctx context.Context, s *Server) <-chan *Instance {
 			close(channel)
 
 			for inst := range channel {
-				inst.kill()
+				inst.Close()
 			}
 		}()
 
@@ -53,7 +54,7 @@ func makeInstanceFactory(ctx context.Context, s *Server) <-chan *Instance {
 				case channel <- inst:
 
 				case <-ctx.Done():
-					inst.kill()
+					inst.Close()
 					return
 				}
 			} else {
@@ -81,14 +82,14 @@ func (a Instances) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a Instances) Less(i, j int) bool { return a[i].Instance < a[j].Instance }
 
 type Instance struct {
-	terminated chan struct{}       // Set in Instance.newInstance
-	ref        image.ExecutableRef // Set in Instance.newInstance
-	process    *runtime.Process    // Set in Instance.newInstance
-	account    *account            // Set in Server.newInstance
-	services   InstanceServices    // Set in Server.newInstance
-	id         string              // Set in Server.newInstance or Server.registerInstance
-	progHash   string              // Set in Server.registerInstance
-	function   string              // Set in Server.registerInstance
+	stopped  chan struct{}       // Set in Instance.newInstance
+	ref      image.ExecutableRef // Set in Instance.newInstance
+	process  *runtime.Process    // Set in Instance.newInstance
+	account  *account            // Set in Server.newInstance
+	services InstanceServices    // Set in Server.newInstance
+	id       string              // Set in Server.newInstance or Server.registerInstance
+	progHash string              // Set in Server.registerInstance
+	function string              // Set in Server.registerInstance
 
 	lock   sync.Mutex // Must be held when accessing status.
 	status Status     // Set in Server.registerInstance and Instance.Run
@@ -111,9 +112,9 @@ func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
 	}
 
 	inst = &Instance{
-		terminated: make(chan struct{}),
-		ref:        ref,
-		process:    proc,
+		stopped: make(chan struct{}),
+		ref:     ref,
+		process: proc,
 	}
 	return
 }
@@ -134,14 +135,24 @@ func (inst *Instance) Status() Status {
 	return inst.status
 }
 
+// Close instance.
+func (inst *Instance) Close() (err error) {
+	err = inst.ref.Close()
+	inst.ref = nil
+
+	if killErr := inst.kill(); err == nil {
+		err = killErr
+	}
+	return
+}
+
+// kill execution.
 func (inst *Instance) kill() (err error) {
 	inst.process.Kill()
-	err = inst.ref.Close()
 
 	if inst.services != nil {
-		if closeErr := inst.services.Close(); err == nil {
-			err = closeErr
-		}
+		err = inst.services.Close()
+		inst.services = nil
 	}
 	return
 }
@@ -172,7 +183,7 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (di
 // copied to result.Error.
 func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err error) {
 	defer inst.kill()
-	defer close(inst.terminated)
+	defer close(inst.stopped)
 
 	result.Error = "internal server error"
 

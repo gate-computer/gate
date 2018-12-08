@@ -14,6 +14,7 @@ func (x *InstanceDelete) EventName() string       { return Event_Type_name[x.Eve
 func (x *InstanceDisconnect) EventName() string   { return Event_Type_name[x.EventType()] }
 func (x *InstanceList) EventName() string         { return Event_Type_name[x.EventType()] }
 func (x *InstanceStatus) EventName() string       { return Event_Type_name[x.EventType()] }
+func (x *InstanceSuspend) EventName() string      { return Event_Type_name[x.EventType()] }
 func (x *ModuleDownload) EventName() string       { return Event_Type_name[x.EventType()] }
 func (x *ModuleList) EventName() string           { return Event_Type_name[x.EventType()] }
 func (x *ModuleSourceExist) EventName() string    { return Event_Type_name[x.EventType()] }
@@ -34,6 +35,7 @@ func (*InstanceDelete) EventType() int32       { return int32(Event_InstanceDele
 func (*InstanceDisconnect) EventType() int32   { return int32(Event_InstanceDisconnect) }
 func (*InstanceList) EventType() int32         { return int32(Event_InstanceList) }
 func (*InstanceStatus) EventType() int32       { return int32(Event_InstanceStatus) }
+func (*InstanceSuspend) EventType() int32      { return int32(Event_InstanceSuspend) }
 func (*ModuleDownload) EventType() int32       { return int32(Event_ModuleDownload) }
 func (*ModuleList) EventType() int32           { return int32(Event_ModuleList) }
 func (*ModuleSourceExist) EventType() int32    { return int32(Event_ModuleSourceExist) }
