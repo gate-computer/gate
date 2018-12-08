@@ -22,8 +22,11 @@ func sha384(data []byte) string {
 }
 
 var (
-	testProgHello = runtimeutil.MustReadFile("../../testdata/hello.wasm")
-	testHashHello = sha384(testProgHello)
+	testProgHello   = runtimeutil.MustReadFile("../../testdata/hello.wasm")
+	testProgSuspend = runtimeutil.MustReadFile("../../testdata/suspend.wasm")
+
+	testHashHello   = sha384(testProgHello)
+	testHashSuspend = sha384(testProgSuspend)
 )
 
 type testSource struct{}

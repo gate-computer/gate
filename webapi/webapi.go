@@ -59,8 +59,9 @@ const (
 
 // Actions on instances.
 const (
-	ActionIO     = "io"     // Post or websocket.
-	ActionStatus = "status" // Post.
+	ActionIO      = "io"      // Post or websocket.
+	ActionStatus  = "status"  // Post.
+	ActionSuspend = "suspend" // Post.
 )
 
 // HTTP request headers.

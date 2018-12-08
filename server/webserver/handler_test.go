@@ -759,6 +759,41 @@ func TestInstance(t *testing.T) {
 			}
 		})
 	}
+
+	{
+		var instID string
+
+		{
+			req := newSignedTestRequest(key, http.MethodPost, webapi.PathModuleRefs+testHashSuspend+"?action=launch&function=main", testProgSuspend)
+			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+			resp, _ := doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusCreated {
+				t.Fatal(resp.Status)
+			}
+
+			instID = resp.Header.Get(webapi.HeaderInstance)
+		}
+
+		t.Run("Suspend", func(t *testing.T) {
+			req := newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+			resp, _ := doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusNoContent {
+				t.Fatal(resp.Status)
+			}
+
+			testStatusResponse(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+				State: "suspended",
+			})
+		})
+
+		t.Run("StatusSuspended", func(t *testing.T) {
+			testStatus(t, instID, webapi.Status{
+				State: "suspended",
+			})
+		})
+	}
 }
 
 // TODO: WebSocket tests

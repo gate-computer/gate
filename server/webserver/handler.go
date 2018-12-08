@@ -34,6 +34,8 @@ type errorWriter interface {
 	WriteError(status int, text string)
 }
 
+type instanceMethod func(s *server.Server, ctx context.Context, pri *server.PrincipalKey, instance string) (server.Status, error)
+
 type webserver struct {
 	*server.Server
 	Config
@@ -508,7 +510,11 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 	case webapi.ActionStatus:
 		mustNotHaveParams(w, r, s, query)
-		handleStatus(w, r, s, instance)
+		handleInstance(w, r, s, detail.Op_InstanceStatus, (*server.Server).InstanceStatus, instance)
+
+	case webapi.ActionSuspend:
+		mustNotHaveParams(w, r, s, query)
+		handleInstance(w, r, s, detail.Op_InstanceSuspend, (*server.Server).SuspendInstance, instance)
 
 	default:
 		respondUnsupportedAction(w, r, s)
@@ -868,6 +874,28 @@ func handleInstances(w http.ResponseWriter, r *http.Request, s *webserver) {
 	})
 }
 
+func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceMethod, instID string) {
+	ctx := server.ContextWithOp(r.Context(), op)
+	wr := &requestResponseWriter{w, r}
+	pri := mustParseAuthorizationHeader(ctx, wr, s)
+
+	status, err := method(s.Server, ctx, pri, instID)
+	if err != nil {
+		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		return
+	}
+
+	statusJSON := statusInternalServerErrorJSON
+	if data, err := serverapi.MarshalJSON(&status); err == nil {
+		statusJSON = string(data)
+	} else {
+		reportInternalError(ctx, s, pri, "", "", "", instID, err)
+	}
+
+	w.Header().Set(webapi.HeaderStatus, statusJSON)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func handleIOPost(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
 	ctx := server.ContextWithOp(r.Context(), detail.Op_InstanceConnect) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
@@ -993,26 +1021,4 @@ func handleIOWebsocket(response http.ResponseWriter, request *http.Request, s *w
 	}
 
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
-}
-
-func handleStatus(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
-	ctx := server.ContextWithOp(r.Context(), detail.Op_InstanceStatus)
-	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s)
-
-	status, err := s.InstanceStatus(ctx, pri, instID)
-	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
-		return
-	}
-
-	statusJSON := statusInternalServerErrorJSON
-	if data, err := serverapi.MarshalJSON(&status); err == nil {
-		statusJSON = string(data)
-	} else {
-		reportInternalError(ctx, s, pri, "", "", "", instID, err)
-	}
-
-	w.Header().Set(webapi.HeaderStatus, statusJSON)
-	w.WriteHeader(http.StatusNoContent)
 }
