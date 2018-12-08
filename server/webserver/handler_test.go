@@ -94,6 +94,20 @@ func doTest(t *testing.T, handler http.Handler, req *http.Request) (resp *http.R
 	return
 }
 
+func testStatusResponse(t *testing.T, statusHeader string, expect webapi.Status) {
+	t.Helper()
+
+	var status webapi.Status
+
+	if err := json.Unmarshal([]byte(statusHeader), &status); err != nil {
+		t.Error(err)
+	}
+
+	if !reflect.DeepEqual(status, expect) {
+		t.Errorf("%#v", status)
+	}
+}
+
 func TestRoot(t *testing.T) {
 	ctx := context.Background()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -341,7 +355,11 @@ func TestModuleRef(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			if resp.Trailer.Get(webapi.HeaderStatus) != `{"state":"terminated"}` || len(resp.Trailer) != 1 {
+			testStatusResponse(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+				State: "terminated",
+			})
+
+			if len(resp.Trailer) != 1 {
 				t.Errorf("trailer: %v", resp.Trailer)
 			}
 		})
@@ -473,7 +491,11 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			if resp.Trailer.Get(webapi.HeaderStatus) != `{"state":"terminated"}` || len(resp.Trailer) != 1 {
+			testStatusResponse(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+				State: "terminated",
+			})
+
+			if len(resp.Trailer) != 1 {
 				t.Errorf("trailer: %v", resp.Trailer)
 			}
 		})
@@ -502,7 +524,11 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			if resp.Trailer.Get(webapi.HeaderStatus) != `{"state":"terminated"}` || len(resp.Trailer) != 1 {
+			testStatusResponse(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+				State: "terminated",
+			})
+
+			if len(resp.Trailer) != 1 {
 				t.Errorf("trailer: %v", resp.Trailer)
 			}
 		})
@@ -608,15 +634,7 @@ func TestInstance(t *testing.T) {
 			t.Error(content)
 		}
 
-		var status webapi.Status
-
-		if err := json.Unmarshal([]byte(resp.Header.Get(webapi.HeaderStatus)), &status); err != nil {
-			t.Error(err)
-		}
-
-		if !reflect.DeepEqual(status, expect) {
-			t.Errorf("%#v", status)
-		}
+		testStatusResponse(t, resp.Header.Get(webapi.HeaderStatus), expect)
 	}
 
 	t.Run("ListEmpty", func(t *testing.T) {
@@ -726,7 +744,11 @@ func TestInstance(t *testing.T) {
 						t.Errorf("%q", content)
 					}
 
-					if resp.Trailer.Get(webapi.HeaderStatus) != `{"state":"running"}` || len(resp.Trailer) != 1 {
+					testStatusResponse(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+						State: "running",
+					})
+
+					if len(resp.Trailer) != 1 {
 						t.Errorf("trailer: %v", resp.Trailer)
 					}
 				}()
