@@ -384,7 +384,7 @@ func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 	} else {
 		switch mustPopParam(w, r, s, query, webapi.ParamAction) {
 		case webapi.ActionCall:
-			function := mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+			function := mustPopOptionalFunctionParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleCallWebsocket(w, r, s, nil, key, function)
 
@@ -412,12 +412,12 @@ func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, k
 
 	switch mustPopParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
-		function := mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+		function := mustPopOptionalFunctionParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleCallPost(w, r, s, detail.Op_CallRef, nil, key, function)
 
 	case webapi.ActionLaunch:
-		function := mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+		function := mustPopOptionalFunctionParam(w, r, s, query)
 		instance := mustPopOptionalParam(w, r, s, query, webapi.ParamInstance)
 		mustNotHaveParams(w, r, s, query)
 
@@ -450,7 +450,7 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 
 	switch mustPopParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
-		function := mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+		function := mustPopOptionalFunctionParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleCallWebsocket(w, r, s, source, key, function)
 
@@ -464,12 +464,12 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 
 	switch mustPopParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
-		function := mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+		function := mustPopOptionalFunctionParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleCallPost(w, r, s, detail.Op_CallSource, source, key, function)
 
 	case webapi.ActionLaunch:
-		function := mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+		function := mustPopOptionalFunctionParam(w, r, s, query)
 		instance := mustPopOptionalParam(w, r, s, query, webapi.ParamInstance)
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContentType(w, r, s)

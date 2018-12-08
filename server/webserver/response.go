@@ -156,6 +156,12 @@ func respondMissingQueryParam(w http.ResponseWriter, r *http.Request, s *webserv
 	reportProtocolError(r.Context(), s, nil, err)
 }
 
+func respondInvalidFunction(w http.ResponseWriter, r *http.Request, s *webserver, value string) {
+	err := fmt.Errorf("invalid function name: %q", value)
+	respond(w, r, http.StatusBadRequest, err.Error())
+	reportProtocolError(r.Context(), s, nil, err)
+}
+
 func respondDuplicateQueryParam(w http.ResponseWriter, r *http.Request, s *webserver) {
 	respond(w, r, http.StatusBadRequest, errDuplicateQueryParam.Error())
 	reportProtocolError(r.Context(), s, nil, errDuplicateQueryParam)

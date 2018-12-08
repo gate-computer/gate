@@ -121,6 +121,15 @@ func mustPopOptionalParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
+func mustPopOptionalFunctionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) (value string) {
+	value = mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+	if value != "" && !webapi.FunctionRegexp.MatchString(value) {
+		respondInvalidFunction(w, r, s, value)
+		panic(nil)
+	}
+	return
+}
+
 func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) {
 	if len(query) > 0 {
 		respondExcessQueryParams(w, r, s)
