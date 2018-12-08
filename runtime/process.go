@@ -60,6 +60,7 @@ type Process struct {
 	execution execProcess // Executor's low-level process state.
 	writer    *os.File
 	reader    *os.File
+	suspended chan struct{}
 	debugging <-chan struct{}
 }
 
@@ -128,14 +129,15 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 		return
 	}
 
+	p.writer = inputW
+	p.reader = outputR
+	p.suspended = make(chan struct{}, 1)
+
 	if debug != nil {
 		done := make(chan struct{})
 		go copyDebug(done, debug, debugR)
 		p.debugging = done
 	}
-
-	p.writer = inputW
-	p.reader = outputR
 
 	exeImage = nil
 	inputR = nil
@@ -150,7 +152,8 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 // Start the program.  The executable must be the one that was referenced in
 // NewProcess, and it must have been built by now.
 //
-// This function can be called before or during Serve.
+// This function must be called before Serve, and must not be called after
+// Kill.
 func (p *Process) Start(exe *image.Executable, initRoutine InitRoutine) (err error) {
 	manifest := exe.Manifest().(*executable.Manifest)
 
@@ -181,18 +184,14 @@ func (p *Process) Start(exe *image.Executable, initRoutine InitRoutine) (err err
 	}
 
 	// imageInfo fits into pipe buffer so this doesn't block.
-	err = binary.Write(p.writer, binary.LittleEndian, &info)
-	if err != nil {
-		return
-	}
-
-	return
+	return binary.Write(p.writer, binary.LittleEndian, &info)
 }
 
-// Serve the user program until it terminates.
+// Serve the user program until it terminates.  Canceling the context suspends
+// the program.
 //
-// Nothing happens until Start is called, so this can be called even before
-// the executable is built.
+// Start must have been called before this.  This must not be called after
+// Kill.
 func (p *Process) Serve(ctx context.Context, services ServiceRegistry,
 ) (exit int, trapID trap.ID, err error) {
 	err = ioLoop(ctx, services, p)
@@ -237,7 +236,22 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry,
 	}
 }
 
-// Kill the process.  Serve call will return.  Can be called multiple times.
+// Suspend the program unless the process has already been terminated.  Serve
+// call will return with github.com/tsavola/wag/trap.Suspended error.  This is
+// a no-op if the process has already been killed or suspended.
+//
+// This can be called concurrently with Start, Serve and Kill.
+func (p *Process) Suspend() {
+	select {
+	case p.suspended <- struct{}{}:
+	default:
+	}
+}
+
+// Kill the process and release resources.  If the program has been suspended
+// successfully, this only releases resources.
+//
+// This function can be called multiple times.
 func (p *Process) Kill() {
 	if p.reader == nil {
 		return
@@ -254,7 +268,7 @@ func (p *Process) Kill() {
 	}
 }
 
-func (p *Process) suspend() {
+func (p *Process) killSuspend() {
 	p.execution.kill(true)
 }
 

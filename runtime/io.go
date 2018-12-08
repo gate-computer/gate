@@ -28,8 +28,6 @@ type read struct {
 }
 
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
-	done := ctx.Done()
-
 	config := &ServiceConfig{
 		MaxPacketSize: maxPacketSize,
 	}
@@ -61,6 +59,20 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 		pendingMsg packet.Buf
 		pendingEvs []packet.Buf
 	)
+
+	var (
+		suspended = subject.suspended
+		done      = ctx.Done()
+	)
+	doSuspend := func() {
+		suspended = nil
+		done = nil
+
+		subject.killSuspend()
+
+		close(subjectOutput)
+		subjectOutput = nil
+	}
 
 	for subjectInput != nil || pendingMsg != nil {
 		var (
@@ -123,13 +135,11 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 				pendingEvs = pendingEvs[1:]
 			}
 
+		case <-suspended:
+			doSuspend()
+
 		case <-done:
-			done = nil
-
-			subject.suspend()
-
-			close(subjectOutput)
-			subjectOutput = nil
+			doSuspend()
 		}
 	}
 
