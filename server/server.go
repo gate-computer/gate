@@ -825,7 +825,7 @@ func (s *Server) registerInstance(acc *account, prog *program, inst *Instance, f
 
 	// Instance lock doesn't need to be held because the instance hasn't been
 	// shared via s.instances yet.
-	inst.status.State = serverapi.Status_RUNNING
+	inst.status.State = serverapi.Status_running
 
 	s.lock.Lock()
 	defer s.lock.Unlock()

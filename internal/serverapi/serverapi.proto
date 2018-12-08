@@ -18,38 +18,18 @@ message ModuleRefs {
 
 message Status {
 	enum State {
-		option allow_alias = true;
-
-		NONEXISTENT = 0;
-
-		running = 1; // JSON
-		RUNNING = 1;
-
-		hibernating = 2; // JSON
-		HIBERNATING = 2;
-
-		terminated = 3; // JSON
-		TERMINATED = 3;
+		nonexistent = 0;
+		running = 1;
+		suspended = 2;
+		terminated = 3;
 	}
 
 	enum Cause {
-		option allow_alias = true;
+		// Traps:
 
-		TRAP = 0;
-
-		kill = 1; // JSON
-		KILL = 1;
-
-		violation = 2; // JSON
-		VIOLATION = 2;
-	}
-
-	enum TrapId {
-		EXIT = 0;
-
-		// JSON:
+		natural = 0; // exit or suspended
 		no_function = 1;
-		suspended = 2;
+		// "suspended" trap id is replaced with "natural"
 		unreachable = 3;
 		call_stack_exhausted = 4;
 		memory_access_out_of_bounds = 5;
@@ -57,13 +37,16 @@ message Status {
 		indirect_call_signature_mismatch = 7;
 		integer_divide_by_zero = 8;
 		integer_overflow = 9;
+
+		// Other:
+
+		abi_violation = 65;
 	}
 
 	State state = 1;
 	Cause cause = 2;
-	TrapId trap = 3;
-	int32 exit = 4;
-	string error = 5;
+	int32 result = 3;
+	string error = 4;
 }
 
 message InstanceStatus {

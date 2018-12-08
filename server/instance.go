@@ -190,8 +190,8 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 
 		switch err.(type) {
 		case badprogram.Error:
-			result.State = serverapi.Status_TERMINATED
-			result.Cause = serverapi.Status_VIOLATION
+			result.State = serverapi.Status_terminated
+			result.Cause = serverapi.Status_abi_violation
 
 			reportProgramError(ctx, s, inst.account, inst.progHash, inst.function, inst.id, err)
 
@@ -202,10 +202,16 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 		return
 	}
 
-	result.State = serverapi.Status_TERMINATED
-	result.Cause = serverapi.Status_TRAP
-	result.Trap = serverapi.Status_TrapId(trapID)
-	result.Exit = int32(exit)
+	switch trapID {
+	case trap.Suspended:
+		result.State = serverapi.Status_suspended
+
+	default:
+		result.State = serverapi.Status_terminated
+		result.Cause = serverapi.Status_Cause(trapID)
+		result.Result = int32(exit)
+	}
+
 	result.Error = ""
 	return
 }

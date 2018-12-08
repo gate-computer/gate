@@ -13,9 +13,8 @@ import (
 
 func TestStatusJSON(t *testing.T) {
 	status := &serverapi.Status{
-		State: serverapi.Status_TERMINATED,
-		Cause: serverapi.Status_VIOLATION,
-		Trap:  serverapi.Status_TrapId(trap.MemoryAccessOutOfBounds),
+		State: serverapi.Status_terminated,
+		Cause: serverapi.Status_Cause(trap.MemoryAccessOutOfBounds),
 	}
 
 	t.Log(status)
@@ -25,7 +24,7 @@ func TestStatusJSON(t *testing.T) {
 		t.Error(err)
 	}
 
-	if s := string(data); s != `{"state":"terminated","cause":"violation","trap":"memory_access_out_of_bounds"}` {
+	if s := string(data); s != `{"state":"terminated","cause":"memory_access_out_of_bounds"}` {
 		t.Error(s)
 	}
 }
