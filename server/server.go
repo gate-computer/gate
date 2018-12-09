@@ -284,7 +284,7 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, al
 // SourceModuleInstance creates a new module reference and instantiates it.
 // Module content is read from a source.  Instance id is optional.
 func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, source Source, uri, function, instID string,
-) (inst *Instance, err error) {
+) (progHash string, inst *Instance, err error) {
 	var pol instProgPolicy
 
 	err = s.AccessPolicy.AuthorizeInstanceProgramSource(ctx, pri, &pol.res, &pol.inst, &pol.prog, source)
@@ -310,7 +310,13 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, so
 		return
 	}
 
-	return s.loadModuleInstance(ctx, acc, &pol, "", content, int64(size), function, instID)
+	inst, err = s.loadModuleInstance(ctx, acc, &pol, "", content, int64(size), function, instID)
+	if err != nil {
+		return
+	}
+
+	progHash = inst.progHash
+	return
 }
 
 func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, function, instID string,

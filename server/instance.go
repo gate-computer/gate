@@ -119,8 +119,9 @@ func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
 	return
 }
 
-func (inst *Instance) ID() string        { return inst.id }
-func (inst *Instance) ModuleKey() string { return inst.progHash }
+func (inst *Instance) ID() string {
+	return inst.id
+}
 
 func (inst *Instance) PrincipalID() (s string) {
 	if inst.account != nil {

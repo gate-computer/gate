@@ -611,12 +611,16 @@ func handleCallPost(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
-	var pri *server.PrincipalKey
-	var inst *server.Instance
-	var err error
+	var (
+		pri      *server.PrincipalKey
+		progHash string
+		inst     *server.Instance
+		err      error
+	)
 
 	if source == nil {
 		pri = mustParseAuthorizationHeader(ctx, wr, s)
+		progHash = key
 
 		inst, err = s.CreateInstance(ctx, pri, key, function, "")
 		if err != nil {
@@ -626,7 +630,7 @@ func handleCallPost(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	} else {
 		pri = mustParseOptionalAuthorizationHeader(ctx, wr, s)
 
-		inst, err = s.SourceModuleInstance(ctx, pri, source, key, function, "")
+		progHash, inst, err = s.SourceModuleInstance(ctx, pri, source, key, function, "")
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, wr, s, pri, key, "", function, "", err)
@@ -638,7 +642,7 @@ func handleCallPost(w http.ResponseWriter, r *http.Request, s *webserver, op det
 
 	if pri != nil {
 		if source != nil {
-			w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+inst.ModuleKey())
+			w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
 		}
 		w.Header().Set(webapi.HeaderInstance, inst.ID())
 	}
@@ -724,12 +728,16 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	w := newWebsocketWriter(conn)
 
-	var pri *server.PrincipalKey
-	var inst *server.Instance
+	var (
+		pri      *server.PrincipalKey
+		progHash string
+		inst     *server.Instance
+	)
 
 	switch {
 	case content:
 		pri = mustParseOptionalAuthorization(ctx, w, s, r.Authorization)
+		progHash = key
 
 		frameType, frame, err := conn.NextReader()
 		if err != nil {
@@ -750,6 +758,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	case source == nil:
 		pri = mustParseAuthorization(ctx, w, s, r.Authorization)
+		progHash = key
 
 		inst, err = s.CreateInstance(ctx, pri, key, function, "")
 		if err != nil {
@@ -760,7 +769,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		pri = mustParseOptionalAuthorization(ctx, w, s, r.Authorization)
 
-		inst, err = s.SourceModuleInstance(ctx, pri, source, key, function, "")
+		progHash, inst, err = s.SourceModuleInstance(ctx, pri, source, key, function, "")
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, w, s, pri, key, "", function, "", err)
@@ -771,7 +780,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	var reply webapi.CallConnection
 	if pri != nil {
 		if source != nil {
-			reply.Location = s.pathModuleRefs + inst.ModuleKey()
+			reply.Location = s.pathModuleRefs + progHash
 		}
 		reply.Instance = inst.ID()
 	}
@@ -803,17 +812,22 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s)
 
-	var inst *server.Instance
-	var err error
+	var (
+		progHash string
+		inst     *server.Instance
+		err      error
+	)
 
 	if source == nil {
+		progHash = key
+
 		inst, err = s.CreateInstance(ctx, pri, key, function, instID)
 		if err != nil {
 			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
 			return
 		}
 	} else {
-		inst, err = s.SourceModuleInstance(ctx, pri, source, key, function, instID)
+		progHash, inst, err = s.SourceModuleInstance(ctx, pri, source, key, function, instID)
 		if err != nil {
 			respondServerError(ctx, wr, s, pri, key, "", function, "", err)
 			return
@@ -827,7 +841,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	if source == nil {
 		w.WriteHeader(http.StatusOK)
 	} else {
-		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+inst.ModuleKey())
+		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
 		w.WriteHeader(http.StatusCreated)
 	}
 }
@@ -846,7 +860,7 @@ func handleLaunchContent(w http.ResponseWriter, r *http.Request, s *webserver, k
 	go s.runBackgroundInstance(inst)
 
 	w.Header().Set(webapi.HeaderInstance, inst.ID())
-	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+inst.ModuleKey())
+	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+key)
 	w.WriteHeader(http.StatusCreated)
 }
 
