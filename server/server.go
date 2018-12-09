@@ -824,7 +824,7 @@ func (s *Server) getInstance(pri *PrincipalKey, instID string) (inst *Instance, 
 	return
 }
 
-func (s *Server) newInstance(ctx context.Context, acc *account, servicePolicy ServicePolicy, id string,
+func (s *Server) newInstance(ctx context.Context, acc *account, servicePolicy func() InstanceServices, id string,
 ) (inst *Instance, err error) {
 	if servicePolicy == nil {
 		err = AccessForbidden("no service policy")

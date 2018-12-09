@@ -35,9 +35,9 @@ type ProgramPolicy struct {
 }
 
 type InstancePolicy struct {
-	MaxMemorySize int           // Linear memory growth limit.
-	StackSize     int           // Including system/runtime overhead.
-	Services      ServicePolicy // Defines the set of available services.
+	MaxMemorySize int                     // Linear memory growth limit.
+	StackSize     int                     // Including system/runtime overhead.
+	Services      func() InstanceServices // Defines the set of available services.
 }
 
 // AccessAuthorizer authenticates, authorizes and limits access to Server
@@ -204,7 +204,7 @@ type PublicAccess struct {
 	AccessConfig
 }
 
-func NewPublicAccess(services ServicePolicy) (p *PublicAccess) {
+func NewPublicAccess(services func() InstanceServices) (p *PublicAccess) {
 	p = new(PublicAccess)
 	p.Services = services
 	return

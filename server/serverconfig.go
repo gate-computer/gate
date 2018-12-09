@@ -42,8 +42,6 @@ func NewInstanceServices(r runtime.ServiceRegistry, c InstanceConnector) Instanc
 	return &instanceServices{r, c}
 }
 
-type ServicePolicy func() InstanceServices
-
 type Event interface {
 	EventName() string
 	EventType() int32
