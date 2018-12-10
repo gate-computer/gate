@@ -27,7 +27,8 @@ enum Op {
 	InstanceList = 11;
 	InstanceConnect = 12;
 	InstanceStatus = 13;
-	InstanceSuspend = 14;
+	InstanceWait = 14;
+	InstanceSuspend = 15;
 }
 
 message Context {

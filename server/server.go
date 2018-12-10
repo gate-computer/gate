@@ -631,6 +631,37 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *PrincipalKey, instID s
 	return
 }
 
+func (s *Server) WaitInstance(ctx context.Context, pri *PrincipalKey, instID string,
+) (status Status, err error) {
+	err = s.AccessPolicy.Authorize(ctx, pri)
+	if err != nil {
+		return
+	}
+
+	inst, found := s.getInstance(pri, instID)
+	if !found {
+		err = resourcenotfound.ErrInstance
+		return
+	}
+
+	select {
+	case <-inst.stopped:
+		// ok
+
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	}
+
+	status = inst.Status()
+
+	s.Monitor(&event.InstanceWait{
+		Ctx:      Context(ctx, pri),
+		Instance: inst.id,
+	}, nil)
+	return
+}
+
 func (s *Server) SuspendInstance(ctx context.Context, pri *PrincipalKey, instID string,
 ) (status Status, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)

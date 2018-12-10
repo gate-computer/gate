@@ -31,7 +31,8 @@ message Event {
 		InstanceConnect = 16;
 		InstanceDisconnect = 17;
 		InstanceStatus = 18;
-		InstanceSuspend = 19;
+		InstanceWait = 19;
+		InstanceSuspend = 20;
 	}
 }
 
@@ -162,6 +163,11 @@ message InstanceDisconnect {
 }
 
 message InstanceStatus {
+	detail.Context ctx = 1;
+	string instance = 2;
+}
+
+message InstanceWait {
 	detail.Context ctx = 1;
 	string instance = 2;
 }

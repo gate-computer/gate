@@ -61,6 +61,7 @@ const (
 const (
 	ActionIO      = "io"      // Post or websocket.
 	ActionStatus  = "status"  // Post.
+	ActionWait    = "wait"    // Post.
 	ActionSuspend = "suspend" // Post.
 )
 

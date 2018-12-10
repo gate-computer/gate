@@ -698,6 +698,19 @@ func TestInstance(t *testing.T) {
 			}
 		})
 
+		t.Run("Wait", func(t *testing.T) {
+			req := newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+			resp, _ := doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusNoContent {
+				t.Fatal(resp.Status)
+			}
+
+			testStatusResponse(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+				State: "terminated",
+			})
+		})
+
 		for i := 0; i < 3; i++ {
 			t.Run(fmt.Sprintf("StatusTerminated%d", i), func(t *testing.T) {
 				t.Parallel()

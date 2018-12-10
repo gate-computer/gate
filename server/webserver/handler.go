@@ -512,6 +512,10 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 		mustNotHaveParams(w, r, s, query)
 		handleInstance(w, r, s, detail.Op_InstanceStatus, (*server.Server).InstanceStatus, instance)
 
+	case webapi.ActionWait:
+		mustNotHaveParams(w, r, s, query)
+		handleInstance(w, r, s, detail.Op_InstanceWait, (*server.Server).WaitInstance, instance)
+
 	case webapi.ActionSuspend:
 		mustNotHaveParams(w, r, s, query)
 		handleInstance(w, r, s, detail.Op_InstanceSuspend, (*server.Server).SuspendInstance, instance)
