@@ -11,6 +11,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"regexp"
 
 	"github.com/tsavola/gate/internal/serverapi"
@@ -149,11 +150,33 @@ type Claims struct {
 
 // Status response header.
 type Status struct {
-	State string `json:"state,omitempty"`
-	Cause string `json:"cause,omitempty"`
-	Trap  string `json:"trap,omitempty"`
-	Exit  int    `json:"exit,omitempty"`
-	Error string `json:"error,omitempty"`
+	State  string `json:"state,omitempty"`
+	Cause  string `json:"cause,omitempty"`
+	Result int    `json:"result,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+func (status Status) String() (s string) {
+	if status.State == "" {
+		if status.Error == "" {
+			return "error"
+		} else {
+			return fmt.Sprintf("error: %s", status.Error)
+		}
+	}
+
+	s = status.State
+
+	if status.Cause != "" {
+		s = fmt.Sprintf("%s abnormally: %s", s, status.Cause)
+	} else if status.State == "terminated" {
+		s = fmt.Sprintf("%s with result %d", s, status.Result)
+	}
+
+	if status.Error != "" {
+		s = fmt.Sprintf("%s; error: %s", s, status.Error)
+	}
+	return
 }
 
 // Response to PathModuleRefs request.

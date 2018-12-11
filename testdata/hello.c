@@ -253,6 +253,12 @@ void multi(void)
 	}
 }
 
+int fail(void)
+{
+	gate_debug("exiting with return value 1\n");
+	return 1;
+}
+
 int test_plugin(void)
 {
 	int16_t origin_code;

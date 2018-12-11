@@ -16,7 +16,7 @@ all: $(patsubst %.c,%.wasm,$(wildcard *.c)) nop.wasm
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $*.o
 	chmod -x $@
 
-hello.wasm: LDFLAGS += -Wl,--export=twice -Wl,--export=multi -Wl,--export=test_plugin
+hello.wasm: LDFLAGS += -Wl,--export=twice -Wl,--export=multi -Wl,--export=fail -Wl,--export=test_plugin
 
 nop.wasm: nop.wat
 	$(WAT2WASM) -o $@ nop.wat

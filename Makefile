@@ -30,6 +30,7 @@ lib: $(GEN_LIB_SOURCES)
 	$(MAKE) -C runtime/loader
 
 bin: $(GEN_BIN_SOURCES)
+	$(GO) build $(GOBUILDFLAGS) -o bin/gate ./cmd/gate
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-run ./cmd/gate-run
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtimed ./cmd/gate-runtimed
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
@@ -59,7 +60,7 @@ install-lib-capabilities: install-lib
 
 install-bin:
 	install -m 755 -d $(DESTDIR)$(BINDIR)
-	install -m 755 bin/gate-runtimed bin/gate-run bin/gate-server $(DESTDIR)$(BINDIR)
+	install -m 755 bin/gate bin/gate-runtimed bin/gate-run bin/gate-server $(DESTDIR)$(BINDIR)
 
 install: install-lib install-bin
 install-capabilities: install-lib-capabilities install-bin

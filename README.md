@@ -53,11 +53,14 @@ Important Go packages:
 
 Programs:
 
-  - **gate-run**:
-    Run your programs locally, with the built-in and plugged-in services.
+  - **gate**:
+    Command-line HTTP client.  Uses SSH keys (ed25519) for authentication.
 
   - **gate-server**:
     Standalone HTTP server with the built-in and plugged-in services.
+
+  - **gate-run**:
+    Run your programs locally, with the built-in and plugged-in services.
 
   - **gate-runtimed**:
     For optionally preconfiguring the execution environment, e.g. as a system
