@@ -44,6 +44,7 @@ func newTestHandler(ctx context.Context) http.Handler {
 	}
 
 	webConfig := &Config{
+		Server:      server.New(ctx, serverConfig),
 		Authority:   "test",
 		AccessState: newTestAccessTracker(),
 		ModuleSources: map[string]server.Source{
@@ -51,7 +52,7 @@ func newTestHandler(ctx context.Context) http.Handler {
 		},
 	}
 
-	handler := NewHandler(ctx, "/", webConfig, server.New(ctx, serverConfig))
+	handler := NewHandler(ctx, "/", webConfig)
 
 	if testAccessLog {
 		handler = handlers.LoggingHandler(os.Stdout, handler)

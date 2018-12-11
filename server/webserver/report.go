@@ -19,7 +19,7 @@ func reportInternalError(ctx context.Context, s *webserver, pri *server.Principa
 		subsys = x.Subsystem()
 	}
 
-	s.Monitor(&event.FailInternal{
+	s.Server.Monitor(&event.FailInternal{
 		Ctx:       server.Context(ctx, pri),
 		Source:    sourceURI,
 		Module:    progHash,
@@ -30,19 +30,19 @@ func reportInternalError(ctx context.Context, s *webserver, pri *server.Principa
 }
 
 func reportNetworkError(ctx context.Context, s *webserver, err error) {
-	s.Monitor(&event.FailNetwork{
+	s.Server.Monitor(&event.FailNetwork{
 		Ctx: server.Context(ctx, nil),
 	}, err)
 }
 
 func reportProtocolError(ctx context.Context, s *webserver, pri *server.PrincipalKey, err error) {
-	s.Monitor(&event.FailProtocol{
+	s.Server.Monitor(&event.FailProtocol{
 		Ctx: server.Context(ctx, pri),
 	}, err)
 }
 
 func reportRequestError(ctx context.Context, s *webserver, pri *server.PrincipalKey, failType event.FailRequest_Type, sourceURI, progHash, function, instID string, err error) {
-	s.Monitor(&event.FailRequest{
+	s.Server.Monitor(&event.FailRequest{
 		Ctx:      server.Context(ctx, pri),
 		Failure:  failType,
 		Source:   sourceURI,
@@ -53,14 +53,14 @@ func reportRequestError(ctx context.Context, s *webserver, pri *server.Principal
 }
 
 func reportRequestFailure(ctx context.Context, s *webserver, pri *server.PrincipalKey, failType event.FailRequest_Type) {
-	s.Monitor(&event.FailRequest{
+	s.Server.Monitor(&event.FailRequest{
 		Ctx:     server.Context(ctx, pri),
 		Failure: failType,
 	}, nil)
 }
 
 func reportPayloadError(ctx context.Context, s *webserver, pri *server.PrincipalKey, err error) {
-	s.Monitor(&event.FailRequest{
+	s.Server.Monitor(&event.FailRequest{
 		Ctx:     server.Context(ctx, pri),
 		Failure: event.FailRequest_PayloadError,
 	}, err)

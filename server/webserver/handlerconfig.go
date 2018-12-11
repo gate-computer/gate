@@ -12,6 +12,7 @@ import (
 
 // Config for a web server.
 type Config struct {
+	Server        *server.Server
 	Authority     string        // External domain name with optional port number.
 	AccessState   AccessTracker // Remembers things within the Authority.
 	ModuleSources map[string]server.Source

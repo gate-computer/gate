@@ -380,8 +380,8 @@ func main() {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	state := server.New(ctx, &c.Server.Config)
-	handler := webserver.NewHandler(ctx, "/", &c.HTTP.Config, state)
+	c.HTTP.Server = server.New(ctx, &c.Server.Config)
+	handler := webserver.NewHandler(ctx, "/", &c.HTTP.Config)
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
