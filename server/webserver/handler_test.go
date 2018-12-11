@@ -75,7 +75,7 @@ func newSignedTestRequest(key *testKey, method, path string, content []byte) (re
 	req = newAnonTestRequest(key, method, path, content)
 	req.Header.Set(webapi.HeaderAuthorization, key.authorization(&webapi.Claims{
 		Exp:   time.Now().Add(time.Minute).Unix(),
-		Aud:   []string{"no", "https://test/v0"},
+		Aud:   []string{"no", "https://test/gate/v0"},
 		Nonce: strconv.Itoa(rand.Int()),
 	}))
 	return

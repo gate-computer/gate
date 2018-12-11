@@ -29,7 +29,7 @@ const ModuleRefHash = crypto.SHA384
 
 // Request URL paths.
 const (
-	Path           = "/v0"                               // The API.
+	Path           = "/gate/v0"                          // The API.
 	PathModule     = Path + "/module"                    // Base of relative module URIs.
 	PathModules    = PathModule + "/"                    // Module sources.
 	PathModuleRefs = PathModules + ModuleRefSource + "/" // Module reference keys.

@@ -23,7 +23,7 @@ must be unique during the expiration period.
 
 The "aud" claim may be specified in order to prevent misdirected requests.
 Suitable audience string is the HTTPS URL of the API,
-e.g. `https://gate.example.net/v0` or `https://example.net/gate/v0`.
+e.g. `https://example.net/gate/v0`.
 
 
 ## Function name
