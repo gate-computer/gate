@@ -361,8 +361,8 @@ func main() {
 		critLog.Fatalf("unknown server.debug option: %q", c.Server.Debug)
 	}
 
-	if c.HTTP.Authority != "" {
-		c.HTTP.Authority = c.HTTP.Addr
+	if c.HTTP.Authority == "" {
+		c.HTTP.Authority = strings.Split(c.HTTP.Addr, ":")[0]
 	}
 	c.HTTP.AccessState = accesstracker.NewDefault()
 
