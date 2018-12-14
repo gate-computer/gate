@@ -218,8 +218,7 @@ type IO struct {
 
 // Reply to IO message.
 type IOConnection struct {
-	Connected bool   `json:"connected"`
-	Status    Status `json:"status,omitempty"` // Instance status when not connected.
+	Connected bool `json:"connected"`
 }
 
 // Second and final text message on successful ActionCall or ActionIO websocket

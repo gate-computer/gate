@@ -26,3 +26,11 @@ func MarshalJSON(x proto.Message) (b []byte, err error) {
 	b = buf.Bytes()
 	return
 }
+
+func MustMarshalJSON(x proto.Message) (b []byte) {
+	b, err := MarshalJSON(x)
+	if err != nil {
+		panic(err)
+	}
+	return
+}

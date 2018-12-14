@@ -567,7 +567,7 @@ func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string
 }
 
 func (s *Server) InstanceConnection(ctx context.Context, pri *PrincipalKey, instID string,
-) (connIO func(context.Context, io.Reader, io.Writer) error, inst *Instance, err error) {
+) (connIO func(context.Context, io.Reader, io.Writer) (Status, error), err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
@@ -589,7 +589,7 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *PrincipalKey, inst
 		return
 	}
 
-	connIO = func(ctx context.Context, r io.Reader, w io.Writer) (err error) {
+	connIO = func(ctx context.Context, r io.Reader, w io.Writer) (status Status, err error) {
 		s.Monitor(&event.InstanceConnect{
 			Ctx:      Context(ctx, pri),
 			Instance: inst.id,
@@ -603,6 +603,11 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *PrincipalKey, inst
 		}()
 
 		err = conn(ctx, r, w)
+		if err != nil {
+			return
+		}
+
+		status = inst.Status()
 		return
 	}
 	return

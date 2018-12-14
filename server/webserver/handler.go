@@ -922,36 +922,33 @@ func handleIOPost(w http.ResponseWriter, r *http.Request, s *webserver, instID s
 	content := mustDecodeContent(ctx, wr, s, pri)
 	defer content.Close()
 
-	connIO, inst, err := s.Server.InstanceConnection(ctx, pri, instID)
+	connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
 	if err != nil {
 		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
 		return
 	}
-
-	if connIO != nil {
-		w.Header().Set("Trailer", webapi.HeaderStatus)
-		w.WriteHeader(http.StatusOK)
-
-		if connIO(ctx, content, w) != nil {
-			// Network error has already been reported by connIO.
-			return
-		}
+	if connIO == nil {
+		w.WriteHeader(http.StatusConflict)
+		return
 	}
 
-	status := inst.Status()
+	w.Header().Set("Trailer", webapi.HeaderStatus)
+	w.WriteHeader(http.StatusOK)
+
+	status, err := connIO(ctx, content, w)
+	if err != nil {
+		// Network error has already been reported by connIO.
+		return
+	}
 
 	statusJSON := statusInternalServerErrorJSON
 	if data, err := serverapi.MarshalJSON(&status); err == nil {
 		statusJSON = string(data)
 	} else {
-		reportInternalError(ctx, s, pri, "", "", "", inst.ID(), err)
+		reportInternalError(ctx, s, pri, "", "", "", instID, err)
 	}
 
 	w.Header().Set(webapi.HeaderStatus, statusJSON)
-
-	if connIO == nil {
-		w.WriteHeader(http.StatusConflict)
-	}
 }
 
 func handleIOWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, instID string) {
@@ -983,7 +980,7 @@ func handleIOWebsocket(response http.ResponseWriter, request *http.Request, s *w
 	w := newWebsocketWriter(conn)
 	pri := mustParseAuthorization(ctx, w, s, r.Authorization)
 
-	connIO, inst, err := s.Server.InstanceConnection(ctx, pri, instID)
+	connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
 	if err != nil {
 		respondServerError(ctx, w, s, pri, "", "", "", instID, err)
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
@@ -994,18 +991,7 @@ func handleIOWebsocket(response http.ResponseWriter, request *http.Request, s *w
 		Connected: connIO != nil,
 	}
 
-	if connIO == nil {
-		reply.Status = inst.Status()
-	}
-
-	data, err := serverapi.MarshalJSON(reply)
-	if err != nil {
-		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
-		reportInternalError(ctx, s, pri, "", "", "", "", err)
-		return
-	}
-
-	err = conn.WriteMessage(websocket.TextMessage, data)
+	err = conn.WriteMessage(websocket.TextMessage, serverapi.MustMarshalJSON(reply))
 	if err != nil {
 		reportNetworkError(ctx, s, err)
 		return
@@ -1016,16 +1002,15 @@ func handleIOWebsocket(response http.ResponseWriter, request *http.Request, s *w
 		return
 	}
 
-	if connIO(ctx, newWebsocketReader(conn), newWebsocketWriter(conn)) != nil {
+	goodbye := &serverapi.ConnectionStatus{}
+
+	goodbye.Status, err = connIO(ctx, newWebsocketReader(conn), newWebsocketWriter(conn))
+	if err != nil {
 		// Network error has already been reported by connIO.
 		return
 	}
 
-	goodbye := &serverapi.ConnectionStatus{
-		Status: inst.Status(),
-	}
-
-	data, err = serverapi.MarshalJSON(goodbye)
+	data, err := serverapi.MarshalJSON(goodbye)
 	if err != nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		reportInternalError(ctx, s, pri, "", "", "", "", err)
