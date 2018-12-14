@@ -88,7 +88,7 @@ measures:
   - Program code is mapped the same way as linear memory.
 
   - [Retpoline](https://support.google.com/faqs/answer/7625886) is used for
-    indirect calls and jumps x86-64.
+    indirect calls and jumps (x86-64).
 
   - The designated function return value register is cleared by void functions
     to avoid information leaks (e.g. internal pointers) if there would be a
@@ -156,7 +156,8 @@ Processes running in the container are configured in these ways:
 
   - A process is killed automatically if its parent dies.
 
-  - The processes cannot be granted capabilities by any means.
+  - The processes cannot gain privileges or capabilities via execve (e.g. if
+    the executor or loader binary is misconfigured as setuid root).
 
   - Out-of-memory score adjustment is set to maximum.
 
