@@ -44,6 +44,7 @@ import (
 const (
 	DefaultInstanceStore  = "memory"
 	DefaultProgramStorage = "memory"
+	DefaultIndexStatus    = http.StatusNotFound
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -62,7 +63,7 @@ const (
 	connFileOverhead = 1 + forkFileOverhead
 )
 
-type Config struct {
+var c = new(struct {
 	Runtime runtime.Config
 
 	Image struct {
@@ -114,6 +115,11 @@ type Config struct {
 			Enabled bool
 			Domains []string
 		}
+
+		Index struct {
+			Status   int
+			Location string
+		}
 	}
 
 	ACME struct {
@@ -139,9 +145,9 @@ type Config struct {
 		Syslog  bool
 		Verbose bool
 	}
-}
+})
 
-func parseConfig(flags *flag.FlagSet, c *Config) {
+func parseConfig(flags *flag.FlagSet) {
 	flags.Var(confi.FileReader(c), "f", "read TOML configuration file")
 	flags.Var(confi.Assigner(c), "c", "set a configuration key (path.to.key=value)")
 	flags.Parse(os.Args[1:])
@@ -155,7 +161,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	c := new(Config)
 	c.Runtime.MaxProcs = runtime.DefaultMaxProcs
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
@@ -168,6 +173,7 @@ func main() {
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
 	c.HTTP.TLS.Domains = []string{"example.invalid"}
+	c.HTTP.Index.Status = DefaultIndexStatus
 	c.ACME.CacheDir = "/var/lib/gate-server-acme"
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 	c.Monitor.BufSize = monitor.DefaultBufSize
@@ -176,7 +182,7 @@ func main() {
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
-	parseConfig(flags, c)
+	parseConfig(flags)
 
 	plugins, err := plugin.List(c.Plugin.LibDir)
 	if err != nil {
@@ -205,7 +211,7 @@ func main() {
 	}
 
 	flag.Usage = confi.FlagUsage(nil, c)
-	parseConfig(flag.CommandLine, c)
+	parseConfig(flag.CommandLine)
 
 	ctx := context.Background()
 
@@ -381,7 +387,7 @@ func main() {
 	}
 
 	c.HTTP.Server = server.New(ctx, &c.Server.Config)
-	handler := webserver.NewHandler(ctx, "/", &c.HTTP.Config)
+	handler := newHTTPSHandler(webserver.NewHandler(ctx, "/", &c.HTTP.Config))
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
@@ -445,16 +451,38 @@ func main() {
 	critLog.Fatal(s.Serve(l))
 }
 
+func newHTTPSHandler(gate http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			if s := c.HTTP.Index.Location; s != "" {
+				w.Header().Set("Location", s)
+			}
+			w.WriteHeader(c.HTTP.Index.Status)
+		} else {
+			gate.ServeHTTP(w, r)
+		}
+	})
+}
+
 func handleHTTP(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusNotFound
 	message := "not found"
 
-	if r.URL.Path == webapi.Path || strings.HasPrefix(r.URL.Path, webapi.Path+"/") {
+	switch {
+	case r.URL.Path == "/":
+		status = c.HTTP.Index.Status
+		message = ""
+
+		if s := c.HTTP.Index.Location; s != "" {
+			w.Header().Set("Location", s)
+		}
+
+	case r.URL.Path == webapi.Path || strings.HasPrefix(r.URL.Path, webapi.Path+"/"):
 		status = http.StatusMisdirectedRequest
 		message = "HTTP scheme not supported"
 	}
 
-	if acceptsText(r) {
+	if message != "" && acceptsText(r) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(status)
 		fmt.Fprintln(w, message)
