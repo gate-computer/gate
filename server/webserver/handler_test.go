@@ -726,7 +726,8 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedTestRequest(key, http.MethodPost, webapi.PathModule+"/test/hello?action=launch&function=multi", nil)
+			req := newSignedTestRequest(key, http.MethodPost, webapi.PathModuleRefs+testHashHello+"?action=launch&function=multi", testProgHello)
+			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := doTest(t, handler, req)
 
 			if resp.StatusCode != http.StatusCreated {
