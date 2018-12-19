@@ -23,8 +23,8 @@ type InstanceConnector interface {
 	// connection was made.
 	Connect(context.Context) func(context.Context, io.Reader, io.Writer) error
 
-	// Close disconnects remaining connections.  Connect must not be called
-	// after this.
+	// Close disconnects remaining connections.  Currently blocked and future
+	// Connect calls will return nil.
 	Close() error
 }
 

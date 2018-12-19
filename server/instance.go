@@ -153,7 +153,6 @@ func (inst *Instance) kill() (err error) {
 
 	if inst.services != nil {
 		err = inst.services.Close()
-		inst.services = nil
 	}
 	return
 }
