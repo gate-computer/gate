@@ -157,7 +157,9 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 		return
 	}
 
-	s.registerProgram(acc, prog)
+	if replaced := s.registerProgram(acc, prog); replaced {
+		prog.Close()
+	}
 
 	s.Monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
@@ -174,6 +176,9 @@ func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *pro
 	}
 
 	found = s.registerProgram(acc, prog)
+	if found {
+		prog.Close()
+	}
 
 	if found {
 		s.Monitor(&event.ModuleUploadExist{
@@ -232,7 +237,12 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		}
 	}()
 
-	err = prog.execute(ctx, inst.ref, inst.process, &pol.inst, entryAddr)
+	inst.exe, err = prog.loadExecutable(ctx, inst.ref, &pol.inst, entryAddr)
+	if err != nil {
+		return
+	}
+
+	err = inst.process.Start(inst.exe, runtime.InitStart)
 	if err != nil {
 		return
 	}
@@ -315,7 +325,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, so
 		return
 	}
 
-	progHash = inst.progHash
+	progHash = inst.prog.hash
 	return
 }
 
@@ -400,7 +410,12 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	err = prog.execute(ctx, inst.ref, inst.process, &pol.inst, entryAddr)
+	inst.exe, err = prog.loadExecutable(ctx, inst.ref, &pol.inst, entryAddr)
+	if err != nil {
+		return
+	}
+
+	err = inst.process.Start(inst.exe, runtime.InitStart)
 	if err != nil {
 		return
 	}
@@ -425,13 +440,14 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 
 func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, inst *Instance, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, function string,
 ) (found bool, err error) {
-	exe, prog, err := compileProgram(ctx, inst.ref, &pol.inst, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, function)
+	var prog *program
+
+	inst.exe, prog, err = compileProgram(ctx, inst.ref, &pol.inst, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, function)
 	if err != nil {
 		return
 	}
-	defer exe.Close()
 
-	err = inst.process.Start(exe, runtime.InitStart)
+	err = inst.process.Start(inst.exe, runtime.InitStart)
 	if err != nil {
 		return
 	}
@@ -697,6 +713,40 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *PrincipalKey, instID 
 	return
 }
 
+func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID string,
+) (moduleKey string, err error) {
+	err = s.AccessPolicy.Authorize(ctx, pri)
+	if err != nil {
+		return
+	}
+
+	// TODO: check module storage limits
+
+	inst, found := s.getInstance(pri, instID)
+	if !found {
+		err = resourcenotfound.ErrInstance
+		return
+	}
+
+	prog, err := inst.snapshotModule(ctx, s.ProgramStorage)
+	if err != nil {
+		return
+	}
+
+	if replaced := s.registerProgram(inst.account, prog); replaced {
+		prog.Close()
+	}
+
+	s.Monitor(&event.InstanceSnapshot{
+		Ctx:      Context(ctx, pri),
+		Instance: inst.id,
+		Module:   prog.hash,
+	}, nil)
+
+	moduleKey = prog.hash
+	return
+}
+
 func (s *Server) Instances(ctx context.Context, pri *PrincipalKey) (is Instances, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -804,6 +854,9 @@ func (s *Server) registerProgram(acc *account, prog *program) (progFound bool) {
 	if progFound {
 		prog = existingProg
 	} else {
+		if prog.orig != nil {
+			prog.orig.refCount++ // It wasn't referenced when program object was created.
+		}
 		s.programs[prog.hash] = prog
 	}
 
@@ -909,7 +962,7 @@ func (s *Server) registerInstance(acc *account, prog *program, inst *Instance, f
 		s.programs[prog.hash] = prog
 	}
 
-	inst.progHash = prog.hash
+	inst.prog = prog
 	prog.refCount++ // Referenced by instance.
 
 	if acc == nil {

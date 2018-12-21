@@ -28,6 +28,8 @@ import (
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/webapi"
+	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/wa"
 )
 
 const testAccessLog = false
@@ -808,7 +810,54 @@ func TestInstance(t *testing.T) {
 				State: "suspended",
 			})
 		})
+
+		t.Run("Snapshot", func(t *testing.T) {
+			req := newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
+			resp, content := doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusCreated {
+				t.Fatal(resp.Status)
+			}
+
+			location := resp.Header.Get(webapi.HeaderLocation)
+			if location == "" {
+				t.Fatal("no module location")
+			}
+
+			req = newSignedTestRequest(key, http.MethodGet, location, nil)
+			resp, content = doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatal(resp.Status)
+			}
+
+			{
+				f, err := os.Create("/tmp/test.wasm")
+				if err != nil {
+					t.Error(err)
+				} else {
+					defer f.Close()
+					if _, err := f.Write(content); err != nil {
+						t.Error(err)
+					}
+				}
+			}
+
+			if _, err := wag.Compile(nil, bytes.NewReader(content), dummyResolver{}); err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 
 // TODO: WebSocket tests
+
+type dummyResolver struct{}
+
+func (dummyResolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, err error) {
+	return
+}
+
+func (dummyResolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
+	return
+}

@@ -19,7 +19,6 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/image/metadata"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
-	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -64,8 +63,12 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 }
 
 type program struct {
-	hash    string
-	module  image.Module
+	hash   string
+	module image.Module
+	orig   *program
+
+	// Effective if prog is nil:
+	codeMap object.CallMap
 	archive image.Archive
 	*image.ArchiveManifest
 
@@ -93,7 +96,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	var actualHash = newHash()
 	var r = bufio.NewReader(io.TeeReader(io.TeeReader(content, moduleStore.Writer), actualHash))
 
-	var sectionMap = new(section.Map)
+	var sectionMap = section.NewMap()
 	var sectionConfig = compile.Config{SectionMapper: sectionMap.Mapper()}
 
 	module, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: sectionConfig}, r)
@@ -267,6 +270,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	prog = &program{
 		hash:            hash,
 		module:          storedModule,
+		codeMap:         *codeMap,
 		archive:         archive,
 		ArchiveManifest: archive.Manifest(),
 	}
@@ -280,25 +284,25 @@ func (prog *program) getEntryAddr(name string) (addr uint32, err error) {
 	return
 }
 
-func (prog *program) execute(ctx context.Context, ref image.ExecutableRef, proc *runtime.Process, instPolicy *InstancePolicy, entryAddr uint32,
-) (err error) {
+func (prog *program) loadExecutable(ctx context.Context, ref image.ExecutableRef, instPolicy *InstancePolicy, entryAddr uint32,
+) (exe *image.Executable, err error) {
 	config := &image.Config{
 		MaxTextSize:   math.MaxInt32, // Policy was enforced when program was acquired.
 		StackSize:     instPolicy.StackSize,
 		MaxMemorySize: roundSize(instPolicy.MaxMemorySize, wa.PageSize),
 	}
 
-	exe, err := image.LoadExecutable(ctx, ref, config, prog.archive, stack.EntryFrame(entryAddr, nil))
-	if err != nil {
-		return
-	}
-	defer exe.Close()
+	return image.LoadExecutable(ctx, ref, config, prog.archive, stack.EntryFrame(entryAddr, nil))
+}
 
-	err = proc.Start(exe, runtime.InitStart)
-	if err != nil {
-		return
-	}
+func (prog *program) Close() (err error) {
+	err = prog.module.Close()
 
+	if prog.archive != nil {
+		if e := prog.archive.Close(); e != nil {
+			err = e
+		}
+	}
 	return
 }
 

@@ -520,6 +520,10 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 		mustNotHaveParams(w, r, s, query)
 		handleInstance(w, r, s, detail.Op_InstanceSuspend, (*server.Server).SuspendInstance, instance)
 
+	case webapi.ActionSnapshot:
+		mustNotHaveParams(w, r, s, query)
+		handleSnapshot(w, r, s, instance)
+
 	default:
 		respondUnsupportedAction(w, r, s)
 	}
@@ -1024,4 +1028,19 @@ func handleIOWebsocket(response http.ResponseWriter, request *http.Request, s *w
 	}
 
 	conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
+}
+
+func handleSnapshot(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
+	ctx := server.ContextWithOp(r.Context(), detail.Op_InstanceSnapshot)
+	wr := &requestResponseWriter{w, r}
+	pri := mustParseAuthorizationHeader(ctx, wr, s)
+
+	moduleKey, err := s.Server.InstanceModule(ctx, pri, instID)
+	if err != nil {
+		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		return
+	}
+
+	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+moduleKey)
+	w.WriteHeader(http.StatusCreated)
 }

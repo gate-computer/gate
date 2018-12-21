@@ -374,6 +374,10 @@ gate_exit:
 	and	%rax, %rbx
 	sub	$GATE_SIGNAL_STACK_RESERVE+16+128+16, %rbx
 
+	// Calculate allocated memory size.
+
+	sub	%r14, %r13
+
 	// Calculate unused stack length.
 
 	mov	%rsp, %rax
@@ -381,7 +385,8 @@ gate_exit:
 
 	// Write information at start of stack space.
 
-	mov	%rax, 0(%rbx)			// Unused stack length
+	mov	%eax, 0(%rbx)			// Unused stack length
+	mov	%r13d, 4(%rbx)			// Allocated memory size
 	mov	%r15, 8(%rbx)			// Text address
 
 	// Fall through to sys_exit.

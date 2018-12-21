@@ -16,6 +16,7 @@ import (
 func New(mod *compile.Module, sectionMap *section.Map, callMap *object.CallMap) *image.Metadata {
 	return &image.Metadata{
 		MemorySizeLimit: mod.MemorySizeLimit(),
+		GlobalTypes:     mod.GlobalTypes(),
 		SectionRanges:   sectionMap.Sections[:],
 		EntryAddrs:      entry.FuncAddrs(mod, callMap.FuncAddrs),
 	}

@@ -85,10 +85,11 @@ type Instance struct {
 	stopped  chan struct{}       // Set in Instance.newInstance
 	ref      image.ExecutableRef // Set in Instance.newInstance
 	process  *runtime.Process    // Set in Instance.newInstance
+	exe      *image.Executable   // Set in Server.CreateInstance or Server.loadModuleInstance
 	account  *account            // Set in Server.newInstance
 	services InstanceServices    // Set in Server.newInstance
 	id       string              // Set in Server.newInstance or Server.registerInstance
-	progHash string              // Set in Server.registerInstance
+	prog     *program            // Set in Server.registerInstance
 	function string              // Set in Server.registerInstance
 
 	lock   sync.Mutex // Must be held when accessing status.
@@ -140,6 +141,11 @@ func (inst *Instance) Status() Status {
 func (inst *Instance) Close() (err error) {
 	err = inst.ref.Close()
 	inst.ref = nil
+
+	if inst.exe != nil {
+		err = inst.exe.Close()
+		inst.exe = nil
+	}
 
 	if killErr := inst.kill(); err == nil {
 		err = killErr
@@ -204,10 +210,10 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 			result.State = serverapi.Status_terminated
 			result.Cause = serverapi.Status_abi_violation
 
-			reportProgramError(ctx, s, inst.account, inst.progHash, inst.function, inst.id, err)
+			reportProgramError(ctx, s, inst.account, inst.prog.hash, inst.function, inst.id, err)
 
 		default:
-			reportInternalError(ctx, s, inst.account, inst.progHash, inst.function, inst.id, "service io", err)
+			reportInternalError(ctx, s, inst.account, inst.prog.hash, inst.function, inst.id, "service io", err)
 		}
 
 		return
@@ -224,6 +230,36 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 	}
 
 	result.Error = ""
+	return
+}
+
+func (inst *Instance) snapshotModule(ctx context.Context, storage image.ModuleStorage) (prog *program, err error) {
+	switch inst.Status().State {
+	case serverapi.Status_suspended, serverapi.Status_terminated:
+		// ok
+
+	default:
+		err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+		return
+	}
+
+	var orig *program
+	if inst.prog.orig != nil {
+		orig = inst.prog.orig
+	} else {
+		orig = inst.prog
+	}
+
+	module, hash, err := image.BuildModule(ctx, storage, orig.module, &orig.Metadata, inst.exe, &orig.codeMap)
+	if err != nil {
+		return
+	}
+
+	prog = &program{
+		hash:   hash,
+		module: module,
+		orig:   orig, // It's the caller duty to increment refCount if it keeps the program object.
+	}
 	return
 }
 

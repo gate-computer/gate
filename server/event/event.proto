@@ -33,6 +33,7 @@ message Event {
 		InstanceStatus = 18;
 		InstanceWait = 19;
 		InstanceSuspend = 20;
+		InstanceSnapshot = 21;
 	}
 }
 
@@ -74,7 +75,8 @@ message FailRequest {
 		InstanceNotFound = 16;
 		InstanceIdInvalid = 17;
 		InstanceIdExists = 18;
-		InstanceNoConnect = 19;
+		InstanceStatus = 19;
+		InstanceNoConnect = 20;
 	}
 
 	detail.Context ctx = 1;
@@ -175,4 +177,10 @@ message InstanceWait {
 message InstanceSuspend {
 	detail.Context ctx = 1;
 	string instance = 2;
+}
+
+message InstanceSnapshot {
+	detail.Context ctx = 1;
+	string instance = 2;
+	string module = 3;
 }

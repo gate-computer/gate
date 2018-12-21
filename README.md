@@ -96,7 +96,8 @@ of continually running programs.
   - [x] Pluggable authentication
   - [x] Load programs from IPFS
   - [x] Reconnect to program instance
-  - [ ] Snapshot and restore (wag already has support)
+  - [x] Snapshot
+  - [ ] Restore (wag already has support)
   - [ ] Clone programs locally or remotely (with or without snapshotting)
   - [ ] Expose program instance at some type of internet endpoint to implement ad-hoc servers
   - [ ] Mechanism for implementing services in a programmer-friendly way

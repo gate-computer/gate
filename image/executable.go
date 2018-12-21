@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"syscall"
 
@@ -32,6 +33,7 @@ type Config struct {
 
 type Metadata struct {
 	MemorySizeLimit int
+	GlobalTypes     []wa.GlobalType
 	SectionRanges   []section.ByteRange
 	EntryAddrs      map[string]uint32
 }
@@ -235,7 +237,7 @@ func (exe *Executable) CheckTermination() (err error) {
 		return
 	}
 
-	if _, _, ok := checkStack(b, exe.manifest.StackSize); !ok {
+	if _, _, _, ok := checkStack(b, exe.manifest.StackSize); !ok {
 		err = ErrBadTermination
 		return
 	}
@@ -251,7 +253,7 @@ func (exe *Executable) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType)
 		return
 	}
 
-	unused, textAddr, ok := checkStack(b, len(b))
+	unused, _, textAddr, ok := checkStack(b, len(b))
 	if !ok {
 		err = ErrBadTermination
 		return
@@ -331,10 +333,10 @@ func (b *Build) Configure(config *BuildConfig) (err error) {
 		}
 	}
 
-	b.text = buffer.MakeStatic(b.mapping[:textSize])
+	b.text = buffer.MakeStatic(b.mapping[:0], textSize)
 	b.stack = b.mapping[stackOffset:stackEnd]
 	b.stackUnused = len(b.stack)
-	b.globalsMemory = buffer.MakeStatic(b.mapping[globalsOffset:dataEnd])
+	b.globalsMemory = buffer.MakeStatic(b.mapping[globalsOffset:globalsOffset], dataEnd-globalsOffset)
 	b.memoryOffset = globalsMapSize
 	b.maxMemorySize = config.MaxMemorySize
 	return
@@ -406,15 +408,16 @@ func (b *Build) unmap() (err error) {
 	return
 }
 
-func checkStack(b []byte, stackSize int) (unused, textAddr uint64, ok bool) {
+func checkStack(b []byte, stackSize int) (unused, memorySize uint32, textAddr uint64, ok bool) {
 	if len(b) < 16 {
 		return
 	}
 
-	unused = binary.LittleEndian.Uint64(b[0:])
+	unused = binary.LittleEndian.Uint32(b[0:])
+	memorySize = binary.LittleEndian.Uint32(b[4:])
 	textAddr = binary.LittleEndian.Uint64(b[8:])
 
-	ok = unused > 0 && unused < uint64(stackSize) && unused&7 == 0 && textAddr >= internal.MinTextAddr && textAddr <= internal.MaxTextAddr && textAddr&uint64(memPageSize-1) == 0
+	ok = unused > 0 && unused < uint32(stackSize) && unused&7 == 0 && memorySize <= math.MaxInt32 && memorySize&(wa.PageSize-1) == 0 && textAddr >= internal.MinTextAddr && textAddr <= internal.MaxTextAddr && textAddr&uint64(memPageSize-1) == 0
 	return
 }
 

@@ -13,6 +13,7 @@ func (x *InstanceCreateStream) EventName() string { return Event_Type_name[x.Eve
 func (x *InstanceDelete) EventName() string       { return Event_Type_name[x.EventType()] }
 func (x *InstanceDisconnect) EventName() string   { return Event_Type_name[x.EventType()] }
 func (x *InstanceList) EventName() string         { return Event_Type_name[x.EventType()] }
+func (x *InstanceSnapshot) EventName() string     { return Event_Type_name[x.EventType()] }
 func (x *InstanceStatus) EventName() string       { return Event_Type_name[x.EventType()] }
 func (x *InstanceSuspend) EventName() string      { return Event_Type_name[x.EventType()] }
 func (x *InstanceWait) EventName() string         { return Event_Type_name[x.EventType()] }
@@ -35,6 +36,7 @@ func (*InstanceCreateStream) EventType() int32 { return int32(Event_InstanceCrea
 func (*InstanceDelete) EventType() int32       { return int32(Event_InstanceDelete) }
 func (*InstanceDisconnect) EventType() int32   { return int32(Event_InstanceDisconnect) }
 func (*InstanceList) EventType() int32         { return int32(Event_InstanceList) }
+func (*InstanceSnapshot) EventType() int32     { return int32(Event_InstanceSnapshot) }
 func (*InstanceStatus) EventType() int32       { return int32(Event_InstanceStatus) }
 func (*InstanceSuspend) EventType() int32      { return int32(Event_InstanceSuspend) }
 func (*InstanceWait) EventType() int32         { return int32(Event_InstanceWait) }

@@ -7,6 +7,7 @@ package image
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"os"
 
 	internal "github.com/tsavola/gate/internal/executable"
@@ -153,6 +154,18 @@ func (ropt *ReaderOption) Reader() io.Reader {
 	return &randomAccessReader{ropt.RandomAccess, ropt.Offset}
 }
 
+// ReaderAt which must be read at ascending offsets.  ReadAt may panic if the
+// offsets are descending or the ranges overlap.
+func (ropt *ReaderOption) ReaderAt() io.ReaderAt {
+	if ropt.RandomAccess != nil {
+		if ropt.Offset == 0 {
+			return ropt.RandomAccess
+		}
+		return &randomAccessReaderAt{ropt.RandomAccess, ropt.Offset}
+	}
+	return &streamReaderAt{ropt.Stream, ropt.Offset}
+}
+
 func (ropt *ReaderOption) copyToFile(wfile *os.File, woff int64, length int) (err error) {
 	if ropt.RandomAccess != nil {
 		if r, ok := ropt.RandomAccess.(descriptorFile); ok {
@@ -179,6 +192,33 @@ func (ropt *ReaderOption) copyToFile(wfile *os.File, woff int64, length int) (er
 	return
 }
 
+type streamReaderAt struct {
+	stream io.Reader
+	read   int64
+}
+
+func (r *streamReaderAt) ReadAt(b []byte, offset int64) (n int, err error) {
+	if r.read != offset {
+		if r.read > offset {
+			panic("stream read at non-ascending offset")
+		}
+
+		var m int64
+
+		m, err = io.CopyN(ioutil.Discard, r.stream, offset-r.read)
+		r.read += m
+		n += int(m)
+		if err != nil {
+			return
+		}
+	}
+
+	m, err := r.stream.Read(b)
+	r.read += int64(m)
+	n += m
+	return
+}
+
 type randomAccessReader struct {
 	randomAccess io.ReaderAt
 	offset       int64
@@ -188,6 +228,15 @@ func (r *randomAccessReader) Read(b []byte) (n int, err error) {
 	n, err = r.randomAccess.ReadAt(b, r.offset)
 	r.offset += int64(n)
 	return
+}
+
+type randomAccessReaderAt struct {
+	randomAccess io.ReaderAt
+	base         int64
+}
+
+func (r *randomAccessReaderAt) ReadAt(b []byte, offset int64) (n int, err error) {
+	return r.randomAccess.ReadAt(b, r.base+offset)
 }
 
 type randomAccessWriter struct {
