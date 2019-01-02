@@ -52,6 +52,7 @@ Commands:
   io        connect to a running instance
   launch    create an instance from a wasm module
   modules   list wasm module references
+  snapshot  create a wasm snapshot of an instance
   status    query current status of an instance
   suspend   suspend a running instance
   unref     remove a wasm module reference
@@ -342,6 +343,32 @@ var commands = map[string]struct {
 			for _, m := range refs.Modules {
 				fmt.Println(m.Key)
 			}
+		},
+	},
+
+	"snapshot": {
+		usage: " <instance>",
+		do: func() {
+			flag.Parse()
+			if flag.NArg() != 1 {
+				flag.Usage()
+				os.Exit(2)
+			}
+
+			req := &http.Request{Method: http.MethodPost}
+			params := url.Values{webapi.ParamAction: []string{webapi.ActionSnapshot}}
+
+			_, resp, err := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			location := resp.Header.Get(webapi.HeaderLocation)
+			if location == "" {
+				log.Fatal("no Location header in response")
+			}
+
+			fmt.Println(path.Base(location))
 		},
 	},
 
