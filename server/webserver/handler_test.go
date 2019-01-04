@@ -831,7 +831,7 @@ func TestInstance(t *testing.T) {
 				t.Fatal(resp.Status)
 			}
 
-			{
+			if false {
 				f, err := os.Create("/tmp/test.wasm")
 				if err != nil {
 					t.Error(err)
