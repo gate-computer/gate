@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/gate/webapi/authorization"
@@ -152,17 +153,24 @@ var commands = map[string]struct {
 				os.Exit(2)
 			}
 
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionCall},
+			}
+			if c.Function != "" {
+				params.Set(webapi.ParamFunction, c.Function)
+			}
+
 			var status webapi.Status
 
 			switch arg := flag.Arg(0); {
 			case !strings.Contains(arg, "/"):
-				status = callPost(webapi.PathModuleRefs + arg)
+				status = callPost(webapi.PathModuleRefs+arg, params)
 
 			case strings.HasPrefix(arg, "/ipfs/"):
-				status = callPost(webapi.PathModule + arg)
+				status = callPost(webapi.PathModule+arg, params)
 
 			default:
-				status = callWebsocket(arg)
+				status = callWebsocket(arg, params)
 			}
 
 			if status.State != "terminated" || status.Cause != "" {
@@ -440,17 +448,10 @@ var commands = map[string]struct {
 	},
 }
 
-func callPost(uri string) (status webapi.Status) {
+func callPost(uri string, params url.Values) webapi.Status {
 	req := &http.Request{
 		Method: http.MethodPost,
 		Body:   os.Stdin,
-	}
-
-	params := url.Values{
-		webapi.ParamAction: []string{webapi.ActionCall},
-	}
-	if c.Function != "" {
-		params.Set(webapi.ParamFunction, c.Function)
 	}
 
 	_, resp, err := doHTTP(req, uri, params)
@@ -463,15 +464,76 @@ func callPost(uri string) (status webapi.Status) {
 		log.Fatal(err)
 	}
 
-	status, err = unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
+	status, err := unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
 	if err != nil {
 		log.Fatal(err)
 	}
-	return
+
+	return status
 }
 
-func callWebsocket(filename string) (status webapi.Status) {
-	panic("TODO")
+func callWebsocket(filename string, params url.Values) webapi.Status {
+	module, key, err := loadModule(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	u, err := makeURL("ws", webapi.PathModuleRefs+key, params)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	conn, _, err := new(websocket.Dialer).Dial(u.String(), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	call := &webapi.Call{
+		ContentType:   webapi.ContentTypeWebAssembly,
+		ContentLength: int64(module.Len()),
+	}
+
+	call.Authorization, err = makeAuthorization()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := conn.WriteJSON(call); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := conn.WriteMessage(websocket.BinaryMessage, module.Bytes()); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := conn.ReadJSON(new(webapi.CallConnection)); err != nil {
+		log.Fatal(err)
+	}
+
+	// TODO: input
+
+	for {
+		msgType, data, err := conn.ReadMessage()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		switch msgType {
+		case websocket.BinaryMessage:
+			os.Stdout.Write(data) // TODO: handle error?
+
+		case websocket.TextMessage:
+			// TODO: receive ConnectionStatus
+			var status webapi.Status
+
+			if err := json.Unmarshal(data, &status); err != nil {
+				log.Fatal(err)
+			}
+
+			return status
+		}
+	}
 }
 
 func commandInstance(action string) {
@@ -513,22 +575,24 @@ func loadModule(filename string) (b *bytes.Buffer, key string, err error) {
 }
 
 func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Status, resp *http.Response, err error) {
-	u, err := url.Parse("https://" + c.address + uri)
+	u, err := makeURL("http", uri, params)
 	if err != nil {
 		return
 	}
-	if !c.TLS {
-		u.Scheme = "http"
-	}
-	u.RawQuery = params.Encode()
 
 	req.URL = u
 	req.Close = true
 	req.Host = u.Host
 
-	err = setAuthorization(req)
+	auth, err := makeAuthorization()
 	if err != nil {
 		return
+	}
+	if auth != "" {
+		if req.Header == nil {
+			req.Header = make(http.Header)
+		}
+		req.Header.Set(webapi.HeaderAuthorization, auth)
 	}
 
 	resp, err = http.DefaultClient.Do(req)
@@ -556,7 +620,19 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	return
 }
 
-func setAuthorization(req *http.Request) (err error) {
+func makeURL(scheme, uri string, params url.Values) (u *url.URL, err error) {
+	u, err = url.Parse(scheme + "s://" + c.address + uri)
+	if err != nil {
+		return
+	}
+	if !c.TLS {
+		u.Scheme = scheme
+	}
+	u.RawQuery = params.Encode()
+	return
+}
+
+func makeAuthorization() (auth string, err error) {
 	if c.IdentityFile == "" {
 		return
 	}
@@ -585,15 +661,11 @@ func setAuthorization(req *http.Request) (err error) {
 		Aud: []string{"https://" + c.address + webapi.Path},
 	}
 
-	auth, err := authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
+	auth, err = authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
 	if err != nil {
 		return
 	}
 
-	if req.Header == nil {
-		req.Header = make(http.Header)
-	}
-	req.Header.Set(webapi.HeaderAuthorization, auth)
 	return
 }
 
