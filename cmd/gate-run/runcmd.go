@@ -44,11 +44,6 @@ type ProgramConfig struct {
 	StackSize int
 }
 
-type readWriteCloser struct {
-	io.Reader
-	io.WriteCloser
-}
-
 type timing struct {
 	loading time.Duration
 	running time.Duration
@@ -231,6 +226,9 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	tBegin := time.Now()
 
 	ref, err := image.NewExecutableRef(image.Memory)
+	if err != nil {
+		log.Fatalf("executable: %v", err)
+	}
 	defer ref.Close()
 
 	build := image.NewBuild(ref)

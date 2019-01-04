@@ -34,7 +34,7 @@ func NewDefault() *AccessTracker {
 }
 
 func (at *AccessTracker) TrackNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expires time.Time) error {
-	d := expires.Sub(time.Now())
+	d := time.Until(expires)
 	if d < 1 {
 		d = 1
 	}

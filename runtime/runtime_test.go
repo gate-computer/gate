@@ -31,11 +31,6 @@ const (
 	testStackSize     = wa.PageSize
 )
 
-type readWriter struct {
-	io.Reader
-	io.Writer
-}
-
 var (
 	testProgNop        = runtimeutil.MustReadFile("../testdata/nop.wasm")
 	testProgHello      = runtimeutil.MustReadFile("../testdata/hello.wasm")
@@ -254,8 +249,6 @@ func TestRunSuspend(t *testing.T) {
 	if err := exe.CheckTermination(); err != nil {
 		t.Errorf("termination: %v", err)
 	}
-
-	return
 }
 
 type testServiceRegistry struct {

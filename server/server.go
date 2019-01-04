@@ -132,7 +132,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 			return
 		}
 	} else {
-		found, err = s.uploadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
+		err = s.uploadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
 		if err != nil {
 			return
 		}
@@ -169,13 +169,13 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 }
 
 func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
-) (found bool, err error) {
+) (err error) {
 	_, prog, err := compileProgram(ctx, nil, nil, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, "")
 	if err != nil {
 		return
 	}
 
-	found = s.registerProgram(acc, prog)
+	found := s.registerProgram(acc, prog)
 	if found {
 		prog.Close()
 	}
@@ -374,7 +374,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 			return
 		}
 	} else {
-		found, err = s.loadUnknownModuleInstance(ctx, acc, inst, pol, allegedHash, content, int(contentLength), function)
+		err = s.loadUnknownModuleInstance(ctx, acc, inst, pol, allegedHash, content, int(contentLength), function)
 		if err != nil {
 			return
 		}
@@ -439,7 +439,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 }
 
 func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, inst *Instance, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, function string,
-) (found bool, err error) {
+) (err error) {
 	var prog *program
 
 	inst.exe, prog, err = compileProgram(ctx, inst.ref, &pol.inst, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, function)
@@ -452,7 +452,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 		return
 	}
 
-	found, err = s.registerInstance(acc, prog, inst, function)
+	found, err := s.registerInstance(acc, prog, inst, function)
 	if err != nil {
 		return
 	}

@@ -28,7 +28,7 @@ func (e rateLimited) Error() string       { return e.PublicError() }
 func (e rateLimited) PublicError() string { return "request rate limit exceeded" }
 
 func (e rateLimited) RetryAfter() (d time.Duration) {
-	d = e.retryAfter.Sub(time.Now())
+	d = time.Until(e.retryAfter)
 	if d < 1 {
 		d = 1
 	}

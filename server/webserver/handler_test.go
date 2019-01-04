@@ -308,7 +308,7 @@ func TestModuleRef(t *testing.T) {
 			t.Error(x)
 		}
 
-		if bytes.Compare(content, testProgHello) != 0 {
+		if !bytes.Equal(content, testProgHello) {
 			t.Error(content)
 		}
 	})
@@ -813,7 +813,7 @@ func TestInstance(t *testing.T) {
 
 		t.Run("Snapshot", func(t *testing.T) {
 			req := newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
-			resp, content := doTest(t, handler, req)
+			resp, _ := doTest(t, handler, req)
 
 			if resp.StatusCode != http.StatusCreated {
 				t.Fatal(resp.Status)
@@ -825,7 +825,7 @@ func TestInstance(t *testing.T) {
 			}
 
 			req = newSignedTestRequest(key, http.MethodGet, location, nil)
-			resp, content = doTest(t, handler, req)
+			resp, content := doTest(t, handler, req)
 
 			if resp.StatusCode != http.StatusOK {
 				t.Fatal(resp.Status)

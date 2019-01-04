@@ -76,5 +76,4 @@ reading:
 	outputDone = nil
 
 	io.Copy(ioutil.Discard, r)
-	return
 }
