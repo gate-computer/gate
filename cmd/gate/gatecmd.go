@@ -152,34 +152,19 @@ var commands = map[string]struct {
 				os.Exit(2)
 			}
 
-			// TODO: support sources, and refs and stdin via websocket
+			var status webapi.Status
 
-			req := &http.Request{
-				Method: http.MethodPost,
-				Body:   os.Stdin,
-			}
+			switch arg := flag.Arg(0); {
+			case !strings.Contains(arg, "/"):
+				status = callPost(webapi.PathModuleRefs + arg)
 
-			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionCall},
-			}
-			if c.Function != "" {
-				params.Set(webapi.ParamFunction, c.Function)
-			}
+			case strings.HasPrefix(arg, "/ipfs/"):
+				status = callPost(webapi.PathModule + arg)
 
-			_, resp, err := doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), params)
-			if err != nil {
-				log.Fatal(err)
+			default:
+				status = callWebsocket(arg)
 			}
 
-			_, err = io.Copy(os.Stdout, resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			status, err := unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
-			if err != nil {
-				log.Fatal(err)
-			}
 			if status.State != "terminated" || status.Cause != "" {
 				log.Fatal(status)
 			}
@@ -283,20 +268,30 @@ var commands = map[string]struct {
 				os.Exit(2)
 			}
 
-			// TODO: support refs, sources and stdin
+			req := &http.Request{Method: http.MethodPost}
 
-			module, key, err := loadModule(flag.Arg(0))
-			if err != nil {
-				log.Fatal(err)
-			}
+			var uri string
 
-			req := &http.Request{
-				Method: http.MethodPost,
-				Header: http.Header{
+			switch arg := flag.Arg(0); {
+			case !strings.Contains(arg, "/"):
+				uri = webapi.PathModuleRefs + arg
+
+			case strings.HasPrefix(arg, "/ipfs/"):
+				uri = webapi.PathModule + arg
+
+			default:
+				module, key, err := loadModule(arg)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				uri = webapi.PathModuleRefs + key
+
+				req.Header = http.Header{
 					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
-				},
-				Body:          ioutil.NopCloser(module),
-				ContentLength: int64(module.Len()),
+				}
+				req.Body = ioutil.NopCloser(module)
+				req.ContentLength = int64(module.Len())
 			}
 
 			params := url.Values{
@@ -309,7 +304,7 @@ var commands = map[string]struct {
 				params.Set(webapi.ParamInstance, c.Instance)
 			}
 
-			_, resp, err := doHTTP(req, webapi.PathModuleRefs+key, params)
+			_, resp, err := doHTTP(req, uri, params)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -414,8 +409,6 @@ var commands = map[string]struct {
 				os.Exit(2)
 			}
 
-			// TODO: support stdin
-
 			module, key, err := loadModule(flag.Arg(0))
 			if err != nil {
 				log.Fatal(err)
@@ -445,6 +438,40 @@ var commands = map[string]struct {
 			commandInstance(webapi.ActionWait)
 		},
 	},
+}
+
+func callPost(uri string) (status webapi.Status) {
+	req := &http.Request{
+		Method: http.MethodPost,
+		Body:   os.Stdin,
+	}
+
+	params := url.Values{
+		webapi.ParamAction: []string{webapi.ActionCall},
+	}
+	if c.Function != "" {
+		params.Set(webapi.ParamFunction, c.Function)
+	}
+
+	_, resp, err := doHTTP(req, uri, params)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = io.Copy(os.Stdout, resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	status, err = unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return
+}
+
+func callWebsocket(filename string) (status webapi.Status) {
+	panic("TODO")
 }
 
 func commandInstance(action string) {
