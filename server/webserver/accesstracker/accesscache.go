@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package accesstracker implements an in-process webserver.AccessTracker.
+// Package accesstracker implements an in-process server/state.AccessTracker.
 package accesstracker
 
 import (
@@ -11,13 +11,13 @@ import (
 
 	cache "github.com/patrickmn/go-cache"
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/webserver"
+	"github.com/tsavola/gate/server/state"
 )
 
 const DefaultCleanupInterval = 15 * time.Second // Value is subject to change.
 
 type AccessTracker struct {
-	webserver.AccessTrackerBase
+	state.AccessTrackerBase
 	cache *cache.Cache
 }
 

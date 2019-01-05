@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/state"
 )
 
 type testAccessTracker struct {
-	AccessTrackerBase
+	state.AccessTrackerBase
 
 	lock sync.Mutex
 	m    map[string]struct{}

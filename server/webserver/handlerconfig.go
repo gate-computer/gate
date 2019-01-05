@@ -8,13 +8,14 @@ import (
 	"net/http"
 
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/state"
 )
 
 // Config for a web server.
 type Config struct {
 	Server        *server.Server
-	Authority     string        // External domain name with optional port number.
-	AccessState   AccessTracker // Remembers things within the Authority.
+	Authority     string              // External domain name with optional port number.
+	AccessState   state.AccessTracker // Remembers things within the Authority.
 	ModuleSources map[string]server.Source
 	NewRequestID  func(*http.Request) uint64
 }
