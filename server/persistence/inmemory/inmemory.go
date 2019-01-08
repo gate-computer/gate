@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package accesstracker implements an in-process server/state.AccessTracker.
-package accesstracker
+// Package inmemory implements an in-process AccessTracker.
+package inmemory
 
 import (
 	"context"

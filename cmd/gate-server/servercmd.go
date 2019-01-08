@@ -28,9 +28,9 @@ import (
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/monitor"
 	"github.com/tsavola/gate/server/monitor/webmonitor"
+	"github.com/tsavola/gate/server/persistence/inmemory"
 	"github.com/tsavola/gate/server/sshkeys"
 	"github.com/tsavola/gate/server/webserver"
-	"github.com/tsavola/gate/server/webserver/accesstracker"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
@@ -370,7 +370,7 @@ func main() {
 	if c.HTTP.Authority == "" {
 		c.HTTP.Authority = strings.Split(c.HTTP.Addr, ":")[0]
 	}
-	c.HTTP.AccessState = accesstracker.NewDefault()
+	c.HTTP.AccessState = inmemory.NewDefault()
 
 	c.HTTP.ModuleSources = make(map[string]server.Source)
 	if c.Source.IPFS.Configured() {
