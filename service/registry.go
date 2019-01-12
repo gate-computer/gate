@@ -5,12 +5,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"sync"
 
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
 )
+
+const maxServiceNameLen = 127
 
 // Config for service initialization.
 type Config struct {
@@ -48,10 +51,18 @@ type Registry struct {
 
 // Register a service implementation.
 func (r *Registry) Register(f Factory) {
+	name := f.ServiceName()
+	if len(name) > maxServiceNameLen {
+		panic("service name is too long")
+	}
+	if bytes.Contains([]byte(name), []byte{0}) {
+		panic("service name contains nul byte")
+	}
+
 	if r.factories == nil {
 		r.factories = make(map[string]Factory)
 	}
-	r.factories[f.ServiceName()] = f
+	r.factories[name] = f
 }
 
 // Clone the registry shallowly.  The new registry may be used to add or
