@@ -229,4 +229,4 @@ type ConnectionStatus struct {
 }
 
 // FunctionRegexp matches valid a function name.
-var FunctionRegexp = regexp.MustCompile("^[A-Za-z0-9-._]{1,255}$")
+var FunctionRegexp = regexp.MustCompile("^[A-Za-z0-9-._]{1,127}$")
