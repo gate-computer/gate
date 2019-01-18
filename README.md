@@ -46,7 +46,7 @@ Important Go packages:
 
   - [**gate/server/webserver**](https://godoc.org/github.com/tsavola/gate/server/webserver):
     HTTP server component which executes your code on purpose.  It has a
-    [RESTful API](Web.md), but some actions support also websocket.
+    [RESTful API](Web.md), but some actions can be invoked also via websocket.
 
   - [**gate/service**](https://godoc.org/github.com/tsavola/gate/service):
     Service implementation support and built-in services.
@@ -54,7 +54,7 @@ Important Go packages:
 Programs:
 
   - **gate**:
-    Command-line HTTP client.  Uses SSH keys (ed25519) for authentication.
+    Command-line client.  Uses SSH keys (ed25519) for authentication.
 
   - **gate-server**:
     Standalone HTTP server with the built-in and plugged-in services.

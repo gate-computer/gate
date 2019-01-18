@@ -8,20 +8,21 @@ definitions useful for clients.
 
 ## Authorization header
 
-A `Bearer` JSON Web Token is required for module and instance API requests.
-It's not required for requests which query general information.
+A `Bearer` JSON Web Token is required for most module and instance API
+requests.  It's not required for requests which query general information, or
+if server configuration allows anonymous access for a module action.
 
 The JWT must identify a principal by specifying an Ed25519 public key via the
-"jwk" header.  See the PublicKey struct for details.  The JWT must be signed
-using the EdDSA algorithm ("alg" header).
+`jwk` header.  See the PublicKey struct for details.  The JWT must be signed
+using the EdDSA algorithm (`alg` header).
 
-Expiration time ("exp" claim) is checked by the server so that it won't be too
+Expiration time (`exp` claim) is checked by the server so that it won't be too
 far in the future.  The limit is 15 minutes.
 
-The "nonce" claim may be specified in order to prevent token reuse.  If set, it
+The `nonce` claim may be specified in order to prevent token reuse.  If set, it
 must be unique during the expiration period.
 
-The "aud" claim may be specified in order to prevent misdirected requests.
+The `aud` claim may be specified in order to prevent misdirected requests.
 Suitable audience string is the HTTPS URL of the API,
 e.g. `https://example.net/gate/v0`.
 
@@ -29,7 +30,7 @@ e.g. `https://example.net/gate/v0`.
 ## Function name
 
 Function strings consist of ASCII letters, digits, dash, dot and underscore.
-The length must be between 1 and 127 characters.
+The length must be between 1 and 127 characters (inclusive).
 
 
 ## Instance identifier

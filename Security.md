@@ -55,10 +55,10 @@ architecture](#execution-architecture) for details.
 The programs interact with Gate's service I/O loop and the available services,
 implemented in Go.  (A service may be implemented via IPC/RPC, so other
 programming languages may be involved aswell.)  Each service has its own
-interface, and must take care of its own input validation; as with syscalls,
-complexity leads to bugs, and information is power.  A naive service could
-enable side-channel attacks by providing too detailed information (e.g. precise
-time).
+interface, so they must take care of their own input validation; as with
+syscalls, complexity leads to bugs, and information is power.  A naive service
+could enable side-channel attacks by providing too detailed information
+(e.g. precise time).
 
 
 ## Execution architecture
@@ -71,8 +71,8 @@ untrusted code.
 ### 1. WebAssembly sandbox
 
 [WebAssembly](http://webassembly.org) constrains programs to a logical sandbox,
-and it's designed for easy validation.  Particularly helpful details about wasm
-programs are that they never store buffers in the call stack, and function
+and is designed for easy validation.  Particularly helpful details about wasm
+programs are that they never store buffers on the call stack, and function
 pointer target addresses are whitelisted by signature.
 [Wag](https://github.com/tsavola/wag) and Gate employ some additional safety
 measures:
@@ -110,7 +110,7 @@ Possible operations:
     communicate a fake trap or error condition.
 
   - Call clock_gettime, getcpu, gettimeofday and time syscalls via vDSO.  This
-    is worrisome, as it may enable timing attacks.
+    is worrisome, as it may enable timing-based attacks.
 
 
 ### 3. Process
@@ -130,7 +130,8 @@ The process is configured in various ways:
 
   - Unnecessary file descriptors are closed.
 
-  - The initial stack is unmapped.  It prevents the comm text from being set.
+  - The initial stack is unmapped.  It prevents the comm text from being
+    changed.
 
   - Initialization code is unmapped, retaining only the ABI functions needed at
     runtime.
@@ -138,26 +139,24 @@ The process is configured in various ways:
   - Runtime code, and program code, data and stack are mapped at randomized
     addresses.
 
+  - The process is killed automatically if its parent dies.
 
-### 4. Containerization
+  - The process cannot gain privileges or capabilities via execve (e.g. if the
+    executor or loader binary is misconfigured as setuid root).
+
+  - Out-of-memory score adjustment is set to maximum.
+
+
+### 4. Containment
 
 The user program processes run in a container.  The container also includes an
 init process which spawns and kills the programs.  The container has dedicated
 cgroup, IPC, network, mount, pid, user and UTS namespaces.
 
-The user namespace contains only two unprivileged user ids, one of which is
-used to run the processes.
+The user namespace contains only two unprivileged user ids (there is no root
+user), one of which is used to run the processes.
 
 The mount namespace contains only a constrained read-only tmpfs as its root.
 
 The UTS namespace has empty host and domain names.
-
-Processes running in the container are configured in these ways:
-
-  - A process is killed automatically if its parent dies.
-
-  - The processes cannot gain privileges or capabilities via execve (e.g. if
-    the executor or loader binary is misconfigured as setuid root).
-
-  - Out-of-memory score adjustment is set to maximum.
 

@@ -43,6 +43,7 @@ GATE_PACKET_CODE_SERVICES
 
 ```c
 GATE_PACKET_DOMAIN_CALL
+GATE_PACKET_DOMAIN_STATE
 GATE_PACKET_DOMAIN_FLOW
 GATE_PACKET_DOMAIN_DATA
 ```
@@ -138,9 +139,9 @@ struct gate_packet {
 > Non-negative codes identify discovered services.  Negative codes are for
 > built-in functionality.
 >
-> The `GATE_PACKET_DOMAIN_CALL` (zero value) domain is used for sending
-> requests to services.  Each request is matched with one reply.  The replies
-> are received in the same order as requests are sent (per service).
+> The `GATE_PACKET_DOMAIN_CALL` domain is used for sending requests to
+> services.  Each request is matched with one response.  The responses are
+> received in the same order as requests are sent (per service).
 >
 > The `GATE_PACKET_DOMAIN_STATE` domain is for receiving state change
 > notifications from services.  A service won't start sending notifications
@@ -177,7 +178,7 @@ struct gate_service_state_packet {
 	uint8_t states[0]; // Variable length.
 }
 ```
-> Service discovery reply or notification, received with
+> Service discovery response or state change notification, received with
 > `GATE_PACKET_CODE_SERVICES` code.   *count* is the total number of discovered
 > services; *states* is a concatenation of all previously and newly discovered
 > services.  A state item contains service state flags
@@ -197,7 +198,8 @@ struct gate_service_state_packet {
 ### Streaming
 
 Services may provide uni- or bi-directional byte streams.  They may be
-implicit, or opened explicitly via a call.
+implicit, or opened explicitly via a call.  Either way, they are subject to
+flow control and don't generate packets before permitted by the program.
 
 
 ```c

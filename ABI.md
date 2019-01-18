@@ -62,11 +62,11 @@ Codes:
 
 Domains:
 
-  - 0 - Function calls.  Used to send requests and receive replies.
+  - 0 - Function calls.  Used to send requests and receive responses.
   - 1 - State change notifications.  Used by services to notify the program
         about things which don't require flow control.
-  - 2 - Flow control.  Used to notify when and how much data can be received
-        per stream.
+  - 2 - Flow control.  Used to indicate how much data can be received per
+        stream.
   - 3 - Data transfers.  Used to stream data according to flow control.
 
 See [C API](C.md) documentation for descriptions of built-in packet types.
