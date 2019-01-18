@@ -307,14 +307,16 @@ int main(void)
 		// Build sigaction structure on stack.  Using 32 bytes of red
 		// zone.
 
-		"lea  -32(%%rsp), %%rsi                     \n" // sigaction act
+		"sub  $32, %%rsp                            \n" // sizeof (struct sigaction)
+
+		"mov  %%rsp, %%rsi                          \n" // sigaction act
 		"mov  %%r9, 0(%%rsi)                        \n" // sa_handler
 		"movq $"xstr(SIGACTION_FLAGS)", 8(%%rsi)    \n" // sa_flags
 		"mov  %%r10, 16(%%rsi)                      \n" // sa_restorer
 		"movq $0, 24(%%rsi)                         \n" // sa_mask
 
 		"xor  %%edx, %%edx                          \n" // sigaction oldact
-		"mov  $8, %%r10                             \n" // sigaction mask size
+		"mov  $8, %%r10d                            \n" // sigaction mask size
 
 		// Async I/O signal handler.
 
@@ -333,6 +335,8 @@ int main(void)
 		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
 		"test %%rax, %%rax                          \n"
 		"jne  sys_exit                              \n"
+
+		"add  $32, %%rsp                            \n" // sizeof (struct sigaction)
 
 		// Execute runtime_init.
 
