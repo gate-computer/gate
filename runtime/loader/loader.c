@@ -21,17 +21,19 @@
 #define PACKED __attribute__((packed))
 
 #define SYS_SA_RESTORER 0x04000000
-#define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER)
+#define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER | SA_SIGINFO)
 
 // Avoiding function prototypes avoids GOT section.
 typedef const struct {
 	char dummy;
 } code;
 
+extern code current_memory;
 extern code gate_debug;
 extern code gate_exit;
 extern code gate_io;
 extern code gate_nop;
+extern code grow_memory;
 extern code retpoline;
 extern code runtime_code_begin;
 extern code runtime_code_end;
@@ -211,11 +213,12 @@ int main(void)
 	code *debug_func = (info.debug_flag & 1) ? &gate_debug : &gate_nop;
 
 	// These assignments reflect the moduleFunctions map in runtime/abi/abi.go
-	*(vector_end - 5) = runtime_func_addr(runtime_ptr, debug_func);
-	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_exit);
-	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &gate_io);
-	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &trap_handler);
-	*(vector_end - 1) = info.grow_memory_size;
+	*(vector_end - 6) = runtime_func_addr(runtime_ptr, debug_func);
+	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &gate_exit);
+	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_io);
+	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
+	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
+	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
 
 	if (sys_mprotect(runtime_ptr, info.page_size, PROT_READ | PROT_EXEC) != 0)
 		return ERR_LOAD_MPROTECT_VECTOR;
@@ -234,9 +237,9 @@ int main(void)
 	if (stack_buf != (void *) info.stack_addr)
 		return ERR_LOAD_MMAP_STACK;
 
-	// 16 bytes required by wag, 128-byte red zone for runtime functions
-	// object ABI, and 16 bytes for runtime exit.
-	void *stack_limit = stack_buf + GATE_SIGNAL_STACK_RESERVE + 16 + 128 + 16;
+	*(uint32_t *) stack_buf = info.init_memory_size >> 16;
+
+	void *stack_limit = stack_buf + GATE_STACK_LIMIT_OFFSET;
 	void *stack_ptr = stack_buf + info.stack_unused;
 
 	// Globals and memory
@@ -245,15 +248,17 @@ int main(void)
 	size_t heap_size = (size_t) info.globals_size + (size_t) info.grow_memory_size;
 
 	void *memory_ptr = NULL;
-	void *init_memory_limit = NULL;
 
 	if (heap_size > 0) {
-		void *heap_ptr = sys_mmap((void *) info.heap_addr, heap_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, GATE_IMAGE_FD, heap_offset);
+		void *heap_ptr = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, GATE_IMAGE_FD, heap_offset);
 		if (heap_ptr != (void *) info.heap_addr)
 			return ERR_LOAD_MMAP_HEAP;
 
+		size_t allocated = info.globals_size + info.init_memory_size;
+		if (allocated > 0 && sys_mprotect(heap_ptr, allocated, PROT_READ | PROT_WRITE) != 0)
+			return ERR_LOAD_MPROTECT_HEAP;
+
 		memory_ptr = heap_ptr + info.globals_size;
-		init_memory_limit = memory_ptr + info.init_memory_size;
 	}
 
 	// Mappings done.
@@ -281,7 +286,6 @@ int main(void)
 	register void *r12 asm("r12") = text_ptr + (uintptr_t) info.init_routine;
 	register void *r13 asm("r13") = stack_limit;
 	register void *r14 asm("r14") = memory_ptr;
-	register void *r15 asm("r15") = init_memory_limit;
 
 	// clang-format off
 
@@ -327,6 +331,15 @@ int main(void)
 		"test %%rax, %%rax                          \n"
 		"jne  sys_exit                              \n"
 
+		// Segmentation fault signal handler.
+
+		"mov  $"xstr(SIGSEGV)", %%edi               \n" // sigaction signum
+		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
+		"syscall                                    \n"
+		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
+		"test %%rax, %%rax                          \n"
+		"jne  sys_exit                              \n"
+
 		// Suspend signal handler.
 
 		"mov  $"xstr(SIGXCPU)", %%edi               \n" // siaction signum
@@ -343,7 +356,7 @@ int main(void)
 		"mov  %%rbp, %%rcx                          \n"
 		"jmp  retpoline                             \n"
 		:
-		: "r"(rax), "r"(rbp), "r"(rsi), "r"(r9), "r"(r10), "r"(r11), "r"(r12), "r"(r13), "r"(r14), "r"(r15));
+		: "r"(rax), "r"(rbp), "r"(rsi), "r"(r9), "r"(r10), "r"(r11), "r"(r12), "r"(r13), "r"(r14));
 
 	// clang-format on
 

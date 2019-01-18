@@ -24,14 +24,14 @@ type function struct {
 // Mirrors the vector initialization in runtime/loader/loader.c
 var moduleFunctions = map[string]map[string]function{
 	"gate": {
-		"debug":    {-5, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}},
-		"exit":     {-4, wa.FuncType{Params: []wa.Type{wa.I32}}},
-		"io.65536": {-3, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}},
+		"debug":    {-6, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}},
+		"exit":     {-5, wa.FuncType{Params: []wa.Type{wa.I32}}},
+		"io.65536": {-4, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}},
 	},
 	"env": {
-		"__gate_debug":    {-5, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}},
-		"__gate_exit":     {-4, wa.FuncType{Params: []wa.Type{wa.I32}}},
-		"__gate_io_65536": {-3, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}},
+		"__gate_debug":    {-6, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}},
+		"__gate_exit":     {-5, wa.FuncType{Params: []wa.Type{wa.I32}}},
+		"__gate_io_65536": {-4, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}},
 	},
 }
 

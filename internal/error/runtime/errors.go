@@ -29,10 +29,11 @@ var ExecutorErrors = [35]Error{
 	34: {"ERR_EXEC_PRLIMIT", "runtime executor", "prlimit call failed"},
 }
 
-var ProcessErrors = [40]Error{
+var ProcessErrors = [42]Error{
 	2:  {"ERR_RT_RECV", "process runtime", "preadv2 call failed"},
 	3:  {"ERR_RT_SEND", "process runtime", "write call failed"},
 	4:  {"ERR_RT_DEBUG", "process runtime", "debug write call failed"},
+	5:  {"ERR_RT_MPROTECT", "process runtime", "mprotect call failed"},
 	11: {"ERR_EXECHILD_DUP2", "process executor", "child: dup2 call failed"},
 	12: {"ERR_EXECHILD_NICE", "process executor", "child: nice call failed"},
 	13: {"ERR_EXECHILD_SETRLIMIT_NOFILE", "process executor", "child: setrlimit: failed to set NOFILE limit"},
@@ -57,6 +58,7 @@ var ProcessErrors = [40]Error{
 	35: {"ERR_LOAD_SECCOMP", "process loader", "seccomp call failed"},
 	36: {"ERR_LOAD_ARGC", "process loader", "loader executed with arguments"},
 	39: {"ERR_LOAD_FCNTL_OUTPUT", "process loader", "failed to set output file flags"},
+	40: {"ERR_LOAD_MPROTECT_HEAP", "process loader", "mprotect: globals/memory protection failed"},
 }
 
 var ErrorsInitialized struct{}

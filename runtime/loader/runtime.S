@@ -5,6 +5,7 @@
 #define __ASSEMBLY__
 
 #include <asm/errno.h>
+#include <asm/mman.h>
 #include <asm/signal.h>
 #include <linux/bpf_common.h>
 #include <sys/syscall.h>
@@ -21,6 +22,10 @@
 
 #define SECCOMP_RET_KILL_PROCESS 0x80000000
 #define SECCOMP_RET_ALLOW        0x7fff0000
+
+#define UCONTEXT_SUSPEND_REG_OFFSET  128 // rbx
+#define UCONTEXT_STACKPTR_REG_OFFSET 160 // rsp
+#define UCONTEXT_INSNPTR_REG_OFFSET  168 // rip
 
 .macro	bpf_stmt code, k
 .short	\code
@@ -49,18 +54,27 @@ runtime_code_begin:
 
 .Lseccomp_filters:
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, 0				// Syscall number
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,     3, 0	// Next block
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,        9, 0	// Allow
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_rt_sigreturn, 8, 0	// Allow
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_exit_group,   7, 6	// Allow, kill
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      10,  0	// Third block
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         16,  0	// Allow
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_mprotect,       2,  0	// Second block
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_rt_sigreturn,  14,  0	// Allow
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_exit_group,    13, 12	// Allow, kill
+
+	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 0 + 4)		// mprotect addr high half
+	bpf_jump BPF_JMP | BPF_JGE | BPF_K, GATE_MIN_HEAP_HIGH32, 0, 12	// Kill
+	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 1 + 4)		// mprotect len high half
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  0, 10	// Kill
+	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 2)		// mprotect prot
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K, PROT_READ|PROT_WRITE, 7,  8	// Allow, kill
 
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 3)		// recvfrom flags
 	bpf_stmt BPF_ALU | BPF_AND | BPF_K,   ~MSG_DONTWAIT		// Unsupported flags mask
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                0, 5	// Kill
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  0,  5	// Kill
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 5 + 0)		// recvfrom addrlen low half
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                0, 3	// Kill
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  0,  3	// Kill
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 5 + 4)		// recvfrom addrlen high half
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                0, 1	// Kill
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  0,  1	// Kill
+
 	bpf_stmt BPF_RET | BPF_K,             SECCOMP_RET_ALLOW
 	bpf_stmt BPF_RET | BPF_K,             SECCOMP_RET_KILL_PROCESS
 
@@ -77,7 +91,6 @@ runtime_code_begin:
 // In:  r12 = text address + init routine
 //      r13 = stack limit
 //      r14 = memory address
-//      r15 = current memory limit
 runtime_init:
 	// Unmap loader .text and .rodata sections.
 
@@ -113,7 +126,6 @@ runtime_init_no_sandbox:
 	// Initialize reserved registers.
 
 	mov	%r13, %rbx			// Stack limit
-	mov	%r15, %r13			// Memory limit
 	mov	%r12, %r15
 	and	$~0x7f, %r15			// Text base
 	mov	%r12, %rcx			// Init routine address
@@ -130,6 +142,7 @@ runtime_init_no_sandbox:
 	xor	%r10d, %r10d
 	xor	%r11d, %r11d
 	xor	%r12d, %r12d
+	xor	%r13d, %r13d
 
 	// Execute wag object ABI init routine using retpoline.
 
@@ -140,15 +153,36 @@ runtime_init_no_sandbox:
 .type	signal_handler,@function
 
 // In:  edi = signum
+//      rsi = siginfo
+//      rdx = ucontext
 signal_handler:
 	cmp	$SIGIO, %edi
 	je	.Lsigio
 
+	cmp	$SIGSEGV, %edi
+	je	.Lsigsegv
+
 	mov	$0x8000000000000001, %rax	// Suspend calls and loops.
-	or	%rax, GATE_SIGNAL_STACK_SUSPEND_REG_OFFSET(%rsp)
+	or	%rax, UCONTEXT_SUSPEND_REG_OFFSET(%rdx)
 
 .Lsigio:
 	ret
+
+.Lsigsegv:
+	mov	UCONTEXT_STACKPTR_REG_OFFSET(%rdx), %rax
+	sub	$8, %rax
+	mov	%rax, UCONTEXT_STACKPTR_REG_OFFSET(%rdx)
+
+	mov	UCONTEXT_INSNPTR_REG_OFFSET(%rdx), %rbx
+	mov	%rbx, (%rax)
+
+	lea	.Lsigsegv_exit(%rip), %rbx
+	mov	%rbx, UCONTEXT_INSNPTR_REG_OFFSET(%rdx)
+	ret
+
+.Lsigsegv_exit:
+	mov	$105, %edi			// MemoryAccessOutOfBounds
+	jmp	.Lruntime_exit
 
 .align	16,INT3
 .globl	signal_restorer
@@ -186,6 +220,54 @@ trap_handler:
 	jmp	.Lruntime_exit
 
 .align	16,INT3
+.globl	current_memory
+.type	current_memory,@function
+
+// Out: eax = allocated wasm pages
+current_memory:
+	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %eax
+	jmp	.Lresume
+
+.align	16,INT3
+.globl	grow_memory
+.type	grow_memory,@function
+
+// In:  eax = increment in wasm pages
+// Out: eax = previously allocated wasm pages
+grow_memory:
+	mov	%eax, %r12d
+
+	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %edi
+	add	%rdi, %r12			// New memory pages
+	cmp	%r12, -32(%r15)			// Grow memory limit pages
+	jl	.Loom
+
+	shl	$16, %rdi			// Current memory bytes
+	add	%r14, %rdi			// mprotect addr
+
+	mov	%eax, %esi
+	shl	$16, %rsi			// mprotect len
+	je	.Lgrow_done
+
+	mov	$PROT_READ|PROT_WRITE, %edx
+	mov	$SYS_mprotect, %eax
+	syscall
+	test	%rax, %rax
+	je	.Lgrow_done
+
+	mov	$ERR_RT_MPROTECT, %eax
+	jmp	trap_handler
+
+.Lgrow_done:
+	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %eax
+	mov	%r12d, -GATE_STACK_LIMIT_OFFSET(%rbx)
+	jmp	.Lresume
+
+.Loom:
+	mov	$-1, %eax
+	jmp	.Lresume
+
+.align	16,INT3
 .globl	retpoline
 .type	retpoline,@function
 
@@ -206,7 +288,9 @@ retpoline:
 	ret
 
 // In:  r12 = relative length address (zero-extended 32-bit value)
+//      r13 = current memory end address
 // Out: r12 = absolute length address
+//      r13 = current memory end address
 .macro	io_len_check nop_label
 	test	%r12d, %r12d
 	je	\nop_label
@@ -222,9 +306,11 @@ retpoline:
 
 // In:  rsi = relative buffer address (zero-extended 32-bit value)
 //      r12 = absolute length address
+//      r13 = current memory end address
 // Out: rdx = length
 //      rsi = absolute buffer address
 //      r12 = absolute length address
+//      r13 = current memory end address
 .macro	io_setup nop_label
 	mov	(%r12), %edx			// Length (zero-extended).
 	test	%edx, %edx			//
@@ -246,6 +332,10 @@ retpoline:
 gate_io:
 	test	$1, %ebx
 	jne	.Lsuspended
+
+	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %r13d
+	shl	$16, %r13d			// Current memory size
+	add	%r14, %r13			// Current memory end address
 
 	// Setup source buffer.
 
@@ -368,26 +458,17 @@ gate_exit:
 
 // In:  edi = status code
 .Lruntime_exit:
-	// Reset stack limit to start of stack space.
-
 	mov	$0x7ffffffffffffffe, %rax	// Clear suspend bits.
 	and	%rax, %rbx
-	sub	$GATE_SIGNAL_STACK_RESERVE+16+128+16, %rbx
-
-	// Calculate allocated memory size.
-
-	sub	%r14, %r13
-
-	// Calculate unused stack length.
-
+	sub	$GATE_STACK_LIMIT_OFFSET, %rbx	// Stack buffer.
 	mov	%rsp, %rax
-	sub	%rbx, %rax
+	sub	%rbx, %rax			// Stack offset.
 
-	// Write information at start of stack space.
+	// Write variables at start of stack space.
+	// (Current memory size is already there.)
 
-	mov	%eax, 0(%rbx)			// Unused stack length
-	mov	%r13d, 4(%rbx)			// Allocated memory size
-	mov	%r15, 8(%rbx)			// Text address
+	mov	%eax, 4(%rbx)			// Stack offset.
+	mov	%r15, 8(%rbx)			// Text address.
 
 	// Fall through to sys_exit.
 
@@ -407,6 +488,10 @@ sys_exit:
 gate_debug:
 	test	$1, %ebx
 	jne	.Lsuspended
+
+	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %r13d
+	shl	$16, %r13d			// Current memory size
+	add	%r14, %r13			// Current memory end address
 
 	mov	16(%rsp), %esi			// Relative buffer address
 	lea	8(%rsp), %r12			// Absolute length address

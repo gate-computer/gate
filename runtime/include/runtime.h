@@ -22,10 +22,12 @@
 #define GATE_IMAGE_FD 3   //                    exechild loader
 #define GATE_LOADER_FD 4  // container executor exechild
 
+#define GATE_MIN_HEAP_HIGH32 0x2aa9
+
 #define GATE_LOADER_STACK_SIZE 12288LL // 3 pages
 
 #define GATE_SIGNAL_STACK_RESERVE 8192
-#define GATE_SIGNAL_STACK_SUSPEND_REG_OFFSET 136
+#define GATE_STACK_LIMIT_OFFSET (16 + GATE_SIGNAL_STACK_RESERVE + 128 + 16) // See wag/Stack.md
 
 #define GATE_LIMIT_AS (GATE_LOADER_STACK_SIZE + /* */         \
 		       0x1000LL +               /* loader */  \

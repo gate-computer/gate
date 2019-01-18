@@ -413,11 +413,12 @@ func checkStack(b []byte, stackSize int) (unused, memorySize uint32, textAddr ui
 		return
 	}
 
-	unused = binary.LittleEndian.Uint32(b[0:])
-	memorySize = binary.LittleEndian.Uint32(b[4:])
+	memoryPages := binary.LittleEndian.Uint32(b[0:])
+	memorySize = memoryPages * wa.PageSize
+	unused = binary.LittleEndian.Uint32(b[4:])
 	textAddr = binary.LittleEndian.Uint64(b[8:])
 
-	ok = unused > 0 && unused < uint32(stackSize) && unused&7 == 0 && memorySize <= math.MaxInt32 && memorySize&(wa.PageSize-1) == 0 && textAddr >= internal.MinTextAddr && textAddr <= internal.MaxTextAddr && textAddr&uint64(memPageSize-1) == 0
+	ok = memoryPages <= math.MaxInt32/wa.PageSize && unused > 0 && unused < uint32(stackSize) && unused&7 == 0 && textAddr >= internal.MinTextAddr && textAddr <= internal.MaxTextAddr && textAddr&uint64(memPageSize-1) == 0
 	return
 }
 
