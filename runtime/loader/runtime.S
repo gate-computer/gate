@@ -199,11 +199,14 @@ signal_restorer:
 
 // In:  eax = trap id
 trap_handler:
-	test	$1, %ebx
-	jne	.Lsuspended
-
 	test	%eax, %eax
 	je	.Ltrap_exit
+
+	cmp	$2, %eax			// Suspended
+	je	.Lsuspended
+
+	cmp	$4, %eax			// CallStackExhausted
+	je	.Lcall_stack_exhausted
 
 	mov	%eax, %edi
 	add	$100, %edi			// exit status
@@ -216,7 +219,14 @@ trap_handler:
 	jmp	.Lruntime_exit
 
 .Lsuspended:
-	mov	$100+2, %edi			// exit status
+	mov	$100+2, %edi			// exit status: Suspended
+	jmp	.Lruntime_exit
+
+.Lcall_stack_exhausted:
+	test	$1, %ebx
+	jne	.Lsuspended
+
+	mov	$100+4, %edi			// exit status: CallStackExhausted
 	jmp	.Lruntime_exit
 
 .align	16,INT3
