@@ -27,12 +27,25 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/state"
+	"github.com/tsavola/gate/server/state/bolt"
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/wa"
 )
 
 const testAccessLog = false
+
+var testAccessTracker state.AccessTracker
+
+func init() {
+	db, err := bolt.Open("")
+	if err != nil {
+		panic(err)
+	}
+
+	testAccessTracker = db
+}
 
 func newTestHandler(ctx context.Context) http.Handler {
 	runtimeConfig := &runtime.Config{
@@ -48,7 +61,7 @@ func newTestHandler(ctx context.Context) http.Handler {
 	webConfig := &Config{
 		Server:      server.New(ctx, serverConfig),
 		Authority:   "test",
-		AccessState: newTestAccessTracker(),
+		AccessState: testAccessTracker,
 		ModuleSources: map[string]server.Source{
 			"/test": testSource{},
 		},
