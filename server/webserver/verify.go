@@ -59,6 +59,11 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *ser
 		return
 	}
 
+	if s.AccessState == nil {
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "nonce not supported", event.FailRequest_AuthInvalid, err)
+		panic(nil)
+	}
+
 	if err := s.AccessState.TrackNonce(ctx, pri, nonce, time.Unix(expires, 0)); err != nil {
 		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has already been used", event.FailRequest_AuthReused, err)
 		panic(nil)

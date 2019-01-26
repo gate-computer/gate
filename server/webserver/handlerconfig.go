@@ -21,5 +21,5 @@ type Config struct {
 }
 
 func (c *Config) Configured() bool {
-	return c.Authority != "" && c.AccessState != nil
+	return c.Authority != ""
 }

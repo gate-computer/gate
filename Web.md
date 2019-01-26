@@ -20,7 +20,8 @@ Expiration time (`exp` claim) is checked by the server so that it won't be too
 far in the future.  The limit is 15 minutes.
 
 The `nonce` claim may be specified in order to prevent token reuse.  If set, it
-must be unique during the expiration period.
+must be unique during the expiration period.  Server configuration may preclude
+nonce usage.
 
 The `aud` claim may be specified in order to prevent misdirected requests.
 Suitable audience string is the HTTPS URL of the API,
