@@ -19,6 +19,8 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
+const maxBatchDelay = time.Millisecond
+
 var (
 	nonceBucketName  = []byte("nonce")
 	expireBucketName = []byte("expire")
@@ -60,6 +62,8 @@ func Open(filename string) (accessTracker *DB, err error) {
 		}
 	}()
 
+	db.MaxBatchDelay = maxBatchDelay
+
 	err = db.Update(func(tx *bolt.Tx) (err error) {
 		_, err = tx.CreateBucketIfNotExists(nonceBucketName)
 		if err != nil {
@@ -95,7 +99,7 @@ func (accessTracker *DB) TrackNonce(ctx context.Context, pri *server.PrincipalKe
 	binary.LittleEndian.PutUint64(expireKey, uint64(expire.Unix()))
 	// Second half is filled inside transaction.
 
-	return accessTracker.db.Update(func(tx *bolt.Tx) error {
+	return accessTracker.db.Batch(func(tx *bolt.Tx) error {
 		now := uint64(time.Now().Unix())
 
 		nonceBucket := tx.Bucket(nonceBucketName)
