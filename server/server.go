@@ -12,7 +12,6 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/serverapi"
-	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
@@ -242,7 +241,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		return
 	}
 
-	err = inst.process.Start(inst.exe, runtime.InitStart)
+	err = inst.process.Start(inst.exe, prog.routine)
 	if err != nil {
 		return
 	}
@@ -415,7 +414,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	err = inst.process.Start(inst.exe, runtime.InitStart)
+	err = inst.process.Start(inst.exe, prog.routine)
 	if err != nil {
 		return
 	}
@@ -447,7 +446,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 		return
 	}
 
-	err = inst.process.Start(inst.exe, runtime.InitStart)
+	err = inst.process.Start(inst.exe, prog.routine)
 	if err != nil {
 		return
 	}

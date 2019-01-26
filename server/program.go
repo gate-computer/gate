@@ -10,6 +10,7 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"io"
 	"io/ioutil"
 	"math"
@@ -19,6 +20,7 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/image/metadata"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
+	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -68,6 +70,7 @@ type program struct {
 	orig   *program
 
 	// Effective if prog is nil:
+	routine runtime.InitRoutine
 	codeMap object.CallMap
 	archive image.Archive
 	*image.ArchiveManifest
@@ -97,7 +100,15 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	var r = bufio.NewReader(io.TeeReader(io.TeeReader(content, moduleStore.Writer), actualHash))
 
 	var sectionMap = section.NewMap()
-	var sectionConfig = compile.Config{SectionMapper: sectionMap.Mapper()}
+	var sectionLoaders = make(section.CustomLoaders)
+	var sectionConfig = compile.Config{
+		SectionMapper:       sectionMap.Mapper(),
+		CustomSectionLoader: sectionLoaders.Load,
+	}
+
+	sectionLoaders["gate.stack"] = func(_ string, _ section.Reader) error {
+		return errors.New("gate.stack section appears too early in wasm module")
+	}
 
 	module, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: sectionConfig}, r)
 	if err != nil {
@@ -164,6 +175,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		return
 	}
 
+	var routine = runtime.InitStart
 	var codeMap = new(object.CallMap)
 	var codeConfig = &compile.CodeConfig{
 		Text:   build.TextBuffer(),
@@ -194,6 +206,29 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 			addr = codeMap.FuncAddrs[entryIndex]
 		}
 		build.SetupEntryStackFrame(addr)
+	}
+
+	sectionLoaders["gate.stack"] = func(_ string, r section.Reader) error {
+		if entryName != "" {
+			return errors.New("entry function specified with suspended program")
+		}
+
+		routine = runtime.InitResume
+
+		if _, err := r.Read(build.StackBytes()); err != nil {
+			return err
+		}
+
+		switch _, err := r.ReadByte(); err {
+		case io.EOF:
+			return nil
+
+		case nil:
+			return resourcelimit.New("suspended program stack size exceeds call stack size limit")
+
+		default:
+			return err
+		}
 	}
 
 	var dataConfig = &compile.DataConfig{
@@ -270,6 +305,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	prog = &program{
 		hash:            hash,
 		module:          storedModule,
+		routine:         routine,
 		codeMap:         *codeMap,
 		archive:         archive,
 		ArchiveManifest: archive.Manifest(),

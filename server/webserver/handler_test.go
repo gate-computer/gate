@@ -824,6 +824,8 @@ func TestInstance(t *testing.T) {
 			})
 		})
 
+		var snapshot []byte
+
 		t.Run("Snapshot", func(t *testing.T) {
 			req := newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
 			resp, _ := doTest(t, handler, req)
@@ -838,26 +840,45 @@ func TestInstance(t *testing.T) {
 			}
 
 			req = newSignedTestRequest(key, http.MethodGet, location, nil)
-			resp, content := doTest(t, handler, req)
+			resp, snapshot = doTest(t, handler, req)
 
 			if resp.StatusCode != http.StatusOK {
 				t.Fatal(resp.Status)
 			}
 
 			if false {
-				f, err := os.Create("/tmp/test.wasm")
+				f, err := os.Create("/tmp/snapshot.wasm")
 				if err != nil {
 					t.Error(err)
 				} else {
 					defer f.Close()
-					if _, err := f.Write(content); err != nil {
+					if _, err := f.Write(snapshot); err != nil {
 						t.Error(err)
 					}
 				}
 			}
 
-			if _, err := wag.Compile(nil, bytes.NewReader(content), dummyResolver{}); err != nil {
+			if _, err := wag.Compile(nil, bytes.NewReader(snapshot), dummyResolver{}); err != nil {
 				t.Error(err)
+			}
+		})
+
+		t.Run("Restore", func(t *testing.T) {
+			req := newSignedTestRequest(key, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch", snapshot)
+			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+			resp, _ := doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusCreated {
+				t.Fatal(resp.Status)
+			}
+
+			restoredID := resp.Header.Get(webapi.HeaderInstance)
+
+			req = newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+restoredID+"?action=suspend", nil)
+			resp, _ = doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusNoContent {
+				t.Fatal(resp.Status)
 			}
 		})
 	}

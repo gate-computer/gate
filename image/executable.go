@@ -350,6 +350,10 @@ func (b *Build) TextSize() int {
 	return len(b.text.Bytes())
 }
 
+func (b *Build) StackBytes() []byte {
+	return b.stack
+}
+
 func (b *Build) SetupEntryStackFrame(entryFuncAddr uint32) {
 	frameSize := stack.SetupEntryFrame(b.stack, entryFuncAddr, nil)
 	b.stackUnused = len(b.stack) - frameSize
