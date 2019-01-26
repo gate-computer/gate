@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -214,8 +215,6 @@ func main() {
 	flag.Usage = confi.FlagUsage(nil, c)
 	parseConfig(flag.CommandLine)
 
-	ctx := context.Background()
-
 	var (
 		critLog *log.Logger
 		errLog  *log.Logger
@@ -266,12 +265,18 @@ func main() {
 		critLog.Fatal(err)
 	}
 
-	services := func() server.InstanceServices {
+	c.Principal.AccessConfig.Services = func() server.InstanceServices {
 		o := origin.New(&originConfig)
 		r := serviceConfig.Registry.Clone()
 		r.Register(o)
 		return server.NewInstanceServices(r, o)
 	}
+
+	critLog.Fatal(main2(critLog))
+}
+
+func main2(critLog *log.Logger) (err error) {
+	ctx := context.Background()
 
 	if c.Monitor.HTTP.Addr != "" {
 		if c.Monitor.HTTP.Origins == nil && strings.HasPrefix(c.Monitor.HTTP.Addr, "localhost:") {
@@ -283,7 +288,7 @@ func main() {
 
 		listener, err := net.Listen(c.Monitor.HTTP.Net, c.Monitor.HTTP.Addr)
 		if err != nil {
-			critLog.Fatal(err)
+			return err
 		}
 
 		server := http.Server{Handler: handler}
@@ -294,7 +299,7 @@ func main() {
 
 	c.Server.Executor, err = runtime.NewExecutor(ctx, &c.Runtime)
 	if err != nil {
-		critLog.Fatal(err)
+		return err
 	}
 
 	var fs *image.Filesystem
@@ -310,7 +315,7 @@ func main() {
 		c.Server.Config.InstanceStore = fs
 
 	default:
-		critLog.Fatalf("unknown server.instancestore option: %q", c.Server.InstanceStore)
+		return fmt.Errorf("unknown server.instancestore option: %q", c.Server.InstanceStore)
 	}
 
 	switch c.Server.ProgramStorage {
@@ -321,12 +326,11 @@ func main() {
 		c.Server.Config.ProgramStorage = fs
 
 	default:
-		critLog.Fatalf("unknown server.programstorage option: %q", c.Server.ProgramStorage)
+		return fmt.Errorf("unknown server.programstorage option: %q", c.Server.ProgramStorage)
 	}
 
 	switch c.Access.Policy {
 	case "public":
-		c.Principal.AccessConfig.Services = services
 		c.Server.AccessPolicy = &server.PublicAccess{
 			AccessConfig: c.Principal.AccessConfig,
 		}
@@ -334,7 +338,9 @@ func main() {
 	case "ssh":
 		accessKeys := &sshkeys.AuthorizedKeys{
 			AccessConfig: c.Principal.AccessConfig,
-			Services:     func(uid string) server.InstanceServices { return services() },
+			Services: func(uid string) server.InstanceServices {
+				return c.Principal.AccessConfig.Services()
+			},
 		}
 
 		uid := strconv.Itoa(os.Getuid())
@@ -343,19 +349,19 @@ func main() {
 		if filename == "" {
 			home := os.Getenv("HOME")
 			if home == "" {
-				critLog.Fatalf("access.ssh.authorizedkeys option or $HOME required")
+				return fmt.Errorf("access.ssh.authorizedkeys option or $HOME required")
 			}
 			filename = path.Join(home, ".ssh", "authorized_keys")
 		}
 
 		if err := accessKeys.ParseFile(uid, filename); err != nil {
-			critLog.Fatal(err)
+			return err
 		}
 
 		c.Server.AccessPolicy = accessKeys
 
 	default:
-		critLog.Fatalf("unknown access.policy option: %q", c.Access.Policy)
+		return fmt.Errorf("unknown access.policy option: %q", c.Access.Policy)
 	}
 
 	switch c.Server.Debug {
@@ -365,7 +371,7 @@ func main() {
 		c.Server.Config.Debug = os.Stderr
 
 	default:
-		critLog.Fatalf("unknown server.debug option: %q", c.Server.Debug)
+		return fmt.Errorf("unknown server.debug option: %q", c.Server.Debug)
 	}
 
 	if c.HTTP.Authority == "" {
@@ -374,7 +380,7 @@ func main() {
 
 	accessState, err := bolt.Open(c.HTTP.AccessDB)
 	if err != nil {
-		critLog.Fatal(err)
+		return err
 	}
 	defer accessState.Close()
 	c.HTTP.AccessState = accessState
@@ -399,7 +405,7 @@ func main() {
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 		if err != nil {
-			critLog.Fatal(err)
+			return err
 		}
 		defer f.Close()
 
@@ -408,7 +414,7 @@ func main() {
 
 	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
-		critLog.Fatal(err)
+		return err
 	}
 
 	if n := c.Server.MaxConns; n > 0 {
@@ -431,7 +437,7 @@ func main() {
 
 	if c.HTTP.TLS.Enabled {
 		if !c.ACME.AcceptTOS {
-			critLog.Fatal("http.tls requires acme.accepttos")
+			return errors.New("http.tls requires acme.accepttos")
 		}
 
 		m := &autocert.Manager{
@@ -455,7 +461,7 @@ func main() {
 		}()
 	}
 
-	critLog.Fatal(s.Serve(l))
+	return s.Serve(l)
 }
 
 func newHTTPSHandler(gate http.Handler) http.Handler {
