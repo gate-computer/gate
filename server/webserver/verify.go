@@ -60,7 +60,7 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *ser
 	}
 
 	if s.AccessState == nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "nonce not supported", event.FailRequest_AuthInvalid, err)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "nonce not supported", event.FailRequest_AuthInvalid, nil)
 		panic(nil)
 	}
 
