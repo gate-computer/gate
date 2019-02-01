@@ -64,16 +64,38 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 	return validateHashBytes(hash1, hash2.Sum(nil))
 }
 
-type program struct {
-	hash   string
-	module image.Module
-	orig   *program
-
-	// Effective if prog is nil:
-	routine runtime.InitRoutine
+type binary struct {
 	codeMap object.CallMap
 	archive image.Archive
 	*image.ArchiveManifest
+
+	module image.Module // TODO: separate reference counting?
+
+	// Protected by Server.lock:
+	refCount int
+}
+
+// ref must be called with Server.lock held.
+func (bin *binary) ref() *binary {
+	bin.refCount++
+	return bin
+}
+
+// unref must be called with Server.lock held.
+func (bin *binary) unref() {
+	bin.refCount--
+	if bin.refCount == 0 {
+		bin.archive.Close()
+		bin.module.Close()
+	}
+}
+
+type program struct {
+	hash    string
+	bin     *binary
+	routine runtime.InitRoutine
+
+	module image.Module // Non-nil overrides bin.module.
 
 	// Protected by Server.lock:
 	refCount int
@@ -303,19 +325,42 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	}
 
 	prog = &program{
-		hash:            hash,
-		module:          storedModule,
-		routine:         routine,
-		codeMap:         *codeMap,
-		archive:         archive,
-		ArchiveManifest: archive.Manifest(),
+		hash: hash,
+		bin: &binary{
+			codeMap:         *codeMap,
+			archive:         archive,
+			ArchiveManifest: archive.Manifest(),
+			module:          storedModule,
+			refCount:        1,
+		},
+		routine:  routine,
+		refCount: 1,
+	}
+	return
+}
+
+// ref must be called with Server.lock held.
+func (prog *program) ref() *program {
+	prog.refCount++
+	return prog
+}
+
+// unref must be called with Server.lock held.
+func (prog *program) unref() (final bool) {
+	prog.refCount--
+	if prog.refCount == 0 {
+		prog.bin.unref()
+		if prog.module != nil {
+			prog.module.Close()
+		}
+		final = true
 	}
 	return
 }
 
 func (prog *program) getEntryAddr(name string) (addr uint32, err error) {
 	if name != "" {
-		addr, err = entry.FuncAddr(prog.EntryAddrs, name)
+		addr, err = entry.FuncAddr(prog.bin.EntryAddrs, name)
 	}
 	return
 }
@@ -328,18 +373,7 @@ func (prog *program) loadExecutable(ctx context.Context, ref image.ExecutableRef
 		MaxMemorySize: roundSize(instPolicy.MaxMemorySize, wa.PageSize),
 	}
 
-	return image.LoadExecutable(ctx, ref, config, prog.archive, stack.EntryFrame(entryAddr, nil))
-}
-
-func (prog *program) Close() (err error) {
-	err = prog.module.Close()
-
-	if prog.archive != nil {
-		if e := prog.archive.Close(); e != nil {
-			err = e
-		}
-	}
-	return
+	return image.LoadExecutable(ctx, ref, config, prog.bin.archive, stack.EntryFrame(entryAddr, nil))
 }
 
 func roundSize(n, pageSize int) int {

@@ -12,8 +12,10 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/serverapi"
+	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
+	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 )
 
@@ -141,24 +143,27 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 
 func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader,
 ) (found bool, err error) {
-	prog, found := s.getProgram(allegedHash)
+	prog, found := s.refProgram(allegedHash)
 	if !found {
 		return
 	}
+	defer func() {
+		if err != nil {
+			s.unrefProgram(prog)
+		}
+	}()
 
 	err = validateHashContent(allegedHash, content)
 	if err != nil {
 		return
 	}
 
-	if prog.TextSize > pol.prog.MaxTextSize {
+	if prog.bin.TextSize > pol.prog.MaxTextSize {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
 
-	if replaced := s.registerProgram(acc, prog); replaced {
-		prog.Close()
-	}
+	s.registerProgramRef(acc, prog)
 
 	s.Monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
@@ -174,12 +179,9 @@ func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *pro
 		return
 	}
 
-	found := s.registerProgram(acc, prog)
-	if found {
-		prog.Close()
-	}
+	redundant := s.registerProgramRef(acc, prog)
 
-	if found {
+	if redundant {
 		s.Monitor(&event.ModuleUploadExist{
 			Ctx:      accountContext(ctx, acc),
 			Module:   prog.hash,
@@ -209,11 +211,16 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		return
 	}
 
-	prog, found := s.getAccountProgram(acc, progHash)
+	prog, found := s.refAccountProgram(acc, progHash)
 	if !found {
 		err = resourcenotfound.ErrModule
 		return
 	}
+	defer func() {
+		if err != nil {
+			s.unrefProgram(prog)
+		}
+	}()
 
 	entryAddr, err := prog.getEntryAddr(function)
 	if err != nil {
@@ -246,7 +253,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		return
 	}
 
-	_, err = s.registerInstance(acc, prog, inst, function)
+	_, err = s.registerProgramRefInstance(acc, prog, inst, function)
 	if err != nil {
 		return
 	}
@@ -389,17 +396,22 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	prog, found := s.getProgram(allegedHash)
+	prog, found := s.refProgram(allegedHash)
 	if !found {
 		return
 	}
+	defer func() {
+		if err != nil {
+			s.unrefProgram(prog)
+		}
+	}()
 
 	err = validateHashContent(prog.hash, content)
 	if err != nil {
 		return
 	}
 
-	if prog.TextSize > pol.prog.MaxTextSize {
+	if prog.bin.TextSize > pol.prog.MaxTextSize {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
@@ -419,7 +431,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	_, err = s.registerInstance(acc, prog, inst, function)
+	_, err = s.registerProgramRefInstance(acc, prog, inst, function)
 	if err != nil {
 		return
 	}
@@ -445,19 +457,24 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			s.unrefProgram(prog)
+		}
+	}()
 
 	err = inst.process.Start(inst.exe, prog.routine)
 	if err != nil {
 		return
 	}
 
-	found, err := s.registerInstance(acc, prog, inst, function)
+	redundant, err := s.registerProgramRefInstance(acc, prog, inst, function)
 	if err != nil {
 		return
 	}
 
 	if allegedHash != "" {
-		if found {
+		if redundant {
 			s.Monitor(&event.ModuleUploadExist{
 				Ctx:      accountContext(ctx, acc),
 				Module:   prog.hash,
@@ -470,7 +487,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 			}, nil)
 		}
 	} else {
-		if found {
+		if redundant {
 			s.Monitor(&event.ModuleSourceExist{
 				Ctx:    accountContext(ctx, acc),
 				Module: prog.hash,
@@ -532,13 +549,33 @@ func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash stri
 		return
 	}
 
-	prog, found := s.getPrincipalProgram(pri, hash)
+	prog, found := s.refPrincipalProgram(pri, hash)
 	if !found {
 		err = resourcenotfound.ErrModule
 		return
 	}
+	defer func() {
+		if err != nil {
+			s.unrefProgram(prog)
+		}
+	}()
 
-	return prog.module.Open(ctx)
+	mod := prog.module
+	if mod == nil {
+		mod = prog.bin.module
+	}
+
+	content, err = mod.Open(ctx)
+	if err != nil {
+		return
+	}
+
+	modCloser := content.CloseMethod
+	content.CloseFunc = func() error {
+		defer s.unrefProgram(prog)
+		return modCloser.Close()
+	}
+	return
 }
 
 func (s *Server) ModuleDownloaded(ctx context.Context, pri *PrincipalKey, hash string, err error) {
@@ -563,11 +600,9 @@ func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string
 			return resourcenotfound.ErrModule
 		}
 
-		delete(acc.programRefs, prog)
-		prog.refCount-- // Unreferenced by account.
-
 		// TODO: LRU cache
-		if prog.refCount == 0 {
+
+		if acc.unrefProgram(prog) {
 			delete(s.programs, hash)
 		}
 
@@ -721,28 +756,51 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 
 	// TODO: check module storage limits
 
-	inst, found := s.getInstance(pri, instID)
+	bin, inst, found := s.refInstanceBinary(pri, instID)
 	if !found {
 		err = resourcenotfound.ErrInstance
 		return
 	}
+	defer func() {
+		if err != nil {
+			s.unrefBinary(bin)
+		}
+	}()
 
-	prog, err := inst.snapshotModule(ctx, s.ProgramStorage)
+	var routine runtime.InitRoutine
+
+	switch inst.Status().State {
+	case serverapi.Status_suspended:
+		routine = runtime.InitResume
+
+	case serverapi.Status_terminated:
+		routine = runtime.InitEnter // Skip wasm module's start function.
+
+	default:
+		err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+		return
+	}
+
+	module, moduleKey, err := image.BuildModule(ctx, s.ProgramStorage, bin.module, &bin.Metadata, inst.exe, &bin.codeMap)
 	if err != nil {
 		return
 	}
 
-	if replaced := s.registerProgram(inst.account, prog); replaced {
-		prog.Close()
+	prog := &program{
+		hash:     moduleKey,
+		bin:      bin,
+		routine:  routine,
+		module:   module,
+		refCount: 1,
 	}
+
+	s.registerProgramRef(inst.acc, prog)
 
 	s.Monitor(&event.InstanceSnapshot{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
 		Module:   prog.hash,
 	}, nil)
-
-	moduleKey = prog.hash
 	return
 }
 
@@ -796,35 +854,38 @@ func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account) {
 	return
 }
 
-func (s *Server) getProgram(hash string) (prog *program, found bool) {
+func (s *Server) refProgram(hash string) (prog *program, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	prog, found = s.programs[hash]
+	if found {
+		prog.ref()
+	}
 	return
 }
 
-func (s *Server) getAccountProgram(acc *account, hash string) (*program, bool) {
+func (s *Server) refAccountProgram(acc *account, hash string) (*program, bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	if prog, exists := s.programs[hash]; exists {
 		if _, referenced := acc.programRefs[prog]; referenced {
-			return prog, true
+			return prog.ref(), true
 		}
 	}
 
 	return nil, false
 }
 
-func (s *Server) getPrincipalProgram(pri *PrincipalKey, hash string) (prog *program, refFound bool) {
+func (s *Server) refPrincipalProgram(pri *PrincipalKey, hash string) (prog *program, refFound bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
 	if acc, ok := s.accounts[pri.key]; ok {
 		if prog, exists := s.programs[hash]; exists {
 			if _, referenced := acc.programRefs[prog]; referenced {
-				return prog, true
+				return prog.ref(), true
 			}
 		}
 	}
@@ -845,24 +906,14 @@ func (s *Server) getAccountAndPrincipalProgramWithCallerLock(pri *PrincipalKey, 
 	return acc, nil, false
 }
 
-func (s *Server) registerProgram(acc *account, prog *program) (progFound bool) {
+// registerProgramRef with the server and an account.  Caller's program
+// reference is stolen.
+func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	existingProg, progFound := s.programs[prog.hash]
-	if progFound {
-		prog = existingProg
-	} else {
-		if prog.orig != nil {
-			prog.orig.refCount++ // It wasn't referenced when program object was created.
-		}
-		s.programs[prog.hash] = prog
-	}
-
-	if _, referenced := acc.programRefs[prog]; !referenced {
-		acc.programRefs[prog] = struct{}{}
-		prog.refCount++ // Referenced by account.
-	}
+	prog, redundant = s.mergeProgramRef(prog)
+	acc.ensureRefProgram(prog)
 	return
 }
 
@@ -876,26 +927,23 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *PrincipalKey, instID strin
 		}
 	}
 
-	if pri == nil {
-		return
-	}
+	if pri != nil {
+		s.lock.Lock()
+		defer s.lock.Unlock()
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+		acc = s.accounts[pri.key]
+		if acc == nil {
+			acc = newAccount(pri)
+			s.accounts[pri.key] = acc
+		}
 
-	acc, found := s.accounts[pri.key]
-	if !found {
-		acc = newAccount(pri)
-		s.accounts[pri.key] = acc
-	}
-
-	if instID != "" {
-		err = acc.checkUniqueInstanceID(instID)
-		if err != nil {
-			return
+		if instID != "" {
+			err = acc.checkUniqueInstanceID(instID)
+			if err != nil {
+				return
+			}
 		}
 	}
-
 	return
 }
 
@@ -909,6 +957,24 @@ func (s *Server) getInstance(pri *PrincipalKey, instID string) (inst *Instance, 
 	}
 
 	inst, found = acc.instances[instID]
+	return
+}
+
+func (s *Server) refInstanceBinary(pri *PrincipalKey, instID string) (bin *binary, inst *Instance, found bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	acc, accFound := s.accounts[pri.key]
+	if !accFound {
+		return
+	}
+
+	inst, found = acc.instances[instID]
+	if !found {
+		return
+	}
+
+	bin = inst.prog.bin.ref()
 	return
 }
 
@@ -933,51 +999,64 @@ func (s *Server) newInstance(ctx context.Context, acc *account, servicePolicy fu
 		return
 	}
 
-	inst.account = acc
+	inst.acc = acc
 	inst.services = services
 	inst.id = id
 	return
 }
 
-func (s *Server) registerInstance(acc *account, prog *program, inst *Instance, function string,
-) (progFound bool, err error) {
-	inst.function = function
-
-	if inst.id == "" {
-		inst.id = makeInstanceID()
-	}
-
-	// Instance lock doesn't need to be held because the instance hasn't been
-	// shared via s.instances yet.
-	inst.status.State = serverapi.Status_running
-
+// registerProgramRefInstance with server and an account (if any).  Caller's
+// program reference is stolen (except on error).
+func (s *Server) registerProgramRefInstance(acc *account, prog *program, inst *Instance, function string,
+) (redundant bool, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	existingProg, progFound := s.programs[prog.hash]
-	if progFound {
-		prog = existingProg
-	} else {
-		s.programs[prog.hash] = prog
+	if acc != nil {
+		err = acc.checkUniqueInstanceID(inst.id)
+		if err != nil {
+			return
+		}
 	}
 
-	inst.prog = prog
-	prog.refCount++ // Referenced by instance.
+	prog, redundant = s.mergeProgramRef(prog)
+	inst.refProgram(prog, function)
 
-	if acc == nil {
-		return
+	if acc != nil {
+		acc.ensureRefProgram(prog)
+		acc.instances[inst.id] = inst
 	}
-
-	if _, referenced := acc.programRefs[prog]; !referenced {
-		acc.programRefs[prog] = struct{}{}
-		prog.refCount++ // Referenced by account.
-	}
-
-	err = acc.checkUniqueInstanceID(inst.id)
-	if err != nil {
-		return
-	}
-
-	acc.instances[inst.id] = inst
 	return
+}
+
+// mergeProgramRef must be called with Server.lock held.  The returned program
+// pointer is valid until the end of the critical section.
+func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant bool) {
+	switch existing := s.programs[prog.hash]; existing {
+	case nil:
+		s.programs[prog.hash] = prog // Pass reference to map.
+		return prog, false
+
+	case prog:
+		prog.unref() // Map has reference; safe to drop temporary reference.
+		return prog, false
+
+	default:
+		prog.unref() // Drop reference to replaced object.
+		return existing, true
+	}
+}
+
+func (s *Server) unrefProgram(prog *program) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	prog.unref()
+}
+
+func (s *Server) unrefBinary(bin *binary) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	bin.unref()
 }

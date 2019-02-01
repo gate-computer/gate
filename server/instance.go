@@ -86,14 +86,14 @@ type Instance struct {
 	ref      image.ExecutableRef // Set in Instance.newInstance
 	process  *runtime.Process    // Set in Instance.newInstance
 	exe      *image.Executable   // Set in Server.CreateInstance or Server.loadModuleInstance
-	account  *account            // Set in Server.newInstance
+	acc      *account            // Set in Server.newInstance
 	services InstanceServices    // Set in Server.newInstance
-	id       string              // Set in Server.newInstance or Server.registerInstance
-	prog     *program            // Set in Server.registerInstance
-	function string              // Set in Server.registerInstance
+	id       string              // Set in Server.newInstance or Instance.refProgram
+	prog     *program            // Set in Instance.refProgram
+	function string              // Set in Instance.refProgram
 
 	lock   sync.Mutex // Must be held when accessing status.
-	status Status     // Set in Server.registerInstance and Instance.Run
+	status Status     // Set in Instance.completeInit and Instance.Run
 }
 
 func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
@@ -120,13 +120,25 @@ func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
 	return
 }
 
+// refProgram must be called before instance is shared with other goroutines.
+func (inst *Instance) refProgram(prog *program, function string) {
+	if inst.id == "" {
+		inst.id = makeInstanceID()
+	}
+	inst.prog = prog.ref()
+	inst.function = function
+
+	// Lock doesn't need to be held because instance hasn't been shared yet.
+	inst.status.State = serverapi.Status_running
+}
+
 func (inst *Instance) ID() string {
 	return inst.id
 }
 
 func (inst *Instance) PrincipalID() (s string) {
-	if inst.account != nil {
-		s = inst.account.PrincipalID
+	if inst.acc != nil {
+		s = inst.acc.PrincipalID
 	}
 	return
 }
@@ -134,6 +146,7 @@ func (inst *Instance) PrincipalID() (s string) {
 func (inst *Instance) Status() Status {
 	inst.lock.Lock()
 	defer inst.lock.Unlock()
+
 	return inst.status
 }
 
@@ -210,10 +223,10 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 			result.State = serverapi.Status_terminated
 			result.Cause = serverapi.Status_abi_violation
 
-			reportProgramError(ctx, s, inst.account, inst.prog.hash, inst.function, inst.id, err)
+			reportProgramError(ctx, s, inst.acc, inst.prog.hash, inst.function, inst.id, err)
 
 		default:
-			reportInternalError(ctx, s, inst.account, inst.prog.hash, inst.function, inst.id, "service io", err)
+			reportInternalError(ctx, s, inst.acc, inst.prog.hash, inst.function, inst.id, "service io", err)
 		}
 
 		return
@@ -230,36 +243,6 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 	}
 
 	result.Error = ""
-	return
-}
-
-func (inst *Instance) snapshotModule(ctx context.Context, storage image.ModuleStorage) (prog *program, err error) {
-	switch inst.Status().State {
-	case serverapi.Status_suspended, serverapi.Status_terminated:
-		// ok
-
-	default:
-		err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
-		return
-	}
-
-	var orig *program
-	if inst.prog.orig != nil {
-		orig = inst.prog.orig
-	} else {
-		orig = inst.prog
-	}
-
-	module, hash, err := image.BuildModule(ctx, storage, orig.module, &orig.Metadata, inst.exe, &orig.codeMap)
-	if err != nil {
-		return
-	}
-
-	prog = &program{
-		hash:   hash,
-		module: module,
-		orig:   orig, // It's the caller duty to increment refCount if it keeps the program object.
-	}
 	return
 }
 

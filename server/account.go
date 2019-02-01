@@ -36,6 +36,23 @@ func newAccount(pri *PrincipalKey) *account {
 	}
 }
 
+// ensureRefProgram must be called with Server.lock held.  It's safe to call
+// for an already referenced program.
+func (acc *account) ensureRefProgram(prog *program) {
+	if _, exists := acc.programRefs[prog]; !exists {
+		prog.ref()
+		acc.programRefs[prog] = struct{}{}
+	}
+}
+
+// unrefProgram must be called with Server.lock held.  Results will be
+// undefined if the program is not currently referenced.
+func (acc *account) unrefProgram(prog *program) (final bool) {
+	delete(acc.programRefs, prog)
+	return prog.unref()
+}
+
+// checkUniqueInstanceID must be called with Server.lock held.
 func (acc *account) checkUniqueInstanceID(instID string) (err error) {
 	if _, exists := acc.instances[instID]; exists {
 		err = failrequest.New(event.FailRequest_InstanceIdExists, "duplicate instance id")
