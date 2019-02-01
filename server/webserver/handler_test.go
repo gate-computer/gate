@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
@@ -824,6 +825,7 @@ func TestInstance(t *testing.T) {
 			})
 		})
 
+		var snapshotKey string
 		var snapshot []byte
 
 		t.Run("Snapshot", func(t *testing.T) {
@@ -838,6 +840,8 @@ func TestInstance(t *testing.T) {
 			if location == "" {
 				t.Fatal("no module location")
 			}
+
+			snapshotKey = path.Base(location)
 
 			req = newSignedTestRequest(key, http.MethodGet, location, nil)
 			resp, snapshot = doTest(t, handler, req)
@@ -860,6 +864,38 @@ func TestInstance(t *testing.T) {
 
 			if _, err := wag.Compile(nil, bytes.NewReader(snapshot), dummyResolver{}); err != nil {
 				t.Error(err)
+			}
+		})
+
+		t.Run("ListSuspendedModule", func(t *testing.T) {
+			req := newSignedTestRequest(key, http.MethodGet, webapi.PathModuleRefs, nil)
+			resp, content := doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatal(resp.Status)
+			}
+
+			var refs interface{}
+
+			if err := json.Unmarshal(content, &refs); err != nil {
+				t.Fatal(err)
+			}
+
+			var found bool
+
+			for _, x := range refs.(map[string]interface{})["modules"].([]interface{}) {
+				ref := x.(map[string]interface{})
+				if ref["key"].(string) == snapshotKey {
+					if !ref["suspended"].(bool) {
+						t.Error("snapshot module is not suspended")
+					}
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Error("snapshot module key not found")
 			}
 		})
 

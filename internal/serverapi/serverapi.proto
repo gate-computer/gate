@@ -10,6 +10,7 @@ option go_package = "github.com/tsavola/gate/internal/serverapi";
 
 message ModuleRef {
 	string key = 1;
+	bool suspended = 2;
 }
 
 message ModuleRefs {

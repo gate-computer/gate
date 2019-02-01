@@ -528,7 +528,10 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 
 		refs := make(ModuleRefs, 0, len(acc.programRefs))
 		for prog := range acc.programRefs {
-			refs = append(refs, ModuleRef{Key: prog.hash})
+			refs = append(refs, ModuleRef{
+				Key:       prog.hash,
+				Suspended: prog.routine == runtime.InitResume,
+			})
 		}
 
 		return refs
