@@ -2,7 +2,7 @@ CC		:= clang
 WAT2WASM	:= wat2wasm
 
 CPPFLAGS	+= -nostdlibinc -I../include
-CFLAGS		+= --target=wasm32-unknown-unknown -fomit-frame-pointer -Oz -Wall -Wextra
+CFLAGS		+= --target=wasm32-unknown-unknown -Os -fomit-frame-pointer -fno-inline -Wall -Wextra
 LDFLAGS		+= -nostdlib -Wl,--allow-undefined -Wl,--entry=__wasm_call_ctors -Wl,--export=main
 
 -include ../config.mk
