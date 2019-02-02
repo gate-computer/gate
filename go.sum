@@ -20,8 +20,8 @@ github.com/tsavola/contextack v1.0.1 h1:wEO7t0GRpma03OjMlGAN5U/FPA08GcFlRXLOls6n
 github.com/tsavola/contextack v1.0.1/go.mod h1:lChihOiBbJANid9Tq7B4Zx8hrFpSGKvL0td97RvWMiw=
 github.com/tsavola/wag v0.14.0 h1:0XR01Eti+Kmrb9x0q9pzmJOu7GFrNwH80dT77dxKXlc=
 github.com/tsavola/wag v0.14.0/go.mod h1:nqKbzIfMoKNa2jgG01uJthSZ7Lc9VFMAjeI85y6Z6mI=
-go.etcd.io/bbolt v1.3.1-etcd.7 h1:M0l89sIuZ+RkW0rLbUsmxescVzLwLUs+Kvks+0jeHdM=
-go.etcd.io/bbolt v1.3.1-etcd.7/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
+go.etcd.io/bbolt v1.3.2 h1:Z/90sZLPOeCy2PwprqkFa25PdkusRzaj9P8zm/KNyvk=
+go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524 h1:2SngqDMNxTKQXjBcDQPh2S9chQJt6tZ+N7aMiVVhHts=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/net v0.0.0-20180320044506-b3c676e531a6 h1:5WuRavH9vWKHPeU48aGt+e0Q4viiMDU4BUVC+Mf0V3s=
