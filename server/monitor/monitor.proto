@@ -8,7 +8,6 @@ package monitor;
 
 option go_package = "github.com/tsavola/gate/server/monitor";
 
-import "server/detail/detail.proto";
 import "server/event/event.proto";
 
 message State {
