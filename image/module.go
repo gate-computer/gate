@@ -120,7 +120,7 @@ func BuildModule(ctx context.Context, storage ModuleStorage, origModule Module, 
 
 	copy(b.Extend(len(stackHeader)), stackHeader)
 
-	err = portStack(b.Extend(len(stackData)), stackData, textAddr, codeMap)
+	err = exportStack(b.Extend(len(stackData)), stackData, textAddr, codeMap)
 	if err != nil {
 		return
 	}
@@ -286,14 +286,15 @@ func copyAtUntilSkip(b *buffer.Dynamic, r io.ReaderAt, oldOffset int64, section 
 	return
 }
 
-func portStack(portable, native []byte, textAddr uint64, codeMap *object.CallMap) (err error) {
+// exportStack from native source buffer to portable target buffer.
+func exportStack(portable, native []byte, textAddr uint64, codeMap *object.CallMap) (err error) {
 	if n := len(native); n == 0 || n&7 != 0 {
 		err = fmt.Errorf("invalid stack size %d", n)
 		return
 	}
 
 	for len(native) > 0 {
-		absRetAddr := binary.LittleEndian.Uint64(native[:8])
+		absRetAddr := binary.LittleEndian.Uint64(native)
 
 		retAddr := absRetAddr - textAddr
 		if retAddr > math.MaxUint32 {
@@ -301,13 +302,13 @@ func portStack(portable, native []byte, textAddr uint64, codeMap *object.CallMap
 			return
 		}
 
-		funcIndex, _, stackOffset, initial, ok := codeMap.FindAddr(uint32(retAddr))
+		_, callIndex, _, stackOffset, initial, ok := codeMap.FindAddr(uint32(retAddr))
 		if !ok {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", retAddr)
 			return
 		}
 
-		binary.LittleEndian.PutUint64(portable, uint64(funcIndex))
+		binary.LittleEndian.PutUint64(portable, uint64(callIndex))
 
 		if initial {
 			if stackOffset != 8 {

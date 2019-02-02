@@ -128,7 +128,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		CustomSectionLoader: sectionLoaders.Load,
 	}
 
-	sectionLoaders["gate.stack"] = func(_ string, _ section.Reader) error {
+	sectionLoaders["gate.stack"] = func(_ string, _ section.Reader, _ uint32) error {
 		return errors.New("gate.stack section appears too early in wasm module")
 	}
 
@@ -230,7 +230,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		build.SetupEntryStackFrame(addr)
 	}
 
-	sectionLoaders["gate.stack"] = func(_ string, r section.Reader) error {
+	sectionLoaders["gate.stack"] = func(_ string, r section.Reader, payloadLen uint32) error {
 		if entryName != "" {
 			return errors.New("entry function specified with suspended program")
 		}
