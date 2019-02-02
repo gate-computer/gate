@@ -259,7 +259,10 @@ func (exe *Executable) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType)
 		return
 	}
 
-	return stack.Trace(b[unused:], textAddr, textMap, funcSigs)
+	if int(unused) != len(b) {
+		stacktrace, err = stack.Trace(b[unused:], textAddr, textMap, funcSigs)
+	}
+	return
 }
 
 type BuildConfig struct {
