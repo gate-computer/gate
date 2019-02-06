@@ -20,7 +20,7 @@ type Config struct {
 	Addr string
 }
 
-func (c *Config) Configured() bool {
+func (c Config) Configured() bool {
 	return c.Addr != ""
 }
 
