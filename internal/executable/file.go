@@ -6,7 +6,9 @@ package executable
 
 import (
 	"io"
+	"log"
 	"os"
+	"runtime"
 	"sync/atomic"
 )
 
@@ -34,11 +36,28 @@ type FileRef struct {
 }
 
 func NewFileRef(f *os.File, back BackingStore) *FileRef {
-	return &FileRef{
+	ref := &FileRef{
 		File:     f,
 		Back:     back,
 		refCount: 1,
 	}
+	runtime.SetFinalizer(ref, finalizeFileRef)
+	return ref
+}
+
+func finalizeFileRef(ref *FileRef) {
+	if ref.refCount != 0 {
+		log.Printf("unreachable executable file with reference count %d", ref.refCount)
+		if ref.refCount > 0 {
+			ref.cleanup()
+		}
+	}
+}
+
+func (ref *FileRef) cleanup() (err error) {
+	err = ref.File.Close()
+	ref.File = nil
+	return
 }
 
 // Ref increments reference count.
@@ -50,10 +69,14 @@ func (ref *FileRef) Ref() *FileRef {
 // Close decrements reference count.  File is closed when reference count drops
 // to zero.
 func (ref *FileRef) Close() (err error) {
-	if atomic.AddInt32(&ref.refCount, -1) == 0 {
-		err = ref.File.Close()
-		ref.File = nil
+	switch n := atomic.AddInt32(&ref.refCount, -1); {
+	case n == 0:
+		err = ref.cleanup()
+
+	case n < 0:
+		panic("executable file reference count is negative")
 	}
+
 	return
 }
 
