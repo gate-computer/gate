@@ -83,7 +83,7 @@ func (fs *Filesystem) CreateModule(ctx context.Context, size int) (store ModuleS
 	store = ModuleStore{
 		Writer: f,
 
-		ModuleMethod: ModuleMethod{func(key string) (m Module, err error) {
+		Module: func(key string) (m Module, err error) {
 			filename := pathlib.Join(fs.dirModule, key)
 
 			err = syscall.Rename(f.Name(), filename) // os.Rename makes extraneous lstat call.
@@ -94,14 +94,14 @@ func (fs *Filesystem) CreateModule(ctx context.Context, size int) (store ModuleS
 			m = &fsModule{filename, size}
 			success = true
 			return
-		}},
+		},
 
-		CloseMethod: CloseMethod{func() error {
+		Close: func() error {
 			if !success {
 				os.Remove(f.Name())
 			}
 			return f.Close()
-		}},
+		},
 	}
 
 	return
@@ -120,7 +120,7 @@ func (fs *Filesystem) CreateArchive(ctx context.Context, manifest *ArchiveManife
 		Text:          f,
 		GlobalsMemory: f,
 
-		ArchiveMethod: ArchiveMethod{func(key string) (ar Archive, err error) {
+		Archive: func(key string) (ar Archive, err error) {
 			filename := pathlib.Join(fs.dirArchive, key)
 
 			err = syscall.Rename(f.Name(), filename) // os.Rename makes extraneous lstat call.
@@ -135,9 +135,9 @@ func (fs *Filesystem) CreateArchive(ctx context.Context, manifest *ArchiveManife
 			}
 			success = true
 			return
-		}},
+		},
 
-		CloseMethod: CloseMethod{func() (err error) {
+		Close: func() (err error) {
 			if !success {
 				removeErr := os.Remove(f.Name())
 				closeErr := f.Close()
@@ -148,7 +148,7 @@ func (fs *Filesystem) CreateArchive(ctx context.Context, manifest *ArchiveManife
 				}
 			}
 			return
-		}},
+		},
 	}
 
 	return
@@ -208,9 +208,9 @@ func (m *fsModule) Open(context.Context) (load ModuleLoad, err error) {
 	}
 
 	load = ModuleLoad{
-		int64(m.size),
-		ReaderOption{RandomAccess: f},
-		CloseMethod{f.Close},
+		Length:       int64(m.size),
+		ReaderOption: ReaderOption{RandomAccess: f},
+		Close:        f.Close,
 	}
 	return
 }
@@ -239,6 +239,7 @@ func (ar *fsArchive) Open(context.Context) (load ExecutableLoad, err error) {
 			RandomAccess: ar.file,
 			Offset:       int64(ar.manifest.TextSize),
 		},
+		Close: func() error { return nil },
 	}
 	return
 }

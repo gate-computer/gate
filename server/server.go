@@ -573,10 +573,10 @@ func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash stri
 		return
 	}
 
-	modCloser := content.CloseMethod
-	content.CloseFunc = func() error {
+	origClose := content.Close
+	content.Close = func() error {
 		defer s.unrefProgram(prog)
-		return modCloser.Close()
+		return origClose()
 	}
 	return
 }

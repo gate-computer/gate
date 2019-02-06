@@ -44,10 +44,12 @@ func (memory) CreateModule(ctx context.Context, size int) (store ModuleStore, er
 	store = ModuleStore{
 		Writer: buf,
 
-		ModuleMethod: ModuleMethod{func(key string) (m Module, err error) {
+		Module: func(key string) (m Module, err error) {
 			m = memModule{buf.Bytes()}
 			return
-		}},
+		},
+
+		Close: func() error { return nil },
 	}
 
 	return
@@ -63,7 +65,7 @@ func (memory) CreateArchive(ctx context.Context, manifest *ArchiveManifest) (sto
 		Text:          f,
 		GlobalsMemory: f,
 
-		ArchiveMethod: ArchiveMethod{func(key string) (ar Archive, err error) {
+		Archive: func(key string) (ar Archive, err error) {
 			ar = &memArchive{
 				file:     internal.NewFileRef(f, nil),
 				manifest: *manifest,
@@ -71,14 +73,14 @@ func (memory) CreateArchive(ctx context.Context, manifest *ArchiveManifest) (sto
 
 			f = nil // Archived.
 			return
-		}},
+		},
 
-		CloseMethod: CloseMethod{func() (err error) {
+		Close: func() (err error) {
 			if f != nil {
 				err = f.Close()
 			}
 			return
-		}},
+		},
 	}
 
 	return
@@ -105,6 +107,7 @@ func (m memModule) Open(context.Context) (load ModuleLoad, err error) {
 	load = ModuleLoad{
 		Length:       int64(len(m.data)),
 		ReaderOption: ReaderOption{Stream: bytes.NewReader(m.data)},
+		Close:        func() error { return nil },
 	}
 	return
 }
@@ -132,6 +135,7 @@ func (ar *memArchive) Open(context.Context) (load ExecutableLoad, err error) {
 			RandomAccess: ar.file.File,
 			Offset:       int64(ar.manifest.TextSize),
 		},
+		Close: func() error { return nil },
 	}
 	return
 }

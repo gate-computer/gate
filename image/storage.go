@@ -60,31 +60,6 @@ type Storage interface {
 	ArchiveStorage
 }
 
-type CloseMethod struct{ CloseFunc func() error } // May be nil.
-
-func (x CloseMethod) Close() (err error) {
-	if x.CloseFunc != nil {
-		err = x.CloseFunc()
-	}
-	return
-}
-
-type ModuleMethod struct {
-	ModuleFunc func(key string) (Module, error)
-}
-
-func (x ModuleMethod) Module(key string) (Module, error) {
-	return x.ModuleFunc(key)
-}
-
-type ArchiveMethod struct {
-	ArchiveFunc func(key string) (Archive, error)
-}
-
-func (x ArchiveMethod) Archive(key string) (Archive, error) {
-	return x.ArchiveFunc(key)
-}
-
 type ModuleLoad struct {
 	Length int64
 
@@ -92,7 +67,7 @@ type ModuleLoad struct {
 	ReaderOption
 
 	// Close method releases temporary resources.
-	CloseMethod
+	Close func() error
 }
 
 type ModuleStore struct {
@@ -101,11 +76,11 @@ type ModuleStore struct {
 
 	// Module method for getting the complete module after its contents have
 	// been written.  It must be called before Close.
-	ModuleMethod
+	Module func(key string) (Module, error)
 
 	// Close method releases temporary resources, and the incomplete module
 	// if Module method was not called (due to error).
-	CloseMethod
+	Close func() error
 }
 
 type ExecutableLoad struct {
@@ -117,7 +92,7 @@ type ExecutableLoad struct {
 	GlobalsMemory ReaderOption
 
 	// Close method releases temporary resources.
-	CloseMethod
+	Close func() error
 }
 
 type ExecutableStore struct {
@@ -129,11 +104,11 @@ type ExecutableStore struct {
 
 	// Archive method for getting the complete archive after text, globals and
 	// memory contents have been written.  It must be called before Close.
-	ArchiveMethod
+	Archive func(key string) (Archive, error)
 
 	// Close method releases temporary resources, and the incomplete archive
 	// if Archive method was not called (due to error).
-	CloseMethod
+	Close func() error
 }
 
 // ReaderOption must provide Stream or Random.  If both are non-nil, only one
