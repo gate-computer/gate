@@ -15,11 +15,13 @@ import (
 	"github.com/tsavola/gate/service"
 )
 
-const (
-	Suffix = ".so"
+// Plugin file names suffix.  Used by the List function to collect files.
+const Suffix = ".so"
 
-	ServiceConfigSymbol = "ServiceConfig"
-	InitServicesSymbol  = "InitServices"
+// Function names exported by plugins.
+const (
+	PluginConfigSymbol = "PluginConfig"
+	InitServicesSymbol = "InitServices"
 )
 
 type Plugin struct {
@@ -61,7 +63,7 @@ func List(libdir string) (result Plugins, err error) {
 	for _, pl := range result.plugins {
 		var x interface{}
 
-		x, err = pl.serviceConfig()
+		x, err = pl.pluginConfig()
 		if err != nil {
 			return
 		}
@@ -72,7 +74,7 @@ func List(libdir string) (result Plugins, err error) {
 	return
 }
 
-func (pls Plugins) InitServices(config *service.Config) (err error) {
+func (pls Plugins) InitServices(config service.Config) (err error) {
 	for _, pl := range pls.plugins {
 		err = pl.initServices(config)
 		if err != nil {
@@ -83,20 +85,20 @@ func (pls Plugins) InitServices(config *service.Config) (err error) {
 	return
 }
 
-func (pl *Plugin) serviceConfig() (config interface{}, err error) {
+func (pl *Plugin) pluginConfig() (config interface{}, err error) {
 	p, err := plugin.Open(pl.path)
 	if err != nil {
 		return
 	}
 
-	x, err := p.Lookup(ServiceConfigSymbol)
+	x, err := p.Lookup(PluginConfigSymbol)
 	if err != nil {
 		return
 	}
 
 	f, ok := x.(func() interface{})
 	if !ok {
-		err = fmt.Errorf("%s: %s is a %s; expected a %s", pl.path, ServiceConfigSymbol, reflect.TypeOf(x), reflect.TypeOf(f))
+		err = fmt.Errorf("%s: %s is a %s; expected a %s", pl.path, PluginConfigSymbol, reflect.TypeOf(x), reflect.TypeOf(f))
 		return
 	}
 
@@ -104,7 +106,7 @@ func (pl *Plugin) serviceConfig() (config interface{}, err error) {
 	return
 }
 
-func (pl *Plugin) initServices(config *service.Config) (err error) {
+func (pl *Plugin) initServices(config service.Config) (err error) {
 	p, err := plugin.Open(pl.path)
 	if err != nil {
 		return
@@ -115,7 +117,7 @@ func (pl *Plugin) initServices(config *service.Config) (err error) {
 		return
 	}
 
-	f, ok := x.(func(*service.Config) error)
+	f, ok := x.(func(service.Config) error)
 	if !ok {
 		err = fmt.Errorf("%s: %s is a %s; expected a %s", pl.path, InitServicesSymbol, reflect.TypeOf(x), reflect.TypeOf(f))
 		return

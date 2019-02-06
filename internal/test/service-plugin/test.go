@@ -20,11 +20,11 @@ var testConfig struct {
 	MOTD string
 }
 
-func ServiceConfig() interface{} {
+func PluginConfig() interface{} {
 	return &testConfig
 }
 
-func InitServices(config *service.Config) (err error) {
+func InitServices(config service.Config) (err error) {
 	config.Registry.Register(testService{})
 	return
 }
