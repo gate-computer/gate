@@ -118,7 +118,7 @@ func main() {
 
 	ctx := context.Background()
 
-	serviceConfig := &service.Config{
+	serviceConfig := service.Config{
 		Registry: new(service.Registry),
 	}
 

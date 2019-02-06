@@ -23,6 +23,7 @@ type Config struct {
 // InstanceConfig for a service instance.
 type InstanceConfig struct {
 	runtime.ServiceConfig
+	Code packet.Code
 }
 
 // Instance of a service.  Corresponds to a program instance.
@@ -37,7 +38,7 @@ type Instance interface {
 // naming conventions.
 type Factory interface {
 	ServiceName() string
-	Instantiate(*InstanceConfig, packet.Code) Instance
+	Instantiate(InstanceConfig) Instance
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
@@ -90,7 +91,7 @@ func (r *Registry) lookup(name string) (result Factory) {
 }
 
 // StartServing implements the runtime.ServiceRegistry interface function.
-func (r *Registry) StartServing(ctx context.Context, serviceConfig *runtime.ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) runtime.ServiceDiscoverer {
+func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) runtime.ServiceDiscoverer {
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),
@@ -99,11 +100,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig *runtime.Serv
 	return d
 }
 
-func serve(ctx context.Context, serviceConfig *runtime.ServiceConfig, r *Registry, d *discoverer, send chan<- packet.Buf, recv <-chan packet.Buf) {
-	config := &InstanceConfig{
-		ServiceConfig: *serviceConfig,
-	}
-
+func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, send chan<- packet.Buf, recv <-chan packet.Buf) {
 	instances := make(map[packet.Code]Instance)
 	defer shutdown(ctx, instances)
 
@@ -113,7 +110,7 @@ func serve(ctx context.Context, serviceConfig *runtime.ServiceConfig, r *Registr
 		inst, found := instances[code]
 		if !found {
 			if f := d.getFactories()[code]; f != nil {
-				inst = f.Instantiate(config, code)
+				inst = f.Instantiate(InstanceConfig{serviceConfig, code})
 			}
 			instances[code] = inst
 		}

@@ -19,7 +19,7 @@ func newTestServices() func() server.InstanceServices {
 		panic(err)
 	}
 
-	err = plugins.InitServices(&service.Config{
+	err = plugins.InitServices(service.Config{
 		Registry: registry,
 	})
 	if err != nil {

@@ -40,7 +40,7 @@ type ServiceConfig struct {
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
-	StartServing(ctx context.Context, config *ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) ServiceDiscoverer
+	StartServing(ctx context.Context, config ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) ServiceDiscoverer
 }
 
 // ServiceDiscoverer is used to look up service availability when responding to

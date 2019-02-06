@@ -116,7 +116,7 @@ func (cr *Connector) ServiceName() string {
 	return ServiceName
 }
 
-func (cr *Connector) Instantiate(config *service.InstanceConfig, code packet.Code) service.Instance {
+func (cr *Connector) Instantiate(config service.InstanceConfig) service.Instance {
 	return &instanceService{
 		handler: instanceHandler{
 			newConns:    cr.newConns,

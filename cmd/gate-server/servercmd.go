@@ -258,7 +258,7 @@ func main() {
 	}
 	c.Monitor.HTTP.ErrorLog = errLog
 
-	serviceConfig := &service.Config{
+	serviceConfig := service.Config{
 		Registry: new(service.Registry),
 	}
 	if err := plugins.InitServices(serviceConfig); err != nil {

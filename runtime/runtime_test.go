@@ -255,7 +255,7 @@ type testServiceRegistry struct {
 	origin io.Writer
 }
 
-func (services *testServiceRegistry) StartServing(ctx context.Context, config *runtime.ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) runtime.ServiceDiscoverer {
+func (services *testServiceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) runtime.ServiceDiscoverer {
 	d := new(testServiceDiscoverer)
 
 	go func() {

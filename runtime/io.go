@@ -28,15 +28,11 @@ type read struct {
 }
 
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
-	config := &ServiceConfig{
-		MaxPacketSize: maxPacketSize,
-	}
-
 	var (
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
 	)
-	discoverer := services.StartServing(ctx, config, messageInput, messageOutput)
+	discoverer := services.StartServing(ctx, ServiceConfig{maxPacketSize}, messageInput, messageOutput)
 	defer close(messageOutput)
 
 	subjectInput := subjectReadLoop(subject.reader)

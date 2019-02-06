@@ -167,7 +167,7 @@ func benchExecuteAr(b *testing.B, storage storage, prog []byte) {
 	ctx := context.Background()
 
 	exe, mod := compileTest(benchExecutor, storage, prog, "")
-	metadata := &image.Metadata{MemorySizeLimit: mod.MemorySizeLimit()}
+	metadata := image.Metadata{MemorySizeLimit: mod.MemorySizeLimit()}
 	ar, err := exe.StoreThis(ctx, "test", metadata, storage)
 	exe.Close()
 	if err != nil {

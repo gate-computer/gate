@@ -35,7 +35,7 @@ func (testService) ServiceName() string {
 	return ServiceName
 }
 
-func (testService) Instantiate(config *service.InstanceConfig, code packet.Code) service.Instance {
+func (testService) Instantiate(service.InstanceConfig) service.Instance {
 	log.Print(testConfig.MOTD)
 	return testInstance{}
 }
