@@ -19,7 +19,9 @@ convention avoids conflicts with other common conventions:
   1. `example.net/service` (Go package)
   2. `net.example.service` (Java package)
   3. `net.example.Service` (Java class, D-Bus service)
+  4. `123e4567-e89b-12d3-a456-426655440000` (UUID)
 
 Those conventions don't conflict with each other either.  Any one of them may
-be used, as long as the domain name is controlled by the service author.
+be used, as long as the domain name is controlled by the service author or the
+UUID is properly randomized.
 
