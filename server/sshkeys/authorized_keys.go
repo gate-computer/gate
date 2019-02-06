@@ -18,8 +18,10 @@ var errUnauthorized = server.AccessUnauthorized("missing authentication credenti
 var errForbidden = server.AccessForbidden("key not authorized")
 
 // AuthorizedKeys authorizes access for the supported (ssh-ed25519) public keys
-// found in an SSH authorized_keys file.  Requests must be authenticated
-// separately by an API server implementation (e.g. package webserver).
+// found in an SSH authorized_keys file.
+//
+// Request signatures must be verified separately by an API layer (e.g. package
+// webserver).
 type AuthorizedKeys struct {
 	server.NoAccess
 	server.AccessConfig
