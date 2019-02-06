@@ -14,12 +14,12 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
-	"os"
 
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/image/metadata"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
+	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
@@ -30,8 +30,6 @@ import (
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
 )
-
-var pageSize = os.Getpagesize()
 
 var (
 	newHash      = sha512.New384
@@ -255,7 +253,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 
 	var dataConfig = &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
-		MemoryAlignment: pageSize,
+		MemoryAlignment: executable.PageSize,
 		Config:          sectionConfig,
 	}
 

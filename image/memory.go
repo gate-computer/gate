@@ -18,15 +18,13 @@ const (
 	memArchiveName    = "gate-archive"
 )
 
-var memPageSize = os.Getpagesize()
-
 // Memory implements BackingStore and Storage.
 var Memory memory
 
 type memory struct{}
 
 func (memory) getPageSize() int {
-	return memPageSize
+	return internal.PageSize
 }
 
 func (memory) newExecutableFile() (f *os.File, err error) {

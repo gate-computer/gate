@@ -33,8 +33,8 @@ type Filesystem struct {
 }
 
 func NewFilesystem(path string, pageSize int) *Filesystem {
-	if pageSize < memPageSize {
-		pageSize = memPageSize
+	if pageSize < internal.PageSize {
+		pageSize = internal.PageSize
 	}
 
 	return &Filesystem{

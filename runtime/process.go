@@ -25,8 +25,6 @@ const (
 	magicNumber2 = 0x7e1c5d67
 )
 
-var pagesize = os.Getpagesize()
-
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
 	MagicNumber1   uint32
@@ -164,7 +162,7 @@ func (p *Process) Start(exe *image.Executable, initRoutine InitRoutine) (err err
 
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
-		PageSize:       uint32(pagesize),
+		PageSize:       uint32(executable.PageSize),
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
 		HeapAddr:       heapAddr,
@@ -331,10 +329,10 @@ func readRandAddrs() (textAddr, heapAddr, stackAddr uint64, err error) {
 }
 
 func randAddr(minAddr, maxAddr uint64, b []byte) uint64 {
-	minPage := minAddr / uint64(pagesize)
-	maxPage := maxAddr / uint64(pagesize)
+	minPage := minAddr / uint64(executable.PageSize)
+	maxPage := maxAddr / uint64(executable.PageSize)
 	page := minPage + uint64(binary.LittleEndian.Uint32(b))%(maxPage-minPage)
-	return page * uint64(pagesize)
+	return page * uint64(executable.PageSize)
 }
 
 var _ struct{} = internal.ErrorsInitialized

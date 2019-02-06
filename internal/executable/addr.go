@@ -4,6 +4,10 @@
 
 package executable
 
+import (
+	"os"
+)
+
 const (
 	MinTextAddr  = 0x000400000000
 	MaxTextAddr  = 0x2aa700000000
@@ -12,3 +16,5 @@ const (
 	MinStackAddr = 0x554d00000000
 	MaxStackAddr = 0x7ff000000000
 )
+
+var PageSize = os.Getpagesize()
