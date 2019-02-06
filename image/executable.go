@@ -172,7 +172,7 @@ func (exe *Executable) Close() error          { return exe.file.Close() }
 func (exe *Executable) Ref() ExecutableRef    { return exe.file.Ref() }
 func (exe *Executable) Manifest() interface{} { return &exe.manifest }
 
-func (exe *Executable) StoreThis(ctx context.Context, key string, metadata *Metadata, storage ArchiveStorage) (ar Archive, err error) {
+func (exe *Executable) StoreThis(ctx context.Context, key string, metadata Metadata, storage ArchiveStorage) (ar Archive, err error) {
 	if storage, ok := storage.(internalArchiveStorage); ok {
 		ar, err = storage.archive(key, metadata, &exe.manifest, exe.file)
 		if ar != nil || err != nil {
@@ -183,7 +183,7 @@ func (exe *Executable) StoreThis(ctx context.Context, key string, metadata *Meta
 	return exe.StoreCopy(ctx, key, metadata, storage)
 }
 
-func (exe *Executable) StoreCopy(ctx context.Context, key string, metadata *Metadata, storage ArchiveStorage) (ar Archive, err error) {
+func (exe *Executable) StoreCopy(ctx context.Context, key string, metadata Metadata, storage ArchiveStorage) (ar Archive, err error) {
 	var (
 		textOffset = int64(0)
 		dataOffset = int64(exe.manifest.TextSize + exe.manifest.StackSize)
@@ -194,7 +194,7 @@ func (exe *Executable) StoreCopy(ctx context.Context, key string, metadata *Meta
 		TextSize:    exe.manifest.TextSize,
 		GlobalsSize: exe.manifest.GlobalsSize,
 		MemorySize:  exe.manifest.MemorySize,
-		Metadata:    *metadata,
+		Metadata:    metadata,
 	}
 
 	store, err := storage.CreateArchive(ctx, manifest)

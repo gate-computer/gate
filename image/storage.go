@@ -33,12 +33,12 @@ type ArchiveManifest struct {
 	Metadata
 }
 
-func makeArchiveManifest(m *internal.Manifest, metadata *Metadata) ArchiveManifest {
+func makeArchiveManifest(m *internal.Manifest, metadata Metadata) ArchiveManifest {
 	return ArchiveManifest{
 		TextSize:    m.TextSize,
 		GlobalsSize: m.GlobalsSize,
 		MemorySize:  m.MemorySize,
-		Metadata:    *metadata,
+		Metadata:    metadata,
 	}
 }
 
@@ -52,7 +52,7 @@ type ArchiveStorage interface {
 
 type internalArchiveStorage interface {
 	ArchiveStorage
-	archive(key string, _ *Metadata, _ *internal.Manifest, _ *internal.FileRef) (Archive, error)
+	archive(key string, _ Metadata, _ *internal.Manifest, _ *internal.FileRef) (Archive, error)
 }
 
 type Storage interface {
@@ -62,7 +62,7 @@ type Storage interface {
 
 type CloseMethod struct{ CloseFunc func() error } // May be nil.
 
-func (x *CloseMethod) Close() (err error) {
+func (x CloseMethod) Close() (err error) {
 	if x.CloseFunc != nil {
 		err = x.CloseFunc()
 	}
@@ -73,7 +73,7 @@ type ModuleMethod struct {
 	ModuleFunc func(key string) (Module, error)
 }
 
-func (x *ModuleMethod) Module(key string) (Module, error) {
+func (x ModuleMethod) Module(key string) (Module, error) {
 	return x.ModuleFunc(key)
 }
 
@@ -81,7 +81,7 @@ type ArchiveMethod struct {
 	ArchiveFunc func(key string) (Archive, error)
 }
 
-func (x *ArchiveMethod) Archive(key string) (Archive, error) {
+func (x ArchiveMethod) Archive(key string) (Archive, error) {
 	return x.ArchiveFunc(key)
 }
 
@@ -147,7 +147,7 @@ type ReaderOption struct {
 	Offset       int64 // Position to read at.
 }
 
-func (ropt *ReaderOption) Reader() io.Reader {
+func (ropt ReaderOption) Reader() io.Reader {
 	if ropt.Stream != nil {
 		return ropt.Stream
 	}
@@ -156,7 +156,7 @@ func (ropt *ReaderOption) Reader() io.Reader {
 
 // ReaderAt which must be read at ascending offsets.  ReadAt may panic if the
 // offsets are descending or the ranges overlap.
-func (ropt *ReaderOption) ReaderAt() io.ReaderAt {
+func (ropt ReaderOption) ReaderAt() io.ReaderAt {
 	if ropt.RandomAccess != nil {
 		if ropt.Offset == 0 {
 			return ropt.RandomAccess
@@ -235,7 +235,7 @@ type randomAccessReaderAt struct {
 	base         int64
 }
 
-func (r *randomAccessReaderAt) ReadAt(b []byte, offset int64) (n int, err error) {
+func (r randomAccessReaderAt) ReadAt(b []byte, offset int64) (n int, err error) {
 	return r.randomAccess.ReadAt(b, r.base+offset)
 }
 

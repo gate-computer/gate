@@ -24,7 +24,7 @@ import (
 
 const customStackSectionName = "gate.stack"
 
-func BuildModule(ctx context.Context, storage ModuleStorage, origModule Module, metadata *Metadata, exe *Executable, codeMap *object.CallMap,
+func BuildModule(ctx context.Context, storage ModuleStorage, origModule Module, metadata Metadata, exe *Executable, codeMap *object.CallMap,
 ) (newModule Module, hash string, err error) {
 	origLoad, err := origModule.Open(ctx)
 	if err != nil {

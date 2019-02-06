@@ -784,7 +784,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 		return
 	}
 
-	module, moduleKey, err := image.BuildModule(ctx, s.ProgramStorage, bin.module, &bin.Metadata, inst.exe, &bin.codeMap)
+	module, moduleKey, err := image.BuildModule(ctx, s.ProgramStorage, bin.module, bin.Metadata, inst.exe, &bin.codeMap)
 	if err != nil {
 		return
 	}

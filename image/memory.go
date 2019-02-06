@@ -84,7 +84,7 @@ func (memory) CreateArchive(ctx context.Context, manifest *ArchiveManifest) (sto
 	return
 }
 
-func (memory) archive(key string, metadata *Metadata, manifest *internal.Manifest, fileRef *internal.FileRef,
+func (memory) archive(key string, metadata Metadata, manifest *internal.Manifest, fileRef *internal.FileRef,
 ) (ar Archive, err error) {
 	if manifest.StackSize != 0 {
 		return

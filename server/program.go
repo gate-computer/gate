@@ -310,7 +310,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		}
 	}()
 
-	var meta = metadata.New(module, sectionMap, codeMap)
+	var meta = metadata.Make(module, sectionMap, codeMap.FuncAddrs)
 	var archive image.Archive
 
 	if instPolicy == nil {

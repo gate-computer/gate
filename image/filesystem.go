@@ -154,7 +154,7 @@ func (fs *Filesystem) CreateArchive(ctx context.Context, manifest *ArchiveManife
 	return
 }
 
-func (fs *Filesystem) archive(key string, metadata *Metadata, manifest *internal.Manifest, ref *internal.FileRef,
+func (fs *Filesystem) archive(key string, metadata Metadata, manifest *internal.Manifest, ref *internal.FileRef,
 ) (ar Archive, err error) {
 	if manifest.StackSize != 0 {
 		return

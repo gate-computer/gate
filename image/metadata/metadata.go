@@ -9,15 +9,14 @@ import (
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/section"
 )
 
-func New(mod *compile.Module, sectionMap *section.Map, callMap *object.CallMap) *image.Metadata {
-	return &image.Metadata{
+func Make(mod *compile.Module, sectionMap *section.Map, funcAddrs []uint32) image.Metadata {
+	return image.Metadata{
 		MemorySizeLimit: mod.MemorySizeLimit(),
 		GlobalTypes:     mod.GlobalTypes(),
 		SectionRanges:   sectionMap.Sections[:],
-		EntryAddrs:      entry.FuncAddrs(mod, callMap.FuncAddrs),
+		EntryAddrs:      entry.FuncAddrs(mod, funcAddrs),
 	}
 }
