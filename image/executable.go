@@ -350,7 +350,7 @@ func (b *Build) TextBuffer() compile.CodeBuffer {
 }
 
 func (b *Build) TextSize() int {
-	return len(b.text.Bytes())
+	return b.text.Len()
 }
 
 func (b *Build) StackBytes() []byte {
@@ -375,7 +375,7 @@ func (b *Build) Executable() (exe *Executable, err error) {
 		MemorySize:    b.globalsMemory.Cap() - b.memoryOffset,
 		MaxMemorySize: b.maxMemorySize,
 	}
-	b.exe.dataSize = len(b.globalsMemory.Bytes())
+	b.exe.dataSize = b.globalsMemory.Len()
 
 	err = b.unmap()
 	if err != nil {

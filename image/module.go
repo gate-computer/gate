@@ -139,7 +139,7 @@ func BuildModule(ctx context.Context, storage ModuleStorage, origModule Module, 
 	h.Write(b.Bytes())
 	hash = base64.URLEncoding.EncodeToString(h.Sum(nil))
 
-	newStore, err := storage.CreateModule(ctx, len(b.Bytes()))
+	newStore, err := storage.CreateModule(ctx, b.Len())
 	if err != nil {
 		return
 	}
