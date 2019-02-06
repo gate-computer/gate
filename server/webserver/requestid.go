@@ -15,8 +15,7 @@ func newRequestIDChannel(bufsize int) <-chan uint64 {
 	c := make(chan uint64, bufsize)
 
 	go func() {
-		i := uint64((time.Now().UnixNano())/1e6) * 1e6
-
+		i := uint64(time.Now().UnixNano()/1e6) * 1e6
 		for {
 			i++
 			c <- i
