@@ -282,16 +282,15 @@ static void xoom_score_adj(pid_t pid)
 // Open a file in a directory, or die.
 static int xopen_dir_file(const char *dir, const char *file, int flags)
 {
-	size_t pathsize = strlen(dir) + 1 + strlen(file) + 1;
-	char path[pathsize];
-
-	strcpy(path, dir);
-	strcat(path, "/");
-	strcat(path, file);
+	char *path;
+	if (asprintf(&path, "%s/%s", dir, file) < 0)
+		xerror("asprintf");
 
 	int fd = open(path, flags, 0);
 	if (fd < 0)
 		xerror(path);
+
+	free(path);
 
 	return fd;
 }
