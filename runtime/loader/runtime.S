@@ -413,7 +413,8 @@ gate_io:
 	// Handle normal read result.
 
 	test	%rax, %rax
-	jge	.Lreceived
+	jg	.Lreceived
+	je	.Lreceived_eof
 
 	// Handle read errors.
 
@@ -437,6 +438,10 @@ gate_io:
 .Lskip_receive:
 	xor	%eax, %eax
 	jmp	.Lresume
+
+.Lreceived_eof:
+	mov	%eax, (%r12)			// Received length
+	jmp	.Lsuspended
 
 .Lout_of_bounds:
 	mov	$5, %eax			// MemoryAccessOutOfBounds trap
