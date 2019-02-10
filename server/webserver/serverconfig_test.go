@@ -14,7 +14,7 @@ import (
 func newTestServices() func() server.InstanceServices {
 	registry := new(service.Registry)
 
-	plugins, err := plugin.List("../../lib/gate/plugin")
+	plugins, err := plugin.OpenAll("../../lib/gate/plugin")
 	if err != nil {
 		panic(err)
 	}

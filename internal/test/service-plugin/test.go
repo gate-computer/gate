@@ -20,7 +20,7 @@ var testConfig struct {
 	MOTD string
 }
 
-func PluginConfig() interface{} {
+func ServiceConfig() interface{} {
 	return &testConfig
 }
 

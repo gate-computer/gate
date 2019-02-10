@@ -93,12 +93,12 @@ func main() {
 	flags.SetOutput(ioutil.Discard)
 	parseConfig(flags)
 
-	plugins, err := plugin.List(c.Plugin.LibDir)
+	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	c.Service = plugins.Config
+	c.Service = plugins.ServiceConfig
 
 	originConfig := origin.Config{MaxConns: 1}
 	c.Service["origin"] = &originConfig
