@@ -30,7 +30,8 @@ import (
 	"github.com/tsavola/gate/server/monitor"
 	"github.com/tsavola/gate/server/monitor/webmonitor"
 	"github.com/tsavola/gate/server/sshkeys"
-	"github.com/tsavola/gate/server/state/bolt"
+	"github.com/tsavola/gate/server/state"
+	_ "github.com/tsavola/gate/server/state/bolt"
 	"github.com/tsavola/gate/server/webserver"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
@@ -77,6 +78,8 @@ var c = new(struct {
 	}
 
 	Service map[string]interface{}
+
+	DB map[string]interface{}
 
 	Server struct {
 		server.Config
@@ -192,6 +195,7 @@ func main() {
 	}
 
 	c.Service = plugins.ServiceConfig
+	c.DB = state.Config()
 
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig
@@ -378,7 +382,7 @@ func main2(critLog *log.Logger) (err error) {
 		c.HTTP.Authority = strings.Split(c.HTTP.Addr, ":")[0]
 	}
 
-	accessState, err := bolt.Open(c.HTTP.AccessDB)
+	accessState, err := state.Open(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
 	if err != nil {
 		return err
 	}

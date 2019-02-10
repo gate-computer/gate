@@ -29,7 +29,7 @@ import (
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/state"
-	"github.com/tsavola/gate/server/state/bolt"
+	_ "github.com/tsavola/gate/server/state/bolt"
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/wa"
@@ -40,7 +40,7 @@ const testAccessLog = false
 var testAccessTracker state.AccessTracker
 
 func init() {
-	db, err := bolt.Open("")
+	db, err := state.Open(context.Background(), "bolt", state.Config()["bolt"])
 	if err != nil {
 		panic(err)
 	}

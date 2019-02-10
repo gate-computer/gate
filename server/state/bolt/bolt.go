@@ -28,14 +28,32 @@ var (
 
 var errNonceExists = errors.New("nonce already exists")
 
+func init() {
+	state.Register("bolt", driver{})
+}
+
+type config struct {
+	Filename string
+}
+
+type driver struct{}
+
+func (driver) MakeConfig() interface{} {
+	return config{}
+}
+
+func (driver) Open(ctx context.Context, conf interface{}) (db state.DB, err error) {
+	return open(conf.(config).Filename)
+}
+
 type DB struct {
 	state.AccessTrackerBase
 	db *bolt.DB
 }
 
-// Open or create a database in the given file.  If filename is empty, a
+// open or create a database in the given file.  If filename is empty, a
 // temporary file is created.
-func Open(filename string) (accessTracker *DB, err error) {
+func open(filename string) (accessTracker state.DB, err error) {
 	if filename == "" {
 		var dir string
 

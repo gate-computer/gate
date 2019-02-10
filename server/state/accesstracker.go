@@ -6,6 +6,8 @@ package state
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/tsavola/gate/server"
@@ -31,3 +33,41 @@ type AccessTracker interface {
 type AccessTrackerBase struct{}
 
 func (AccessTrackerBase) accessTracker() {}
+
+// DB implementations have same restrictions as AccessTracker implementations.
+type DB interface {
+	AccessTracker
+	io.Closer
+}
+
+type Driver interface {
+	MakeConfig() interface{}
+	Open(ctx context.Context, config interface{}) (DB, error)
+}
+
+var drivers = make(map[string]Driver)
+
+func Register(name string, d Driver) {
+	if _, exists := drivers[name]; exists {
+		panic(fmt.Errorf("access tracker database driver already registered: %s", name))
+	}
+	drivers[name] = d
+}
+
+func Config() (config map[string]interface{}) {
+	config = make(map[string]interface{})
+	for name, d := range drivers {
+		config[name] = d.MakeConfig()
+	}
+	return
+}
+
+func Open(ctx context.Context, name string, config interface{}) (db DB, err error) {
+	d, found := drivers[name]
+	if !found {
+		err = fmt.Errorf("access tracker database driver not registered: %s", name)
+		return
+	}
+
+	return d.Open(ctx, config)
+}
