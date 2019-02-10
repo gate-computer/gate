@@ -363,7 +363,7 @@ gate_io:
 	// Handle normal write result.
 
 	test	%rax, %rax
-	jge	.Lsent
+	jg	.Lsent
 
 	// Handle write errors.
 
