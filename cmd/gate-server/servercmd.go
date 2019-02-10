@@ -167,7 +167,7 @@ func main() {
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 	c.Image.PageSize = os.Getpagesize()
-	c.Plugin.LibDir = "lib/gate/service"
+	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Server.InstanceStore = DefaultInstanceStore
 	c.Server.ProgramStorage = DefaultProgramStorage
 	c.Server.PreforkProcs = server.DefaultPreforkProcs

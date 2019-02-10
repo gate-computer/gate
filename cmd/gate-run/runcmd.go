@@ -84,7 +84,7 @@ func parseConfig(flags *flag.FlagSet) {
 func main() {
 	c.Runtime.MaxProcs = DefaultMaxProcs
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
-	c.Plugin.LibDir = "lib/gate/service"
+	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Program.StackSize = DefaultStackSize
 	c.Function = DefaultFunction
 	c.Benchmark.Repeat = 1
