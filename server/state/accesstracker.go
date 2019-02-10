@@ -46,20 +46,24 @@ type Driver interface {
 }
 
 var drivers = make(map[string]Driver)
+var DefaultConfig = make(map[string]interface{})
 
 func Register(name string, d Driver) {
 	if _, exists := drivers[name]; exists {
 		panic(fmt.Errorf("access tracker database driver already registered: %s", name))
 	}
+
 	drivers[name] = d
+	DefaultConfig[name] = d.MakeConfig()
 }
 
-func Config() (config map[string]interface{}) {
-	config = make(map[string]interface{})
-	for name, d := range drivers {
-		config[name] = d.MakeConfig()
+func MakeConfig(name string) (interface{}, error) {
+	d, found := drivers[name]
+	if !found {
+		return nil, fmt.Errorf("access tracker database driver not registered: %s", name)
 	}
-	return
+
+	return d.MakeConfig(), nil
 }
 
 func Open(ctx context.Context, name string, config interface{}) (db DB, err error) {

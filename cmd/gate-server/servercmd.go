@@ -195,7 +195,7 @@ func main() {
 	}
 
 	c.Service = plugins.ServiceConfig
-	c.DB = state.Config()
+	c.DB = state.DefaultConfig
 
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig

@@ -40,7 +40,7 @@ const testAccessLog = false
 var testAccessTracker state.AccessTracker
 
 func init() {
-	db, err := state.Open(context.Background(), "bolt", state.Config()["bolt"])
+	db, err := state.Open(context.Background(), "bolt", state.DefaultConfig["bolt"])
 	if err != nil {
 		panic(err)
 	}
