@@ -543,8 +543,8 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 	return
 }
 
-// ModuleContent for downloading.  The caller must call ModuleLoad.Close and
-// Server.ModuleDownloaded when it's done downloading.
+// ModuleContent for downloading.  The caller must call ModuleLoad.Close when
+// it's done downloading.
 func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash string,
 ) (content image.ModuleLoad, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
@@ -576,16 +576,15 @@ func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash stri
 	origClose := content.Close
 	content.Close = func() error {
 		defer s.unrefProgram(prog)
+
+		s.Monitor(&event.ModuleDownload{
+			Ctx:    Context(ctx, pri),
+			Module: prog.hash,
+		}, nil)
+
 		return origClose()
 	}
 	return
-}
-
-func (s *Server) ModuleDownloaded(ctx context.Context, pri *PrincipalKey, hash string, err error) {
-	s.Monitor(&event.ModuleDownload{
-		Ctx:    Context(ctx, pri),
-		Module: hash,
-	}, err)
 }
 
 func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string) (err error) {

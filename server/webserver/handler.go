@@ -576,14 +576,8 @@ func handleModuleGet(w http.ResponseWriter, r *http.Request, s *webserver, key s
 	w.Header().Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 	w.WriteHeader(http.StatusOK)
 
-	err = nil
-
-	defer func() {
-		s.Server.ModuleDownloaded(ctx, pri, key, err)
-	}()
-
 	if r.Method != "HEAD" {
-		_, err = io.Copy(w, content.Reader())
+		io.Copy(w, content.Reader())
 	}
 }
 
