@@ -13,6 +13,8 @@
 #warning sandbox is disabled
 #endif
 
+// Some of these values are also defined in runtime/runtime.go
+
 #define GATE_MAX_PACKET_SIZE 65536
 
 #define GATE_INPUT_FD 0   //                    exechild loader runtime

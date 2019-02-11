@@ -20,11 +20,6 @@ import (
 	"github.com/tsavola/wag/trap"
 )
 
-const (
-	magicNumber1 = 0x53058f3a
-	magicNumber2 = 0x7e1c5d67
-)
-
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
 	MagicNumber1   uint32

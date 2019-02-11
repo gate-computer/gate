@@ -16,8 +16,6 @@ import (
 	"github.com/tsavola/gate/packet"
 )
 
-const maxPacketSize = 65536
-
 const (
 	packetReservedOffset = 7
 )
