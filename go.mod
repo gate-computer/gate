@@ -6,6 +6,7 @@ require (
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.3.0
+	github.com/mattn/go-sqlite3 v1.8.0
 	github.com/tsavola/confi v1.0.0
 	github.com/tsavola/contextack v1.0.1
 	github.com/tsavola/wag v0.15.3

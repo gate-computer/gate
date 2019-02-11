@@ -24,12 +24,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/tsavola/gate/internal/test/runtimeutil"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/state"
-	_ "github.com/tsavola/gate/server/state/bolt"
+	"github.com/tsavola/gate/server/state/sql"
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag"
 	"github.com/tsavola/wag/wa"
@@ -40,7 +41,10 @@ const testAccessLog = false
 var testAccessTracker state.AccessTracker
 
 func init() {
-	db, err := state.Open(context.Background(), "bolt", state.DefaultConfig["bolt"])
+	db, err := sql.Open(context.Background(), sql.Config{
+		Driver: "sqlite3",
+		DSN:    "file::memory:?cache=shared",
+	})
 	if err != nil {
 		panic(err)
 	}
