@@ -38,12 +38,12 @@ type config struct {
 
 type driver struct{}
 
-func (driver) MakeConfig() interface{} {
-	return config{}
+func (driver) NewConfig() interface{} {
+	return new(config)
 }
 
 func (driver) Open(ctx context.Context, conf interface{}) (db state.DB, err error) {
-	return open(conf.(config).Filename)
+	return open(conf.(*config).Filename)
 }
 
 type DB struct {

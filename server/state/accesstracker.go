@@ -41,7 +41,7 @@ type DB interface {
 }
 
 type Driver interface {
-	MakeConfig() interface{}
+	NewConfig() interface{}
 	Open(ctx context.Context, config interface{}) (DB, error)
 }
 
@@ -54,16 +54,16 @@ func Register(name string, d Driver) {
 	}
 
 	drivers[name] = d
-	DefaultConfig[name] = d.MakeConfig()
+	DefaultConfig[name] = d.NewConfig()
 }
 
-func MakeConfig(name string) (interface{}, error) {
+func NewConfig(name string) (interface{}, error) {
 	d, found := drivers[name]
 	if !found {
 		return nil, fmt.Errorf("access tracker database driver not registered: %s", name)
 	}
 
-	return d.MakeConfig(), nil
+	return d.NewConfig(), nil
 }
 
 func Open(ctx context.Context, name string, config interface{}) (db DB, err error) {
