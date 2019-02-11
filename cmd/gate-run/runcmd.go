@@ -242,11 +242,11 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 
 	tLoadBegin := tBegin
 
-	var im = new(debug.InsnMap)
+	var im debug.InsnMap
 	var ns = new(section.NameSection)
 	var cs = new(section.CustomSections)
 
-	funcSigs, exe, err := load(build, filename, im, ns, cs)
+	funcSigs, exe, err := load(build, filename, &im, ns, cs)
 	if err != nil {
 		log.Fatalf("load: %v", err)
 	}

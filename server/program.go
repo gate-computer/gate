@@ -196,10 +196,10 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	}
 
 	var routine = runtime.InitStart
-	var codeMap = new(object.CallMap)
+	var codeMap object.CallMap
 	var codeConfig = &compile.CodeConfig{
 		Text:   build.TextBuffer(),
-		Mapper: codeMap,
+		Mapper: &codeMap,
 		Config: sectionConfig,
 	}
 
@@ -325,7 +325,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	prog = &program{
 		hash: hash,
 		bin: &binary{
-			codeMap:         *codeMap,
+			codeMap:         codeMap,
 			archive:         archive,
 			ArchiveManifest: archive.Manifest(),
 			module:          storedModule,

@@ -24,7 +24,7 @@ import (
 
 const customStackSectionName = "gate.stack"
 
-func BuildModule(ctx context.Context, storage ModuleStorage, origModule Module, metadata Metadata, exe *Executable, codeMap *object.CallMap,
+func BuildModule(ctx context.Context, storage ModuleStorage, origModule Module, metadata Metadata, exe *Executable, codeMap object.CallMap,
 ) (newModule Module, hash string, err error) {
 	origLoad, err := origModule.Open(ctx)
 	if err != nil {
@@ -287,7 +287,7 @@ func copyAtUntilSkip(b *buffer.Dynamic, r io.ReaderAt, oldOffset int64, section 
 }
 
 // exportStack from native source buffer to portable target buffer.
-func exportStack(portable, native []byte, textAddr uint64, codeMap *object.CallMap) (err error) {
+func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMap) (err error) {
 	if n := len(native); n == 0 || n&7 != 0 {
 		err = fmt.Errorf("invalid stack size %d", n)
 		return
