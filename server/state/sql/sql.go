@@ -22,7 +22,7 @@ import (
 var errNonceExists = errors.New("nonce already exists")
 
 func init() {
-	state.Register("sql", drv{})
+	state.Register("sql", adapter{})
 }
 
 const Schema = `
@@ -44,13 +44,13 @@ type Config struct {
 	Connector driver.Connector // Overrides Driver and DSN.
 }
 
-type drv struct{}
+type adapter struct{}
 
-func (drv) NewConfig() interface{} {
+func (adapter) NewConfig() interface{} {
 	return new(Config)
 }
 
-func (drv) Open(ctx context.Context, config interface{}) (state.DB, error) {
+func (adapter) Open(ctx context.Context, config interface{}) (state.DB, error) {
 	return Open(ctx, *config.(*Config))
 }
 
