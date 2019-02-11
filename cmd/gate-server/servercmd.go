@@ -32,6 +32,7 @@ import (
 	"github.com/tsavola/gate/server/sshkeys"
 	"github.com/tsavola/gate/server/state"
 	_ "github.com/tsavola/gate/server/state/bolt"
+	_ "github.com/tsavola/gate/server/state/sql"
 	"github.com/tsavola/gate/server/webserver"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
