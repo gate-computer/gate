@@ -190,7 +190,7 @@ func (exe *Executable) StoreCopy(ctx context.Context, key string, metadata Metad
 		dataSize   = exe.manifest.GlobalsSize + exe.manifest.MemorySize
 	)
 
-	manifest := &ArchiveManifest{
+	manifest := ArchiveManifest{
 		TextSize:    exe.manifest.TextSize,
 		GlobalsSize: exe.manifest.GlobalsSize,
 		MemorySize:  exe.manifest.MemorySize,

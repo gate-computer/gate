@@ -107,7 +107,7 @@ func (fs *Filesystem) CreateModule(ctx context.Context, size int) (store ModuleS
 	return
 }
 
-func (fs *Filesystem) CreateArchive(ctx context.Context, manifest *ArchiveManifest,
+func (fs *Filesystem) CreateArchive(ctx context.Context, manifest ArchiveManifest,
 ) (store ExecutableStore, err error) {
 	f, err := ioutil.TempFile(fs.dirTemp, fsTempPatternArchive)
 	if err != nil {
@@ -131,7 +131,7 @@ func (fs *Filesystem) CreateArchive(ctx context.Context, manifest *ArchiveManife
 			ar = &fsArchive{
 				file:     f,
 				filename: filename,
-				manifest: *manifest,
+				manifest: manifest,
 			}
 			success = true
 			return
@@ -225,8 +225,8 @@ type fsArchive struct {
 	manifest ArchiveManifest
 }
 
-func (ar *fsArchive) Manifest() *ArchiveManifest {
-	return &ar.manifest
+func (ar *fsArchive) Manifest() ArchiveManifest {
+	return ar.manifest
 }
 
 func (ar *fsArchive) Open(context.Context) (load ExecutableLoad, err error) {

@@ -53,7 +53,7 @@ func (memory) CreateModule(ctx context.Context, size int) (store ModuleStore, er
 	return
 }
 
-func (memory) CreateArchive(ctx context.Context, manifest *ArchiveManifest) (store ExecutableStore, err error) {
+func (memory) CreateArchive(ctx context.Context, manifest ArchiveManifest) (store ExecutableStore, err error) {
 	f, err := newMemFile(memArchiveName)
 	if err != nil {
 		return
@@ -66,7 +66,7 @@ func (memory) CreateArchive(ctx context.Context, manifest *ArchiveManifest) (sto
 		Archive: func(key string) (ar Archive, err error) {
 			ar = &memArchive{
 				file:     internal.NewFileRef(f, nil),
-				manifest: *manifest,
+				manifest: manifest,
 			}
 
 			f = nil // Archived.
@@ -119,8 +119,8 @@ type memArchive struct {
 	manifest ArchiveManifest
 }
 
-func (ar *memArchive) Manifest() *ArchiveManifest {
-	return &ar.manifest
+func (ar *memArchive) Manifest() ArchiveManifest {
+	return ar.manifest
 }
 
 func (ar *memArchive) Open(context.Context) (load ExecutableLoad, err error) {

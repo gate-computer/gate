@@ -65,7 +65,7 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 type binary struct {
 	codeMap object.CallMap
 	archive image.Archive
-	*image.ArchiveManifest
+	image.ArchiveManifest
 
 	module image.Module // TODO: separate reference counting?
 

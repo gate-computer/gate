@@ -22,7 +22,7 @@ type Module interface {
 // Archive is a persistent precompiled program.
 type Archive interface {
 	io.Closer
-	Manifest() *ArchiveManifest
+	Manifest() ArchiveManifest
 	Open(context.Context) (ExecutableLoad, error)
 }
 
@@ -47,7 +47,7 @@ type ModuleStorage interface {
 }
 
 type ArchiveStorage interface {
-	CreateArchive(context.Context, *ArchiveManifest) (ExecutableStore, error)
+	CreateArchive(context.Context, ArchiveManifest) (ExecutableStore, error)
 }
 
 type internalArchiveStorage interface {
