@@ -252,9 +252,3 @@ func (ar *fsArchive) Close() error {
 	}
 	return removeErr
 }
-
-func init() {
-	var _ BackingStore = new(Filesystem)
-	var _ Storage = new(Filesystem)
-	var _ internalArchiveStorage = new(Filesystem)
-}

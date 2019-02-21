@@ -151,9 +151,3 @@ func newMemFile(name string) (f *os.File, err error) {
 	f = os.NewFile(uintptr(fd), name)
 	return
 }
-
-func init() {
-	var _ BackingStore = Memory
-	var _ Storage = Memory
-	var _ internalArchiveStorage = Memory
-}

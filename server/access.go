@@ -241,8 +241,3 @@ func (p *PublicAccess) Authorize(_ context.Context, _ *PrincipalKey) error {
 }
 
 func (*PublicAccess) accessAuthorizer() {}
-
-func init() {
-	var _ AccessAuthorizer = NoAccess{}
-	var _ AccessAuthorizer = new(PublicAccess)
-}
