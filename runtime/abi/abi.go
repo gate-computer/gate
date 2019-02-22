@@ -6,8 +6,6 @@ package abi
 
 import (
 	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/wa"
 )
 
@@ -35,6 +33,8 @@ var moduleFunctions = map[string]map[string]function{
 	},
 }
 
+var Imports resolver
+
 type resolver struct{}
 
 func (resolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, err error) {
@@ -57,8 +57,4 @@ func (resolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, e
 func (resolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
 	err = badprogram.Errorf("import global not supported: %q %q %s", module, field, t)
 	return
-}
-
-func BindImports(module *compile.Module) error {
-	return binding.BindImports(module, resolver{})
 }

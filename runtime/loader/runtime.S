@@ -189,6 +189,23 @@ runtime_init_no_sandbox:
 	xor	%r12d, %r12d
 	xor	%r13d, %r13d
 
+	// Already suspended?  Terminate in uninitialized state.
+
+	test	$1, %ebx
+	je	.Lproceed
+
+	mov	$100+2, %edi			// Suspended
+	jmp	sys_exit			// Don't use .Lruntime_exit
+
+.Lproceed:
+	// Mark stack as dirty just before execution.  (If SIGXCPU signal was
+	// received just after the above check, the process has one second
+	// worth of CPU time to reach the first suspend check in generated code
+	// or ABI call and execute .Lruntime_exit to avoid inconsistent state.)
+
+	stack_buffer
+	movl	$-1, -GATE_STACK_LIMIT_OFFSET+4(%rcx)
+
 	// Execute wag object ABI init routine.
 
 	xor	%eax, %eax			// Result reg when resuming after ABI call
@@ -483,12 +500,7 @@ gate_exit:
 	sub	$GATE_STACK_LIMIT_OFFSET, %rcx	// Stack buffer.
 	mov	%rsp, %rax
 	sub	%rcx, %rax			// Stack offset.
-
-	// Write variables at start of stack space.
-	// (Current memory size is already there.)
-
-	mov	%eax, 4(%rbx)			// Stack offset.
-	mov	%r15, 8(%rbx)			// Text address.
+	mov	%eax, 4(%rcx)			// After current memory size.
 
 	// Fall through to sys_exit.
 

@@ -10,100 +10,69 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/tsavola/gate/image/manifest"
 	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/wag/object"
 )
 
-// Module is a persistent WebAssembly binary module.
-type Module interface {
-	io.Closer
-	Open(context.Context) (ModuleLoad, error)
-}
-
-// Archive is a persistent precompiled program.
+// Archive contains a persistent WebAssembly binary module and a precompiled
+// program.
 type Archive interface {
-	io.Closer
-	Manifest() ArchiveManifest
-	Open(context.Context) (ExecutableLoad, error)
+	Manifest() manifest.Archive         // TODO: error?
+	ObjectMap() (object.CallMap, error) // TODO: combine with ArchiveLoader
+	Load(context.Context) (ArchiveLoader, error)
+	Close() error
 }
 
-type ArchiveManifest struct {
-	TextSize    int
-	GlobalsSize int
-	MemorySize  int
-	Metadata
+type LocalArchive interface {
+	Archive
+
+	file() *internal.FileRef
+	reflinkable(interface{}) bool
 }
 
-func makeArchiveManifest(m *internal.Manifest, metadata Metadata) ArchiveManifest {
-	return ArchiveManifest{
-		TextSize:    m.TextSize,
-		GlobalsSize: m.GlobalsSize,
-		MemorySize:  m.MemorySize,
-		Metadata:    metadata,
-	}
-}
+type ArchiveLoader struct {
+	// Reader for module contents.
+	Module ReaderOption
 
-type ModuleStorage interface {
-	CreateModule(ctx context.Context, size int) (ModuleStore, error)
-}
+	// Readers for executable contents.  When using Text.Stream, Stack.Stream
+	// and Data.Stream, manifest.Executable.TextSize bytes must be read from
+	// Text and manifest.Executable.StackSize bytes from Stack before reading
+	// from Data, as they might be the same stream.
+	Text  ReaderOption
+	Stack ReaderOption
+	Data  ReaderOption
 
-type ArchiveStorage interface {
-	CreateArchive(context.Context, ArchiveManifest) (ExecutableStore, error)
-}
-
-type internalArchiveStorage interface {
-	ArchiveStorage
-	archive(key string, _ Metadata, _ *internal.Manifest, _ *internal.FileRef) (Archive, error)
+	// Close method releases temporary resources.
+	Close func() error
 }
 
 type Storage interface {
-	ModuleStorage
-	ArchiveStorage
+	Store(context.Context, manifest.Archive) (ArchiveStorer, error)
 }
 
-type ModuleLoad struct {
-	Length int64
+type LocalStorage interface {
+	Storage
 
-	// Reader for module contents.  Call Close after reading.
-	ReaderOption
+	newArchiveFile() (*os.File, error)
+	reflinkable(interface{}) bool
 
-	// Close method releases temporary resources.
-	Close func() error
+	// give is like the Storage.Store, but text, stack and data are supplied
+	// via as a FileRef instead of through ArchiveStorer writers.  The FileRef
+	// must have been created with newArchiveFile.
+	give(moduleKey string, m manifest.Archive, f *internal.FileRef, objectMap object.CallMap,
+	) (LocalArchive, error)
 }
 
-type ModuleStore struct {
-	// Writer for module contents.  Call Module and Close after writing.
-	io.Writer
+type ArchiveStorer struct {
+	// Writers for archive contents.  They must be written in order.
+	Module io.Writer // Write manifest.Archive.ModuleSize bytes.
+	Text   io.Writer // Write manifest.Executable.TextSize bytes.
+	Stack  io.Writer // Write manifest.Executable.StackSize bytes.
+	Data   io.Writer // Write manifest.Executable.DataSize bytes.
 
-	// Module method for getting the complete module after its contents have
-	// been written.  It must be called before Close.
-	Module func(key string) (Module, error)
-
-	// Close method releases temporary resources, and the incomplete module
-	// if Module method was not called (due to error).
-	Close func() error
-}
-
-type ExecutableLoad struct {
-	// Readers for executable contents.  Call Close after reading.
-	// When using Text.Stream and GlobalsMemory.Stream,
-	// ArchiveManifest.TextSize bytes must be read from Text before reading
-	// from GlobalsMemory, as they might be the same stream.
-	Text          ReaderOption
-	GlobalsMemory ReaderOption
-
-	// Close method releases temporary resources.
-	Close func() error
-}
-
-type ExecutableStore struct {
-	// Writers for archive contents.  Call Archive and Close after writing.
-	// ArchiveManifest.TextSize bytes must be written to Text before writing
-	// GlobalsMemory, as they might point to the same stream.
-	Text          io.Writer
-	GlobalsMemory io.Writer
-
-	// Archive method for getting the complete archive after text, globals and
-	// memory contents have been written.  It must be called before Close.
+	// Archive method for getting the complete archive after module, text,
+	// stack and data have been written.  It must be called before Close.
 	Archive func(key string) (Archive, error)
 
 	// Close method releases temporary resources, and the incomplete archive
@@ -164,6 +133,26 @@ func (ropt *ReaderOption) copyToFile(wfile *os.File, woff int64, length int) (er
 	r := &randomAccessReader{ropt.RandomAccess, ropt.Offset}
 
 	_, err = io.CopyN(w, r, int64(length))
+	return
+}
+
+// skip forward in Stream if copyToFile would use it.
+func (ropt *ReaderOption) skip(length int) (err error) {
+	if length == 0 {
+		return
+	}
+
+	if ropt.RandomAccess != nil {
+		if _, ok := ropt.RandomAccess.(descriptorFile); ok {
+			return
+		}
+	}
+
+	if ropt.Stream != nil {
+		_, err = io.CopyN(ioutil.Discard, ropt.Stream, int64(length))
+		return
+	}
+
 	return
 }
 

@@ -11,7 +11,9 @@ import (
 	"github.com/tsavola/wag/wa"
 )
 
-func FuncIndex(mod *compile.Module, name string) (index uint32, err error) {
+// ModuleFuncIndex returns an error if name is not exported by module or has
+// incompatible type.
+func ModuleFuncIndex(mod compile.Module, name string) (index uint32, err error) {
 	index, sig, ok := mod.ExportFunc(name)
 	if ok {
 		ok = checkType(sig)
@@ -22,8 +24,11 @@ func FuncIndex(mod *compile.Module, name string) (index uint32, err error) {
 	return
 }
 
-func FuncAddrs(mod *compile.Module, funcAddrs []uint32) (entryAddrs map[string]uint32) {
-	entryAddrs = make(map[string]uint32)
+// Maps always succeeds.  entryAddrs will contain all entryIndexes.
+func Maps(mod compile.Module, funcAddrs []uint32,
+) (entryIndexes map[string]uint32, entryAddrs map[uint32]uint32) {
+	entryIndexes = make(map[string]uint32)
+	entryAddrs = make(map[uint32]uint32)
 
 	sigs := mod.Types()
 	sigIndexes := mod.FuncTypeIndexes()
@@ -33,17 +38,28 @@ func FuncAddrs(mod *compile.Module, funcAddrs []uint32) (entryAddrs map[string]u
 		sig := sigs[sigIndex]
 
 		if checkType(sig) {
-			entryAddrs[name] = funcAddrs[funcIndex]
+			entryIndexes[name] = funcIndex
+			entryAddrs[funcIndex] = funcAddrs[funcIndex]
 		}
 	}
 
 	return
 }
 
-func FuncAddr(entryAddrs map[string]uint32, name string) (addr uint32, err error) {
-	addr, ok := entryAddrs[name]
+// MapFuncIndex returns an error if name is not in entryIndexes.
+func MapFuncIndex(entryIndexes map[string]uint32, name string) (index uint32, err error) {
+	index, ok := entryIndexes[name]
 	if !ok {
 		err = notfound.ErrFunction
+	}
+	return
+}
+
+// MapFuncAddr panics if index is not in entryAddrs.
+func MapFuncAddr(entryAddrs map[uint32]uint32, index uint32) (addr uint32) {
+	addr, ok := entryAddrs[index]
+	if !ok {
+		panic(index)
 	}
 	return
 }

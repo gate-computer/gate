@@ -13,7 +13,8 @@
 #warning sandbox is disabled
 #endif
 
-// Some of these values are also defined in runtime/runtime.go
+// Some of these values are also defined in runtime/runtime.go or
+// internal/executable/runtime.go
 
 #define GATE_MAX_PACKET_SIZE 65536
 

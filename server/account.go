@@ -45,8 +45,10 @@ func (acc *account) ensureRefProgram(prog *program) {
 	}
 }
 
-// unrefProgram must be called with Server.lock held.  Results will be
-// undefined if the program is not currently referenced.
+// unrefProgram must be called with Server.lock held.  Caller must invoke
+// prog.cleanup() separately if the final refrence was dropped.
+//
+// Results will be undefined if the program is not currently referenced.
 func (acc *account) unrefProgram(prog *program) (final bool) {
 	delete(acc.programRefs, prog)
 	return prog.unref()

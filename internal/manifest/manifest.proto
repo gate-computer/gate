@@ -1,0 +1,36 @@
+// Copyright (c) 2019 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package manifest;
+
+message ByteRange {
+	int64 offset = 1;
+	int64 length = 2;
+}
+
+message Archive {
+	int64 module_size = 1;
+	repeated ByteRange sections = 2;
+	ByteRange stack_section = 3;
+	bytes global_types = 4;                // Limited by wag's maxGlobals check.
+	map<string, uint32> entry_indexes = 5; // Limited by func name len and wag's maxExports check.
+	map<uint32, uint32> entry_addrs = 6;
+	uint32 call_sites_size = 7;
+	uint32 func_addrs_size = 8;
+	Executable exe = 9;
+}
+
+message Executable {
+	uint64 text_addr = 1; // Zero unless suspended executable.
+	uint32 text_size = 2;
+	uint32 stack_size = 3;  // Zero if non-suspended archive.
+	uint32 stack_usage = 4; // Zero if non-suspended archive.
+	uint32 globals_size = 5;
+	uint32 memory_data_size = 6;
+	uint32 memory_size = 7;
+	uint32 memory_size_limit = 8;
+	int32 init_routine = 9;
+}

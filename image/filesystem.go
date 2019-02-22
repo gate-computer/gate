@@ -11,42 +11,42 @@ import (
 	pathlib "path"
 	"syscall"
 
+	"github.com/tsavola/gate/image/manifest"
 	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/wag/object"
 )
 
 const (
-	fsSubdirModule          = "module"
 	fsSubdirArchive         = "archive"
 	fsSubdirTemp            = "tmp"
-	fsTempPatternModule     = "module-*"
 	fsTempPatternArchive    = "archive-*"
 	fsTempPatternExecutable = "executable-*"
 )
 
-// Filesystem implements BackingStore and Storage.  It's optimized for
-// filesystems which support reflinks.
+type FilesystemConfig struct {
+	Path    string
+	Reflink bool // Does the filesystem support reflinks?
+}
+
+// Filesystem implements BackingStore and LocalStorage.
+//
+// If supported, reflinks are used to avoid or defer copying.
 type Filesystem struct {
-	pageSize   int
-	dirModule  string
-	dirArchive string
-	dirTemp    string
+	reflinkSupport bool
+	dirArchive     string
+	dirTemp        string
 }
 
-func NewFilesystem(path string, pageSize int) *Filesystem {
-	if pageSize < internal.PageSize {
-		pageSize = internal.PageSize
+func NewFilesystem(config FilesystemConfig) (fs *Filesystem) {
+	fs = &Filesystem{
+		reflinkSupport: config.Reflink,
+		dirArchive:     pathlib.Join(config.Path, fsSubdirArchive),
+		dirTemp:        pathlib.Join(config.Path, fsSubdirTemp),
 	}
 
-	return &Filesystem{
-		pageSize:   pageSize,
-		dirModule:  pathlib.Join(path, fsSubdirModule),
-		dirArchive: pathlib.Join(path, fsSubdirArchive),
-		dirTemp:    pathlib.Join(path, fsSubdirTemp),
-	}
-}
-
-func (fs *Filesystem) getPageSize() int {
-	return fs.pageSize
+	os.Mkdir(fs.dirArchive, 0700)
+	os.Mkdir(fs.dirTemp, 0700)
+	return
 }
 
 func (fs *Filesystem) newExecutableFile() (f *os.File, err error) {
@@ -68,187 +68,107 @@ func (fs *Filesystem) newExecutableFile() (f *os.File, err error) {
 	return
 }
 
-func (*Filesystem) sealFile(*os.File) error {
-	return nil
+func (fs *Filesystem) newArchiveFile() (f *os.File, err error) {
+	return ioutil.TempFile(fs.dirTemp, fsTempPatternArchive)
 }
 
-func (fs *Filesystem) CreateModule(ctx context.Context, size int) (store ModuleStore, err error) {
-	f, err := ioutil.TempFile(fs.dirTemp, fsTempPatternModule)
+func (fs *Filesystem) reflinkable(back interface{}) bool {
+	if fs.reflinkSupport {
+		if fs2, ok := back.(*Filesystem); ok {
+			return fs == fs2
+		}
+	}
+	return false
+}
+
+func (fs *Filesystem) give(key string, man manifest.Archive, ref *internal.FileRef, objectMap object.CallMap,
+) (arc LocalArchive, err error) {
+	filename := pathlib.Join(fs.dirArchive, key)
+
+	err = syscall.Rename(ref.Name(), filename) // os.Rename makes extraneous lstat call.
 	if err != nil {
 		return
 	}
 
-	success := false
-
-	store = ModuleStore{
-		Writer: f,
-
-		Module: func(key string) (m Module, err error) {
-			filename := pathlib.Join(fs.dirModule, key)
-
-			err = syscall.Rename(f.Name(), filename) // os.Rename makes extraneous lstat call.
-			if err != nil {
-				return
-			}
-
-			m = &fsModule{filename, size}
-			success = true
-			return
+	arc = &fsArchive{
+		memArchive: memArchive{
+			f:         ref.Ref(),
+			man:       man,
+			objectMap: objectMap,
 		},
-
-		Close: func() error {
-			if !success {
-				os.Remove(f.Name())
-			}
-			return f.Close()
-		},
+		fs:       fs,
+		filename: filename,
 	}
-
 	return
 }
 
-func (fs *Filesystem) CreateArchive(ctx context.Context, manifest ArchiveManifest,
-) (store ExecutableStore, err error) {
+func (fs *Filesystem) Store(ctx context.Context, man manifest.Archive,
+) (storer ArchiveStorer, err error) {
 	f, err := ioutil.TempFile(fs.dirTemp, fsTempPatternArchive)
 	if err != nil {
 		return
 	}
 
-	success := false
+	pending := &fsArchive{
+		memArchive: memArchive{
+			f:   internal.NewFileRef(f),
+			man: man,
+		},
+		fs: fs,
+	}
 
-	store = ExecutableStore{
-		Text:          f,
-		GlobalsMemory: f,
+	storer = ArchiveStorer{
+		Module: f,
+		Text:   f,
+		Stack:  f,
+		Data:   f,
 
-		Archive: func(key string) (ar Archive, err error) {
+		Archive: func(key string) (arc Archive, err error) {
 			filename := pathlib.Join(fs.dirArchive, key)
 
-			err = syscall.Rename(f.Name(), filename) // os.Rename makes extraneous lstat call.
+			err = syscall.Rename(pending.f.Name(), filename) // os.Rename makes extraneous lstat call.
 			if err != nil {
 				return
 			}
 
-			ar = &fsArchive{
-				file:     f,
-				filename: filename,
-				manifest: manifest,
-			}
-			success = true
+			pending.filename = filename
+			arc = pending
+			pending = nil // Archived.
 			return
 		},
 
 		Close: func() (err error) {
-			if !success {
-				removeErr := os.Remove(f.Name())
-				closeErr := f.Close()
-				if closeErr != nil {
-					err = closeErr
-				} else {
-					err = removeErr
-				}
+			if pending != nil {
+				err = pending.Close()
+				pending = nil
 			}
 			return
 		},
 	}
-
 	return
-}
-
-func (fs *Filesystem) archive(key string, metadata Metadata, manifest *internal.Manifest, ref *internal.FileRef,
-) (ar Archive, err error) {
-	if manifest.StackSize != 0 {
-		return
-	}
-
-	// The file cannot be used directly as it has been unlinked, and creating a
-	// link requires a path.
-
-	f, err := ioutil.TempFile(fs.dirTemp, fsTempPatternArchive)
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			f.Close()
-			os.Remove(f.Name())
-		}
-	}()
-
-	// Reflink the contents (if supported by filesystem).
-
-	err = copyFileRange(ref.Fd(), new(int64), f.Fd(), new(int64), manifest.TextSize+manifest.GlobalsSize+manifest.MemorySize)
-	if err != nil {
-		return
-	}
-
-	filename := pathlib.Join(fs.dirArchive, key)
-
-	err = syscall.Rename(f.Name(), filename) // os.Rename makes extraneous lstat call.
-	if err != nil {
-		return
-	}
-
-	ar = &fsArchive{
-		file:     f,
-		filename: filename,
-		manifest: makeArchiveManifest(manifest, metadata),
-	}
-	return
-}
-
-type fsModule struct {
-	filename string
-	size     int
-}
-
-func (m *fsModule) Open(context.Context) (load ModuleLoad, err error) {
-	f, err := os.Open(m.filename)
-	if err != nil {
-		return
-	}
-
-	load = ModuleLoad{
-		Length:       int64(m.size),
-		ReaderOption: ReaderOption{RandomAccess: f},
-		Close:        f.Close,
-	}
-	return
-}
-
-func (m *fsModule) Close() error {
-	return os.Remove(m.filename)
 }
 
 type fsArchive struct {
-	file     *os.File
+	memArchive
+	fs       *Filesystem
 	filename string
-	manifest ArchiveManifest
 }
 
-func (ar *fsArchive) Manifest() ArchiveManifest {
-	return ar.manifest
+func (arc *fsArchive) reflinkable(back interface{}) bool {
+	return arc.fs.reflinkable(back)
 }
 
-func (ar *fsArchive) Open(context.Context) (load ExecutableLoad, err error) {
-	load = ExecutableLoad{
-		Text: ReaderOption{
-			RandomAccess: ar.file,
-			Offset:       0,
-		},
-		GlobalsMemory: ReaderOption{
-			RandomAccess: ar.file,
-			Offset:       int64(ar.manifest.TextSize),
-		},
-		Close: func() error { return nil },
-	}
-	return
-}
-
-func (ar *fsArchive) Close() error {
-	removeErr := os.Remove(ar.filename)
-	closeErr := ar.file.Close()
+func (arc *fsArchive) Close() error {
+	removeErr := os.Remove(arc.filename)
+	closeErr := arc.memArchive.Close()
 	if closeErr != nil {
 		return closeErr
 	}
 	return removeErr
+}
+
+func init() {
+	var _ BackingStore = new(Filesystem)
+	var _ LocalStorage = new(Filesystem)
+	var _ Storage = new(Filesystem)
 }

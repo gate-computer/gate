@@ -32,6 +32,7 @@ type ResourcePolicy struct {
 type ProgramPolicy struct {
 	MaxModuleSize int // WebAssembly module size.
 	MaxTextSize   int // Native program code size.
+	MaxStackSize  int // Suspended stack size.
 }
 
 type InstancePolicy struct {
@@ -151,6 +152,7 @@ var DefaultAccessConfig = AccessConfig{
 	ProgramPolicy{
 		DefaultMaxModuleSize,
 		DefaultMaxTextSize,
+		DefaultStackSize,
 	},
 	InstancePolicy{
 		DefaultMaxMemorySize,
@@ -184,6 +186,9 @@ func (config *AccessConfig) ConfigureProgram(policy *ProgramPolicy) {
 	}
 	if policy.MaxTextSize == 0 {
 		policy.MaxTextSize = DefaultMaxTextSize
+	}
+	if policy.MaxStackSize == 0 {
+		policy.MaxStackSize = DefaultStackSize
 	}
 }
 

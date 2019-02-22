@@ -12,11 +12,11 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/serverapi"
-	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/runtime/abi"
+	runtimeabi "github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
+	objectabi "github.com/tsavola/wag/object/abi"
 )
 
 type progPolicy struct {
@@ -79,8 +79,8 @@ func New(ctx context.Context, config *Config) *Server {
 
 	s.Info = &Info{
 		Runtime: RuntimeInfo{
-			MaxABIVersion: abi.MaxVersion,
-			MinABIVersion: abi.MinVersion,
+			MaxABIVersion: runtimeabi.MaxVersion,
+			MinABIVersion: runtimeabi.MinVersion,
 		},
 	}
 
@@ -158,7 +158,7 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 		return
 	}
 
-	if prog.bin.TextSize > pol.prog.MaxTextSize {
+	if prog.man.Exe.TextSize > uint32(pol.prog.MaxTextSize) {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
@@ -174,7 +174,7 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 
 func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
 ) (err error) {
-	_, prog, err := compileProgram(ctx, nil, nil, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, "")
+	_, prog, err := buildProgram(nil, nil, nil, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, "")
 	if err != nil {
 		return
 	}
@@ -222,12 +222,12 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		}
 	}()
 
-	entryAddr, err := prog.getEntryAddr(function)
+	entryIndex, entryAddr, err := prog.resolveEntry(function)
 	if err != nil {
 		return
 	}
 
-	// TODO: check resource policy
+	// TODO: check resource policy (text/stack/memory/max-memory size etc.)
 
 	inst, err = s.newInstance(ctx, acc, pol.inst.Services, instID)
 	if err != nil {
@@ -243,12 +243,12 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		}
 	}()
 
-	inst.exe, err = prog.loadExecutable(ctx, inst.ref, &pol.inst, entryAddr)
+	inst.exe, err = image.NewExecutable(s.InstanceStore, inst.ref, prog.archive, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
 
-	err = inst.process.Start(inst.exe, prog.routine)
+	err = inst.process.Start(inst.exe)
 	if err != nil {
 		return
 	}
@@ -411,22 +411,24 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	if prog.bin.TextSize > pol.prog.MaxTextSize {
+	if prog.man.Exe.TextSize > uint32(pol.prog.MaxTextSize) {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
 
-	entryAddr, err := prog.getEntryAddr(function)
+	// TODO: check resource policy (stack/memory/max-memory size etc.)
+
+	entryIndex, entryAddr, err := prog.resolveEntry(function)
 	if err != nil {
 		return
 	}
 
-	inst.exe, err = prog.loadExecutable(ctx, inst.ref, &pol.inst, entryAddr)
+	inst.exe, err = image.NewExecutable(s.InstanceStore, inst.ref, prog.archive, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
 
-	err = inst.process.Start(inst.exe, prog.routine)
+	err = inst.process.Start(inst.exe)
 	if err != nil {
 		return
 	}
@@ -453,7 +455,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 ) (err error) {
 	var prog *program
 
-	inst.exe, prog, err = compileProgram(ctx, inst.ref, &pol.inst, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, function)
+	inst.exe, prog, err = buildProgram(s.InstanceStore, inst.ref, &pol.inst, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, function)
 	if err != nil {
 		return
 	}
@@ -463,7 +465,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 		}
 	}()
 
-	err = inst.process.Start(inst.exe, prog.routine)
+	err = inst.process.Start(inst.exe)
 	if err != nil {
 		return
 	}
@@ -530,7 +532,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 		for prog := range acc.programRefs {
 			refs = append(refs, ModuleRef{
 				Key:       prog.hash,
-				Suspended: prog.routine == runtime.InitResume,
+				Suspended: prog.man.Exe.InitRoutine == objectabi.TextAddrResume,
 			})
 		}
 
@@ -546,7 +548,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 // ModuleContent for downloading.  The caller must call ModuleLoad.Close when
 // it's done downloading.
 func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash string,
-) (content image.ModuleLoad, err error) {
+) (content io.ReadCloser, length int64, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
@@ -563,28 +565,40 @@ func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash stri
 		}
 	}()
 
-	mod := prog.module
-	if mod == nil {
-		mod = prog.bin.module
-	}
+	length = prog.archive.Manifest().ModuleSize
 
-	content, err = mod.Open(ctx)
+	load, err := prog.archive.Load(ctx)
 	if err != nil {
 		return
 	}
 
-	origClose := content.Close
-	content.Close = func() error {
-		defer s.unrefProgram(prog)
+	content = moduleContent{
+		Reader: &io.LimitedReader{
+			R: load.Module.Reader(),
+			N: length,
+		},
 
-		s.Monitor(&event.ModuleDownload{
-			Ctx:    Context(ctx, pri),
-			Module: prog.hash,
-		}, nil)
+		close: func() error {
+			defer s.unrefProgram(prog)
 
-		return origClose()
+			s.Monitor(&event.ModuleDownload{
+				Ctx:    Context(ctx, pri),
+				Module: prog.hash,
+			}, nil)
+
+			return load.Close()
+		},
 	}
 	return
+}
+
+type moduleContent struct {
+	io.Reader
+	close func() error
+}
+
+func (x moduleContent) Close() error {
+	return x.close()
 }
 
 func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string) (err error) {
@@ -593,23 +607,38 @@ func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string
 		return
 	}
 
+	// TODO: LRU cache
+
+	var (
+		acc   *account
+		prog  *program
+		found bool
+		final bool
+	)
+
 	err = func() error {
 		s.lock.Lock()
 		defer s.lock.Unlock()
 
-		acc, prog, found := s.getAccountAndPrincipalProgramWithCallerLock(pri, hash)
+		acc, prog, found = s.getAccountAndPrincipalProgramWithCallerLock(pri, hash)
 		if !found {
 			return resourcenotfound.ErrModule
 		}
 
-		// TODO: LRU cache
-
-		if acc.unrefProgram(prog) {
+		final = acc.unrefProgram(prog)
+		if final {
 			delete(s.programs, hash)
 		}
 
 		return nil
 	}()
+	if err != nil {
+		return
+	}
+
+	if final {
+		prog.cleanup()
+	}
 
 	s.Monitor(&event.ModuleUnref{
 		Ctx:    Context(ctx, pri),
@@ -758,50 +787,42 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 
 	// TODO: check module storage limits
 
-	bin, inst, found := s.refInstanceBinary(pri, instID)
+	prog, inst, found := s.refInstanceProgram(pri, instID)
 	if !found {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 	defer func() {
 		if err != nil {
-			s.unrefBinary(bin)
+			s.unrefProgram(prog)
 		}
 	}()
 
-	var routine runtime.InitRoutine
+	var suspended bool
 
 	switch inst.Status().State {
 	case serverapi.Status_suspended:
-		routine = runtime.InitResume
+		suspended = true
 
 	case serverapi.Status_terminated:
-		routine = runtime.InitEnter // Skip wasm module's start function.
+		suspended = false
 
 	default:
 		err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
 		return
 	}
 
-	module, moduleKey, err := image.BuildModule(ctx, s.ProgramStorage, bin.module, bin.Metadata, inst.exe, bin.codeMap)
+	moduleKey, archive, err := image.Snapshot(s.ProgramStorage, prog.archive, inst.exe, suspended)
 	if err != nil {
 		return
 	}
 
-	prog := &program{
-		hash:     moduleKey,
-		bin:      bin,
-		routine:  routine,
-		module:   module,
-		refCount: 1,
-	}
-
-	s.registerProgramRef(inst.acc, prog)
+	s.registerProgramRef(inst.acc, newProgram(moduleKey, archive, prog.codeMap))
 
 	s.Monitor(&event.InstanceSnapshot{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-		Module:   prog.hash,
+		Module:   moduleKey,
 	}, nil)
 	return
 }
@@ -865,6 +886,17 @@ func (s *Server) refProgram(hash string) (prog *program, found bool) {
 		prog.ref()
 	}
 	return
+}
+
+func (s *Server) unrefProgram(prog *program) {
+	if func() bool {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+
+		return prog.unref()
+	}() {
+		prog.cleanup()
+	}
 }
 
 func (s *Server) refAccountProgram(acc *account, hash string) (*program, bool) {
@@ -962,7 +994,8 @@ func (s *Server) getInstance(pri *PrincipalKey, instID string) (inst *Instance, 
 	return
 }
 
-func (s *Server) refInstanceBinary(pri *PrincipalKey, instID string) (bin *binary, inst *Instance, found bool) {
+func (s *Server) refInstanceProgram(pri *PrincipalKey, instID string,
+) (prog *program, inst *Instance, found bool) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -976,7 +1009,7 @@ func (s *Server) refInstanceBinary(pri *PrincipalKey, instID string) (bin *binar
 		return
 	}
 
-	bin = inst.prog.bin.ref()
+	prog = inst.prog.ref()
 	return
 }
 
@@ -1044,21 +1077,9 @@ func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant b
 		return prog, false
 
 	default:
-		prog.unref() // Drop reference to replaced object.
+		if prog.unref() { // Drop reference to replaced object.
+			prog.cleanup()
+		}
 		return existing, true
 	}
-}
-
-func (s *Server) unrefProgram(prog *program) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	prog.unref()
-}
-
-func (s *Server) unrefBinary(bin *binary) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	bin.unref()
 }

@@ -50,7 +50,7 @@ type Event interface {
 
 type Config struct {
 	InstanceStore  image.BackingStore
-	ProgramStorage image.Storage
+	ProgramStorage image.LocalStorage
 	Executor       *runtime.Executor
 	AccessPolicy   AccessAuthorizer
 	PreforkProcs   int

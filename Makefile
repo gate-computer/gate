@@ -14,6 +14,7 @@ GEN_LIB_SOURCES := \
 
 GEN_BIN_SOURCES := \
 	internal/error/runtime/errors.go \
+	internal/manifest/manifest.pb.go \
 	internal/serverapi/serverapi.pb.go \
 	server/detail/detail.pb.go \
 	server/event/event.pb.go \
@@ -78,7 +79,7 @@ bin/protoc-gen-gate: go.mod internal/cmd/protoc/generate.go
 %.pb.go: %.proto bin/protoc-gen-gate
 	mkdir -p tmp
 	PATH=$(shell pwd)/bin:$(PATH) $(PROTOC) --gate_out=tmp $*.proto
-	mv tmp/github.com/tsavola/gate/$@ $@
+	find tmp -name $(notdir $@) -exec cp {} $@ \;
 
 server/event/event.pb.go: server/detail/detail.proto
 

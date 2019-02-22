@@ -31,7 +31,7 @@ e.g. `https://example.net/gate/v0`.
 ## Function name
 
 Function strings consist of ASCII letters, digits, dash, dot and underscore.
-The length must be between 1 and 127 characters (inclusive).
+The length must be between 1 and 31 characters (inclusive).
 
 
 ## Instance identifier

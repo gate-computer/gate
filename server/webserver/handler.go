@@ -565,19 +565,19 @@ func handleModuleGet(w http.ResponseWriter, r *http.Request, s *webserver, key s
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s)
 
-	content, err := s.Server.ModuleContent(ctx, pri, key)
+	content, length, err := s.Server.ModuleContent(ctx, pri, key)
 	if err != nil {
 		respondServerError(ctx, wr, s, pri, "", key, "", "", err)
 		panic(nil)
 	}
 	defer content.Close()
 
-	w.Header().Set(webapi.HeaderContentLength, strconv.FormatInt(content.Length, 10))
+	w.Header().Set(webapi.HeaderContentLength, strconv.FormatInt(length, 10))
 	w.Header().Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 	w.WriteHeader(http.StatusOK)
 
 	if r.Method != "HEAD" {
-		io.Copy(w, content.Reader())
+		io.Copy(w, content)
 	}
 }
 

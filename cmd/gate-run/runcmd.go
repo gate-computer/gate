@@ -26,6 +26,7 @@ import (
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
+	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack"
@@ -231,9 +232,6 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	}
 	defer ref.Close()
 
-	build := image.NewBuild(ref)
-	defer build.Close()
-
 	proc, err := runtime.NewProcess(ctx, executor, ref, os.Stderr)
 	if err != nil {
 		log.Fatalf("process: %v", err)
@@ -246,7 +244,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	var ns = new(section.NameSection)
 	var cs = new(section.CustomSections)
 
-	funcSigs, exe, err := load(build, filename, &im, ns, cs)
+	funcSigs, exe, err := load(ref, filename, &im, ns, cs)
 	if err != nil {
 		log.Fatalf("load: %v", err)
 	}
@@ -255,7 +253,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	tLoadEnd := time.Now()
 	tRunBegin := tLoadEnd
 
-	err = proc.Start(exe, runtime.InitStart)
+	err = proc.Start(exe)
 	if err != nil {
 		log.Fatalf("execute: %v", err)
 	}
@@ -300,13 +298,19 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	}
 }
 
-func load(build *image.Build, filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *section.CustomSections,
+func load(ref image.ExecutableRef, filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *section.CustomSections,
 ) (funcSigs []wa.FuncType, exe *image.Executable, err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return
 	}
 	defer f.Close()
+
+	build, err := image.NewBuild(image.Memory, image.Memory, ref, 0, compile.DefaultMaxTextSize, &codeMap.CallMap)
+	if err != nil {
+		return
+	}
+	defer build.Close()
 
 	r := codeMap.Reader(bufio.NewReader(f))
 
@@ -327,22 +331,7 @@ func load(build *image.Build, filename string, codeMap *debug.InsnMap, ns *secti
 		return
 	}
 
-	err = abi.BindImports(mod)
-	if err != nil {
-		return
-	}
-
-	var buildConfig = &image.BuildConfig{
-		Config: image.Config{
-			MaxTextSize:   compile.DefaultMaxTextSize,
-			MaxMemorySize: mod.MemorySizeLimit(),
-			StackSize:     c.Program.StackSize,
-		},
-		GlobalsSize: mod.GlobalsSize(),
-		MemorySize:  mod.InitialMemorySize(),
-	}
-
-	err = build.Configure(buildConfig)
+	err = binding.BindImports(&mod, abi.Imports)
 	if err != nil {
 		return
 	}
@@ -363,31 +352,28 @@ func load(build *image.Build, filename string, codeMap *debug.InsnMap, ns *secti
 	// textCopy := make([]byte, len(text.Bytes()))
 	// copy(textCopy, text.Bytes())
 
-	buildConfig.MaxTextSize = len(text.Bytes())
-
-	err = build.Configure(buildConfig)
+	err = build.FinishText(0, c.Program.StackSize, mod.GlobalsSize(), mod.InitialMemorySize(), mod.MemorySizeLimit())
 	if err != nil {
 		return
 	}
 
+	var entryIndex uint32
 	var entryAddr uint32
 
 	if c.Function != "" {
-		var index uint32
-
-		index, err = entry.FuncIndex(mod, c.Function)
+		entryIndex, err = entry.ModuleFuncIndex(mod, c.Function)
 		if err != nil {
 			return
 		}
 
-		entryAddr = codeMap.FuncAddrs[index]
+		entryAddr = codeMap.FuncAddrs[entryIndex]
 	}
 
-	build.SetupEntryStackFrame(entryAddr)
+	build.SetupEntryStackFrame(entryIndex, entryAddr)
 
 	var dataConfig = &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
-		MemoryAlignment: os.Getpagesize(),
+		MemoryAlignment: build.MemoryAlignment(),
 		Config:          loadConfig,
 	}
 
@@ -419,7 +405,7 @@ func load(build *image.Build, filename string, codeMap *debug.InsnMap, ns *secti
 	// 	}
 	// }
 
-	exe, err = build.Executable()
+	exe, err = build.FinishExecutable()
 	if err != nil {
 		return
 	}

@@ -5,43 +5,27 @@
 package image
 
 import (
-	"context"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"io"
 	"math"
 	"os"
-	"syscall"
 
+	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
-	"github.com/tsavola/wag/buffer"
-	"github.com/tsavola/wag/compile"
+	"github.com/tsavola/gate/internal/manifest"
+	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/stack"
-	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
 )
 
+const fileSize = 0x1000000000 // 64 GB
+
 var ErrBadTermination = errors.New("execution has not terminated cleanly")
 
-// Config values must be specified explicitly; they default to zero.
-type Config struct {
-	MaxTextSize   int
-	StackSize     int
-	MaxMemorySize int
-}
-
-type Metadata struct {
-	MemorySizeLimit int
-	GlobalTypes     []wa.GlobalType
-	SectionRanges   []section.ByteRange
-	EntryAddrs      map[string]uint32
-}
-
 type BackingStore interface {
-	getPageSize() int
 	newExecutableFile() (*os.File, error)
-	sealFile(*os.File) error
 }
 
 type ExecutableRef = internal.Ref
@@ -52,192 +36,186 @@ func NewExecutableRef(back BackingStore) (ref ExecutableRef, err error) {
 		return
 	}
 
-	ref = internal.NewFileRef(f, back)
+	ref = internal.NewFileRef(f)
 	return
 }
 
 // Executable is a stateful program representation.
 type Executable struct {
-	file     *internal.FileRef
-	manifest internal.Manifest
-	dataSize int
+	Man manifest.Executable
+
+	back       BackingStore
+	file       *internal.FileRef
+	entryIndex uint32
+	entryAddr  uint32
 }
 
-// LoadExecutable from storage.  It will be attached to the specified,
-// executable reference.
-func LoadExecutable(ctx context.Context, ref ExecutableRef, config *Config, ar Archive, stackFrame []byte,
+// NewExecutable from local storage.  It will be attached to the specified
+// executable reference.  BackingStore instance must be the same one that was
+// used to create the executable reference.
+func NewExecutable(refBack BackingStore, ref ExecutableRef, arc LocalArchive, maxStackSize int, entryIndex, entryAddr uint32,
 ) (exe *Executable, err error) {
-	file := ref.(*internal.FileRef)
-	back := file.Back.(BackingStore)
-	pageSize := back.getPageSize()
-	manifest := ar.Manifest()
+	var (
+		arcMan = arc.Manifest()
+	)
 
-	// Check that stored executable fits within configured limits.
+	// Program state.
+	var (
+		exeStackSize  = alignSize(maxStackSize)
+		exeStackUsage int
+		exeStackFrame []byte
+		exeTextAddr   uint64
+	)
 
-	textFileSize := roundSize(manifest.TextSize, pageSize)
-	if textFileSize > config.MaxTextSize {
-		err = resourcelimit.New("program code size limit exceeded")
-		return
+	if arcMan.Exe.InitRoutine == abi.TextAddrResume {
+		if entryAddr != 0 {
+			// Suspended program has no explicit entry points.  TODO: detailed error
+			err = notfound.ErrFunction
+			return
+		}
+
+		exeStackUsage = int(arcMan.Exe.StackUsage)
+		exeTextAddr = arcMan.Exe.TextAddr
+	} else {
+		exeStackFrame = stack.EntryFrame(entryAddr, nil)
+		exeStackUsage = len(exeStackFrame)
 	}
 
-	stackSize := roundSize(config.StackSize, pageSize)
-	if len(stackFrame) > config.StackSize {
+	if exeStackUsage > exeStackSize-internal.StackLimitOffset {
 		err = resourcelimit.New("call stack size limit exceeded")
 		return
 	}
 
-	maxMemorySize := manifest.Metadata.MemorySizeLimit
-	if maxMemorySize > config.MaxMemorySize {
-		maxMemorySize = config.MaxMemorySize
-	}
-	if manifest.MemorySize > maxMemorySize {
-		err = resourcelimit.New("linear memory size limit exceeded")
-		return
-	}
-
-	// Storage dimensions
+	// Target file.
 	var (
-		dataStorageSize = manifest.GlobalsSize + manifest.MemorySize
+		exeFile          = ref.(*internal.FileRef)
+		exeTextOffset    = int64(0)
+		exeStackOffset   = exeTextOffset + alignSize64(int64(arcMan.Exe.TextSize))
+		exeGlobalsOffset = exeStackOffset + int64(exeStackSize)
+		exeMemoryOffset  = exeGlobalsOffset + alignSize64(int64(arcMan.Exe.GlobalsSize))
 	)
 
-	// File dimensions
+	err = exeFile.Truncate(fileSize)
+	if err != nil {
+		return
+	}
+
+	// Source file.
 	var (
-		stackFileEnd    = textFileSize + stackSize
-		globalsFileSize = roundSize(manifest.GlobalsSize, pageSize)
-		globalsFileEnd  = stackFileEnd + globalsFileSize
-		dataFileOffset  = int64(globalsFileEnd - manifest.GlobalsSize)
+		arcFile            = arc.file()
+		arcCallSitesOffset = arcModuleOffset + int(arcMan.ModuleSize)
+		arcFuncAddrsOffset = arcCallSitesOffset + int(arcMan.CallSitesSize)
+		arcTextOffset      = alignSize64(int64(arcFuncAddrsOffset) + int64(arcMan.FuncAddrsSize))
+		arcStackOffset     = arcTextOffset + alignSize64(int64(arcMan.Exe.TextSize))
+		arcGlobalsOffset   = arcStackOffset + alignSize64(int64(arcMan.Exe.StackSize))
+		arcMemoryOffset    = arcGlobalsOffset + alignSize64(int64(arcMan.Exe.GlobalsSize))
 	)
 
-	load, err := ar.Open(ctx)
-	if err != nil {
-		return
-	}
-	defer load.Close()
-
-	// File size must accommodate all runtime memory allocations.
-
-	err = file.Truncate(int64(globalsFileEnd + maxMemorySize))
-	if err != nil {
-		return
+	// Copy text.
+	var (
+		textLen = int(arcMan.Exe.TextSize)
+	)
+	if arc.reflinkable(refBack) {
+		textLen = alignSize(textLen)
 	}
 
-	// Part 1: Copy text at start of file, possibly using copy_file_range.  If
-	// archive has the same backing store, and it supports reflinks, it might
-	// not need to copy data.
-
-	err = load.Text.copyToFile(file.File, 0, manifest.TextSize)
+	off1 := arcTextOffset
+	off2 := exeTextOffset
+	err = copyFileRange(arcFile.Fd(), &off1, exeFile.Fd(), &off2, textLen)
 	if err != nil {
 		return
 	}
 
-	// Part 2: Initialize stack which follows text.
+	if exeStackFrame != nil {
+		// Write stack.
+		off := exeGlobalsOffset - int64(len(exeStackFrame))
+		_, err = exeFile.WriteAt(exeStackFrame, off)
+		if err != nil {
+			return
+		}
+	} else {
+		// Copy stack.
+		var (
+			stackLen = exeStackUsage
+		)
+		if arc.reflinkable(refBack) {
+			stackLen = alignSize(stackLen)
+		}
 
-	_, err = file.WriteAt(stackFrame, int64(stackFileEnd-len(stackFrame)))
-	if err != nil {
-		return
-	}
-
-	// Part 3: Copy globals and initial memory contents after stack, possibly
-	// using copy_file_range.  The reflink note applies here aswell; the data
-	// would be copied-on-write during execution.
-
-	err = load.GlobalsMemory.copyToFile(file.File, dataFileOffset, dataStorageSize)
-	if err != nil {
-		return
-	}
-
-	// Apply backing store specific protections, if there are any.
-
-	err = back.sealFile(file.File)
-	if err != nil {
-		return
-	}
-
-	exe = &Executable{
-		file: file.Ref(),
-		manifest: internal.Manifest{
-			TextSize:      textFileSize,
-			StackSize:     stackSize,
-			StackUnused:   stackSize - len(stackFrame),
-			GlobalsSize:   globalsFileSize,
-			MemorySize:    manifest.MemorySize,
-			MaxMemorySize: maxMemorySize,
-		},
-		dataSize: dataStorageSize,
-	}
-	return
-}
-
-func (exe *Executable) Close() error          { return exe.file.Close() }
-func (exe *Executable) Ref() ExecutableRef    { return exe.file.Ref() }
-func (exe *Executable) Manifest() interface{} { return &exe.manifest }
-
-func (exe *Executable) StoreThis(ctx context.Context, key string, metadata Metadata, storage ArchiveStorage) (ar Archive, err error) {
-	if storage, ok := storage.(internalArchiveStorage); ok {
-		ar, err = storage.archive(key, metadata, &exe.manifest, exe.file)
-		if ar != nil || err != nil {
+		off1 = arcGlobalsOffset - int64(stackLen)
+		off2 = exeGlobalsOffset - int64(stackLen)
+		err = copyFileRange(arcFile.Fd(), &off1, exeFile.Fd(), &off2, stackLen)
+		if err != nil {
 			return
 		}
 	}
 
-	return exe.StoreCopy(ctx, key, metadata, storage)
-}
+	// TODO: merge stack copy and data copy
 
-func (exe *Executable) StoreCopy(ctx context.Context, key string, metadata Metadata, storage ArchiveStorage) (ar Archive, err error) {
+	// Copy globals and memory.
 	var (
-		textOffset = int64(0)
-		dataOffset = int64(exe.manifest.TextSize + exe.manifest.StackSize)
-		dataSize   = exe.manifest.GlobalsSize + exe.manifest.MemorySize
+		globalsLen = int(arcMan.Exe.GlobalsSize)
+		memoryLen  = int(arcMan.Exe.MemoryDataSize)
 	)
-
-	manifest := ArchiveManifest{
-		TextSize:    exe.manifest.TextSize,
-		GlobalsSize: exe.manifest.GlobalsSize,
-		MemorySize:  exe.manifest.MemorySize,
-		Metadata:    metadata,
+	if arc.reflinkable(refBack) {
+		globalsLen = alignSize(globalsLen)
+		memoryLen = alignSize(memoryLen)
 	}
 
-	store, err := storage.CreateArchive(ctx, manifest)
-	if err != nil {
-		return
-	}
-	defer store.Close()
-
-	if w, ok := store.Text.(descriptorFile); ok {
-		err = copyFileRange(exe.file.Fd(), &textOffset, w.Fd(), nil, exe.manifest.TextSize)
-	} else {
-		r := &randomAccessReader{exe.file.File, textOffset}
-		_, err = io.CopyN(store.Text, r, int64(exe.manifest.TextSize))
-	}
+	off1 = arcMemoryOffset - int64(globalsLen)
+	off2 = exeMemoryOffset - int64(globalsLen)
+	err = copyFileRange(arcFile.Fd(), &off1, exeFile.Fd(), &off2, globalsLen+memoryLen)
 	if err != nil {
 		return
 	}
 
-	if w, ok := store.GlobalsMemory.(descriptorFile); ok {
-		err = copyFileRange(exe.file.Fd(), &dataOffset, w.Fd(), nil, dataSize)
-	} else {
-		r := &randomAccessReader{exe.file.File, dataOffset}
-		_, err = io.CopyN(store.GlobalsMemory, r, int64(dataSize))
+	// Success; increment reference count.
+	exe = &Executable{
+		Man:        arcMan.Exe,
+		back:       refBack,
+		file:       exeFile.Ref(),
+		entryIndex: entryIndex,
+		entryAddr:  entryAddr,
 	}
-	if err != nil {
-		return
-	}
-
-	return store.Archive(key)
+	exe.Man.TextAddr = exeTextAddr
+	exe.Man.StackSize = uint32(exeStackSize)
+	exe.Man.StackUsage = uint32(exeStackUsage)
+	return
 }
 
-// CheckTermination returns nil if the termination appears to have been
+func (exe *Executable) Ref() ExecutableRef {
+	return exe.file.Ref()
+}
+
+func (exe *Executable) Close() (err error) {
+	err = exe.file.Close()
+	exe.file = nil
+	return
+}
+
+func (exe *Executable) PageSize() uint32        { return uint32(internal.PageSize) }
+func (exe *Executable) TextAddr() uint64        { return exe.Man.TextAddr }
+func (exe *Executable) SetTextAddr(addr uint64) { exe.Man.TextAddr = addr }
+func (exe *Executable) TextSize() uint32        { return alignSize32(exe.Man.TextSize) }
+func (exe *Executable) StackSize() uint32       { return uint32(exe.Man.StackSize) }
+func (exe *Executable) StackUsage() uint32      { return uint32(exe.Man.StackUsage) }
+func (exe *Executable) GlobalsSize() uint32     { return alignSize32(exe.Man.GlobalsSize) }
+func (exe *Executable) MemorySize() uint32      { return uint32(exe.Man.MemorySize) }
+func (exe *Executable) MaxMemorySize() uint32   { return uint32(exe.Man.MemorySizeLimit) }
+func (exe *Executable) InitRoutine() uint16     { return uint16(exe.Man.InitRoutine) }
+
+// CheckTermination returns nil error if the termination appears to have been
 // orderly, and ErrBadTermination if not.  Other errors mean that the check was
 // unsuccessful.
 func (exe *Executable) CheckTermination() (err error) {
-	b := make([]byte, 16)
+	b := make([]byte, 8)
 
-	_, err = exe.file.ReadAt(b, int64(exe.manifest.TextSize))
+	_, err = exe.file.ReadAt(b, alignSize64(int64(exe.Man.TextSize)))
 	if err != nil {
 		return
 	}
 
-	if _, _, _, ok := checkStack(b, exe.manifest.StackSize); !ok {
+	if _, _, ok := checkStack(b, int(exe.Man.StackSize)); !ok {
 		err = ErrBadTermination
 		return
 	}
@@ -245,191 +223,82 @@ func (exe *Executable) CheckTermination() (err error) {
 	return
 }
 
-func (exe *Executable) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType) (stacktrace []stack.Frame, err error) {
-	b := make([]byte, exe.manifest.StackSize)
+func (exe *Executable) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
+) (stacktrace []stack.Frame, err error) {
+	b := make([]byte, exe.Man.StackSize)
 
-	_, err = exe.file.ReadAt(b, int64(exe.manifest.TextSize))
+	_, err = exe.file.ReadAt(b, alignSize64(int64(exe.Man.TextSize)))
 	if err != nil {
 		return
 	}
 
-	unused, _, textAddr, ok := checkStack(b, len(b))
+	unused, _, ok := checkStack(b, len(b))
 	if !ok {
 		err = ErrBadTermination
 		return
 	}
 
-	if int(unused) != len(b) {
-		stacktrace, err = stack.Trace(b[unused:], textAddr, textMap, funcSigs)
+	if unused != 0 && int(unused) != len(b) {
+		stacktrace, err = stack.Trace(b[unused:], exe.Man.TextAddr, textMap, funcSigs)
 	}
 	return
 }
 
-type BuildConfig struct {
-	Config
-	GlobalsSize int
-	MemorySize  int
-}
-
-// Build target buffers.
-type Build struct {
-	exe           *Executable
-	mapping       []byte
-	text          buffer.Static
-	stack         []byte
-	stackUnused   int
-	globalsMemory buffer.Static
-	memoryOffset  int
-	maxMemorySize int
-}
-
-func NewBuild(ref ExecutableRef) *Build {
-	return &Build{
-		exe: &Executable{
-			file: ref.(*internal.FileRef).Ref(),
-		},
-	}
-}
-
-func (b *Build) Ref() ExecutableRef {
-	return b.exe.Ref()
-}
-
-// Configure or reconfigure buffer sizes.  Supported reconfigurations:
-//
-// - Resize text or stack before writing stack, globals and memory.
-// - Resize globals and memory at any stage.
-//
-func (b *Build) Configure(config *BuildConfig) (err error) {
-	pageSize := b.exe.file.Back.(BackingStore).getPageSize()
-
-	// Mapping dimensions
-	var (
-		textSize       = roundSize(config.MaxTextSize, pageSize)
-		stackOffset    = textSize
-		stackSize      = roundSize(config.StackSize, pageSize)
-		stackEnd       = stackOffset + stackSize
-		globalsOffset  = stackEnd
-		globalsMapSize = roundSize(config.GlobalsSize, pageSize)
-		globalsEnd     = globalsOffset + globalsMapSize
-		memoryOffset   = globalsEnd
-		dataEnd        = memoryOffset + config.MemorySize
-		fileEnd        = memoryOffset + config.MaxMemorySize
-	)
-
-	err = b.exe.file.Truncate(int64(fileEnd))
-	if err != nil {
-		return
-	}
-
-	if len(b.mapping) < dataEnd {
-		err = b.unmap()
-		if err != nil {
-			return
-		}
-	}
-
-	if b.mapping == nil {
-		b.mapping, err = syscall.Mmap(int(b.exe.file.Fd()), 0, dataEnd, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-		if err != nil {
-			return
-		}
-	}
-
-	b.text = buffer.MakeStatic(b.mapping[:0], textSize)
-	b.stack = b.mapping[stackOffset:stackEnd]
-	b.stackUnused = len(b.stack)
-	b.globalsMemory = buffer.MakeStatic(b.mapping[globalsOffset:globalsOffset], dataEnd-globalsOffset)
-	b.memoryOffset = globalsMapSize
-	b.maxMemorySize = config.MaxMemorySize
-	return
-}
-
-func (b *Build) TextBuffer() compile.CodeBuffer {
-	return &b.text
-}
-
-func (b *Build) TextSize() int {
-	return b.text.Len()
-}
-
-func (b *Build) StackBytes() []byte {
-	return b.stack
-}
-
-func (b *Build) SetupEntryStackFrame(entryFuncAddr uint32) {
-	frameSize := stack.SetupEntryFrame(b.stack, entryFuncAddr, nil)
-	b.stackUnused = len(b.stack) - frameSize
-}
-
-func (b *Build) GlobalsMemoryBuffer() compile.DataBuffer {
-	return &b.globalsMemory
-}
-
-func (b *Build) Executable() (exe *Executable, err error) {
-	b.exe.manifest = internal.Manifest{
-		TextSize:      b.text.Cap(),
-		StackSize:     len(b.stack),
-		StackUnused:   b.stackUnused,
-		GlobalsSize:   b.memoryOffset,
-		MemorySize:    b.globalsMemory.Cap() - b.memoryOffset,
-		MaxMemorySize: b.maxMemorySize,
-	}
-	b.exe.dataSize = b.globalsMemory.Len()
-
-	err = b.unmap()
-	if err != nil {
-		return
-	}
-
-	err = b.exe.file.Back.(BackingStore).sealFile(b.exe.file.File)
-	if err != nil {
-		return
-	}
-
-	exe = b.exe
-	b.exe = nil
-	return
-}
-
-func (b *Build) Close() error {
-	err := b.unmap()
-
-	if b.exe != nil {
-		if err := b.exe.Close(); err != nil {
-			return err
-		}
-	}
-
-	return err
-}
-
-func (b *Build) unmap() (err error) {
-	if b.mapping != nil {
-		err = syscall.Munmap(b.mapping)
-		b.mapping = nil
-		b.text = buffer.Static{}
-		b.stack = nil
-		b.globalsMemory = buffer.Static{}
-	}
-	return
-}
-
-func checkStack(b []byte, stackSize int) (unused, memorySize uint32, textAddr uint64, ok bool) {
-	if len(b) < 16 {
+func checkStack(b []byte, stackSize int) (unused, memorySize uint32, ok bool) {
+	if len(b) < 8 {
 		return
 	}
 
 	memoryPages := binary.LittleEndian.Uint32(b[0:])
 	memorySize = memoryPages * wa.PageSize
 	unused = binary.LittleEndian.Uint32(b[4:])
-	textAddr = binary.LittleEndian.Uint64(b[8:])
 
-	ok = memoryPages <= math.MaxInt32/wa.PageSize && unused > 0 && unused <= uint32(stackSize) && unused&7 == 0 && textAddr >= internal.MinTextAddr && textAddr <= internal.MaxTextAddr && textAddr&uint64(internal.PageSize-1) == 0
+	switch {
+	case memoryPages > math.MaxInt32/wa.PageSize:
+		// Impossible memory state.
+		return
+
+	case unused == 0:
+		// Suspended before execution started.
+		ok = true
+		return
+
+	case unused == math.MaxUint32:
+		// Execution was suspended by force.
+		return
+
+	case unused < internal.StackLimitOffset || unused > uint32(stackSize) || unused&7 != 0:
+		// Impossible stack state.
+		return
+
+	default:
+		ok = true
+		return
+	}
+}
+
+func readRandTextAddr() (textAddr uint64, err error) {
+	b := make([]byte, 4)
+
+	_, err = rand.Read(b)
+	if err != nil {
+		return
+	}
+
+	textAddr = internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b)
 	return
 }
 
-func roundSize(n, pageSize int) int {
-	mask := pageSize - 1
-	return (n + mask) &^ mask
+var pageMask = int64(internal.PageSize - 1)
+
+func alignSize64(size int64) int64 {
+	return (size + pageMask) &^ pageMask
+}
+
+func alignSize32(size uint32) uint32 {
+	return uint32(alignSize64(int64(size)))
+}
+
+func alignSize(size int) int {
+	return int(alignSize64(int64(size)))
 }

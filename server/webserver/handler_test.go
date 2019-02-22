@@ -920,6 +920,17 @@ func TestInstance(t *testing.T) {
 			if resp.StatusCode != http.StatusNoContent {
 				t.Fatal(resp.Status)
 			}
+
+			req = newSignedTestRequest(key, http.MethodPost, webapi.PathInstances+restoredID+"?action=wait", nil)
+			resp, _ = doTest(t, handler, req)
+
+			if resp.StatusCode != http.StatusNoContent {
+				t.Fatal(resp.Status)
+			}
+
+			testStatusResponse(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+				State: "suspended",
+			})
 		})
 	}
 }

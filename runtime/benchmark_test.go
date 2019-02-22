@@ -8,23 +8,15 @@ import (
 	"bytes"
 	"context"
 	"os"
-	"strconv"
 	"testing"
 
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/test/runtimeutil"
 	"github.com/tsavola/gate/runtime"
+	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/object/abi"
-	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/trap"
 )
-
-type storage interface {
-	image.BackingStore
-	image.Storage
-}
-
-const noFunction = runtime.InitRoutine(abi.TextAddrNoFunction)
 
 var benchExecutor = runtimeutil.NewExecutor(context.Background(), &runtime.Config{
 	LibDir: "../lib/gate/runtime",
@@ -37,23 +29,17 @@ var (
 	benchProgGainDebug   = runtimeutil.MustReadFile("../../gain/target/wasm32-unknown-unknown/debug/examples/hello.wasm")
 )
 
-var benchFs storage
+var benchFS interface{}
 
 func init() {
-	if dir := os.Getenv("GATE_BENCH_IMAGE_FS"); dir != "" {
-		var pagesize int
-		var err error
-		if s := os.Getenv("GATE_BENCH_IMAGE_PAGESIZE"); s != "" {
-			pagesize, err = strconv.Atoi(s)
-			if err != nil {
-				panic(err)
-			}
-		}
-		benchFs = image.NewFilesystem(dir, pagesize)
+	var config image.FilesystemConfig
+	if config.Path = os.Getenv("GATE_BENCH_IMAGE_FS"); config.Path != "" {
+		config.Reflink = os.Getenv("GATE_BENCH_IMAGE_REFLINK") != ""
+		benchFS = image.NewFilesystem(config)
 	}
 }
 
-func executeRefBench(ctx context.Context, exe *image.Executable, ref image.ExecutableRef,
+func execRefBench(ctx context.Context, exe *image.Executable, ref image.ExecutableRef,
 ) (exit int, trapID trap.ID, err error) {
 	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, ref, nil)
 	if err != nil {
@@ -61,7 +47,7 @@ func executeRefBench(ctx context.Context, exe *image.Executable, ref image.Execu
 	}
 	defer proc.Kill()
 
-	err = proc.Start(exe, noFunction)
+	err = proc.Start(exe)
 	if err != nil {
 		return
 	}
@@ -69,24 +55,21 @@ func executeRefBench(ctx context.Context, exe *image.Executable, ref image.Execu
 	return proc.Serve(ctx, benchRegistry)
 }
 
-func executeArBench(ctx context.Context, store image.BackingStore, ar image.Archive) (exit int, trapID trap.ID, err error) {
-	ref, err := image.NewExecutableRef(store)
+func execArcBench(ctx context.Context, exeBack image.BackingStore, arc image.LocalArchive,
+) (exit int, trapID trap.ID, err error) {
+	ref, err := image.NewExecutableRef(exeBack)
 	if err != nil {
 		return
 	}
 	defer ref.Close()
 
-	var config = &image.Config{
-		MaxTextSize:   testMaxTextSize,
-		StackSize:     testStackSize,
-		MaxMemorySize: testMaxMemorySize,
-	}
-
-	exe, err := image.LoadExecutable(ctx, ref, config, ar, stack.EntryFrame(0, nil))
+	exe, err := image.NewExecutable(exeBack, ref, arc, testStackSize, 0, 0)
 	if err != nil {
 		return
 	}
 	defer exe.Close()
+
+	exe.Man.InitRoutine = abi.TextAddrNoFunction
 
 	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, ref, nil)
 	if err != nil {
@@ -94,7 +77,7 @@ func executeArBench(ctx context.Context, store image.BackingStore, ar image.Arch
 	}
 	defer proc.Kill()
 
-	err = proc.Start(exe, noFunction)
+	err = proc.Start(exe)
 	if err != nil {
 		return
 	}
@@ -102,52 +85,69 @@ func executeArBench(ctx context.Context, store image.BackingStore, ar image.Arch
 	return proc.Serve(ctx, benchRegistry)
 }
 
-func BenchmarkMemCompileNop(b *testing.B)         { benchCompile(b, image.Memory, testProgNop) }
-func BenchmarkMemCompileHello(b *testing.B)       { benchCompile(b, image.Memory, testProgHello) }
-func BenchmarkMemCompileGainRelease(b *testing.B) { benchCompile(b, image.Memory, benchProgGainRelease) }
-func BenchmarkMemCompileGainDebug(b *testing.B)   { benchCompile(b, image.Memory, benchProgGainDebug) }
-func BenchmarkMemExecuteNopRef(b *testing.B)      { benchExecuteRef(b, image.Memory, testProgNop) }
-func BenchmarkMemExecuteNopAr(b *testing.B)       { benchExecuteAr(b, image.Memory, testProgNop) }
-func BenchmarkMemExecuteHelloAr(b *testing.B)     { benchExecuteAr(b, image.Memory, testProgHello) }
-func BenchmarkMemExecuteGainDebugAr(b *testing.B) { benchExecuteAr(b, image.Memory, benchProgGainDebug) }
+func BenchmarkMemBuildNop(b *testing.B)         { benchBuild(b, image.Memory, testProgNop) }
+func BenchmarkMemBuildHello(b *testing.B)       { benchBuild(b, image.Memory, testProgHello) }
+func BenchmarkMemBuildGainRelease(b *testing.B) { benchBuild(b, image.Memory, benchProgGainRelease) }
+func BenchmarkMemBuildGainDebug(b *testing.B)   { benchBuild(b, image.Memory, benchProgGainDebug) }
+func BenchmarkMemExecNopRef(b *testing.B)       { benchExecRef(b, image.Memory, testProgNop) }
+func BenchmarkMemExecNopArc(b *testing.B)       { benchExecArc(b, image.Memory, testProgNop) }
+func BenchmarkMemExecHelloArc(b *testing.B)     { benchExecArc(b, image.Memory, testProgHello) }
+func BenchmarkMemExecGainDebugArc(b *testing.B) { benchExecArc(b, image.Memory, benchProgGainDebug) }
 
-func BenchmarkFsCompileNop(b *testing.B)         { benchCompile(b, benchFs, testProgNop) }
-func BenchmarkFsCompileHello(b *testing.B)       { benchCompile(b, benchFs, testProgHello) }
-func BenchmarkFsCompileGainRelease(b *testing.B) { benchCompile(b, benchFs, benchProgGainRelease) }
-func BenchmarkFsCompileGainDebug(b *testing.B)   { benchCompile(b, benchFs, benchProgGainDebug) }
-func BenchmarkFsExecuteNopRef(b *testing.B)      { benchExecuteRef(b, benchFs, testProgNop) }
-func BenchmarkFsExecuteNopAr(b *testing.B)       { benchExecuteAr(b, benchFs, testProgNop) }
-func BenchmarkFsExecuteHelloAr(b *testing.B)     { benchExecuteAr(b, benchFs, testProgHello) }
-func BenchmarkFsExecuteGainDebugAr(b *testing.B) { benchExecuteAr(b, benchFs, benchProgGainDebug) }
+func BenchmarkFSBuildNop(b *testing.B)         { benchBuild(b, benchFS, testProgNop) }
+func BenchmarkFSBuildHello(b *testing.B)       { benchBuild(b, benchFS, testProgHello) }
+func BenchmarkFSBuildGainRelease(b *testing.B) { benchBuild(b, benchFS, benchProgGainRelease) }
+func BenchmarkFSBuildGainDebug(b *testing.B)   { benchBuild(b, benchFS, benchProgGainDebug) }
+func BenchmarkFSExecNopRef(b *testing.B)       { benchExecRef(b, benchFS, testProgNop) }
+func BenchmarkFSExecNopArc(b *testing.B)       { benchExecArc(b, benchFS, testProgNop) }
+func BenchmarkFSExecHelloArc(b *testing.B)     { benchExecArc(b, benchFS, testProgHello) }
+func BenchmarkFSExecGainDebugArc(b *testing.B) { benchExecArc(b, benchFS, benchProgGainDebug) }
 
-func benchCompile(b *testing.B, store image.BackingStore, prog []byte) {
-	if store == nil {
+func benchBuild(b *testing.B, back interface{}, prog []byte) {
+	if back == nil {
 		b.Skip("nil")
 	}
 
+	arcBack := back.(image.LocalStorage)
+	exeBack := back.(image.BackingStore)
+
+	var codeMap object.CallMap
+
 	for i := 0; i < b.N; i++ {
-		exe, _ := compileTest(benchExecutor, store, prog, "")
+		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
+		codeMap.CallSites = codeMap.CallSites[:0]
+
+		arc, exe, _ := buildTest(benchExecutor, b.Name(), arcBack, exeBack, &codeMap, &codeMap, bytes.NewReader(prog), len(prog), "")
+		arc.Close()
 		exe.Close()
 	}
 }
 
-func benchExecuteRef(b *testing.B, store image.BackingStore, prog []byte) {
-	if store == nil {
+func benchExecRef(b *testing.B, back interface{}, prog []byte) {
+	if back == nil {
 		b.Skip("nil")
 	}
 
 	ctx := context.Background()
 
-	exe, _ := compileTest(benchExecutor, store, prog, "")
+	arcBack := back.(image.LocalStorage)
+	exeBack := back.(image.BackingStore)
+
+	var codeMap object.CallMap
+
+	arc, exe, _ := buildTest(benchExecutor, b.Name(), arcBack, exeBack, &codeMap, &codeMap, bytes.NewReader(prog), len(prog), "")
+	arc.Close()
 	defer exe.Close()
 
 	ref := exe.Ref()
 	defer ref.Close()
 
+	exe.Man.InitRoutine = abi.TextAddrNoFunction
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, trapID, err := executeRefBench(ctx, exe, ref)
+		_, trapID, err := execRefBench(ctx, exe, ref)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -159,26 +159,26 @@ func benchExecuteRef(b *testing.B, store image.BackingStore, prog []byte) {
 	b.StopTimer()
 }
 
-func benchExecuteAr(b *testing.B, storage storage, prog []byte) {
-	if storage == nil {
+func benchExecArc(b *testing.B, back interface{}, prog []byte) {
+	if back == nil {
 		b.Skip("nil")
 	}
 
 	ctx := context.Background()
 
-	exe, mod := compileTest(benchExecutor, storage, prog, "")
-	metadata := image.Metadata{MemorySizeLimit: mod.MemorySizeLimit()}
-	ar, err := exe.StoreThis(ctx, "test", metadata, storage)
+	arcBack := back.(image.LocalStorage)
+	exeBack := back.(image.BackingStore)
+
+	var codeMap object.CallMap
+
+	arc, exe, _ := buildTest(benchExecutor, b.Name(), arcBack, exeBack, &codeMap, &codeMap, bytes.NewReader(prog), len(prog), "")
+	defer arc.Close()
 	exe.Close()
-	if err != nil {
-		panic(err)
-	}
-	defer ar.Close()
 
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, trapID, err := executeArBench(ctx, storage, ar)
+		_, trapID, err := execArcBench(ctx, exeBack, arc)
 		if err != nil {
 			b.Fatal(err)
 		}

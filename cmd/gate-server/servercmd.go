@@ -70,7 +70,7 @@ var c = new(struct {
 
 	Image struct {
 		Filesystem string
-		PageSize   int
+		Reflink    bool
 	}
 
 	Plugin struct {
@@ -169,7 +169,6 @@ func main() {
 	c.Runtime.MaxProcs = runtime.DefaultMaxProcs
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
-	c.Image.PageSize = os.Getpagesize()
 	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Server.InstanceStore = DefaultInstanceStore
 	c.Server.ProgramStorage = DefaultProgramStorage
@@ -308,7 +307,10 @@ func main2(critLog *log.Logger) (err error) {
 
 	var fs *image.Filesystem
 	if c.Image.Filesystem != "" {
-		fs = image.NewFilesystem(c.Image.Filesystem, c.Image.PageSize)
+		fs = image.NewFilesystem(image.FilesystemConfig{
+			Path:    c.Image.Filesystem,
+			Reflink: c.Image.Reflink,
+		})
 	}
 
 	switch c.Server.InstanceStore {

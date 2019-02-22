@@ -5,11 +5,12 @@
 package image
 
 import (
-	"bytes"
 	"context"
 	"os"
 
 	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/manifest"
+	"github.com/tsavola/wag/object"
 	"golang.org/x/sys/unix"
 )
 
@@ -23,50 +24,44 @@ var Memory memory
 
 type memory struct{}
 
-func (memory) getPageSize() int {
-	return internal.PageSize
-}
-
 func (memory) newExecutableFile() (f *os.File, err error) {
 	return newMemFile(memExecutableName)
 }
 
-func (memory) sealFile(f *os.File) (err error) {
-	_, err = unix.FcntlInt(f.Fd(), unix.F_ADD_SEALS, unix.F_SEAL_SHRINK|unix.F_SEAL_GROW)
-	return
+func (memory) newArchiveFile() (f *os.File, err error) {
+	return newMemFile(memArchiveName)
 }
 
-func (memory) CreateModule(ctx context.Context, size int) (store ModuleStore, err error) {
-	buf := bytes.NewBuffer(make([]byte, 0, size))
+func (memory) reflinkable(interface{}) bool {
+	return false
+}
 
-	store = ModuleStore{
-		Writer: buf,
-
-		Module: func(key string) (m Module, err error) {
-			m = memModule{buf.Bytes()}
-			return
-		},
-
-		Close: func() error { return nil },
+func (memory) give(key string, man manifest.Archive, file *internal.FileRef, objectMap object.CallMap,
+) (arc LocalArchive, err error) {
+	arc = &memArchive{
+		f:         file.Ref(),
+		man:       man,
+		objectMap: objectMap,
 	}
-
 	return
 }
 
-func (memory) CreateArchive(ctx context.Context, manifest ArchiveManifest) (store ExecutableStore, err error) {
+func (memory) Store(ctx context.Context, man manifest.Archive) (storer ArchiveStorer, err error) {
 	f, err := newMemFile(memArchiveName)
 	if err != nil {
 		return
 	}
 
-	store = ExecutableStore{
-		Text:          f,
-		GlobalsMemory: f,
+	storer = ArchiveStorer{
+		Module: f,
+		Text:   f,
+		Stack:  f,
+		Data:   f,
 
-		Archive: func(key string) (ar Archive, err error) {
-			ar = &memArchive{
-				file:     internal.NewFileRef(f, nil),
-				manifest: manifest,
+		Archive: func(key string) (arc Archive, err error) {
+			arc = &memArchive{
+				f:   internal.NewFileRef(f),
+				man: man,
 			}
 
 			f = nil // Archived.
@@ -80,74 +75,67 @@ func (memory) CreateArchive(ctx context.Context, manifest ArchiveManifest) (stor
 			return
 		},
 	}
-
 	return
-}
-
-func (memory) archive(key string, metadata Metadata, manifest *internal.Manifest, fileRef *internal.FileRef,
-) (ar Archive, err error) {
-	if manifest.StackSize != 0 {
-		return
-	}
-
-	ar = &memArchive{
-		file:     fileRef.Ref(),
-		manifest: makeArchiveManifest(manifest, metadata),
-	}
-	return
-}
-
-type memModule struct {
-	data []byte
-}
-
-func (m memModule) Open(context.Context) (load ModuleLoad, err error) {
-	load = ModuleLoad{
-		Length:       int64(len(m.data)),
-		ReaderOption: ReaderOption{Stream: bytes.NewReader(m.data)},
-		Close:        func() error { return nil },
-	}
-	return
-}
-
-func (memModule) Close() error {
-	return nil
 }
 
 type memArchive struct {
-	file     *internal.FileRef
-	manifest ArchiveManifest
+	f         *internal.FileRef
+	man       manifest.Archive
+	objectMap object.CallMap
 }
 
-func (ar *memArchive) Manifest() ArchiveManifest {
-	return ar.manifest
+func (arc *memArchive) file() *internal.FileRef {
+	return arc.f
 }
 
-func (ar *memArchive) Open(context.Context) (load ExecutableLoad, err error) {
-	load = ExecutableLoad{
-		Text: ReaderOption{
-			RandomAccess: ar.file.File,
-			Offset:       0,
-		},
-		GlobalsMemory: ReaderOption{
-			RandomAccess: ar.file.File,
-			Offset:       int64(ar.manifest.TextSize),
-		},
-		Close: func() error { return nil },
+func (arc *memArchive) Manifest() manifest.Archive {
+	return arc.man
+}
+
+func (arc *memArchive) ObjectMap() (object.CallMap, error) {
+	return arc.objectMap, nil
+}
+
+func (*memArchive) reflinkable(interface{}) bool {
+	return false
+}
+
+func (arc *memArchive) Load(context.Context) (loader ArchiveLoader, err error) {
+	var (
+		moduleOffset    = int(manifest.MaxSize)
+		callSitesOffset = moduleOffset + int(arc.man.ModuleSize)
+		funcAddrsOffset = callSitesOffset + int(arc.man.CallSitesSize)
+		textOffset      = int64(alignSize(funcAddrsOffset + int(arc.man.FuncAddrsSize)))
+		stackOffset     = textOffset + int64(arc.man.Exe.TextSize)
+		dataOffset      = stackOffset + int64(arc.man.Exe.StackSize)
+	)
+
+	loader = ArchiveLoader{
+		Module: ReaderOption{RandomAccess: arc.f, Offset: int64(moduleOffset)},
+		Text:   ReaderOption{RandomAccess: arc.f, Offset: textOffset},
+		Stack:  ReaderOption{RandomAccess: arc.f, Offset: stackOffset},
+		Data:   ReaderOption{RandomAccess: arc.f, Offset: dataOffset},
+		Close:  func() error { return nil },
 	}
 	return
 }
 
-func (ar *memArchive) Close() error {
-	return ar.file.Close()
+func (arc *memArchive) Close() error {
+	return arc.f.Close()
 }
 
 func newMemFile(name string) (f *os.File, err error) {
-	fd, err := unix.MemfdCreate(name, unix.MFD_CLOEXEC|unix.MFD_ALLOW_SEALING)
+	fd, err := unix.MemfdCreate(name, unix.MFD_CLOEXEC)
 	if err != nil {
 		return
 	}
 
 	f = os.NewFile(uintptr(fd), name)
 	return
+}
+
+func init() {
+	var _ BackingStore = Memory
+	var _ LocalStorage = Memory
+	var _ Storage = Memory
 }

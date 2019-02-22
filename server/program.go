@@ -6,27 +6,24 @@ package server
 
 import (
 	"bufio"
-	"context"
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/base64"
-	"errors"
 	"io"
-	"io/ioutil"
-	"math"
+	"log"
+	goruntime "runtime"
 
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/image/metadata"
+	"github.com/tsavola/gate/image/manifest"
+	"github.com/tsavola/gate/image/wasm"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
-	"github.com/tsavola/gate/internal/executable"
-	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
 )
@@ -62,47 +59,20 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 	return validateHashBytes(hash1, hash2.Sum(nil))
 }
 
-type binary struct {
-	codeMap object.CallMap
-	archive image.Archive
-	image.ArchiveManifest
-
-	module image.Module // TODO: separate reference counting?
-
-	// Protected by Server.lock:
-	refCount int
-}
-
-// ref must be called with Server.lock held.
-func (bin *binary) ref() *binary {
-	bin.refCount++
-	return bin
-}
-
-// unref must be called with Server.lock held.
-func (bin *binary) unref() {
-	bin.refCount--
-	if bin.refCount == 0 {
-		bin.archive.Close()
-		bin.module.Close()
-	}
-}
-
 type program struct {
 	hash    string
-	bin     *binary
-	routine runtime.InitRoutine
-
-	module image.Module // Non-nil overrides bin.module.
+	man     manifest.Archive
+	archive image.LocalArchive
+	codeMap object.CallMap
 
 	// Protected by Server.lock:
 	refCount int
 }
 
-// compileProgram returns Executable if ExecutableRef is provided.
+// buildProgram returns Executable if ExecutableRef is provided.
 // InstancePolicy must be provided with ExecutableRef.  Entry name can be
 // provided only with ExecutableRef.
-func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *InstancePolicy, progPolicy *ProgramPolicy, storage image.Storage, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
+func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolicy *InstancePolicy, progPolicy *ProgramPolicy, arcBack image.LocalStorage, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
 ) (exe *image.Executable, prog *program, err error) {
 	defer func() {
 		if content != nil {
@@ -110,24 +80,26 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		}
 	}()
 
-	moduleStore, err := storage.CreateModule(ctx, contentSize)
+	var codeMap object.CallMap
+
+	build, err := image.NewBuild(arcBack, refBack, ref, contentSize, progPolicy.MaxTextSize, &codeMap)
 	if err != nil {
 		return
 	}
-	defer moduleStore.Close()
+	defer build.Close()
 
 	var actualHash = newHash()
-	var r = bufio.NewReader(io.TeeReader(io.TeeReader(content, moduleStore.Writer), actualHash))
+	var r = bufio.NewReader(io.TeeReader(io.TeeReader(content, build.ModuleWriter()), actualHash))
 
-	var sectionMap = section.NewMap()
+	var sectionMap image.SectionMap
 	var sectionLoaders = make(section.CustomLoaders)
 	var sectionConfig = compile.Config{
 		SectionMapper:       sectionMap.Mapper(),
 		CustomSectionLoader: sectionLoaders.Load,
 	}
 
-	sectionLoaders["gate.stack"] = func(_ string, _ section.Reader, _ uint32) error {
-		return errors.New("gate.stack section appears too early in wasm module")
+	sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
+		return failrequest.New(event.FailRequest_ModuleError, "stack section appears too early in wasm module")
 	}
 
 	module, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: sectionConfig}, r)
@@ -141,14 +113,15 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	var maxMemorySize int
 
 	if instPolicy == nil {
-		// Building to storage.
+		stackSize = progPolicy.MaxStackSize
+
 		maxMemorySize = memorySize
 	} else {
 		stackSize = instPolicy.StackSize
 
 		maxMemorySize = module.MemorySizeLimit()
 		if maxMemorySize > instPolicy.MaxMemorySize {
-			maxMemorySize = roundSize(instPolicy.MaxMemorySize, wa.PageSize)
+			maxMemorySize = alignMemorySize(instPolicy.MaxMemorySize)
 		}
 
 		if memorySize > maxMemorySize {
@@ -157,7 +130,7 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		}
 	}
 
-	err = abi.BindImports(module)
+	err = binding.BindImports(&module, abi.Imports)
 	if err != nil {
 		return
 	}
@@ -165,38 +138,12 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 	var entryIndex uint32
 
 	if entryName != "" {
-		entryIndex, err = entry.FuncIndex(module, entryName)
+		entryIndex, err = entry.ModuleFuncIndex(module, entryName)
 		if err != nil {
 			return
 		}
 	}
 
-	if ref == nil {
-		back, ok := storage.(image.BackingStore)
-		if !ok {
-			back = image.Memory
-		}
-
-		ref, err = image.NewExecutableRef(back)
-		if err != nil {
-			return
-		}
-		defer ref.Close()
-	}
-
-	build := image.NewBuild(ref)
-	defer build.Close()
-
-	buildConfig := new(image.BuildConfig)
-	buildConfig.MaxTextSize = progPolicy.MaxTextSize
-
-	err = build.Configure(buildConfig)
-	if err != nil {
-		return
-	}
-
-	var routine = runtime.InitStart
-	var codeMap object.CallMap
 	var codeConfig = &compile.CodeConfig{
 		Text:   build.TextBuffer(),
 		Mapper: &codeMap,
@@ -209,51 +156,68 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		return
 	}
 
-	buildConfig.MaxTextSize = build.TextSize()
-	buildConfig.StackSize = stackSize
-	buildConfig.GlobalsSize = module.GlobalsSize()
-	buildConfig.MemorySize = memorySize
-	buildConfig.MaxMemorySize = maxMemorySize
+	// textCopy := make([]byte, len(build.TextBuffer().Bytes()))
+	// copy(textCopy, build.TextBuffer().Bytes())
 
-	err = build.Configure(buildConfig)
-	if err != nil {
+	sectionLoaders[wasm.StackSectionName] = func(_ string, r section.Reader, length uint32) (err error) {
+		sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "multiple stack sections in wasm module")
+		}
+
+		if entryName != "" {
+			err = failrequest.New(event.FailRequest_FunctionNotFound, "entry function specified with suspended program")
+			return
+		}
+
+		if length > uint32(stackSize) {
+			err = failrequest.New(event.FailRequest_ModuleError, "stack section is too large")
+			return
+		}
+
+		sectionMap.Stack = sectionMap.Sections[section.Custom] // The section currently being loaded.
+
+		err = build.FinishText(int(length), stackSize, module.GlobalsSize(), memorySize, maxMemorySize)
+		if err != nil {
+			return
+		}
+
+		err = build.ReadSuspendedStack(r, int(length), module.Types(), module.FuncTypeIndexes())
+		if err != nil {
+			return
+		}
+
 		return
 	}
 
-	if stackSize != 0 {
-		var addr uint32
-		if entryName != "" {
-			addr = codeMap.FuncAddrs[entryIndex]
-		}
-		build.SetupEntryStackFrame(addr)
+	err = compile.LoadCustomSections(&sectionConfig, r)
+	if err != nil {
+		err = failrequest.Tag(event.FailRequest_ModuleError, err)
+		return
 	}
 
-	sectionLoaders["gate.stack"] = func(_ string, r section.Reader, payloadLen uint32) error {
-		if entryName != "" {
-			return errors.New("entry function specified with suspended program")
+	sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
+		return failrequest.New(event.FailRequest_ModuleError, "stack section appears too late in wasm module")
+	}
+
+	var entryAddr uint32
+
+	if sectionMap.Stack.Offset == 0 {
+		err = build.FinishText(0, stackSize, module.GlobalsSize(), memorySize, maxMemorySize)
+		if err != nil {
+			return
 		}
 
-		routine = runtime.InitResume
-
-		if _, err := r.Read(build.StackBytes()); err != nil {
-			return err
-		}
-
-		switch _, err := r.ReadByte(); err {
-		case io.EOF:
-			return nil
-
-		case nil:
-			return resourcelimit.New("suspended program stack size exceeds call stack size limit")
-
-		default:
-			return err
+		if instPolicy != nil {
+			if entryName != "" {
+				entryAddr = codeMap.FuncAddrs[entryIndex]
+			}
+			build.SetupEntryStackFrame(entryIndex, entryAddr)
 		}
 	}
 
 	var dataConfig = &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
-		MemoryAlignment: executable.PageSize,
+		MemoryAlignment: build.MemoryAlignment(),
 		Config:          sectionConfig,
 	}
 
@@ -263,9 +227,9 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 		return
 	}
 
-	_, err = io.Copy(ioutil.Discard, r)
+	err = compile.LoadCustomSections(&sectionConfig, r)
 	if err != nil {
-		err = wrapContentError(err)
+		err = failrequest.Tag(event.FailRequest_ModuleError, err)
 		return
 	}
 
@@ -287,54 +251,49 @@ func compileProgram(ctx context.Context, ref image.ExecutableRef, instPolicy *In
 
 	var hash = hashEncoding.EncodeToString(actualDigest)
 
-	storedModule, err := moduleStore.Module(hash)
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			storedModule.Close()
-		}
-	}()
+	// if f, err := os.Create("/tmp/text-" + hash + ".txt"); err != nil {
+	// 	log.Fatal(err)
+	// } else {
+	// 	defer f.Close()
+	// 	if err := dump.Text(f, textCopy, 0, codeMap.FuncAddrs, nil); err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// }
 
-	exe, err = build.Executable()
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil && exe != nil {
-			exe.Close()
-			exe = nil
-		}
-	}()
+	entryIndexes, entryAddrs := entry.Maps(module, codeMap.FuncAddrs)
 
-	var meta = metadata.Make(module, sectionMap, codeMap.FuncAddrs)
-	var archive image.Archive
-
-	if instPolicy == nil {
-		archive, err = exe.StoreThis(ctx, hash, meta, storage)
-		exe.Close()
-		exe = nil
-	} else {
-		archive, err = exe.StoreCopy(ctx, hash, meta, storage)
-	}
+	archive, exe, err := build.FinishArchiveExecutable(hash, sectionMap, module.GlobalTypes(), entryIndexes, entryAddrs)
 	if err != nil {
 		return
 	}
 
-	prog = &program{
-		hash: hash,
-		bin: &binary{
-			codeMap:         codeMap,
-			archive:         archive,
-			ArchiveManifest: archive.Manifest(),
-			module:          storedModule,
-			refCount:        1,
-		},
-		routine:  routine,
+	prog = newProgram(hash, archive, codeMap)
+	return
+}
+
+func newProgram(hash string, archive image.LocalArchive, codeMap object.CallMap) *program {
+	prog := &program{
+		hash:     hash,
+		man:      archive.Manifest(),
+		archive:  archive,
+		codeMap:  codeMap,
 		refCount: 1,
 	}
-	return
+	goruntime.SetFinalizer(prog, finalizeProgram)
+	return prog
+}
+
+func finalizeProgram(prog *program) {
+	if prog.refCount != 0 {
+		log.Printf("unreachable program with reference count %d", prog.refCount)
+		if prog.refCount > 0 {
+			prog.cleanup()
+		}
+	}
+}
+
+func (prog *program) cleanup() {
+	prog.archive.Close()
 }
 
 // ref must be called with Server.lock held.
@@ -343,38 +302,37 @@ func (prog *program) ref() *program {
 	return prog
 }
 
-// unref must be called with Server.lock held.
+// unref must be called with Server.lock held.  Caller must invoke the cleanup
+// method separately if the final reference was dropped.
 func (prog *program) unref() (final bool) {
 	prog.refCount--
-	if prog.refCount == 0 {
-		prog.bin.unref()
-		if prog.module != nil {
-			prog.module.Close()
-		}
+
+	switch {
+	case prog.refCount == 0:
 		final = true
+
+	case prog.refCount < 0:
+		panic("program reference count is negative")
 	}
+
 	return
 }
 
-func (prog *program) getEntryAddr(name string) (addr uint32, err error) {
-	if name != "" {
-		addr, err = entry.FuncAddr(prog.bin.EntryAddrs, name)
+func (prog *program) resolveEntry(name string) (index, addr uint32, err error) {
+	if name == "" {
+		return
 	}
+
+	index, err = entry.MapFuncIndex(prog.man.EntryIndexes, name)
+	if err != nil {
+		return
+	}
+
+	addr = entry.MapFuncAddr(prog.man.EntryAddrs, index)
 	return
 }
 
-func (prog *program) loadExecutable(ctx context.Context, ref image.ExecutableRef, instPolicy *InstancePolicy, entryAddr uint32,
-) (exe *image.Executable, err error) {
-	config := &image.Config{
-		MaxTextSize:   math.MaxInt32, // Policy was enforced when program was acquired.
-		StackSize:     instPolicy.StackSize,
-		MaxMemorySize: roundSize(instPolicy.MaxMemorySize, wa.PageSize),
-	}
-
-	return image.LoadExecutable(ctx, ref, config, prog.bin.archive, stack.EntryFrame(entryAddr, nil))
-}
-
-func roundSize(n, pageSize int) int {
-	mask := pageSize - 1
-	return (n + mask) &^ mask
+func alignMemorySize(size int) int {
+	mask := wa.PageSize - 1
+	return (size + mask) &^ mask
 }

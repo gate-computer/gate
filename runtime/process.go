@@ -13,10 +13,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/gate/image"
 	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/executable"
-	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/trap"
 )
 
@@ -40,13 +38,18 @@ type imageInfo struct {
 
 type ExecutableRef = executable.Ref
 
-type InitRoutine uint16
-
-const (
-	InitStart  = InitRoutine(abi.TextAddrStart)
-	InitEnter  = InitRoutine(abi.TextAddrEnter)
-	InitResume = InitRoutine(abi.TextAddrResume)
-)
+type Executable interface {
+	PageSize() uint32
+	TextAddr() uint64
+	SetTextAddr(uint64)
+	TextSize() uint32
+	StackSize() uint32
+	StackUsage() uint32
+	GlobalsSize() uint32
+	MemorySize() uint32
+	MaxMemorySize() uint32
+	InitRoutine() uint16
+}
 
 // Process is used to execute a single program image once.
 type Process struct {
@@ -142,32 +145,32 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 	return
 }
 
-// Start the program.  The executable must be the one that was referenced in
+// Start the program.  The executable must be the same that was referenced in
 // NewProcess, and it must have been built by now.
 //
 // This function must be called before Serve, and must not be called after
 // Kill.
-func (p *Process) Start(exe *image.Executable, initRoutine InitRoutine) (err error) {
-	manifest := exe.Manifest().(*executable.Manifest)
-
-	textAddr, heapAddr, stackAddr, err := readRandAddrs()
+func (p *Process) Start(exe Executable) (err error) {
+	textAddr, heapAddr, stackAddr, err := readRandAddrs(exe.TextAddr())
 	if err != nil {
 		return
 	}
 
+	exe.SetTextAddr(textAddr)
+
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
-		PageSize:       uint32(executable.PageSize),
+		PageSize:       exe.PageSize(),
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
 		HeapAddr:       heapAddr,
-		TextSize:       uint32(manifest.TextSize),
-		StackSize:      uint32(manifest.StackSize),
-		StackUnused:    uint32(manifest.StackUnused),
-		GlobalsSize:    uint32(manifest.GlobalsSize),
-		InitMemorySize: uint32(manifest.MemorySize),
-		GrowMemorySize: uint32(manifest.MaxMemorySize),
-		InitRoutine:    uint16(initRoutine),
+		TextSize:       exe.TextSize(),
+		StackSize:      exe.StackSize(),
+		StackUnused:    exe.StackSize() - exe.StackUsage(),
+		GlobalsSize:    exe.GlobalsSize(),
+		InitMemorySize: exe.MemorySize(),
+		GrowMemorySize: exe.MaxMemorySize(), // TODO: check policy too
+		InitRoutine:    exe.InitRoutine(),
 		DebugFlag:      0,
 		MagicNumber2:   magicNumber2,
 	}
@@ -220,6 +223,11 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry,
 		return
 
 	case status.Signaled():
+		if status.Signal() == syscall.SIGXCPU {
+			trapID = trap.Suspended // During initialization (ok) or by force (stack is dirty).
+			return
+		}
+
 		err = fmt.Errorf("process termination signal: %d", status.Signal())
 		return
 
@@ -309,25 +317,28 @@ func socketPipe() (r, w *os.File, err error) {
 	return
 }
 
-func readRandAddrs() (textAddr, heapAddr, stackAddr uint64, err error) {
+func readRandAddrs(fixedTextAddr uint64) (textAddr, heapAddr, stackAddr uint64, err error) {
 	b := make([]byte, 12)
 
-	_, err = rand.Read(b)
-	if err != nil {
-		return
+	if fixedTextAddr != 0 {
+		_, err = rand.Read(b[:8])
+		if err != nil {
+			return
+		}
+
+		textAddr = fixedTextAddr
+	} else {
+		_, err = rand.Read(b[:12])
+		if err != nil {
+			return
+		}
+
+		textAddr = executable.RandAddr(executable.MinTextAddr, executable.MaxTextAddr, b[8:])
 	}
 
-	textAddr = randAddr(executable.MinTextAddr, executable.MaxTextAddr, b[0:4])
-	heapAddr = randAddr(executable.MinHeapAddr, executable.MaxHeapAddr, b[4:8])
-	stackAddr = randAddr(executable.MinStackAddr, executable.MaxStackAddr, b[8:12])
+	heapAddr = executable.RandAddr(executable.MinHeapAddr, executable.MaxHeapAddr, b[4:])
+	stackAddr = executable.RandAddr(executable.MinStackAddr, executable.MaxStackAddr, b[0:])
 	return
-}
-
-func randAddr(minAddr, maxAddr uint64, b []byte) uint64 {
-	minPage := minAddr / uint64(executable.PageSize)
-	maxPage := maxAddr / uint64(executable.PageSize)
-	page := minPage + uint64(binary.LittleEndian.Uint32(b))%(maxPage-minPage)
-	return page * uint64(executable.PageSize)
 }
 
 var _ struct{} = internal.ErrorsInitialized

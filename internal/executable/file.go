@@ -12,17 +12,6 @@ import (
 	"sync/atomic"
 )
 
-type BackingStore interface{}
-
-type Manifest struct {
-	TextSize      int
-	StackSize     int
-	StackUnused   int
-	GlobalsSize   int
-	MemorySize    int
-	MaxMemorySize int
-}
-
 type Ref interface {
 	io.Closer
 	ref() // Can only be implemented in this package.
@@ -31,14 +20,12 @@ type Ref interface {
 type FileRef struct {
 	*os.File
 
-	Back     BackingStore
 	refCount int32 // Atomic
 }
 
-func NewFileRef(f *os.File, back BackingStore) *FileRef {
+func NewFileRef(f *os.File) *FileRef {
 	ref := &FileRef{
 		File:     f,
-		Back:     back,
 		refCount: 1,
 	}
 	runtime.SetFinalizer(ref, finalizeFileRef)

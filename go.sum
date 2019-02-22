@@ -22,6 +22,8 @@ github.com/tsavola/contextack v1.0.1 h1:wEO7t0GRpma03OjMlGAN5U/FPA08GcFlRXLOls6n
 github.com/tsavola/contextack v1.0.1/go.mod h1:lChihOiBbJANid9Tq7B4Zx8hrFpSGKvL0td97RvWMiw=
 github.com/tsavola/wag v0.16.0 h1:C5dkwT/ptY5xqsyVgr0oA77+BCQr7ZMj37YyaDCVYDk=
 github.com/tsavola/wag v0.16.0/go.mod h1:nqKbzIfMoKNa2jgG01uJthSZ7Lc9VFMAjeI85y6Z6mI=
+github.com/tsavola/wag v0.17.0 h1:cFf16Y1GHcWDIxkpix2aD5GTbMwilQYL7228Yt8PTyg=
+github.com/tsavola/wag v0.17.0/go.mod h1:nqKbzIfMoKNa2jgG01uJthSZ7Lc9VFMAjeI85y6Z6mI=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524 h1:2SngqDMNxTKQXjBcDQPh2S9chQJt6tZ+N7aMiVVhHts=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/net v0.0.0-20180320044506-b3c676e531a6 h1:5WuRavH9vWKHPeU48aGt+e0Q4viiMDU4BUVC+Mf0V3s=

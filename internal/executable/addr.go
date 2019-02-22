@@ -5,6 +5,7 @@
 package executable
 
 import (
+	"encoding/binary"
 	"os"
 )
 
@@ -18,3 +19,10 @@ const (
 )
 
 var PageSize = os.Getpagesize()
+
+func RandAddr(minAddr, maxAddr uint64, b []byte) uint64 {
+	minPage := minAddr / uint64(PageSize)
+	maxPage := maxAddr / uint64(PageSize)
+	page := minPage + uint64(binary.LittleEndian.Uint32(b))%(maxPage-minPage)
+	return page * uint64(PageSize)
+}
