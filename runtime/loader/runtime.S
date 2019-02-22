@@ -132,7 +132,7 @@ runtime_init_no_sandbox:
 
 	// Clear unused registers.
 
-	xor	%eax, %eax
+	xor	%eax, %eax			// Result reg when resuming after ABI call
 	xor	%edx, %edx
 	xor	%ebp, %ebp
 	xor	%esi, %esi
@@ -340,9 +340,6 @@ retpoline:
 .type	gate_io,@function
 
 gate_io:
-	test	$1, %ebx
-	jne	.Lsuspended
-
 	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %r13d
 	shl	$16, %r13d			// Current memory size
 	add	%r14, %r13			// Current memory end address
@@ -366,9 +363,6 @@ gate_io:
 	jg	.Lsent
 
 	// Handle write errors.
-
-	test	$1, %ebx
-	jne	.Lsuspended
 
 	cmp	$-EAGAIN, %eax
 	je	.Lnot_sent
@@ -418,9 +412,6 @@ gate_io:
 
 	// Handle read errors.
 
-	test	$1, %ebx
-	jne	.Lsuspended
-
 	cmp	$-EAGAIN, %eax
 	je	.Lnot_received
 	cmp	$-EINTR, %eax
@@ -436,6 +427,9 @@ gate_io:
 	mov	%eax, (%r12)			// Received length
 
 .Lskip_receive:
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	xor	%eax, %eax
 	jmp	.Lresume
 
@@ -501,9 +495,6 @@ sys_exit:
 .type	gate_debug,@function
 
 gate_debug:
-	test	$1, %ebx
-	jne	.Lsuspended
-
 	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %r13d
 	shl	$16, %r13d			// Current memory size
 	add	%r14, %r13			// Current memory end address
@@ -531,6 +522,9 @@ gate_debug:
 	jne	gate_debug
 
 .Lskip_debug:
+	test	$1, %ebx
+	jne	.Lsuspended
+
 	xor	%eax, %eax
 	jmp	.Lresume
 
