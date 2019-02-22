@@ -41,6 +41,60 @@
 .int	\k
 .endm
 
+// Out: rcx = start of stack buffer
+// Clobbers rax.
+.macro	stack_buffer
+	mov	%rbx, %rcx			// Atomic copy of stack limit.
+	mov	$0x7ffffffffffffffe, %rax
+	and	%rax, %rcx			// Clear suspend bits.
+.endm
+
+// Out: rcx = start of stack buffer
+//      out = current memory size in wasm pages
+// Clobbers rax and rcx.
+.macro	current_memory out
+	stack_buffer
+	mov	-GATE_STACK_LIMIT_OFFSET(%rcx), \out
+.endm
+
+// In:  r12 = relative length address (zero-extended 32-bit value)
+//      r13 = current memory end address
+// Out: r12 = absolute length address
+//      r13 = current memory end address
+.macro	io_len_check nop_label
+	test	%r12d, %r12d
+	je	\nop_label
+
+	add	%r14, %r12			// Absolute length address.
+	lea	4(%r12), %r11			// End of absolute length.
+
+	cmp	%r11, %r13			// Check against memory limit,
+	jl	.Lout_of_bounds			//
+	cmp	%r12, %r11			// and detect wrap-around.
+	jl	.Lout_of_bounds			//
+.endm
+
+// In:  rsi = relative buffer address (zero-extended 32-bit value)
+//      r12 = absolute length address
+//      r13 = current memory end address
+// Out: rdx = length
+//      rsi = absolute buffer address
+//      r12 = absolute length address
+//      r13 = current memory end address
+.macro	io_setup nop_label
+	mov	(%r12), %edx			// Length (zero-extended).
+	test	%edx, %edx			//
+	je	\nop_label			// Nothing to transfer.
+
+	add	%r14, %rsi			// Absolute buffer address.
+	lea	(%rsi, %rdx), %r11		// End of absolute buffer.
+
+	cmp	%r11, %r13			// Check against memory limit,
+	jl	.Lout_of_bounds			//
+	cmp	%rsi, %r11			// and detect wrap-around.
+	jl	.Lout_of_bounds			//
+.endm
+
 .section .text
 
 .align	16,INT3
@@ -235,7 +289,7 @@ trap_handler:
 
 // Out: eax = allocated wasm pages
 current_memory:
-	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %eax
+	current_memory %eax
 	jmp	.Lresume
 
 .align	16,INT3
@@ -246,8 +300,9 @@ current_memory:
 // Out: eax = previously allocated wasm pages
 grow_memory:
 	mov	%eax, %r12d
+	mov	%eax, %esi
 
-	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %edi
+	current_memory %edi
 	add	%rdi, %r12			// New memory pages
 	cmp	%r12, -32(%r15)			// Grow memory limit pages
 	jl	.Loom
@@ -255,7 +310,6 @@ grow_memory:
 	shl	$16, %rdi			// Current memory bytes
 	add	%r14, %rdi			// mprotect addr
 
-	mov	%eax, %esi
 	shl	$16, %rsi			// mprotect len
 	je	.Lgrow_done
 
@@ -269,8 +323,8 @@ grow_memory:
 	jmp	trap_handler
 
 .Lgrow_done:
-	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %eax
-	mov	%r12d, -GATE_STACK_LIMIT_OFFSET(%rbx)
+	current_memory %eax
+	mov	%r12d, -GATE_STACK_LIMIT_OFFSET(%rcx)
 	jmp	.Lresume
 
 .Loom:
@@ -297,50 +351,12 @@ retpoline:
 	xor	%ecx, %ecx
 	ret
 
-// In:  r12 = relative length address (zero-extended 32-bit value)
-//      r13 = current memory end address
-// Out: r12 = absolute length address
-//      r13 = current memory end address
-.macro	io_len_check nop_label
-	test	%r12d, %r12d
-	je	\nop_label
-
-	add	%r14, %r12			// Absolute length address.
-	lea	4(%r12), %r11			// End of absolute length.
-
-	cmp	%r11, %r13			// Check against memory limit,
-	jl	.Lout_of_bounds			//
-	cmp	%r12, %r11			// and detect wrap-around.
-	jl	.Lout_of_bounds			//
-.endm
-
-// In:  rsi = relative buffer address (zero-extended 32-bit value)
-//      r12 = absolute length address
-//      r13 = current memory end address
-// Out: rdx = length
-//      rsi = absolute buffer address
-//      r12 = absolute length address
-//      r13 = current memory end address
-.macro	io_setup nop_label
-	mov	(%r12), %edx			// Length (zero-extended).
-	test	%edx, %edx			//
-	je	\nop_label			// Nothing to transfer.
-
-	add	%r14, %rsi			// Absolute buffer address.
-	lea	(%rsi, %rdx), %r11		// End of absolute buffer.
-
-	cmp	%r11, %r13			// Check against memory limit,
-	jl	.Lout_of_bounds			//
-	cmp	%rsi, %r11			// and detect wrap-around.
-	jl	.Lout_of_bounds			//
-.endm
-
 .align	16,INT3
 .globl	gate_io
 .type	gate_io,@function
 
 gate_io:
-	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %r13d
+	current_memory %r13d
 	shl	$16, %r13d			// Current memory size
 	add	%r14, %r13			// Current memory end address
 
@@ -467,11 +483,10 @@ gate_exit:
 
 // In:  edi = status code
 .Lruntime_exit:
-	mov	$0x7ffffffffffffffe, %rax	// Clear suspend bits.
-	and	%rax, %rbx
-	sub	$GATE_STACK_LIMIT_OFFSET, %rbx	// Stack buffer.
+	stack_buffer
+	sub	$GATE_STACK_LIMIT_OFFSET, %rcx	// Stack buffer.
 	mov	%rsp, %rax
-	sub	%rbx, %rax			// Stack offset.
+	sub	%rcx, %rax			// Stack offset.
 
 	// Write variables at start of stack space.
 	// (Current memory size is already there.)
@@ -495,7 +510,7 @@ sys_exit:
 .type	gate_debug,@function
 
 gate_debug:
-	mov	-GATE_STACK_LIMIT_OFFSET(%rbx), %r13d
+	current_memory %r13d
 	shl	$16, %r13d			// Current memory size
 	add	%r14, %r13			// Current memory end address
 
