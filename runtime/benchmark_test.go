@@ -32,7 +32,16 @@ var (
 var benchFS interface{}
 
 func init() {
-	if path := os.Getenv("GATE_BENCH_IMAGE_FS"); path != "" {
+	path := os.Getenv("GATE_TEST_FILESYSTEM")
+	if path == "" {
+		p := "../testdata/filesystem"
+		if _, err := os.Stat(p); err == nil {
+			path = p
+		} else if !os.IsNotExist(err) {
+			panic(err)
+		}
+	}
+	if path != "" {
 		benchFS = image.NewFilesystem(path)
 	}
 }
