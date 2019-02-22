@@ -59,7 +59,7 @@ func execRefBench(ctx context.Context, exe *image.Executable, ref image.Executab
 		return
 	}
 
-	return proc.Serve(ctx, benchRegistry)
+	return proc.Serve(ctx, benchRegistry, nil)
 }
 
 func execArcBench(ctx context.Context, exeBack image.BackingStore, arc image.LocalArchive,
@@ -89,7 +89,7 @@ func execArcBench(ctx context.Context, exeBack image.BackingStore, arc image.Loc
 		return
 	}
 
-	return proc.Serve(ctx, benchRegistry)
+	return proc.Serve(ctx, benchRegistry, nil)
 }
 
 func BenchmarkMemBuildNop(b *testing.B)         { benchBuild(b, image.Memory, testProgNop) }

@@ -11,7 +11,7 @@ import (
 	"os"
 
 	"github.com/tsavola/gate/image/manifest"
-	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/wag/object"
 )
 
@@ -27,7 +27,7 @@ type Archive interface {
 type LocalArchive interface {
 	Archive
 
-	file() *internal.FileRef
+	file() *file.Ref
 }
 
 type ArchiveLoader struct {
@@ -58,7 +58,7 @@ type LocalStorage interface {
 	// give is like the Storage.Store, but text, stack and data are supplied
 	// via as a FileRef instead of through ArchiveStorer writers.  The FileRef
 	// must have been created with newArchiveFile.
-	give(moduleKey string, m manifest.Archive, f *internal.FileRef, objectMap object.CallMap,
+	give(moduleKey string, m manifest.Archive, f *file.Ref, objectMap object.CallMap,
 	) (LocalArchive, error)
 }
 

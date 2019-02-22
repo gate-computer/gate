@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/tsavola/gate/internal/error/badprogram"
@@ -20,12 +21,20 @@ const (
 	packetReservedOffset = 7
 )
 
+// IOState of a program.  Contents are empty unless the program is suspended.
+type IOState struct {
+	Input  []byte // Buffered data which the program hasn't received yet.
+	Output []byte // Buffered data which the program has already sent.
+}
+
 type read struct {
 	buf packet.Buf
 	err error
 }
 
-func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (err error) {
+// ioLoop mutates Process and IOState (if any).
+func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioState *IOState,
+) (err error) {
 	var (
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
@@ -33,7 +42,28 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 	discoverer := services.StartServing(ctx, ServiceConfig{maxPacketSize}, messageInput, messageOutput)
 	defer close(messageOutput)
 
-	subjectInput := subjectReadLoop(subject.reader)
+	var (
+		initialRead []byte
+		pendingMsg  packet.Buf
+		pendingEvs  []packet.Buf
+	)
+	if ioState != nil {
+		pendingMsg, initialRead, err = splitBufferedPackets(ioState.Output, discoverer)
+		if err != nil {
+			return
+		}
+		ioState.Output = nil
+
+		if len(ioState.Input) > 0 {
+			pendingEvs = []packet.Buf{ioState.Input} // No need to split packets.
+		}
+		ioState.Input = nil
+	} else {
+		subject.writerOut.Close()
+		subject.writerOut = nil
+	}
+
+	subjectInput := subjectReadLoop(subject.reader, initialRead)
 	defer func() {
 		if subjectInput != nil {
 			for range subjectInput {
@@ -48,11 +78,6 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 			close(subjectOutput)
 		}
 	}()
-
-	var (
-		pendingMsg packet.Buf
-		pendingEvs []packet.Buf
-	)
 
 	var (
 		suspended = subject.suspended
@@ -100,25 +125,64 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 
 		case read, ok := <-doSubjectInput:
 			if !ok {
-				subjectInput = nil
-				break
+				err = errors.New("read loop terminated unexpectedly")
+				return
 			}
-			if read.err != nil {
+
+			switch {
+			case read.err == nil:
+				msg, ev, opErr := handlePacket(read.buf, discoverer)
+				if opErr != nil {
+					err = opErr
+					return
+				}
+
+				if msg != nil {
+					pendingMsg = msg
+				}
+				if ev != nil {
+					pendingEvs = append(pendingEvs, ev)
+				}
+
+			case read.err == io.EOF:
+				subjectInput = nil
+
+				if subjectOutput != nil {
+					close(subjectOutput)
+					subjectOutput = nil
+				}
+
+				if ioState != nil {
+					if suspended == nil { // Suspended.
+						ioState.Output = append(pendingMsg, read.buf...)
+						pendingMsg = nil
+
+						ioState.Input, err = ioutil.ReadAll(subject.writerOut)
+						if err != nil {
+							return
+						}
+
+						var pendingLen int
+						for _, ev := range pendingEvs {
+							pendingLen += len(ev)
+						}
+
+						if n := len(ioState.Input) + pendingLen; cap(ioState.Input) < n {
+							ioState.Input = append(make([]byte, 0, n), ioState.Input...)
+						}
+
+						for _, ev := range pendingEvs {
+							ioState.Input = append(ioState.Input, ev...)
+						}
+					}
+
+					subject.writerOut.Close()
+					subject.writerOut = nil
+				}
+
+			case read.err != nil:
 				err = read.err
 				return
-			}
-
-			msg, ev, opErr := handlePacket(read.buf, discoverer)
-			if opErr != nil {
-				err = opErr
-				return
-			}
-
-			if msg != nil {
-				pendingMsg = msg
-			}
-			if ev != nil {
-				pendingEvs = append(pendingEvs, ev)
 			}
 
 		case doMessageOutput <- pendingMsg:
@@ -140,7 +204,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process) (er
 	return
 }
 
-func subjectReadLoop(r *os.File) <-chan read {
+func subjectReadLoop(r *os.File, partial []byte) <-chan read {
 	reads := make(chan read)
 
 	go func() {
@@ -149,10 +213,14 @@ func subjectReadLoop(r *os.File) <-chan read {
 		header := make([]byte, packet.HeaderSize)
 
 		for {
-			if _, err := io.ReadFull(r, header); err != nil {
+			offset := copy(header, partial)
+			partial = partial[offset:]
+
+			if n, err := io.ReadFull(r, header[offset:]); err != nil {
 				if err != io.EOF {
-					reads <- read{err: fmt.Errorf("subject read: %v", err)}
+					err = fmt.Errorf("subject read: %v", err)
 				}
+				reads <- read{buf: header[:offset+n], err: err}
 				return
 			}
 
@@ -163,10 +231,15 @@ func subjectReadLoop(r *os.File) <-chan read {
 			}
 
 			buf := make([]byte, size)
-			copy(buf, header)
+			offset = copy(buf, header)
+			offset += copy(buf[offset:], partial)
+			partial = nil
 
-			if _, err := io.ReadFull(r, buf[packet.HeaderSize:]); err != nil {
-				reads <- read{err: fmt.Errorf("subject read: %v", err)}
+			if n, err := io.ReadFull(r, buf[offset:]); err != nil {
+				if err != io.EOF {
+					err = fmt.Errorf("subject read: %v", err)
+				}
+				reads <- read{buf: buf[:offset+n], err: err}
 				return
 			}
 
@@ -217,32 +290,10 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 }
 
 func handlePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg, reply packet.Buf, err error) {
-	if x := p[packetReservedOffset]; x != 0 {
-		err = badprogram.Errorf("reserved byte has value 0x%02x in incoming packet header", x)
-		return
-	}
-
 	switch code := p.Code(); {
 	case code >= 0:
-		if int(code) >= discoverer.NumServices() {
-			err = badprogram.Errorf("invalid service code: %d", code)
-			return
-		}
-
-		switch domain := p.Domain(); domain {
-		case packet.DomainData:
-			if n := len(p); n < packet.DataHeaderSize {
-				err = badprogram.Errorf("data packet is too short: %d bytes", n)
-				return
-			}
-
-			fallthrough
-
-		case packet.DomainFlow, packet.DomainCall:
-			msg = p
-
-		default:
-			err = badprogram.Errorf("invalid domain in incoming packet: %d", domain)
+		msg, err = checkServicePacket(p, discoverer)
+		if err != nil {
 			return
 		}
 
@@ -257,5 +308,70 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg, reply packet
 		return
 	}
 
+	return
+}
+
+func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer,
+) (msg packet.Buf, tail []byte, err error) {
+	if len(buf) < packet.HeaderSize {
+		tail = buf
+		return
+	}
+
+	size := binary.LittleEndian.Uint32(buf[packet.OffsetSize:])
+	if size < packet.HeaderSize || size > maxPacketSize {
+		err = badprogram.Errorf("buffered packet has invalid size: %d", size)
+		return
+	}
+
+	if uint32(len(buf)) < size {
+		tail = buf
+		return
+	}
+
+	p := packet.Buf(buf[:size])
+
+	switch code := p.Code(); {
+	case code >= 0:
+		msg, err = checkServicePacket(p, discoverer)
+		if err != nil {
+			return
+		}
+
+	default:
+		err = badprogram.Errorf("invalid code in buffered packet: %d", code)
+		return
+	}
+
+	tail = buf[size:]
+	return
+}
+
+func checkServicePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg packet.Buf, err error) {
+	if x := p[packetReservedOffset]; x != 0 {
+		err = badprogram.Errorf("reserved byte has value 0x%02x in buffered packet header", x)
+		return
+	}
+
+	if int(p.Code()) >= discoverer.NumServices() {
+		err = badprogram.Errorf("invalid service code in packet: %d", p.Code())
+		return
+	}
+
+	switch p.Domain() {
+	case packet.DomainCall, packet.DomainFlow:
+
+	case packet.DomainData:
+		if n := len(p); n < packet.DataHeaderSize {
+			err = badprogram.Errorf("data packet is too short: %d bytes", n)
+			return
+		}
+
+	default:
+		err = badprogram.Errorf("invalid domain in packet: %d", p.Domain())
+		return
+	}
+
+	msg = p
 	return
 }

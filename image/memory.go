@@ -8,7 +8,7 @@ import (
 	"context"
 	"os"
 
-	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object"
 	"golang.org/x/sys/unix"
@@ -32,7 +32,7 @@ func (memory) newArchiveFile() (f *os.File, err error) {
 	return newMemFile(memArchiveName)
 }
 
-func (memory) give(key string, man manifest.Archive, file *internal.FileRef, objectMap object.CallMap,
+func (memory) give(key string, man manifest.Archive, file *file.Ref, objectMap object.CallMap,
 ) (arc LocalArchive, err error) {
 	arc = &memArchive{
 		f:         file.Ref(),
@@ -56,7 +56,7 @@ func (memory) Store(ctx context.Context, man manifest.Archive) (storer ArchiveSt
 
 		Archive: func(key string) (arc Archive, err error) {
 			arc = &memArchive{
-				f:   internal.NewFileRef(f),
+				f:   file.NewRef(f),
 				man: man,
 			}
 
@@ -75,12 +75,12 @@ func (memory) Store(ctx context.Context, man manifest.Archive) (storer ArchiveSt
 }
 
 type memArchive struct {
-	f         *internal.FileRef
+	f         *file.Ref
 	man       manifest.Archive
 	objectMap object.CallMap
 }
 
-func (arc *memArchive) file() *internal.FileRef {
+func (arc *memArchive) file() *file.Ref {
 	return arc.f
 }
 

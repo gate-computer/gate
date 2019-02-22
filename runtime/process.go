@@ -15,6 +15,7 @@ import (
 
 	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/wag/trap"
 )
 
@@ -36,7 +37,7 @@ type imageInfo struct {
 	MagicNumber2   uint32
 }
 
-type ExecutableRef = executable.Ref
+type ExecutableRef = file.OpaqueRef
 
 type Executable interface {
 	PageSize() uint32
@@ -55,6 +56,7 @@ type Executable interface {
 type Process struct {
 	execution execProcess // Executor's low-level process state.
 	writer    *os.File
+	writerOut *file.Ref
 	reader    *os.File
 	suspended chan struct{}
 	debugging <-chan struct{}
@@ -68,8 +70,8 @@ type Process struct {
 func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Writer,
 ) (p *Process, err error) {
 	var (
-		exeImage = ref.(*executable.FileRef).Ref()
-		inputR   *os.File
+		exeImage = ref.(*file.Ref)
+		inputR   *file.Ref
 		inputW   *os.File
 		outputR  *os.File
 		outputW  *os.File
@@ -78,9 +80,6 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 	)
 
 	defer func() {
-		if exeImage != nil {
-			exeImage.Close()
-		}
 		if inputR != nil {
 			inputR.Close()
 		}
@@ -101,10 +100,11 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 		}
 	}()
 
-	inputR, inputW, err = socketPipe()
+	osInputR, inputW, err := socketPipe()
 	if err != nil {
 		return
 	}
+	inputR = file.NewRef(osInputR)
 
 	outputR, outputW, err = pipe2(syscall.O_NONBLOCK)
 	if err != nil {
@@ -126,6 +126,7 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 	}
 
 	p.writer = inputW
+	p.writerOut = inputR
 	p.reader = outputR
 	p.suspended = make(chan struct{}, 1)
 
@@ -135,7 +136,6 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 		p.debugging = done
 	}
 
-	exeImage = nil
 	inputR = nil
 	inputW = nil
 	outputR = nil
@@ -188,9 +188,11 @@ func (p *Process) Start(exe Executable) (err error) {
 //
 // Start must have been called before this.  This must not be called after
 // Kill.
-func (p *Process) Serve(ctx context.Context, services ServiceRegistry,
+//
+// The IOState object is mutated.
+func (p *Process) Serve(ctx context.Context, services ServiceRegistry, ioState *IOState,
 ) (exit int, trapID trap.ID, err error) {
-	err = ioLoop(ctx, services, p)
+	err = ioLoop(ctx, services, p, ioState)
 	if err != nil {
 		return
 	}
@@ -266,6 +268,11 @@ func (p *Process) Kill() {
 	if p.writer != nil {
 		p.writer.Close()
 		p.writer = nil
+	}
+
+	if p.writerOut != nil {
+		p.writerOut.Close()
+		p.writerOut = nil
 	}
 }
 

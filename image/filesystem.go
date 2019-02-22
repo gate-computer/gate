@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	"github.com/tsavola/gate/image/manifest"
-	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/wag/object"
 )
 
@@ -63,7 +63,7 @@ func (fs *Filesystem) newArchiveFile() (f *os.File, err error) {
 	return ioutil.TempFile(fs.dirTemp, fsTempPatternArchive)
 }
 
-func (fs *Filesystem) give(key string, man manifest.Archive, ref *internal.FileRef, objectMap object.CallMap,
+func (fs *Filesystem) give(key string, man manifest.Archive, ref *file.Ref, objectMap object.CallMap,
 ) (arc LocalArchive, err error) {
 	filename := pathlib.Join(fs.dirArchive, key)
 
@@ -93,7 +93,7 @@ func (fs *Filesystem) Store(ctx context.Context, man manifest.Archive,
 
 	pending := &fsArchive{
 		memArchive: memArchive{
-			f:   internal.NewFileRef(f),
+			f:   file.NewRef(f),
 			man: man,
 		},
 		fs: fs,

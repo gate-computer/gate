@@ -258,7 +258,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 		log.Fatalf("execute: %v", err)
 	}
 
-	exit, trapID, err := proc.Serve(ctx, services)
+	exit, trapID, err := proc.Serve(ctx, services, nil)
 
 	tRunEnd := time.Now()
 	tEnd := tRunEnd

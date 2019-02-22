@@ -92,6 +92,8 @@ type Instance struct {
 	prog     *program            // Set in Instance.refProgram
 	function string              // Set in Instance.refProgram
 
+	ioState runtime.IOState // Must not be accessed during Instance.Run.
+
 	lock   sync.Mutex // Must be held when accessing status.
 	status Status     // Set in Instance.completeInit and Instance.Run
 }
@@ -212,7 +214,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 		inst.status = result
 	}()
 
-	exit, trapID, err := inst.process.Serve(ctx, inst.services)
+	exit, trapID, err := inst.process.Serve(ctx, inst.services, &inst.ioState)
 	if err != nil {
 		if x, ok := err.(public.Error); ok {
 			result.Error = x.PublicError()

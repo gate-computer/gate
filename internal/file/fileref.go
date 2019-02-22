@@ -2,69 +2,68 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package executable
+package file
 
 import (
-	"io"
 	"log"
 	"os"
 	"runtime"
 	"sync/atomic"
 )
 
-type Ref interface {
-	io.Closer
+type OpaqueRef interface {
+	Close() error
 	ref() // Can only be implemented in this package.
 }
 
-type FileRef struct {
+type Ref struct {
 	*os.File
 
 	refCount int32 // Atomic
 }
 
-func NewFileRef(f *os.File) *FileRef {
-	ref := &FileRef{
+func NewRef(f *os.File) *Ref {
+	ref := &Ref{
 		File:     f,
 		refCount: 1,
 	}
-	runtime.SetFinalizer(ref, finalizeFileRef)
+	runtime.SetFinalizer(ref, finalizeRef)
 	return ref
 }
 
-func finalizeFileRef(ref *FileRef) {
+func finalizeRef(ref *Ref) {
 	if ref.refCount != 0 {
-		log.Printf("unreachable executable file with reference count %d", ref.refCount)
+		log.Printf("unreachable file with reference count %d", ref.refCount)
 		if ref.refCount > 0 {
 			ref.cleanup()
 		}
 	}
 }
 
-func (ref *FileRef) cleanup() (err error) {
+func (ref *Ref) cleanup() (err error) {
 	err = ref.File.Close()
 	ref.File = nil
 	return
 }
 
 // Ref increments reference count.
-func (ref *FileRef) Ref() *FileRef {
+func (ref *Ref) Ref() *Ref {
 	atomic.AddInt32(&ref.refCount, 1)
 	return ref
 }
 
 // Close decrements reference count.  File is closed when reference count drops
 // to zero.
-func (ref *FileRef) Close() (err error) {
+func (ref *Ref) Close() (err error) {
 	switch n := atomic.AddInt32(&ref.refCount, -1); {
 	case n == 0:
 		err = ref.cleanup()
 
 	case n < 0:
-		panic("executable file reference count is negative")
+		panic("file reference count is negative")
 	}
 
 	return
 }
 
-func (*FileRef) ref() {}
+func (*Ref) ref() {}

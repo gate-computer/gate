@@ -18,7 +18,7 @@ import (
 	"syscall"
 
 	"github.com/tsavola/gate/internal/defaultlog"
-	"github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -84,12 +84,25 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 	return
 }
 
-func (e *Executor) execute(ctx context.Context, proc *execProcess, image *executable.FileRef, input, output, debug *os.File,
+func (e *Executor) execute(ctx context.Context, proc *execProcess, image, input *file.Ref, output, debug *os.File,
 ) error {
 	proc.init(e)
 
+	image.Ref()
+	input.Ref()
+	defer func() {
+		if image != nil {
+			image.Close()
+		}
+		if input != nil {
+			input.Close()
+		}
+	}()
+
 	select {
 	case e.execRequests <- execRequest{proc, image, input, output, debug}:
+		image = nil
+		input = nil
 		return nil
 
 	case <-e.doneSending:
@@ -303,8 +316,8 @@ func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
 
 type execRequest struct {
 	proc   *execProcess
-	image  *executable.FileRef
-	input  *os.File
+	image  *file.Ref
+	input  *file.Ref
 	output *os.File
 	debug  *os.File // Optional
 }

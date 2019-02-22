@@ -14,6 +14,7 @@ import (
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/stack"
@@ -28,7 +29,7 @@ type BackingStore interface {
 	newExecutableFile() (*os.File, error)
 }
 
-type ExecutableRef = internal.Ref
+type ExecutableRef = file.OpaqueRef
 
 func NewExecutableRef(back BackingStore) (ref ExecutableRef, err error) {
 	f, err := back.newExecutableFile()
@@ -36,7 +37,7 @@ func NewExecutableRef(back BackingStore) (ref ExecutableRef, err error) {
 		return
 	}
 
-	ref = internal.NewFileRef(f)
+	ref = file.NewRef(f)
 	return
 }
 
@@ -45,7 +46,7 @@ type Executable struct {
 	Man manifest.Executable
 
 	back       BackingStore
-	file       *internal.FileRef
+	file       *file.Ref
 	entryIndex uint32
 	entryAddr  uint32
 }
@@ -88,7 +89,7 @@ func NewExecutable(refBack BackingStore, ref ExecutableRef, arc LocalArchive, ma
 
 	// Target file.
 	var (
-		exeFile          = ref.(*internal.FileRef)
+		exeFile          = ref.(*file.Ref)
 		exeTextOffset    = int64(0)
 		exeStackOffset   = exeTextOffset + alignSize64(int64(arcMan.Exe.TextSize))
 		exeGlobalsOffset = exeStackOffset + int64(exeStackSize)

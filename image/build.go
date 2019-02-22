@@ -13,6 +13,7 @@ import (
 
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/buffer"
 	"github.com/tsavola/wag/object"
@@ -24,7 +25,7 @@ import (
 const arcModuleOffset = manifest.MaxSize
 
 type mappedFile struct {
-	file *internal.FileRef
+	file *file.Ref
 	mem  []byte
 }
 
@@ -152,7 +153,7 @@ func NewBuild(arcBack LocalStorage, exeBack BackingStore, exeRef ExecutableRef, 
 	if err != nil {
 		return
 	}
-	b.arc.file = internal.NewFileRef(arcFile)
+	b.arc.file = file.NewRef(arcFile)
 	defer func() {
 		if err != nil {
 			b.arc.file.Close()
@@ -185,7 +186,7 @@ func NewBuild(arcBack LocalStorage, exeBack BackingStore, exeRef ExecutableRef, 
 		b.exe = executableBuild{
 			back: exeBack,
 			mappedFile: mappedFile{
-				file: exeRef.(*internal.FileRef), // Refcount increased at the end.
+				file: exeRef.(*file.Ref), // Refcount increased at the end.
 			},
 		}
 

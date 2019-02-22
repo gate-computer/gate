@@ -161,7 +161,7 @@ func runTest(t *testing.T, prog []byte, function string, debug io.Writer) (outpu
 	defer exe.Close()
 	defer executor.Close()
 
-	exit, trapID, err := proc.Serve(ctx, &testServiceRegistry{origin: &output})
+	exit, trapID, err := proc.Serve(ctx, &testServiceRegistry{origin: &output}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else if trapID != 0 {
@@ -220,7 +220,7 @@ func TestRunSuspend(t *testing.T) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	exit, trapID, err := proc.Serve(ctx, &testServiceRegistry{})
+	exit, trapID, err := proc.Serve(ctx, &testServiceRegistry{}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else if trapID == 0 {

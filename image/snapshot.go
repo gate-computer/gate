@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	"github.com/tsavola/gate/image/wasm"
-	internal "github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/section"
@@ -361,7 +361,7 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 
 	// Archive it.
 
-	newArc, err = newBack.give(arcKey, arcMan, internal.NewFileRef(newFile), objectMap)
+	newArc, err = newBack.give(arcKey, arcMan, file.NewRef(newFile), objectMap)
 	if err != nil {
 		return
 	}
