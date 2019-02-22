@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"syscall"
 
 	"github.com/tsavola/wag/buffer"
@@ -293,8 +294,16 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		return
 	}
 
-	for len(native) > 0 {
+	var initialStackOffset int32
+
+	for {
+		if len(native) == 0 {
+			err = errors.New("ran out of stack before initial call")
+			return
+		}
+
 		absRetAddr := binary.LittleEndian.Uint64(native)
+		native = native[8:]
 
 		retAddr := absRetAddr - textAddr
 		if retAddr > math.MaxUint32 {
@@ -309,15 +318,11 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		}
 
 		binary.LittleEndian.PutUint64(portable, uint64(callIndex))
+		portable = portable[8:]
 
 		if initial {
-			if stackOffset != 8 {
-				err = fmt.Errorf("initial function call site 0x%x has inconsistent stack offset %d", retAddr, stackOffset)
-				return
-			}
-
-			copy(portable[8:], native[8:])
-			return
+			initialStackOffset = stackOffset
+			break
 		}
 
 		if stackOffset == 0 || stackOffset&7 != 0 {
@@ -325,12 +330,43 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 			return
 		}
 
-		copy(portable[8:stackOffset], native[8:stackOffset])
-
-		native = native[stackOffset:]
-		portable = portable[stackOffset:]
+		copy(portable[:stackOffset-8], native[:stackOffset-8])
+		native = native[stackOffset-8:]
+		portable = portable[stackOffset-8:]
 	}
 
-	err = errors.New("ran out of stack before initial call")
+	switch initialStackOffset {
+	case 16:
+		// Stack contains entry function address.  (This precedes entry
+		// function call, i.e. this is the start function return site.)
+		funcAddr := binary.LittleEndian.Uint32(native)
+		native = native[8:]
+
+		i := sort.Search(len(codeMap.FuncAddrs), func(i int) bool {
+			return codeMap.FuncAddrs[i] >= funcAddr
+		})
+		if i == len(codeMap.FuncAddrs) || codeMap.FuncAddrs[i] != funcAddr {
+			err = fmt.Errorf("entry function address 0x%x is unknown", funcAddr)
+			return
+		}
+
+		binary.LittleEndian.PutUint32(portable, uint32(i)) // Entry function index.
+		portable = portable[8:]
+
+	case 8:
+		// Entry function address has been popped off stack.  (This
+		// follows start function call, i.e. this is the entry function
+		// return site.)
+
+	default:
+		err = fmt.Errorf("initial function call site has inconsistent stack offset %d", initialStackOffset)
+		return
+	}
+
+	if n := len(native); n != 0 {
+		err = fmt.Errorf("%d bytes of excess data at start of stack", n)
+		return
+	}
+
 	return
 }
