@@ -128,6 +128,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 	var level int
 
+	var minVars int
 	var call object.CallSite
 
 	for {
@@ -143,6 +144,11 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		}
 		call = codeMap.CallSites[callIndex]
 
+		if call.StackOffset == 0 || call.StackOffset&7 != 0 {
+			err = fmt.Errorf("invalid stack offset %d", call.StackOffset)
+			return
+		}
+
 		binary.LittleEndian.PutUint64(buf, textAddr+uint64(call.RetAddr))
 		buf = buf[8:]
 
@@ -155,12 +161,27 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 			break
 		}
 
-		if call.StackOffset == 0 || call.StackOffset&7 != 0 {
-			err = fmt.Errorf("invalid stack offset %d", call.StackOffset)
+		if int(call.StackOffset-8) < minVars*8 {
+			err = fmt.Errorf("inconsistent call stack")
 			return
 		}
 
 		buf = buf[call.StackOffset-8:]
+
+		funcIndex, callIndexAgain, _, stackOffsetAgain, initial, ok := codeMap.FindAddr(call.RetAddr)
+		if !ok || uint64(callIndexAgain) != callIndex || stackOffsetAgain != call.StackOffset || initial {
+			err = fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr)
+			return
+		}
+
+		sigIndex := funcTypeIndexes[funcIndex]
+		sig := types[sigIndex]
+		minVars = len(sig.Params)
+	}
+
+	if minVars > 0 {
+		err = fmt.Errorf("inconsistent call stack")
+		return
 	}
 
 	// See the comments in exportStack's switch statement.
