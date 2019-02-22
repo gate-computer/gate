@@ -28,7 +28,6 @@ type LocalArchive interface {
 	Archive
 
 	file() *internal.FileRef
-	reflinkable(interface{}) bool
 }
 
 type ArchiveLoader struct {
@@ -55,7 +54,6 @@ type LocalStorage interface {
 	Storage
 
 	newArchiveFile() (*os.File, error)
-	reflinkable(interface{}) bool
 
 	// give is like the Storage.Store, but text, stack and data are supplied
 	// via as a FileRef instead of through ArchiveStorer writers.  The FileRef

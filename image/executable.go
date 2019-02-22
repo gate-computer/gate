@@ -112,16 +112,9 @@ func NewExecutable(refBack BackingStore, ref ExecutableRef, arc LocalArchive, ma
 	)
 
 	// Copy text.
-	var (
-		textLen = int(arcMan.Exe.TextSize)
-	)
-	if arc.reflinkable(refBack) {
-		textLen = alignSize(textLen)
-	}
-
 	off1 := arcTextOffset
 	off2 := exeTextOffset
-	err = copyFileRange(arcFile.Fd(), &off1, exeFile.Fd(), &off2, textLen)
+	err = copyFileRange(arcFile.Fd(), &off1, exeFile.Fd(), &off2, alignSize(int(arcMan.Exe.TextSize)))
 	if err != nil {
 		return
 	}
@@ -136,11 +129,8 @@ func NewExecutable(refBack BackingStore, ref ExecutableRef, arc LocalArchive, ma
 	} else {
 		// Copy stack.
 		var (
-			stackLen = exeStackUsage
+			stackLen = alignSize(exeStackUsage)
 		)
-		if arc.reflinkable(refBack) {
-			stackLen = alignSize(stackLen)
-		}
 
 		off1 = arcGlobalsOffset - int64(stackLen)
 		off2 = exeGlobalsOffset - int64(stackLen)
@@ -154,13 +144,9 @@ func NewExecutable(refBack BackingStore, ref ExecutableRef, arc LocalArchive, ma
 
 	// Copy globals and memory.
 	var (
-		globalsLen = int(arcMan.Exe.GlobalsSize)
-		memoryLen  = int(arcMan.Exe.MemoryDataSize)
+		globalsLen = alignSize(int(arcMan.Exe.GlobalsSize))
+		memoryLen  = alignSize(int(arcMan.Exe.MemoryDataSize))
 	)
-	if arc.reflinkable(refBack) {
-		globalsLen = alignSize(globalsLen)
-		memoryLen = alignSize(memoryLen)
-	}
 
 	off1 = arcMemoryOffset - int64(globalsLen)
 	off2 = exeMemoryOffset - int64(globalsLen)

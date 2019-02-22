@@ -319,16 +319,9 @@ func (b *Build) FinishText(minStackSize, maxStackSize, globalsSize, memorySize, 
 		go func() { // TODO: profile with large input program
 			defer close(b.arc.textDone)
 
-			var (
-				textLen = b.textSize
-			)
-			if b.arc.back.reflinkable(b.exe.back) {
-				textLen = alignSize(textLen)
-			}
-
 			off1 := int64(0)
 			off2 := int64(arcTextOffset)
-			b.arc.textDone <- copyFileRange(b.exe.file.Fd(), &off1, b.arc.file.Fd(), &off2, textLen)
+			b.arc.textDone <- copyFileRange(b.exe.file.Fd(), &off1, b.arc.file.Fd(), &off2, alignSize(b.textSize))
 		}()
 	}
 
@@ -426,13 +419,9 @@ func (b *Build) FinishArchiveExecutable(arcKey string, sectionMap SectionMap, gl
 
 		// Copy stack, globals and memory contents to archive file.
 		var (
-			stackLen = arcStackUsage
-			dataLen  = dataSize
+			stackLen = alignSize(arcStackUsage)
+			dataLen  = alignSize(dataSize)
 		)
-		if b.arc.back.reflinkable(b.exe.back) {
-			stackLen = alignSize(stackLen)
-			dataLen = alignSize(dataLen)
-		}
 
 		off1 := b.exe.stackDataThreshold - int64(stackLen)
 		off2 := b.arc.stackDataThreshold - int64(stackLen)

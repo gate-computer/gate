@@ -32,10 +32,8 @@ var (
 var benchFS interface{}
 
 func init() {
-	var config image.FilesystemConfig
-	if config.Path = os.Getenv("GATE_BENCH_IMAGE_FS"); config.Path != "" {
-		config.Reflink = os.Getenv("GATE_BENCH_IMAGE_REFLINK") != ""
-		benchFS = image.NewFilesystem(config)
+	if path := os.Getenv("GATE_BENCH_IMAGE_FS"); path != "" {
+		benchFS = image.NewFilesystem(path)
 	}
 }
 

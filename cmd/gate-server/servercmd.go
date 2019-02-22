@@ -70,7 +70,6 @@ var c = new(struct {
 
 	Image struct {
 		Filesystem string
-		Reflink    bool
 	}
 
 	Plugin struct {
@@ -307,10 +306,7 @@ func main2(critLog *log.Logger) (err error) {
 
 	var fs *image.Filesystem
 	if c.Image.Filesystem != "" {
-		fs = image.NewFilesystem(image.FilesystemConfig{
-			Path:    c.Image.Filesystem,
-			Reflink: c.Image.Reflink,
-		})
+		fs = image.NewFilesystem(c.Image.Filesystem)
 	}
 
 	switch c.Server.InstanceStore {

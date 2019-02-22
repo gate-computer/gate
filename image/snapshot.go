@@ -274,14 +274,9 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 
 	// Copy text from archive.  (Archives likely share the same backend.)
 
-	copyLen = int(exe.Man.TextSize)
-	if oldArc.reflinkable(newBack) {
-		copyLen = alignSize(copyLen)
-	}
-
 	newOff = alignSize64(newOff)
 	oldOff = alignSize64(oldOff)
-	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, copyLen)
+	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, alignSize(int(exe.Man.TextSize)))
 	if err != nil {
 		return
 	}
@@ -295,10 +290,7 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	exeOff = alignSize64(exeStackOffset)
 
 	if exeStackData != nil {
-		copyLen = stackUsage
-		if newBack.reflinkable(exe.back) {
-			copyLen = alignSize(copyLen)
-		}
+		copyLen = alignSize(stackUsage)
 
 		newOff += int64(newStackSize) - int64(copyLen)
 		exeOff += int64(exe.Man.StackSize) - int64(copyLen)

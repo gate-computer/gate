@@ -23,25 +23,16 @@ const (
 	fsTempPatternExecutable = "executable-*"
 )
 
-type FilesystemConfig struct {
-	Path    string
-	Reflink bool // Does the filesystem support reflinks?
-}
-
 // Filesystem implements BackingStore and LocalStorage.
-//
-// If supported, reflinks are used to avoid or defer copying.
 type Filesystem struct {
-	reflinkSupport bool
-	dirArchive     string
-	dirTemp        string
+	dirArchive string
+	dirTemp    string
 }
 
-func NewFilesystem(config FilesystemConfig) (fs *Filesystem) {
+func NewFilesystem(path string) (fs *Filesystem) {
 	fs = &Filesystem{
-		reflinkSupport: config.Reflink,
-		dirArchive:     pathlib.Join(config.Path, fsSubdirArchive),
-		dirTemp:        pathlib.Join(config.Path, fsSubdirTemp),
+		dirArchive: pathlib.Join(path, fsSubdirArchive),
+		dirTemp:    pathlib.Join(path, fsSubdirTemp),
 	}
 
 	os.Mkdir(fs.dirArchive, 0700)
@@ -70,15 +61,6 @@ func (fs *Filesystem) newExecutableFile() (f *os.File, err error) {
 
 func (fs *Filesystem) newArchiveFile() (f *os.File, err error) {
 	return ioutil.TempFile(fs.dirTemp, fsTempPatternArchive)
-}
-
-func (fs *Filesystem) reflinkable(back interface{}) bool {
-	if fs.reflinkSupport {
-		if fs2, ok := back.(*Filesystem); ok {
-			return fs == fs2
-		}
-	}
-	return false
 }
 
 func (fs *Filesystem) give(key string, man manifest.Archive, ref *internal.FileRef, objectMap object.CallMap,
@@ -152,10 +134,6 @@ type fsArchive struct {
 	memArchive
 	fs       *Filesystem
 	filename string
-}
-
-func (arc *fsArchive) reflinkable(back interface{}) bool {
-	return arc.fs.reflinkable(back)
 }
 
 func (arc *fsArchive) Close() error {

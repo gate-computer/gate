@@ -32,10 +32,6 @@ func (memory) newArchiveFile() (f *os.File, err error) {
 	return newMemFile(memArchiveName)
 }
 
-func (memory) reflinkable(interface{}) bool {
-	return false
-}
-
 func (memory) give(key string, man manifest.Archive, file *internal.FileRef, objectMap object.CallMap,
 ) (arc LocalArchive, err error) {
 	arc = &memArchive{
@@ -94,10 +90,6 @@ func (arc *memArchive) Manifest() manifest.Archive {
 
 func (arc *memArchive) ObjectMap() (object.CallMap, error) {
 	return arc.objectMap, nil
-}
-
-func (*memArchive) reflinkable(interface{}) bool {
-	return false
 }
 
 func (arc *memArchive) Load(context.Context) (loader ArchiveLoader, err error) {
