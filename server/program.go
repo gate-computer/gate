@@ -18,6 +18,7 @@ import (
 	"github.com/tsavola/gate/image/manifest"
 	"github.com/tsavola/gate/image/wasm"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
+	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -169,7 +170,7 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 			return
 		}
 
-		if length > uint32(stackSize) {
+		if length > uint32(stackSize)-executable.StackLimitOffset {
 			err = failrequest.New(event.FailRequest_ModuleError, "stack section is too large")
 			return
 		}

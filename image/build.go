@@ -242,7 +242,7 @@ func (b *Build) FinishText(minStackSize, maxStackSize, globalsSize, memorySize, 
 		arcObjectMapEnd    = alignSize(arcFuncAddrsOffset + b.arc.funcAddrsSize())
 		arcTextSize        = alignSize(b.textSize)
 		arcTextOffset      = alignSize(arcObjectMapEnd)
-		arcStackSize       = alignSize(minStackSize)
+		arcStackSize       = alignSize(internal.StackLimitOffset + minStackSize)
 		arcStackOffset     = arcTextOffset + arcTextSize
 		arcGlobalsSize     = alignSize(globalsSize)
 		arcDataSize        = alignSize(arcGlobalsSize + memorySize)
