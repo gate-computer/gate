@@ -278,14 +278,14 @@ int main(void)
 	size_t pagemask = info.page_size - 1;
 
 	register void *rax asm("rax") = stack_ptr;
+	register void *rbx asm("rbx") = stack_limit;
 	register uint64_t rbp asm("rbp") = runtime_func_addr(runtime_ptr, init_routine);
 	register uint64_t rsi asm("rsi") = (GATE_LOADER_STACK_SIZE + pagemask) & ~pagemask;
 	register uint64_t r9 asm("r9") = runtime_func_addr(runtime_ptr, &signal_handler);
 	register uint64_t r10 asm("r10") = runtime_func_addr(runtime_ptr, &signal_restorer);
 	register uint64_t r11 asm("r11") = pagemask;
-	register void *r12 asm("r12") = text_ptr + (uintptr_t) info.init_routine;
-	register void *r13 asm("r13") = stack_limit;
 	register void *r14 asm("r14") = memory_ptr;
+	register void *r15 asm("r15") = text_ptr + (uintptr_t) info.init_routine;
 
 	// clang-format off
 
@@ -356,7 +356,7 @@ int main(void)
 		"mov  %%rbp, %%rcx                          \n"
 		"jmp  retpoline                             \n"
 		:
-		: "r"(rax), "r"(rbp), "r"(rsi), "r"(r9), "r"(r10), "r"(r11), "r"(r12), "r"(r13), "r"(r14));
+		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(r9), "r"(r10), "r"(r11), "r"(r14), "r"(r15));
 
 	// clang-format on
 

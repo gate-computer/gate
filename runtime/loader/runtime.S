@@ -142,9 +142,9 @@ runtime_code_begin:
 .globl	runtime_init_no_sandbox
 .type	runtime_init_no_sandbox,@function
 
-// In:  r12 = text address + init routine
-//      r13 = stack limit
+// In:  rbx = stack limit
 //      r14 = memory address
+//      r15 = text address + init routine
 runtime_init:
 	// Unmap loader .text and .rodata sections.
 
@@ -177,17 +177,8 @@ runtime_init:
 	// Fall through to runtime_init_no_sandbox.
 
 runtime_init_no_sandbox:
-	// Initialize reserved registers.
+	// Clear registers used by wag codegen.
 
-	mov	%r13, %rbx			// Stack limit
-	mov	%r12, %r15
-	and	$~0x7f, %r15			// Text base
-	mov	%r12, %rcx			// Init routine address
-
-	// Clear unused registers.
-
-	xor	%eax, %eax			// Result reg when resuming after ABI call
-	xor	%edx, %edx
 	xor	%ebp, %ebp
 	xor	%esi, %esi
 	xor	%edi, %edi
@@ -198,8 +189,12 @@ runtime_init_no_sandbox:
 	xor	%r12d, %r12d
 	xor	%r13d, %r13d
 
-	// Execute wag object ABI init routine using retpoline.
+	// Execute wag object ABI init routine.
 
+	xor	%eax, %eax			// Result reg when resuming after ABI call
+	mov	%r15, %rcx			// Init routine address
+	xor	%edx, %edx			// Zero reg
+	and	$~0x7f, %r15			// Text base
 	jmp	retpoline
 
 .align	16,INT3
@@ -332,13 +327,14 @@ grow_memory:
 	jmp	.Lresume
 
 .align	16,INT3
-.globl	retpoline
-.type	retpoline,@function
 
 .Lresume:
 	lea	16(%r15), %rcx			// wag object ABI resume routine
 
 	// Fall through to retpoline.
+
+.globl	retpoline
+.type	retpoline,@function
 
 // In:  rcx = target address
 retpoline:
