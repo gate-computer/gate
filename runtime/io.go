@@ -181,11 +181,6 @@ func subjectWriteLoop(w *os.File) chan<- packet.Buf {
 	writes := make(chan packet.Buf)
 
 	go func() {
-		defer func() {
-			for range writes {
-			}
-		}()
-
 		defer w.Close()
 
 		for buf := range writes {
