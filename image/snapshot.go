@@ -75,18 +75,27 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 
 	// Stack, globals and memory contents without unused regions or padding.
 	var (
-		exeStackData []byte
-		stackUsage   int
-		globalsData  = exeGlobalsMap[len(exeGlobalsMap)-len(arcMan.GlobalTypes)*8:]
-		newTextAddr  uint64
+		exeStackData   []byte
+		stackUsage     int
+		globalsData    = exeGlobalsMap[len(exeGlobalsMap)-len(arcMan.GlobalTypes)*8:]
+		newTextAddr    uint64
+		newInitRoutine int32
 	)
 
-	if exeStackUnused != 0 {
-		exeStackData = exeStackMap[exeStackUnused:]
-		stackUsage = len(exeStackData)
-		newTextAddr = exe.Man.TextAddr
+	if suspended {
+		if exeStackUnused != 0 {
+			exeStackData = exeStackMap[exeStackUnused:]
+			stackUsage = len(exeStackData)
+			newTextAddr = exe.Man.TextAddr
+		} else {
+			stackUsage = 16 // Return address and entry function argument.
+		}
+
+		newInitRoutine = abi.TextAddrResume
 	} else {
-		stackUsage = 16 // Return address and entry function argument.
+		// New archive reuses old text segment which may invoke start function.
+		// Don't invoke it again.
+		newInitRoutine = abi.TextAddrEnter
 	}
 
 	// New module sections.
@@ -112,10 +121,17 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	off = mapOldSection(off, newRanges, oldRanges, section.Element)
 	off = mapOldSection(off, newRanges, oldRanges, section.Code)
 
-	stackHeader := makeStackSectionHeader(stackUsage)
-	stackSectionSize := len(stackHeader) + stackUsage
-	stackSectionOffset := off
-	off += int64(stackSectionSize)
+	var (
+		stackHeader        []byte
+		stackSectionSize   int
+		stackSectionOffset int64
+	)
+	if suspended {
+		stackHeader = makeStackSectionHeader(stackUsage)
+		stackSectionSize = len(stackHeader) + stackUsage
+		stackSectionOffset = off
+		off += int64(stackSectionSize)
+	}
 
 	dataHeader := makeDataSectionHeader(int(memorySize))
 	dataSectionSize := len(dataHeader) + int(memorySize)
@@ -205,26 +221,33 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	}
 
 	// Write new stack section, and skip old one.
+	var (
+		newStackData []byte
+	)
 
-	newStackSection := make([]byte, len(stackHeader)+stackUsage)
-	copy(newStackSection, stackHeader)
+	if suspended {
+		newStackSection := make([]byte, len(stackHeader)+stackUsage)
+		copy(newStackSection, stackHeader)
 
-	newStackData := newStackSection[len(stackHeader):]
-	if exeStackData != nil {
-		err = exportStack(newStackData, exeStackData, exe.Man.TextAddr, objectMap) // TODO: in-place?
+		newStackData = newStackSection[len(stackHeader):]
+
+		if exeStackData != nil {
+			err = exportStack(newStackData, exeStackData, exe.Man.TextAddr, objectMap) // TODO: in-place?
+			if err != nil {
+				return
+			}
+		} else {
+			// Synthesize portable stack, suspended at virtual call site at index 0.
+			binary.LittleEndian.PutUint32(newStackData[8:], exe.entryIndex)
+		}
+
+		n, err = newFile.WriteAt(newStackSection, newOff)
 		if err != nil {
 			return
 		}
-	} else {
-		// Synthesize portable stack, suspended at virtual call site at index 0.
-		binary.LittleEndian.PutUint32(newStackData[8:], exe.entryIndex)
+		newOff += int64(n)
 	}
 
-	n, err = newFile.WriteAt(newStackSection, newOff)
-	if err != nil {
-		return
-	}
-	newOff += int64(n)
 	oldOff += arcMan.StackSection.Length
 
 	// Copy new data section from executable, and skip old archived one.
@@ -281,38 +304,41 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 		return
 	}
 
-	// Copy stack, globals and memory from executable (again).
+	// Copy stack from executable (again).
 	var (
 		newStackSize = alignSize(stackUsage)
 	)
 
 	newOff = alignSize64(newOff)
-	exeOff = alignSize64(exeStackOffset)
 
-	if exeStackData != nil {
-		copyLen = alignSize(stackUsage)
+	if suspended {
+		if exeStackData != nil {
+			copyLen = alignSize(stackUsage)
 
-		newOff += int64(newStackSize) - int64(copyLen)
-		exeOff += int64(exe.Man.StackSize) - int64(copyLen)
-		err = copyFileRange(exe.file.Fd(), &exeOff, newFile.Fd(), &newOff, copyLen)
-		if err != nil {
-			return
+			newOff += int64(newStackSize) - int64(copyLen)
+			exeOff = alignSize64(exeStackOffset) + int64(exe.Man.StackSize) - int64(copyLen)
+			err = copyFileRange(exe.file.Fd(), &exeOff, newFile.Fd(), &newOff, copyLen)
+			if err != nil {
+				return
+			}
+		} else {
+			// Replace portable index with native address.
+			binary.LittleEndian.PutUint32(newStackData[8:], exe.entryAddr)
+
+			newOff += int64(newStackSize) - int64(stackUsage)
+			n, err = newFile.WriteAt(newStackData, newOff)
+			if err != nil {
+				return
+			}
+			newOff += int64(n)
 		}
-	} else {
-		// Replace portable index with native address.
-		binary.LittleEndian.PutUint32(newStackData[8:], exe.entryAddr)
-
-		newOff += int64(newStackSize) - int64(stackUsage)
-		n, err = newFile.WriteAt(newStackData, newOff)
-		if err != nil {
-			return
-		}
-		newOff += int64(n)
-		exeOff += int64(exe.Man.StackSize)
 	}
+
+	// Copy globals and memory from executable (again).
 
 	copyLen = alignSize(int(exe.Man.GlobalsSize)) + int(memorySize)
 
+	exeOff = alignSize64(exeGlobalsOffset)
 	err = copyFileRange(exe.file.Fd(), &exeOff, newFile.Fd(), &newOff, copyLen)
 	if err != nil {
 		return
@@ -331,7 +357,7 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	arcMan.Exe.StackUsage = uint32(stackUsage)
 	arcMan.Exe.MemoryDataSize = memorySize
 	arcMan.Exe.MemorySize = memorySize
-	arcMan.Exe.InitRoutine = abi.TextAddrResume
+	arcMan.Exe.InitRoutine = newInitRoutine
 
 	// Archive it.
 
