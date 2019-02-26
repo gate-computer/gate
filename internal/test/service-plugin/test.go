@@ -35,7 +35,7 @@ func (testService) ServiceName() string {
 	return ServiceName
 }
 
-func (testService) Instantiate(service.InstanceConfig) service.Instance {
+func (testService) Instantiate(service.InstanceConfig, []byte) service.Instance {
 	log.Print(testConfig.MOTD)
 	return testInstance{}
 }
@@ -49,6 +49,6 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 	}
 }
 
-func (testInstance) Shutdown(context.Context) {}
+func (testInstance) Shutdown(context.Context) []byte { return nil }
 
 func main() {}

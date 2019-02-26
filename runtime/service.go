@@ -17,6 +17,8 @@ const maxServices = 256
 
 const serviceStateAvail uint8 = 0x1
 
+var ErrDuplicateService error = badprogram.Errorf("duplicate service")
+
 // ServiceState is used to respond to a service discovery request.
 type ServiceState struct {
 	flags uint8
@@ -31,6 +33,11 @@ type ServiceConfig struct {
 	MaxPacketSize int
 }
 
+type SuspendedService struct {
+	Name   string
+	Buffer []byte
+}
+
 // ServiceRegistry is a collection of configured services.
 //
 // StartServing is called once for each program instance.  The receive channel
@@ -40,15 +47,17 @@ type ServiceConfig struct {
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
-	StartServing(ctx context.Context, config ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) ServiceDiscoverer
+	StartServing(ctx context.Context, config ServiceConfig, initial []SuspendedService, send chan<- packet.Buf, recv <-chan packet.Buf) (ServiceDiscoverer, []ServiceState, error)
 }
 
 // ServiceDiscoverer is used to look up service availability when responding to
 // a program's service discovery packet.  It modifies the internal state of the
 // ServiceRegistry server.
 type ServiceDiscoverer interface {
-	Discover(newNames []string) (allServices []ServiceState)
+	Discover(newNames []string) (allServices []ServiceState, err error)
 	NumServices() int
+	Suspend() []SuspendedService
+	Close() error
 }
 
 func handleServicesPacket(req packet.Buf, discoverer ServiceDiscoverer) (resp packet.Buf, err error) {
@@ -84,16 +93,22 @@ func handleServicesPacket(req packet.Buf, discoverer ServiceDiscoverer) (resp pa
 		nameBuf = nameBuf[nameLen+1:]
 	}
 
-	services := discoverer.Discover(names)
+	services, err := discoverer.Discover(names)
+	if err != nil {
+		return
+	}
 
-	resp = packet.Make(req.Code(), packet.ServicesHeaderSize+respCount)
+	resp = makeServicesPacket(packet.DomainCall, services)
+	return
+}
+
+func makeServicesPacket(domain packet.Domain, services []ServiceState) (resp packet.Buf) {
+	resp = packet.Make(packet.CodeServices, domain, packet.ServicesHeaderSize+len(services))
 	binary.LittleEndian.PutUint32(resp[packet.OffsetSize:], uint32(len(resp)))
-	binary.LittleEndian.PutUint16(resp[packet.OffsetServicesCount:], uint16(respCount))
+	binary.LittleEndian.PutUint16(resp[packet.OffsetServicesCount:], uint16(len(services)))
 
-	stateBuf := resp[packet.ServicesHeaderSize:]
-
-	for i, service := range services {
-		stateBuf[i] = service.flags
+	for i, s := range services {
+		resp[packet.ServicesHeaderSize+i] = s.flags
 	}
 
 	return

@@ -23,8 +23,39 @@ const (
 
 // IOState of a program.  Contents are empty unless the program is suspended.
 type IOState struct {
-	Input  []byte // Buffered data which the program hasn't received yet.
-	Output []byte // Buffered data which the program has already sent.
+	Input    []byte // Buffered data which the program hasn't received yet.
+	Output   []byte // Buffered data which the program has already sent.
+	Services []SuspendedService
+}
+
+func (io *IOState) popInput() (input []byte) {
+	if io == nil {
+		return
+	}
+
+	input = io.Input
+	io.Input = nil
+	return
+}
+
+func (io *IOState) popOutput() (output []byte) {
+	if io == nil {
+		return
+	}
+
+	output = io.Output
+	io.Output = nil
+	return
+}
+
+func (io *IOState) popServices() (ss []SuspendedService) {
+	if io == nil {
+		return
+	}
+
+	ss = io.Services
+	io.Services = nil
+	return
 }
 
 type read struct {
@@ -35,33 +66,50 @@ type read struct {
 // ioLoop mutates Process and IOState (if any).
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioState *IOState,
 ) (err error) {
+	if ioState == nil {
+		subject.writerOut.Close()
+		subject.writerOut = nil
+	}
+
+	var (
+		suspended = subject.suspended
+		done      = ctx.Done()
+	)
+
 	var (
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
 	)
-	discoverer := services.StartServing(ctx, ServiceConfig{maxPacketSize}, messageInput, messageOutput)
-	defer close(messageOutput)
-
-	var (
-		initialRead []byte
-		pendingMsg  packet.Buf
-		pendingEvs  []packet.Buf
-	)
-	if ioState != nil {
-		pendingMsg, initialRead, err = splitBufferedPackets(ioState.Output, discoverer)
-		if err != nil {
-			return
-		}
-		ioState.Output = nil
-
-		if len(ioState.Input) > 0 {
-			pendingEvs = []packet.Buf{ioState.Input} // No need to split packets.
-		}
-		ioState.Input = nil
-	} else {
-		subject.writerOut.Close()
-		subject.writerOut = nil
+	discoverer, initialServiceState, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, ioState.popServices(), messageInput, messageOutput)
+	if err != nil {
+		return
 	}
+	defer func() {
+		close(messageOutput)
+
+		if ioState != nil && suspended == nil { // Suspended.
+			ioState.Services = discoverer.Suspend()
+		}
+
+		if e := discoverer.Close(); err == nil {
+			err = e
+		}
+	}()
+
+	pendingMsg, initialRead, err := splitBufferedPackets(ioState.popOutput(), discoverer)
+	if err != nil {
+		return
+	}
+
+	var pendingEvs []packet.Buf
+	if ev := ioState.popInput(); len(ev) > 0 {
+		pendingEvs = []packet.Buf{ev} // No need to split packets.
+	}
+
+	if len(initialServiceState) > 0 {
+		pendingEvs = append(pendingEvs, makeServicesPacket(packet.DomainState, initialServiceState))
+	}
+	initialServiceState = nil
 
 	subjectInput := subjectReadLoop(subject.reader, initialRead)
 	defer func() {
@@ -79,10 +127,6 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioS
 		}
 	}()
 
-	var (
-		suspended = subject.suspended
-		done      = ctx.Done()
-	)
 	doSuspend := func() {
 		suspended = nil
 		done = nil

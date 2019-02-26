@@ -249,7 +249,8 @@ type testServiceRegistry struct {
 	origin io.Writer
 }
 
-func (services *testServiceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) runtime.ServiceDiscoverer {
+func (services *testServiceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []runtime.SuspendedService, send chan<- packet.Buf, recv <-chan packet.Buf,
+) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
 	d := new(testServiceDiscoverer)
 
 	go func() {
@@ -279,7 +280,7 @@ func (services *testServiceRegistry) StartServing(ctx context.Context, config ru
 		}
 	}()
 
-	return d
+	return d, nil, nil
 }
 
 type testServiceDiscoverer struct {
@@ -288,7 +289,7 @@ type testServiceDiscoverer struct {
 	names    []string
 }
 
-func (d *testServiceDiscoverer) Discover(names []string) []runtime.ServiceState {
+func (d *testServiceDiscoverer) Discover(names []string) ([]runtime.ServiceState, error) {
 	for _, name := range names {
 		var s runtime.ServiceState
 
@@ -304,9 +305,17 @@ func (d *testServiceDiscoverer) Discover(names []string) []runtime.ServiceState 
 		d.nameLock.Unlock()
 	}
 
-	return d.services
+	return d.services, nil
 }
 
 func (d *testServiceDiscoverer) NumServices() int {
 	return len(d.services)
+}
+
+func (*testServiceDiscoverer) Suspend() []runtime.SuspendedService {
+	return nil
+}
+
+func (*testServiceDiscoverer) Close() error {
+	return nil
 }

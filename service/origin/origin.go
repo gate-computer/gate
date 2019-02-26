@@ -116,7 +116,7 @@ func (cr *Connector) ServiceName() string {
 	return ServiceName
 }
 
-func (cr *Connector) Instantiate(config service.InstanceConfig) service.Instance {
+func (cr *Connector) Instantiate(config service.InstanceConfig, initialState []byte) service.Instance {
 	return &instanceService{
 		handler: instanceHandler{
 			newConns:    cr.newConns,
@@ -144,10 +144,11 @@ func (si *instanceService) Handle(ctx context.Context, replies chan<- packet.Buf
 	}
 }
 
-func (si *instanceService) Shutdown(ctx context.Context) {
+func (si *instanceService) Shutdown(ctx context.Context) (finalState []byte) {
 	if si.requests != nil {
 		close(si.requests)
 	}
+	return
 }
 
 type instanceHandler struct {

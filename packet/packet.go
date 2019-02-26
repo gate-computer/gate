@@ -87,9 +87,10 @@ const (
 // Buf holds a packet.
 type Buf []byte
 
-func Make(code Code, packetSize int) Buf {
+func Make(code Code, domain Domain, packetSize int) Buf {
 	b := Buf(make([]byte, packetSize))
 	binary.LittleEndian.PutUint16(b[OffsetCode:], uint16(code))
+	b[OffsetDomain] = byte(domain)
 	return b
 }
 
@@ -168,8 +169,7 @@ func (b Buf) Split(headerSize, packetSize int) (prefix, unused Buf) {
 type FlowBuf Buf
 
 func MakeFlows(code Code, count int) FlowBuf {
-	b := Make(code, FlowHeaderSize+count*flowSize)
-	b[OffsetDomain] = uint8(DomainFlow)
+	b := Make(code, DomainFlow, FlowHeaderSize+count*flowSize)
 	return FlowBuf(b)
 }
 
@@ -206,8 +206,7 @@ func (b FlowBuf) string() (s string) {
 type DataBuf Buf
 
 func MakeData(code Code, id int32, dataSize int) DataBuf {
-	b := Make(code, DataHeaderSize+dataSize)
-	b[OffsetDomain] = uint8(DomainData)
+	b := Make(code, DomainData, DataHeaderSize+dataSize)
 	binary.LittleEndian.PutUint32(b[OffsetDataID:], uint32(id))
 	return DataBuf(b)
 }

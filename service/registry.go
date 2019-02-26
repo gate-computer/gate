@@ -29,7 +29,7 @@ type InstanceConfig struct {
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
 	Handle(ctx context.Context, send chan<- packet.Buf, in packet.Buf)
-	Shutdown(ctx context.Context)
+	Shutdown(ctx context.Context) (finalState []byte)
 }
 
 // Factory creates instances of a particular service implementation.
@@ -38,7 +38,7 @@ type Instance interface {
 // naming conventions.
 type Factory interface {
 	ServiceName() string
-	Instantiate(InstanceConfig) Instance
+	Instantiate(config InstanceConfig, initialState []byte) Instance
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
@@ -91,26 +91,56 @@ func (r *Registry) lookup(name string) (result Factory) {
 }
 
 // StartServing implements the runtime.ServiceRegistry interface function.
-func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, send chan<- packet.Buf, recv <-chan packet.Buf) runtime.ServiceDiscoverer {
+func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []runtime.SuspendedService, send chan<- packet.Buf, recv <-chan packet.Buf,
+) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),
+		stopped:    make(chan []runtime.SuspendedService, 1),
+		services:   make([]serviceState, len(initial)),
 	}
-	go serve(ctx, serviceConfig, r, d, send, recv)
-	return d
+
+	for i, is := range initial {
+		d.services[i].SuspendedService = is
+
+		if f := d.registry.lookup(is.Name); f != nil {
+			if _, dupe := d.discovered[f]; dupe {
+				return nil, nil, runtime.ErrDuplicateService
+			}
+
+			d.discovered[f] = struct{}{}
+			d.services[i].factory = f
+		}
+	}
+
+	instances := make(map[packet.Code]Instance)
+	states := make([]runtime.ServiceState, len(initial))
+
+	for i, s := range d.services {
+		if s.factory != nil {
+			code := packet.Code(i)
+			instances[code] = s.factory.Instantiate(InstanceConfig{serviceConfig, code}, s.Buffer)
+			s.Buffer = nil
+
+			states[i].SetAvail()
+		}
+	}
+
+	go serve(ctx, serviceConfig, r, d, instances, send, recv)
+
+	return d, states, nil
 }
 
-func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, send chan<- packet.Buf, recv <-chan packet.Buf) {
-	instances := make(map[packet.Code]Instance)
-	defer shutdown(ctx, instances)
+func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) {
+	defer d.shutdown(ctx, instances)
 
 	for op := range recv {
 		code := op.Code()
 
 		inst, found := instances[code]
 		if !found {
-			if f := d.getFactories()[code]; f != nil {
-				inst = f.Instantiate(InstanceConfig{serviceConfig, code})
+			if s := d.getServices()[code]; s.factory != nil {
+				inst = s.factory.Instantiate(InstanceConfig{serviceConfig, code}, nil)
 			}
 			instances[code] = inst
 		}
@@ -123,73 +153,96 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 	}
 }
 
-func shutdown(ctx context.Context, instances map[packet.Code]Instance) {
-	// Actual shutdown of a service should have began when the context was
-	// canceled, so these Shutdown calls only need to wait for completion.
-	for _, inst := range instances {
-		if inst != nil {
-			inst.Shutdown(ctx)
-		}
-	}
+type serviceState struct {
+	runtime.SuspendedService
+	factory Factory
 }
 
 type discoverer struct {
-	registry    *Registry
-	discovered  map[Factory]struct{}
-	services    []runtime.ServiceState
-	factoryLock sync.Mutex
-	factories   []Factory
+	registry   *Registry
+	discovered map[Factory]struct{}
+	stopped    chan []runtime.SuspendedService
+	lock       sync.Mutex
+	services   []serviceState
 }
 
-func (d *discoverer) Discover(newNames []string) []runtime.ServiceState {
+func (d *discoverer) getServices() []serviceState {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+
+	return d.services
+}
+
+func (d *discoverer) setServices(services []serviceState) {
+	d.lock.Lock()
+	defer d.lock.Unlock()
+
+	d.services = services
+}
+
+func (d *discoverer) Discover(newNames []string) (states []runtime.ServiceState, err error) {
 	oldCount := len(d.services)
 	newCount := oldCount + len(newNames)
 
-	if cap(d.services) < newCount {
-		newServices := make([]runtime.ServiceState, oldCount, newCount)
-		copy(newServices, d.services)
-		d.services = newServices
-	}
-
-	newFactories := make([]Factory, oldCount, newCount)
-	copy(newFactories, d.factories)
+	newServices := make([]serviceState, oldCount, newCount)
+	copy(newServices, d.services)
 
 	for _, name := range newNames {
-		var s runtime.ServiceState
+		var s serviceState
 
-		f := d.registry.lookup(name)
-		if f != nil {
+		if f := d.registry.lookup(name); f != nil {
 			if _, dupe := d.discovered[f]; dupe {
-				f = nil
-			} else {
-				d.discovered[f] = struct{}{}
-				s.SetAvail()
+				err = runtime.ErrDuplicateService
+				return
 			}
+
+			d.discovered[f] = struct{}{}
+			s.factory = f
 		}
 
-		newFactories = append(newFactories, f)
-		d.services = append(d.services, s)
+		newServices = append(newServices, s)
 	}
 
-	d.setFactories(newFactories)
+	d.setServices(newServices)
 
-	return d.services
+	states = make([]runtime.ServiceState, len(newServices))
+	for i, s := range newServices {
+		if s.factory != nil {
+			states[i].SetAvail()
+		}
+	}
+	return
 }
 
 func (d *discoverer) NumServices() int {
 	return len(d.services)
 }
 
-func (d *discoverer) getFactories() []Factory {
-	d.factoryLock.Lock()
-	defer d.factoryLock.Unlock()
+func (d *discoverer) shutdown(ctx context.Context, instances map[packet.Code]Instance) {
+	// Actual shutdown of a service should have began when the context was
+	// canceled, so these Shutdown calls only need to wait for completion.
 
-	return d.factories
+	final := make([]runtime.SuspendedService, len(d.services))
+
+	for i, s := range d.services {
+		final[i] = s.SuspendedService
+	}
+
+	for code, inst := range instances {
+		if inst != nil {
+			if b := inst.Shutdown(ctx); len(b) > 0 {
+				final[code].Buffer = b
+			}
+		}
+	}
+
+	d.stopped <- final
 }
 
-func (d *discoverer) setFactories(factories []Factory) {
-	d.factoryLock.Lock()
-	defer d.factoryLock.Unlock()
+func (d *discoverer) Suspend() []runtime.SuspendedService {
+	return <-d.stopped
+}
 
-	d.factories = factories
+func (d *discoverer) Close() error {
+	return nil
 }
