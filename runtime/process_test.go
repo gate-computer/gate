@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package manifest
+package runtime
 
 import (
-	internal "github.com/tsavola/gate/internal/manifest"
+	"testing"
+	"unsafe"
 )
 
-type ByteRange = internal.ByteRange
-type Archive = internal.Archive
+func TestImageInfo(*testing.T) {
+	var x imageInfo
+
+	if unsafe.Sizeof(x) != imageInfoSize {
+		panic("imageInfo size mismatch")
+	}
+}

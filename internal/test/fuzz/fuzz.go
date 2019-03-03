@@ -22,7 +22,7 @@ func init() {
 		Max: 100000,
 	}
 
-	if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, limit); err != nil {
+	if err := setrlimit(syscall.RLIMIT_NOFILE, limit); err != nil {
 		panic(err)
 	}
 }

@@ -49,13 +49,13 @@ type Event interface {
 }
 
 type Config struct {
-	InstanceStore  image.BackingStore
-	ProgramStorage image.LocalStorage
-	Executor       *runtime.Executor
-	AccessPolicy   AccessAuthorizer
-	PreforkProcs   int
-	Monitor        func(Event, error)
-	Debug          io.Writer
+	ProgramStorage  image.ProgramStorage
+	InstanceStorage image.InstanceStorage
+	Executor        *runtime.Executor
+	AccessPolicy    AccessAuthorizer
+	PreforkProcs    int
+	Monitor         func(Event, error)
+	Debug           io.Writer
 }
 
 func (c *Config) Configured() bool {

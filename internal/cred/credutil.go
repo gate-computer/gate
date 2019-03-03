@@ -11,7 +11,6 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 const (
@@ -98,7 +97,7 @@ func Parse(contUID, contGID, execUID, execGID uint,
 		if contUID == 0 || execUID == 0 {
 			m := subIDMap{
 				filename: subUIDFilename,
-				reserved: []uint{uint(syscall.Getuid()), contUID, execUID},
+				reserved: []uint{getuid(), contUID, execUID},
 			}
 
 			err = m.parse(u.Username)
@@ -124,7 +123,7 @@ func Parse(contUID, contGID, execUID, execGID uint,
 		if contGID == 0 || execGID == 0 {
 			m := subIDMap{
 				filename: subGIDFilename,
-				reserved: []uint{uint(syscall.Getgid()), contGID, execGID},
+				reserved: []uint{getgid(), contGID, execGID},
 			}
 
 			err = m.parse(u.Username)

@@ -82,15 +82,14 @@ func (a Instances) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a Instances) Less(i, j int) bool { return a[i].Instance < a[j].Instance }
 
 type Instance struct {
-	stopped  chan struct{}       // Set in Instance.newInstance
-	ref      image.ExecutableRef // Set in Instance.newInstance
-	process  *runtime.Process    // Set in Instance.newInstance
-	exe      *image.Executable   // Set in Server.CreateInstance or Server.loadModuleInstance
-	acc      *account            // Set in Server.newInstance
-	services InstanceServices    // Set in Server.newInstance
-	id       string              // Set in Server.newInstance or Instance.refProgram
-	prog     *program            // Set in Instance.refProgram
-	function string              // Set in Instance.refProgram
+	stopped  chan struct{}    // Set in Instance.newInstance
+	process  *runtime.Process // Set in Instance.newInstance
+	image    *image.Instance  // Set in Server.CreateInstance or Server.loadModuleInstance
+	acc      *account         // Set in Server.newInstance
+	services InstanceServices // Set in Server.newInstance
+	id       string           // Set in Server.newInstance or Instance.refProgram
+	prog     *program         // Set in Instance.refProgram
+	function string           // Set in Instance.refProgram
 
 	ioState runtime.IOState // Must not be accessed during Instance.Run.
 
@@ -99,24 +98,13 @@ type Instance struct {
 }
 
 func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
-	ref, err := image.NewExecutableRef(s.InstanceStore)
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			ref.Close()
-		}
-	}()
-
-	proc, err := runtime.NewProcess(ctx, s.Executor, ref, s.Debug)
+	proc, err := runtime.NewProcess(ctx, s.Executor, s.Debug)
 	if err != nil {
 		return
 	}
 
 	inst = &Instance{
 		stopped: make(chan struct{}),
-		ref:     ref,
 		process: proc,
 	}
 	return
@@ -153,19 +141,13 @@ func (inst *Instance) Status() Status {
 }
 
 // Close instance.
-func (inst *Instance) Close() (err error) {
-	err = inst.ref.Close()
-	inst.ref = nil
-
-	if inst.exe != nil {
-		err = inst.exe.Close()
-		inst.exe = nil
+func (inst *Instance) Close() error {
+	if inst.image != nil {
+		inst.image.Close()
+		inst.image = nil
 	}
 
-	if killErr := inst.kill(); err == nil {
-		err = killErr
-	}
-	return
+	return inst.kill()
 }
 
 // kill execution.
@@ -225,10 +207,10 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 			result.State = serverapi.Status_terminated
 			result.Cause = serverapi.Status_abi_violation
 
-			reportProgramError(ctx, s, inst.acc, inst.prog.hash, inst.function, inst.id, err)
+			reportProgramError(ctx, s, inst.acc, inst.prog.key, inst.function, inst.id, err)
 
 		default:
-			reportInternalError(ctx, s, inst.acc, inst.prog.hash, inst.function, inst.id, "service io", err)
+			reportInternalError(ctx, s, inst.acc, inst.prog.key, inst.function, inst.id, "service io", err)
 		}
 
 		return

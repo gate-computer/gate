@@ -6,25 +6,18 @@ package file
 
 import (
 	"log"
-	"os"
 	"runtime"
 	"sync/atomic"
 )
 
-type OpaqueRef interface {
-	Close() error
-	ref() // Can only be implemented in this package.
-}
-
 type Ref struct {
-	*os.File
-
+	File
 	refCount int32 // Atomic
 }
 
-func NewRef(f *os.File) *Ref {
+func NewRef(fd int) *Ref {
 	ref := &Ref{
-		File:     f,
+		File:     File{fd},
 		refCount: 1,
 	}
 	runtime.SetFinalizer(ref, finalizeRef)
@@ -35,15 +28,9 @@ func finalizeRef(ref *Ref) {
 	if ref.refCount != 0 {
 		log.Printf("unreachable file with reference count %d", ref.refCount)
 		if ref.refCount > 0 {
-			ref.cleanup()
+			ref.File.Close()
 		}
 	}
-}
-
-func (ref *Ref) cleanup() (err error) {
-	err = ref.File.Close()
-	ref.File = nil
-	return
 }
 
 // Ref increments reference count.
@@ -57,7 +44,7 @@ func (ref *Ref) Ref() *Ref {
 func (ref *Ref) Close() (err error) {
 	switch n := atomic.AddInt32(&ref.refCount, -1); {
 	case n == 0:
-		err = ref.cleanup()
+		err = ref.File.Close()
 
 	case n < 0:
 		panic("file reference count is negative")
@@ -65,5 +52,3 @@ func (ref *Ref) Close() (err error) {
 
 	return
 }
-
-func (*Ref) ref() {}

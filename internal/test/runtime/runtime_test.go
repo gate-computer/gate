@@ -2,11 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package runtime_test
+package runtime
 
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"sync"
@@ -35,14 +37,14 @@ const (
 )
 
 var (
-	testProgNop        = runtimeutil.MustReadFile("../testdata/nop.wasm")
-	testProgHello      = runtimeutil.MustReadFile("../testdata/hello.wasm")
-	testProgHelloDebug = runtimeutil.MustReadFile("../testdata/hello-debug.wasm")
-	testProgSuspend    = runtimeutil.MustReadFile("../testdata/suspend.wasm")
+	testProgNop        = runtimeutil.MustReadFile("../../../testdata/nop.wasm")
+	testProgHello      = runtimeutil.MustReadFile("../../../testdata/hello.wasm")
+	testProgHelloDebug = runtimeutil.MustReadFile("../../../testdata/hello-debug.wasm")
+	testProgSuspend    = runtimeutil.MustReadFile("../../../testdata/suspend.wasm")
 )
 
-func prepareTest(exec *runtimeutil.Executor, arcBack image.LocalStorage, exeBack image.BackingStore, r compile.Reader, arcModuleSize int, codeMap *object.CallMap,
-) (mod compile.Module, ref image.ExecutableRef, build *image.Build) {
+func prepareTest(exec *runtimeutil.Executor, progStorage image.ProgramStorage, instStorage image.InstanceStorage, r compile.Reader, moduleSize int, codeMap *object.CallMap,
+) (mod compile.Module, build *image.Build) {
 	mod, err := compile.LoadInitialSections(nil, r)
 	if err != nil {
 		panic(err)
@@ -52,12 +54,7 @@ func prepareTest(exec *runtimeutil.Executor, arcBack image.LocalStorage, exeBack
 		panic(err)
 	}
 
-	ref, err = image.NewExecutableRef(exeBack)
-	if err != nil {
-		panic(err)
-	}
-
-	build, err = image.NewBuild(arcBack, exeBack, ref, arcModuleSize, testMaxTextSize, codeMap)
+	build, err = image.NewBuild(progStorage, instStorage, moduleSize, testMaxTextSize, codeMap)
 	if err != nil {
 		panic(err)
 	}
@@ -65,18 +62,18 @@ func prepareTest(exec *runtimeutil.Executor, arcBack image.LocalStorage, exeBack
 	return
 }
 
-func buildTest(exec *runtimeutil.Executor, arcKey string, arcBack image.LocalStorage, exeBack image.BackingStore, objectMapper compile.ObjectMapper, codeMap *object.CallMap, r compile.Reader, moduleSize int, function string,
-) (arc image.LocalArchive, exe *image.Executable, mod compile.Module) {
-	mod, ref, build := prepareTest(exec, arcBack, exeBack, r, moduleSize, codeMap)
+func buildTest(exec *runtimeutil.Executor, progStorage image.ProgramStorage, instStorage image.InstanceStorage, objectMapper compile.ObjectMapper, codeMap *object.CallMap, r compile.Reader, moduleSize int, function string,
+) (prog *image.Program, inst *image.Instance, mod compile.Module) {
+	mod, build := prepareTest(exec, progStorage, instStorage, r, moduleSize, codeMap)
 	defer build.Close()
-	defer ref.Close()
 
 	var codeConfig = &compile.CodeConfig{
 		Text:   build.TextBuffer(),
 		Mapper: objectMapper,
 	}
 
-	if err := compile.LoadCodeSection(codeConfig, r, mod); err != nil {
+	err := compile.LoadCodeSection(codeConfig, r, mod)
+	if err != nil {
 		panic(err)
 	}
 
@@ -87,13 +84,8 @@ func buildTest(exec *runtimeutil.Executor, arcKey string, arcBack image.LocalSto
 		maxMemorySize = testMaxMemorySize
 	}
 
-	if err := build.FinishText(0, testStackSize, mod.GlobalsSize(), mod.InitialMemorySize(), maxMemorySize); err != nil {
-		panic(err)
-	}
-
 	var entryIndex uint32
 	var entryAddr uint32
-	var err error
 
 	if function != "" {
 		entryIndex, err = entry.ModuleFuncIndex(mod, function)
@@ -104,7 +96,9 @@ func buildTest(exec *runtimeutil.Executor, arcKey string, arcBack image.LocalSto
 		entryAddr = codeMap.FuncAddrs[entryIndex]
 	}
 
-	build.SetupEntryStackFrame(entryIndex, entryAddr)
+	if err := build.FinishText(testStackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize(), maxMemorySize); err != nil {
+		panic(err)
+	}
 
 	var dataConfig = &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
@@ -115,7 +109,12 @@ func buildTest(exec *runtimeutil.Executor, arcKey string, arcBack image.LocalSto
 		panic(err)
 	}
 
-	arc, exe, err = build.FinishArchiveExecutable(arcKey, image.SectionMap{}, nil, nil, nil)
+	prog, err = build.FinishProgram(image.SectionMap{}, nil, nil, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	inst, err = build.FinishInstance(entryIndex, entryAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -123,42 +122,57 @@ func buildTest(exec *runtimeutil.Executor, arcKey string, arcBack image.LocalSto
 	return
 }
 
-func startTest(ctx context.Context, t *testing.T, prog []byte, function string, debugOut io.Writer,
-) (*runtimeutil.Executor, *image.Executable, *runtime.Process, debug.InsnMap, compile.Module) {
-	executor := runtimeutil.NewExecutor(ctx, &runtime.Config{LibDir: "../lib/gate/runtime"})
+func startTest(ctx context.Context, t *testing.T, wasm []byte, function string, debugOut io.Writer,
+) (*runtimeutil.Executor, *image.Program, *image.Instance, *runtime.Process, debug.InsnMap, compile.Module) {
+	var err error
+
+	executor := runtimeutil.NewExecutor(ctx, &runtime.Config{LibDir: "../../../lib/gate/runtime"})
+	defer func() {
+		if err != nil {
+			executor.Close()
+		}
+	}()
 
 	var codeMap debug.InsnMap
 
-	arc, exe, mod := buildTest(executor, "", image.Memory, image.Memory, &codeMap, &codeMap.CallMap, codeMap.Reader(bytes.NewReader(prog)), len(prog), function)
-	arc.Close()
+	prog, inst, mod := buildTest(executor, image.Memory, image.Memory, &codeMap, &codeMap.CallMap, codeMap.Reader(bytes.NewReader(wasm)), len(wasm), function)
+	defer func() {
+		if err != nil {
+			prog.Close()
+			inst.Close()
+		}
+	}()
 
-	ref := exe.Ref()
-	defer ref.Close()
-
-	proc, err := runtime.NewProcess(ctx, executor.Executor, ref, debugOut)
+	err = prog.Store(fmt.Sprint(crc32.ChecksumIEEE(wasm)))
 	if err != nil {
-		exe.Close()
-		executor.Close()
 		t.Fatal(err)
 	}
 
-	err = proc.Start(exe)
+	proc, err := runtime.NewProcess(ctx, executor.Executor, debugOut)
 	if err != nil {
-		proc.Kill()
-		exe.Close()
-		executor.Close()
+		t.Fatal(err)
+	}
+	defer func() {
+		if err != nil {
+			proc.Kill()
+		}
+	}()
+
+	err = proc.Start(prog, inst)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	return executor, exe, proc, codeMap, mod
+	return executor, prog, inst, proc, codeMap, mod
 }
 
-func runTest(t *testing.T, prog []byte, function string, debug io.Writer) (output bytes.Buffer) {
+func runTest(t *testing.T, wasm []byte, function string, debug io.Writer) (output bytes.Buffer) {
 	ctx := context.Background()
 
-	executor, exe, proc, _, _ := startTest(ctx, t, prog, function, debug)
+	executor, prog, inst, proc, _, _ := startTest(ctx, t, wasm, function, debug)
 	defer proc.Kill()
-	defer exe.Close()
+	defer inst.Close()
+	defer prog.Close()
 	defer executor.Close()
 
 	exit, trapID, err := proc.Serve(ctx, &testServiceRegistry{origin: &output}, nil)
@@ -212,9 +226,10 @@ func TestRunHelloDebugNoDebug(t *testing.T) {
 func TestRunSuspend(t *testing.T) {
 	ctx := context.Background()
 
-	executor, exe, proc, codeMap, mod := startTest(ctx, t, testProgSuspend, "main", os.Stdout)
+	executor, prog, inst, proc, codeMap, mod := startTest(ctx, t, testProgSuspend, "main", os.Stdout)
 	defer proc.Kill()
-	defer exe.Close()
+	defer inst.Close()
+	defer prog.Close()
 	defer executor.Close()
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
@@ -229,12 +244,12 @@ func TestRunSuspend(t *testing.T) {
 		t.Errorf("run %v", trapID)
 	}
 
-	if err := exe.CheckTermination(); err != nil {
-		t.Errorf("termination: %v", err)
+	if err := inst.CheckMutation(); err != nil {
+		t.Errorf("instance state: %v", err)
 	}
 
 	if false {
-		trace, err := exe.Stacktrace(codeMap, mod.FuncTypes())
+		trace, err := inst.Stacktrace(codeMap, mod.FuncTypes())
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -61,11 +61,11 @@ func New(ctx context.Context, config *Config) *Server {
 	if config != nil {
 		s.Config = *config
 	}
-	if s.InstanceStore == nil {
-		s.InstanceStore = image.Memory
-	}
 	if s.ProgramStorage == nil {
 		s.ProgramStorage = image.Memory
+	}
+	if s.InstanceStorage == nil {
+		s.InstanceStorage = image.Memory
 	}
 	if s.PreforkProcs == 0 {
 		s.PreforkProcs = DefaultPreforkProcs
@@ -143,7 +143,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 
 func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader,
 ) (found bool, err error) {
-	prog, found := s.refProgram(allegedHash)
+	prog, found := s.refProgram(ctx, allegedHash)
 	if !found {
 		return
 	}
@@ -158,7 +158,7 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 		return
 	}
 
-	if prog.man.Exe.TextSize > uint32(pol.prog.MaxTextSize) {
+	if prog.Manifest().TextSize > uint32(pol.prog.MaxTextSize) {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
@@ -167,14 +167,14 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 
 	s.Monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
-		Module: prog.hash,
+		Module: prog.key,
 	}, nil)
 	return
 }
 
 func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
 ) (err error) {
-	_, prog, err := buildProgram(nil, nil, nil, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, "")
+	prog, _, err := buildProgram(&pol.prog, s.ProgramStorage, nil, nil, allegedHash, content, contentSize, "")
 	if err != nil {
 		return
 	}
@@ -184,13 +184,13 @@ func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *pro
 	if redundant {
 		s.Monitor(&event.ModuleUploadExist{
 			Ctx:      accountContext(ctx, acc),
-			Module:   prog.hash,
+			Module:   prog.key,
 			Compiled: true,
 		}, nil)
 	} else {
 		s.Monitor(&event.ModuleUploadNew{
 			Ctx:    accountContext(ctx, acc),
-			Module: prog.hash,
+			Module: prog.key,
 		}, nil)
 	}
 	return
@@ -243,12 +243,12 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		}
 	}()
 
-	inst.exe, err = image.NewExecutable(s.InstanceStore, inst.ref, prog.archive, pol.inst.StackSize, entryIndex, entryAddr)
+	inst.image, err = image.NewInstance(s.InstanceStorage, prog.Program, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
 
-	err = inst.process.Start(inst.exe)
+	err = inst.process.Start(prog.Program, inst.image)
 	if err != nil {
 		return
 	}
@@ -263,7 +263,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 	s.Monitor(&event.InstanceCreateLocal{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-		Module:   prog.hash,
+		Module:   prog.key,
 	}, nil)
 	return
 }
@@ -331,7 +331,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, so
 		return
 	}
 
-	progHash = inst.prog.hash
+	progHash = inst.prog.key
 	return
 }
 
@@ -396,7 +396,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	prog, found := s.refProgram(allegedHash)
+	prog, found := s.refProgram(ctx, allegedHash)
 	if !found {
 		return
 	}
@@ -406,12 +406,12 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		}
 	}()
 
-	err = validateHashContent(prog.hash, content)
+	err = validateHashContent(prog.key, content)
 	if err != nil {
 		return
 	}
 
-	if prog.man.Exe.TextSize > uint32(pol.prog.MaxTextSize) {
+	if prog.Manifest().TextSize > uint32(pol.prog.MaxTextSize) {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
@@ -423,12 +423,12 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 		return
 	}
 
-	inst.exe, err = image.NewExecutable(s.InstanceStore, inst.ref, prog.archive, pol.inst.StackSize, entryIndex, entryAddr)
+	inst.image, err = image.NewInstance(s.InstanceStorage, prog.Program, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
 
-	err = inst.process.Start(inst.exe)
+	err = inst.process.Start(prog.Program, inst.image)
 	if err != nil {
 		return
 	}
@@ -440,13 +440,13 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, inst
 
 	s.Monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
-		Module: prog.hash,
+		Module: prog.key,
 	}, nil)
 
 	s.Monitor(&event.InstanceCreateLocal{
 		Ctx:      accountContext(ctx, acc),
 		Instance: inst.id,
-		Module:   prog.hash,
+		Module:   prog.key,
 	}, nil)
 	return
 }
@@ -455,7 +455,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 ) (err error) {
 	var prog *program
 
-	inst.exe, prog, err = buildProgram(s.InstanceStore, inst.ref, &pol.inst, &pol.prog, s.ProgramStorage, allegedHash, content, contentSize, function)
+	prog, inst.image, err = buildProgram(&pol.prog, s.ProgramStorage, &pol.inst, s.InstanceStorage, allegedHash, content, contentSize, function)
 	if err != nil {
 		return
 	}
@@ -465,7 +465,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 		}
 	}()
 
-	err = inst.process.Start(inst.exe)
+	err = inst.process.Start(prog.Program, inst.image)
 	if err != nil {
 		return
 	}
@@ -479,27 +479,27 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 		if redundant {
 			s.Monitor(&event.ModuleUploadExist{
 				Ctx:      accountContext(ctx, acc),
-				Module:   prog.hash,
+				Module:   prog.key,
 				Compiled: true,
 			}, nil)
 		} else {
 			s.Monitor(&event.ModuleUploadNew{
 				Ctx:    accountContext(ctx, acc),
-				Module: prog.hash,
+				Module: prog.key,
 			}, nil)
 		}
 	} else {
 		if redundant {
 			s.Monitor(&event.ModuleSourceExist{
 				Ctx:    accountContext(ctx, acc),
-				Module: prog.hash,
+				Module: prog.key,
 				// TODO: source URI
 				Compiled: true,
 			}, nil)
 		} else {
 			s.Monitor(&event.ModuleSourceNew{
 				Ctx:    accountContext(ctx, acc),
-				Module: prog.hash,
+				Module: prog.key,
 				// TODO: source URI
 			}, nil)
 		}
@@ -508,7 +508,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, in
 	s.Monitor(&event.InstanceCreateStream{
 		Ctx:      accountContext(ctx, acc),
 		Instance: inst.id,
-		Module:   prog.hash,
+		Module:   prog.key,
 	}, nil)
 	return
 }
@@ -531,8 +531,8 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 		refs := make(ModuleRefs, 0, len(acc.programRefs))
 		for prog := range acc.programRefs {
 			refs = append(refs, ModuleRef{
-				Key:       prog.hash,
-				Suspended: prog.man.Exe.InitRoutine == objectabi.TextAddrResume,
+				Key:       prog.key,
+				Suspended: prog.Manifest().InitRoutine == objectabi.TextAddrResume,
 			})
 		}
 
@@ -545,8 +545,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 	return
 }
 
-// ModuleContent for downloading.  The caller must call ModuleLoad.Close when
-// it's done downloading.
+// ModuleContent for downloading.
 func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash string,
 ) (content io.ReadCloser, length int64, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
@@ -559,46 +558,29 @@ func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash stri
 		err = resourcenotfound.ErrModule
 		return
 	}
-	defer func() {
-		if err != nil {
-			s.unrefProgram(prog)
-		}
-	}()
-
-	length = prog.archive.Manifest().ModuleSize
-
-	load, err := prog.archive.Load(ctx)
-	if err != nil {
-		return
-	}
 
 	content = moduleContent{
-		Reader: &io.LimitedReader{
-			R: load.Module.Reader(),
-			N: length,
-		},
-
-		close: func() error {
+		Reader: prog.NewModuleReader(),
+		done: func() {
 			defer s.unrefProgram(prog)
-
 			s.Monitor(&event.ModuleDownload{
 				Ctx:    Context(ctx, pri),
-				Module: prog.hash,
+				Module: prog.key,
 			}, nil)
-
-			return load.Close()
 		},
 	}
+	length = prog.ModuleSize()
 	return
 }
 
 type moduleContent struct {
 	io.Reader
-	close func() error
+	done func()
 }
 
-func (x moduleContent) Close() error {
-	return x.close()
+func (mc moduleContent) Close() (err error) {
+	mc.done()
+	return
 }
 
 func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string) (err error) {
@@ -637,7 +619,7 @@ func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string
 	}
 
 	if final {
-		prog.cleanup()
+		prog.Close()
 	}
 
 	s.Monitor(&event.ModuleUnref{
@@ -812,12 +794,29 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 		return
 	}
 
-	moduleKey, archive, err := image.Snapshot(s.ProgramStorage, prog.archive, inst.exe, suspended)
+	newImage, err := image.Snapshot(s.ProgramStorage, prog.Program, inst.image, suspended)
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err != nil {
+			newImage.Close()
+		}
+	}()
+
+	h := newHash()
+	_, err = io.Copy(h, newImage.NewModuleReader())
+	if err != nil {
+		return
+	}
+	moduleKey = hashEncoding.EncodeToString(h.Sum(nil))
+
+	err = newImage.Store(moduleKey)
 	if err != nil {
 		return
 	}
 
-	s.registerProgramRef(inst.acc, newProgram(moduleKey, archive, prog.codeMap))
+	s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage))
 
 	s.Monitor(&event.InstanceSnapshot{
 		Ctx:      Context(ctx, pri),
@@ -877,14 +876,35 @@ func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account) {
 	return
 }
 
-func (s *Server) refProgram(hash string) (prog *program, found bool) {
+func (s *Server) refProgram(ctx context.Context, hash string) (prog *program, found bool) {
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	prog, found = s.programs[hash]
 	if found {
 		prog.ref()
 	}
+	s.lock.Unlock()
+	if found {
+		return
+	}
+
+	progImage, err := s.ProgramStorage.LoadProgram(hash)
+	if err != nil {
+		s.Monitor(&event.FailInternal{
+			Ctx:    Context(ctx, nil),
+			Module: hash,
+		}, err)
+		return
+	}
+	if progImage == nil {
+		return
+	}
+
+	prog = newProgram(hash, progImage)
+	s.lock.Lock()
+	prog, _ = s.mergeProgramRef(prog)
+	prog.ref()
+	s.lock.Unlock()
+	found = true
 	return
 }
 
@@ -895,7 +915,7 @@ func (s *Server) unrefProgram(prog *program) {
 
 		return prog.unref()
 	}() {
-		prog.cleanup()
+		prog.Close()
 	}
 }
 
@@ -1067,9 +1087,9 @@ func (s *Server) registerProgramRefInstance(acc *account, prog *program, inst *I
 // mergeProgramRef must be called with Server.lock held.  The returned program
 // pointer is valid until the end of the critical section.
 func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant bool) {
-	switch existing := s.programs[prog.hash]; existing {
+	switch existing := s.programs[prog.key]; existing {
 	case nil:
-		s.programs[prog.hash] = prog // Pass reference to map.
+		s.programs[prog.key] = prog // Pass reference to map.
 		return prog, false
 
 	case prog:
@@ -1078,7 +1098,7 @@ func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant b
 
 	default:
 		if prog.unref() { // Drop reference to replaced object.
-			prog.cleanup()
+			prog.Close()
 		}
 		return existing, true
 	}

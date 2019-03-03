@@ -48,7 +48,7 @@ check: lib bin
 	$(GO) test $(GOTESTFLAGS) ./...
 
 benchmark: lib bin
-	$(GO) test -run=^$$ -bench=.* -v ./... | tee bench-new.txt
+	$(GO) test -run=^$$ -bench=.* $(GOBENCHFLAGS) ./... | tee bench-new.txt
 	[ ! -e bench-old.txt ] || benchcmp bench-old.txt bench-new.txt
 
 install-lib:

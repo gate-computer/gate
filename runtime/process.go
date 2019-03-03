@@ -5,9 +5,11 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,12 +18,17 @@ import (
 	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/trap"
 )
 
+const imageInfoSize = 64
+
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
-	MagicNumber1   uint32
+	MagicNumber1   uint16
+	DebugFlag      uint8
+	InitRoutine    uint8
 	PageSize       uint32
 	TextAddr       uint64
 	StackAddr      uint64
@@ -32,24 +39,26 @@ type imageInfo struct {
 	GlobalsSize    uint32
 	InitMemorySize uint32
 	GrowMemorySize uint32
-	InitRoutine    uint16
-	DebugFlag      uint16
+	EntryAddr      uint32
 	MagicNumber2   uint32
 }
 
-type ExecutableRef = file.OpaqueRef
+type ProgramCode interface {
+	PageSize() int
+	TextSize() int
+	Text() (interface{ Fd() uintptr }, error)
+}
 
-type Executable interface {
-	PageSize() uint32
+type ProgramState interface {
 	TextAddr() uint64
-	SetTextAddr(uint64)
-	TextSize() uint32
-	StackSize() uint32
-	StackUsage() uint32
-	GlobalsSize() uint32
-	MemorySize() uint32
-	MaxMemorySize() uint32
-	InitRoutine() uint16
+	StackSize() int
+	StackUsage() int
+	GlobalsSize() int
+	MemorySize() int
+	MaxMemorySize() int
+	InitRoutine() uint8
+	EntryAddr() uint32
+	BeginMutation(textAddr uint64) (interface{ Fd() uintptr }, error)
 }
 
 // Process is used to execute a single program image once.
@@ -62,21 +71,18 @@ type Process struct {
 	debugging <-chan struct{}
 }
 
-// Allocate a process using the given executor.  It references an executable
-// which doesn't have to have been built yet.
+// Allocate a process using the given executor.
 //
 // The process is idle until its Start method is called.  Kill must be
 // eventually called to release resources.
-func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Writer,
-) (p *Process, err error) {
+func NewProcess(ctx context.Context, e *Executor, debug io.Writer) (p *Process, err error) {
 	var (
-		exeImage = ref.(*file.Ref)
-		inputR   *file.Ref
-		inputW   *os.File
-		outputR  *os.File
-		outputW  *os.File
-		debugR   *os.File
-		debugW   *os.File
+		inputR  *file.Ref
+		inputW  *os.File
+		outputR *os.File
+		outputW *file.File
+		debugR  *os.File
+		debugW  *os.File
 	)
 
 	defer func() {
@@ -100,11 +106,10 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 		}
 	}()
 
-	osInputR, inputW, err := socketPipe()
+	inputR, inputW, err = socketPipe()
 	if err != nil {
 		return
 	}
-	inputR = file.NewRef(osInputR)
 
 	outputR, outputW, err = pipe2(syscall.O_NONBLOCK)
 	if err != nil {
@@ -120,7 +125,7 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 
 	p = new(Process)
 
-	err = e.execute(ctx, &p.execution, exeImage, inputR, outputW, debugW)
+	err = e.execute(ctx, &p.execution, inputR, outputW, debugW)
 	if err != nil {
 		return
 	}
@@ -145,33 +150,31 @@ func NewProcess(ctx context.Context, e *Executor, ref ExecutableRef, debug io.Wr
 	return
 }
 
-// Start the program.  The executable must be the same that was referenced in
-// NewProcess, and it must have been built by now.
+// Start the program.  The program state will be undergoing mutation until the
+// process terminates.
 //
 // This function must be called before Serve, and must not be called after
 // Kill.
-func (p *Process) Start(exe Executable) (err error) {
-	textAddr, heapAddr, stackAddr, err := readRandAddrs(exe.TextAddr())
+func (p *Process) Start(code ProgramCode, state ProgramState) (err error) {
+	textAddr, heapAddr, stackAddr, err := generateRandAddrs(state.TextAddr())
 	if err != nil {
 		return
 	}
 
-	exe.SetTextAddr(textAddr)
-
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
-		PageSize:       exe.PageSize(),
+		InitRoutine:    state.InitRoutine(),
+		PageSize:       uint32(code.PageSize()),
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
 		HeapAddr:       heapAddr,
-		TextSize:       exe.TextSize(),
-		StackSize:      exe.StackSize(),
-		StackUnused:    exe.StackSize() - exe.StackUsage(),
-		GlobalsSize:    exe.GlobalsSize(),
-		InitMemorySize: exe.MemorySize(),
-		GrowMemorySize: exe.MaxMemorySize(), // TODO: check policy too
-		InitRoutine:    exe.InitRoutine(),
-		DebugFlag:      0,
+		TextSize:       uint32(code.TextSize()),
+		StackSize:      uint32(state.StackSize()),
+		StackUnused:    uint32(state.StackSize() - state.StackUsage()),
+		GlobalsSize:    uint32(state.GlobalsSize()),
+		InitMemorySize: uint32(state.MemorySize()),
+		GrowMemorySize: uint32(state.MaxMemorySize()), // TODO: check policy too
+		EntryAddr:      state.EntryAddr(),
 		MagicNumber2:   magicNumber2,
 	}
 
@@ -179,8 +182,43 @@ func (p *Process) Start(exe Executable) (err error) {
 		info.DebugFlag = 1
 	}
 
-	// imageInfo fits into pipe buffer so this doesn't block.
-	return binary.Write(p.writer, binary.LittleEndian, &info)
+	switch info.InitRoutine {
+	case abi.TextAddrNoFunction, abi.TextAddrStart, abi.TextAddrEnter:
+
+	case abi.TextAddrResume:
+		if info.StackUnused == info.StackSize {
+			err = errors.New("resuming without stack contents")
+			return
+		}
+
+	default:
+		panic(info.InitRoutine)
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, imageInfoSize))
+
+	if err := binary.Write(buf, binary.LittleEndian, &info); err != nil {
+		panic(err)
+	}
+
+	textFile, err := code.Text()
+	if err != nil {
+		return
+	}
+
+	stateFile, err := state.BeginMutation(textAddr)
+	if err != nil {
+		return
+	}
+
+	cmsg := unixRights(int(textFile.Fd()), int(stateFile.Fd()))
+
+	err = sendmsg(p.writer.Fd(), buf.Bytes(), cmsg, nil, 0)
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 // Serve the user program until it terminates.  Canceling the context suspends
@@ -284,47 +322,7 @@ func (p *Process) killWait() (syscall.WaitStatus, error) {
 	return p.execution.killWait()
 }
 
-func pipe2(flags int) (r, w *os.File, err error) {
-	var p [2]int
-
-	err = syscall.Pipe2(p[:], syscall.O_CLOEXEC|flags)
-	if err != nil {
-		return
-	}
-
-	r = os.NewFile(uintptr(p[0]), "|0")
-	w = os.NewFile(uintptr(p[1]), "|1")
-	return
-}
-
-func socketPipe() (r, w *os.File, err error) {
-	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			syscall.Close(p[0])
-			syscall.Close(p[1])
-		}
-	}()
-
-	err = syscall.Shutdown(p[0], syscall.SHUT_WR)
-	if err != nil {
-		return
-	}
-
-	err = syscall.Shutdown(p[1], syscall.SHUT_RD)
-	if err != nil {
-		return
-	}
-
-	r = os.NewFile(uintptr(p[0]), "|0")
-	w = os.NewFile(uintptr(p[1]), "|1")
-	return
-}
-
-func readRandAddrs(fixedTextAddr uint64) (textAddr, heapAddr, stackAddr uint64, err error) {
+func generateRandAddrs(fixedTextAddr uint64) (textAddr, heapAddr, stackAddr uint64, err error) {
 	b := make([]byte, 12)
 
 	if fixedTextAddr != 0 {

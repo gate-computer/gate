@@ -20,9 +20,8 @@
 
 #define GATE_INPUT_FD 0   //                    exechild loader runtime
 #define GATE_OUTPUT_FD 1  //                    exechild loader runtime
-#define GATE_DEBUG_FD 2   //                    exechild loader runtime
+#define GATE_DEBUG_FD 2   // container executor exechild loader runtime
 #define GATE_CONTROL_FD 3 // container executor exechild
-#define GATE_IMAGE_FD 3   //                    exechild loader
 #define GATE_LOADER_FD 4  // container executor exechild
 
 #define GATE_MIN_HEAP_HIGH32 0x2aa9
@@ -40,6 +39,9 @@
 		       0x1000LL +               /* globals */ \
 		       0x80000000LL)            /* memory */
 #define GATE_LIMIT_DATA 0x1000                  // Anonymous runtime mapping.
+#define GATE_LIMIT_NOFILE 5                     // Input, output, debug, text, image.
 
-#define GATE_MAGIC_NUMBER_1 0x53058f3a
+#define GATE_TEXT_ADDR_RESUME 0x10 // Per wag object ABI.
+
+#define GATE_MAGIC_NUMBER_1 0x8f3a
 #define GATE_MAGIC_NUMBER_2 0x7e1c5d67

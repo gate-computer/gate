@@ -44,9 +44,9 @@ import (
 )
 
 const (
-	DefaultInstanceStore  = "memory"
-	DefaultProgramStorage = "memory"
-	DefaultIndexStatus    = http.StatusNotFound
+	DefaultProgramStorage  = "memory"
+	DefaultInstanceStorage = "memory"
+	DefaultIndexStatus     = http.StatusNotFound
 )
 
 const shutdownTimeout = 15 * time.Second
@@ -82,10 +82,12 @@ var c = new(struct {
 
 	Server struct {
 		server.Config
-		InstanceStore  string
-		ProgramStorage string
-		MaxConns       int
-		Debug          string
+		ProgramStorage   string
+		PreparePrograms  int
+		InstanceStorage  string
+		PrepareInstances int
+		MaxConns         int
+		Debug            string
 	}
 
 	Access struct {
@@ -161,7 +163,7 @@ func main() {
 	log.SetFlags(0)
 
 	var fileLimit syscall.Rlimit
-	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &fileLimit); err != nil {
+	if err := getrlimit(syscall.RLIMIT_NOFILE, &fileLimit); err != nil {
 		log.Fatal(err)
 	}
 
@@ -169,8 +171,8 @@ func main() {
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 	c.Plugin.LibDir = "lib/gate/plugin"
-	c.Server.InstanceStore = DefaultInstanceStore
 	c.Server.ProgramStorage = DefaultProgramStorage
+	c.Server.InstanceStorage = DefaultInstanceStorage
 	c.Server.PreforkProcs = server.DefaultPreforkProcs
 	c.Principal.AccessConfig = server.DefaultAccessConfig
 	c.HTTP.Net = "tcp"
@@ -309,17 +311,6 @@ func main2(critLog *log.Logger) (err error) {
 		fs = image.NewFilesystem(c.Image.Filesystem)
 	}
 
-	switch c.Server.InstanceStore {
-	case "memory":
-		c.Server.Config.InstanceStore = image.Memory
-
-	case "filesystem":
-		c.Server.Config.InstanceStore = fs
-
-	default:
-		return fmt.Errorf("unknown server.instancestore option: %q", c.Server.InstanceStore)
-	}
-
 	switch c.Server.ProgramStorage {
 	case "memory":
 		c.Server.Config.ProgramStorage = image.Memory
@@ -329,6 +320,25 @@ func main2(critLog *log.Logger) (err error) {
 
 	default:
 		return fmt.Errorf("unknown server.programstorage option: %q", c.Server.ProgramStorage)
+	}
+
+	if c.Server.PreparePrograms > 0 {
+		c.Server.Config.ProgramStorage = image.PreparePrograms(ctx, c.Server.Config.ProgramStorage, c.Server.PreparePrograms)
+	}
+
+	switch c.Server.InstanceStorage {
+	case "memory":
+		c.Server.Config.InstanceStorage = image.Memory
+
+	case "filesystem":
+		c.Server.Config.InstanceStorage = fs
+
+	default:
+		return fmt.Errorf("unknown server.instancestorage option: %q", c.Server.InstanceStorage)
+	}
+
+	if c.Server.PrepareInstances > 0 {
+		c.Server.Config.InstanceStorage = image.PrepareInstances(ctx, c.Server.Config.InstanceStorage, c.Server.PrepareInstances)
 	}
 
 	switch c.Access.Policy {

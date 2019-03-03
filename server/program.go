@@ -15,8 +15,8 @@ import (
 
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/image/manifest"
 	"github.com/tsavola/gate/image/wasm"
+	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/runtime/abi"
@@ -31,7 +31,7 @@ import (
 
 var (
 	newHash      = sha512.New384
-	hashEncoding = base64.URLEncoding
+	hashEncoding = base64.RawURLEncoding
 )
 
 func validateHashBytes(hash1 string, digest2 []byte) (err error) {
@@ -61,20 +61,17 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 }
 
 type program struct {
-	hash    string
-	man     manifest.Archive
-	archive image.LocalArchive
-	codeMap object.CallMap
+	key string
+	*image.Program
 
 	// Protected by Server.lock:
 	refCount int
 }
 
-// buildProgram returns Executable if ExecutableRef is provided.
-// InstancePolicy must be provided with ExecutableRef.  Entry name can be
-// provided only with ExecutableRef.
-func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolicy *InstancePolicy, progPolicy *ProgramPolicy, arcBack image.LocalStorage, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
-) (exe *image.Executable, prog *program, err error) {
+// buildProgram returns an instance if instance policy is defined.  Entry name
+// can be provided only when building an instance.
+func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, instPolicy *InstancePolicy, instStorage image.InstanceStorage, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
+) (prog *program, inst *image.Instance, err error) {
 	defer func() {
 		if content != nil {
 			content.Close()
@@ -83,7 +80,7 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 
 	var codeMap object.CallMap
 
-	build, err := image.NewBuild(arcBack, refBack, ref, contentSize, progPolicy.MaxTextSize, &codeMap)
+	build, err := image.NewBuild(progStorage, instStorage, contentSize, progPolicy.MaxTextSize, &codeMap)
 	if err != nil {
 		return
 	}
@@ -160,13 +157,19 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 	// textCopy := make([]byte, len(build.TextBuffer().Bytes()))
 	// copy(textCopy, build.TextBuffer().Bytes())
 
+	var entryAddr uint32
+
+	if entryName != "" {
+		entryAddr = codeMap.FuncAddrs[entryIndex]
+	}
+
 	sectionLoaders[wasm.StackSectionName] = func(_ string, r section.Reader, length uint32) (err error) {
 		sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
 			return failrequest.New(event.FailRequest_ModuleError, "multiple stack sections in wasm module")
 		}
 
-		if entryName != "" {
-			err = failrequest.New(event.FailRequest_FunctionNotFound, "entry function specified with suspended program")
+		if entryAddr != 0 {
+			err = notfound.ErrSuspended
 			return
 		}
 
@@ -177,12 +180,12 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 
 		sectionMap.Stack = sectionMap.Sections[section.Custom] // The section currently being loaded.
 
-		err = build.FinishText(int(length), stackSize, module.GlobalsSize(), memorySize, maxMemorySize)
+		err = build.FinishText(stackSize, int(length), module.GlobalsSize(), memorySize, maxMemorySize)
 		if err != nil {
 			return
 		}
 
-		err = build.ReadSuspendedStack(r, int(length), module.Types(), module.FuncTypeIndexes())
+		err = build.ReadStack(r, module.Types(), module.FuncTypeIndexes())
 		if err != nil {
 			return
 		}
@@ -200,19 +203,10 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 		return failrequest.New(event.FailRequest_ModuleError, "stack section appears too late in wasm module")
 	}
 
-	var entryAddr uint32
-
 	if sectionMap.Stack.Offset == 0 {
-		err = build.FinishText(0, stackSize, module.GlobalsSize(), memorySize, maxMemorySize)
+		err = build.FinishText(stackSize, 0, module.GlobalsSize(), memorySize, maxMemorySize)
 		if err != nil {
 			return
-		}
-
-		if instPolicy != nil {
-			if entryName != "" {
-				entryAddr = codeMap.FuncAddrs[entryIndex]
-			}
-			build.SetupEntryStackFrame(entryIndex, entryAddr)
 		}
 	}
 
@@ -250,7 +244,7 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 		}
 	}
 
-	var hash = hashEncoding.EncodeToString(actualDigest)
+	var key = hashEncoding.EncodeToString(actualDigest)
 
 	// if f, err := os.Create("/tmp/text-" + hash + ".txt"); err != nil {
 	// 	log.Fatal(err)
@@ -263,21 +257,34 @@ func buildProgram(refBack image.BackingStore, ref image.ExecutableRef, instPolic
 
 	entryIndexes, entryAddrs := entry.Maps(module, codeMap.FuncAddrs)
 
-	archive, exe, err := build.FinishArchiveExecutable(hash, sectionMap, module.GlobalTypes(), entryIndexes, entryAddrs)
+	progImage, err := build.FinishProgram(sectionMap, module.GlobalTypes(), entryIndexes, entryAddrs)
+	if err != nil {
+		return
+	}
+	defer func() {
+		if err != nil {
+			progImage.Close()
+		}
+	}()
+
+	err = progImage.Store(key)
 	if err != nil {
 		return
 	}
 
-	prog = newProgram(hash, archive, codeMap)
+	inst, err = build.FinishInstance(entryIndex, entryAddr)
+	if err != nil {
+		return
+	}
+
+	prog = newProgram(key, progImage)
 	return
 }
 
-func newProgram(hash string, archive image.LocalArchive, codeMap object.CallMap) *program {
+func newProgram(key string, image *image.Program) *program {
 	prog := &program{
-		hash:     hash,
-		man:      archive.Manifest(),
-		archive:  archive,
-		codeMap:  codeMap,
+		key:      key,
+		Program:  image,
 		refCount: 1,
 	}
 	goruntime.SetFinalizer(prog, finalizeProgram)
@@ -288,13 +295,9 @@ func finalizeProgram(prog *program) {
 	if prog.refCount != 0 {
 		log.Printf("unreachable program with reference count %d", prog.refCount)
 		if prog.refCount > 0 {
-			prog.cleanup()
+			prog.Close()
 		}
 	}
-}
-
-func (prog *program) cleanup() {
-	prog.archive.Close()
 }
 
 // ref must be called with Server.lock held.
@@ -303,7 +306,7 @@ func (prog *program) ref() *program {
 	return prog
 }
 
-// unref must be called with Server.lock held.  Caller must invoke the cleanup
+// unref must be called with Server.lock held.  Caller must invoke the Close
 // method separately if the final reference was dropped.
 func (prog *program) unref() (final bool) {
 	prog.refCount--
@@ -324,12 +327,12 @@ func (prog *program) resolveEntry(name string) (index, addr uint32, err error) {
 		return
 	}
 
-	index, err = entry.MapFuncIndex(prog.man.EntryIndexes, name)
+	index, err = entry.MapFuncIndex(prog.Manifest().EntryIndexes, name)
 	if err != nil {
 		return
 	}
 
-	addr = entry.MapFuncAddr(prog.man.EntryAddrs, index)
+	addr = entry.MapFuncAddr(prog.Manifest().EntryAddrs, index)
 	return
 }
 

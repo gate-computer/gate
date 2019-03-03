@@ -31,20 +31,22 @@ func startContainer(ctx context.Context, config *Config,
 		return
 	}
 
-	fdPair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
+	controlFile, connFile, err := socketFilePair(syscall.SOCK_NONBLOCK)
 	if err != nil {
 		return
 	}
-
-	controlFile := os.NewFile(uintptr(fdPair[0]), "executor (peer)")
 	defer controlFile.Close()
 
-	connFile := os.NewFile(uintptr(fdPair[1]), "executor")
 	netConn, err := net.FileConn(connFile)
 	connFile.Close()
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			netConn.Close()
+		}
+	}()
 
 	cmd = &exec.Cmd{
 		Path: containerPath,
@@ -69,7 +71,6 @@ func startContainer(ctx context.Context, config *Config,
 
 	err = cmd.Start()
 	if err != nil {
-		netConn.Close()
 		return
 	}
 

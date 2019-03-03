@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package manifest
+package cred
 
 import (
-	internal "github.com/tsavola/gate/internal/manifest"
+	"syscall"
 )
 
-type ByteRange = internal.ByteRange
-type Archive = internal.Archive
+func getuid() uint { return uint(syscall.Getuid()) }
+func getgid() uint { return uint(syscall.Getgid()) }

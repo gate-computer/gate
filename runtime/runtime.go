@@ -9,6 +9,6 @@ package runtime
 const maxPacketSize = 65536
 
 const (
-	magicNumber1 = 0x53058f3a
+	magicNumber1 = 0x8f3a
 	magicNumber2 = 0x7e1c5d67
 )

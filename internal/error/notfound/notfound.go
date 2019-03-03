@@ -18,12 +18,15 @@ type FunctionError interface {
 	FunctionNotFound()
 }
 
-// ErrFunction is public.
-var ErrFunction function
+// Public function errors.
+var (
+	ErrFunction  = function("function not found or type is incompatible")
+	ErrSuspended = function("suspended program has no effective entry functions")
+)
 
-type function struct{}
+type function string
 
-func (f function) Error() string       { return f.PublicError() }
-func (f function) PublicError() string { return "function not found or type is incompatible" }
+func (f function) Error() string       { return string(f) }
+func (f function) PublicError() string { return string(f) }
 func (f function) NotFound()           {}
 func (f function) FunctionNotFound()   {}

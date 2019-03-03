@@ -9,7 +9,7 @@ import (
 )
 
 func TestMemory(*testing.T) {
-	var _ BackingStore = Memory
+	var _ InstanceStorage = Memory
+	var _ ProgramStorage = Memory
 	var _ LocalStorage = Memory
-	var _ Storage = Memory
 }

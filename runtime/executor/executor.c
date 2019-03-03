@@ -68,7 +68,7 @@ static void xlimit(int resource, rlim_t rlim, int exitcode)
 
 static void sandbox_child(void)
 {
-	xlimit(RLIMIT_NOFILE, 0, ERR_EXECHILD_SETRLIMIT_NOFILE);
+	xlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE, ERR_EXECHILD_SETRLIMIT_NOFILE);
 	xlimit(RLIMIT_NPROC, 0, ERR_EXECHILD_SETRLIMIT_NPROC);
 
 	if (prctl(PR_SET_TSC, PR_TSC_SIGSEGV, 0, 0, 0) != 0)
@@ -80,10 +80,9 @@ static inline void execute_child(const int *fds, int num_fds)
 {
 	xdup2(fds[0], GATE_INPUT_FD);
 	xdup2(fds[1], GATE_OUTPUT_FD);
-	xdup2(fds[2], GATE_IMAGE_FD);
 
-	if (num_fds > 3)
-		xdup2(fds[3], GATE_DEBUG_FD);
+	if (num_fds > 2)
+		xdup2(fds[2], GATE_DEBUG_FD);
 
 	if (nice(CHILD_NICE) != CHILD_NICE)
 		_exit(ERR_EXECHILD_NICE);
@@ -198,10 +197,10 @@ static inline void handle_control_message(struct buffer *sending, struct cmsghdr
 		_exit(ERR_EXEC_CMSG_TYPE);
 
 	int num_fds;
-	if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof(int)))
+	if (cmsg->cmsg_len == CMSG_LEN(2 * sizeof(int)))
+		num_fds = 2;
+	else if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof(int)))
 		num_fds = 3;
-	else if (cmsg->cmsg_len == CMSG_LEN(4 * sizeof(int)))
-		num_fds = 4;
 	else
 		_exit(ERR_EXEC_CMSG_LEN);
 
@@ -259,7 +258,7 @@ static inline void handle_receiving(struct buffer *sending, struct buffer *kille
 
 	for (size_t receive_len = 0; receive_len < sizeof receive.buf;) {
 		union {
-			char buf[CMSG_SPACE(4 * sizeof(int))];
+			char buf[CMSG_SPACE(5 * sizeof(int))];
 			struct cmsghdr alignment;
 		} ctl;
 
@@ -359,7 +358,9 @@ static void sandbox_common(void)
 
 int main(void)
 {
-	xcloexec(GATE_DEBUG_FD); // In case it is not set by child.
+	xcloexec(STDIN_FILENO);
+	xcloexec(STDOUT_FILENO);
+	// Keep stderr (/dev/null) open; it will become GATE_DEBUG_FD by default.
 	xcloexec(GATE_CONTROL_FD);
 	xcloexec(GATE_LOADER_FD);
 

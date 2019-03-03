@@ -5,12 +5,13 @@
 package image
 
 import (
-	"errors"
+	"crypto/rand"
 	"io"
 	"reflect"
 	"syscall"
 	"unsafe"
 
+	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
@@ -18,369 +19,267 @@ import (
 	"github.com/tsavola/wag/buffer"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/object/abi"
-	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/wa"
 )
 
-const arcModuleOffset = manifest.MaxSize
+const (
+	progTextOffset     = int64(0x000000000)
+	_                  = int64(0x080000000) // Stack space; aligned against globals.
+	progGlobalsOffset  = int64(0x100000000) // Globals and memory in consecutive pages.
+	progModuleOffset   = int64(0x200000000) // Module and object map packed with minimal alignment.
+	progManifestOffset = int64(0x400000000)
+	progMaxOffset      = int64(0x480000000)
+)
 
-type mappedFile struct {
-	file *file.Ref
-	mem  []byte
+type programBuild struct {
+	storage   ProgramStorage
+	file      *file.File
+	text      buffer.Static
+	textSize  int
+	moduleMem []byte
+	module    buffer.Static
+	objectMap *object.CallMap
 }
 
-func (m *mappedFile) mmap(offset int64, length int) (err error) {
-	if m.mem != nil {
-		panic("memory already mapped")
-	}
-
-	b, err := syscall.Mmap(int(m.file.Fd()), offset, length, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-	if err != nil {
-		return
-	}
-
-	m.mem = b
-	return
+func (prog *programBuild) callSitesSize() int {
+	return len(prog.objectMap.CallSites) * 8
 }
 
-func (m *mappedFile) munmap() {
-	b := m.mem
-	m.mem = nil
-
-	if err := syscall.Munmap(b); err != nil {
-		panic(err)
-	}
-}
-
-type archiveBuild struct {
-	back LocalStorage
-	mappedFile
-	module buffer.Static
-
-	objectMap          *object.CallMap
-	text               buffer.Limited // Used only when there is no executable file.
-	textDone           chan error
-	stackSize          int
-	stackDataThreshold int64
-}
-
-func (arc *archiveBuild) callSitesSize() int {
-	return len(arc.objectMap.CallSites) * 8
-}
-
-func (arc *archiveBuild) copyCallSitesTo(dest []byte) {
-	n := arc.callSitesSize()
+func (prog *programBuild) callSitesBytes() []byte {
+	n := prog.callSitesSize()
 	if n == 0 {
-		return
-	}
-
-	copy(dest, *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  n,
-		Cap:  n,
-		Data: (uintptr)(unsafe.Pointer(&arc.objectMap.CallSites[0])),
-	})))
-}
-
-func (arc *archiveBuild) funcAddrsSize() int {
-	return len(arc.objectMap.FuncAddrs) * 4
-}
-
-func (arc *archiveBuild) copyFuncAddrsTo(dest []byte) {
-	n := arc.funcAddrsSize()
-	if n == 0 {
-		return
-	}
-
-	copy(dest, *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  n,
-		Cap:  n,
-		Data: (uintptr)(unsafe.Pointer(&arc.objectMap.FuncAddrs[0])),
-	})))
-}
-
-func (arc *archiveBuild) waitForText() error {
-	if arc.textDone == nil {
 		return nil
 	}
 
-	err, ok := <-arc.textDone
-	arc.textDone = nil
-	if !ok {
-		return errors.New("panic during text archiving")
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Len:  n,
+		Cap:  n,
+		Data: (uintptr)(unsafe.Pointer(&prog.objectMap.CallSites[0])),
+	}))
+}
+
+func (prog *programBuild) funcAddrsSize() int {
+	return len(prog.objectMap.FuncAddrs) * 4
+}
+
+func (prog *programBuild) funcAddrsBytes() []byte {
+	n := prog.funcAddrsSize()
+	if n == 0 {
+		return nil
 	}
 
-	return err
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Len:  n,
+		Cap:  n,
+		Data: (uintptr)(unsafe.Pointer(&prog.objectMap.FuncAddrs[0])),
+	}))
 }
 
-type executableBuild struct {
-	back BackingStore
-	mappedFile
-	text               buffer.Static
-	stackDataThreshold int64
-	entryIndex         uint32
-	entryAddr          uint32
+func (prog *programBuild) copyObjectMapTo(dest []byte) {
+	copy(dest, prog.callSitesBytes())
+	copy(dest[prog.callSitesSize():], prog.funcAddrsBytes())
 }
 
-// Build a local archive and optionally an executable.
+func (prog *programBuild) writeObjectMapAt(offset int64) (err error) {
+	iov := make([]syscall.Iovec, 0, 2)
+
+	if n := prog.callSitesSize(); n > 0 {
+		iov = append(iov, syscall.Iovec{
+			Base: &prog.callSitesBytes()[0],
+			Len:  uint64(n),
+		})
+	}
+
+	if n := prog.funcAddrsSize(); n > 0 {
+		iov = append(iov, syscall.Iovec{
+			Base: &prog.funcAddrsBytes()[0],
+			Len:  uint64(n),
+		})
+	}
+
+	return pwritev(prog.file.Fd(), iov, offset)
+}
+
+type instanceBuild struct {
+	storage   InstanceStorage
+	file      *file.File
+	stackSize int
+}
+
+// Build a program and optionally an instance.  FinishText, FinishProgram and
+// (optionally) FinishInstance must be called in that order.
 type Build struct {
-	arc           archiveBuild
-	exe           executableBuild
-	textSize      int
-	textAddr      uint64 // Set when importing stack, zero otherwise.
+	prog          programBuild
+	inst          instanceBuild
+	compileMem    []byte
+	initRoutine   uint8
+	textAddr      uint64
 	stack         []byte
 	stackUsage    int
 	data          buffer.Static
 	globalsSize   int
 	memorySize    int
 	maxMemorySize int
-	initRoutine   int32
 }
 
-// NewBuild into local storage and optionally an executable reference.
-// BackingStore instance must be the same one that was used to create the
-// executable reference.
-func NewBuild(arcBack LocalStorage, exeBack BackingStore, exeRef ExecutableRef, moduleSize, maxTextSize int, objectMap *object.CallMap,
-) (build *Build, err error) {
-	b := Build{
-		arc: archiveBuild{
-			back:      arcBack,
+// NewBuild for a program and optionally an instance.
+func NewBuild(progStorage ProgramStorage, instStorage InstanceStorage, moduleSize, maxTextSize int, objectMap *object.CallMap,
+) (b *Build, err error) {
+	b = &Build{
+		prog: programBuild{
+			storage:   progStorage,
 			objectMap: objectMap,
+		},
+		inst: instanceBuild{
+			storage: instStorage,
 		},
 		initRoutine: abi.TextAddrStart,
 	}
 
-	arcFile, err := arcBack.newArchiveFile()
+	b.prog.file, err = b.prog.storage.newProgramFile()
 	if err != nil {
 		return
 	}
-	b.arc.file = file.NewRef(arcFile)
 	defer func() {
 		if err != nil {
-			b.arc.file.Close()
+			b.munmapAll()
+			b.prog.file.Close()
 		}
 	}()
 
-	err = b.arc.file.Truncate(fileSize)
+	// Program text.
+	err = mmapp(&b.compileMem, b.prog.file, progTextOffset, maxTextSize)
 	if err != nil {
 		return
 	}
 
-	// Module goes directly into archive file.
+	b.prog.text = buffer.MakeStatic(b.compileMem[:0], maxTextSize)
 
-	var (
-		arcModuleEnd = arcModuleOffset + moduleSize
-	)
-
-	err = b.arc.mmap(0, alignSize(arcModuleEnd))
-	if err != nil {
-		return
-	}
-
-	b.arc.module = buffer.MakeStatic(b.arc.mem[arcModuleOffset:arcModuleOffset], moduleSize)
-
-	if exeRef == nil {
-		// Text is buffered when there is no executable file.
-
-		b.arc.text = buffer.MakeLimited(nil, maxTextSize)
-	} else {
-		b.exe = executableBuild{
-			back: exeBack,
-			mappedFile: mappedFile{
-				file: exeRef.(*file.Ref), // Refcount increased at the end.
-			},
-		}
-
-		err = b.exe.file.Truncate(fileSize)
+	if moduleSize > 0 {
+		// Program module.
+		err = mmapp(&b.prog.moduleMem, b.prog.file, progModuleOffset, moduleSize)
 		if err != nil {
 			return
 		}
 
-		// Text goes directly into executable file.
-
-		err = b.exe.mmap(0, alignSize(maxTextSize))
-		if err != nil {
-			return
-		}
-
-		b.exe.text = buffer.MakeStatic(b.exe.mem[:0], maxTextSize)
-
-		b.exe.file.Ref()
+		b.prog.module = buffer.MakeStatic(b.prog.moduleMem[:0], moduleSize)
 	}
 
-	build = &b
 	return
 }
 
+// ModuleWriter is valid after NewBuild.  The module must be written before
+// FinishProgram is called.
 func (b *Build) ModuleWriter() io.Writer {
-	return &b.arc.module
+	return &b.prog.module
 }
 
+// TextBuffer is valid after NewBuild.  It must be populated before FinishText
+// is called.
 func (b *Build) TextBuffer() interface {
 	Bytes() []byte
 	Extend(n int) []byte
 	PutByte(byte)
 	PutUint32(uint32) // Little-endian byte order.
 } {
-	if b.exe.file != nil {
-		return &b.exe.text
-	}
-	return &b.arc.text
+	return &b.prog.text
 }
 
-func (b *Build) FinishText(minStackSize, maxStackSize, globalsSize, memorySize, maxMemorySize int,
+// FinishText after TextBuffer has been populated.
+func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMemorySize int,
 ) (err error) {
-	if b.exe.file != nil {
-		b.textSize = b.exe.text.Len()
-	} else {
-		b.textSize = b.arc.text.Len()
+	if stackSize < internal.StackLimitOffset+stackUsage {
+		err = resourcelimit.New("call stack size limit exceeded")
+		return
 	}
 
-	// Archive file: unfinished module and space for object map, text, and
-	// stack, globals and memory contents.
+	b.prog.textSize = b.prog.text.Len()
+	b.prog.text = buffer.Static{}
+
+	munmapp(&b.compileMem)
+
 	var (
-		arcCallSitesOffset = arcModuleOffset + b.arc.module.Cap()
-		arcFuncAddrsOffset = arcCallSitesOffset + b.arc.callSitesSize()
-		arcObjectMapEnd    = alignSize(arcFuncAddrsOffset + b.arc.funcAddrsSize())
-		arcTextSize        = alignSize(b.textSize)
-		arcTextOffset      = alignSize(arcObjectMapEnd)
-		arcStackSize       = alignSize(internal.StackLimitOffset + minStackSize)
-		arcStackOffset     = arcTextOffset + arcTextSize
-		arcGlobalsSize     = alignSize(globalsSize)
-		arcDataSize        = alignSize(arcGlobalsSize + memorySize)
-		arcDataOffset      = arcStackOffset + arcStackSize
-		arcDataEnd         = arcDataOffset + arcDataSize
+		stackMapSize   = alignPageSize(stackUsage)
+		globalsMapSize = alignPageSize(globalsSize)
+		dataMapSize    = globalsMapSize + alignPageSize(memorySize)
+		mapSize        = stackMapSize + dataMapSize
 	)
 
-	if b.exe.file == nil {
-		b.arc.munmap()
-
-		err = b.arc.mmap(0, arcDataEnd)
+	if b.inst.storage == nil {
+		// Program stack, globals and memory contents.
+		err = mmapp(&b.compileMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapSize)
 		if err != nil {
 			return
 		}
-
-		// Flush buffered text to archive file.
-
-		b.arc.textDone = make(chan error, 1)
-
-		go func(text []byte) { // TODO: profile with large input program
-			defer close(b.arc.textDone)
-
-			_, err := b.arc.file.WriteAt(text, int64(arcTextOffset))
-			b.arc.textDone <- err
-		}(b.arc.text.Bytes())
-
-		b.arc.text = buffer.Limited{}
-		b.stack = b.arc.mem[arcStackOffset : arcStackOffset+arcStackSize]
-		b.data = buffer.MakeStatic(b.arc.mem[arcDataOffset:arcDataOffset], arcDataSize)
 	} else {
-		if len(b.arc.mem) < arcObjectMapEnd {
-			b.arc.munmap()
+		b.inst.stackSize = alignPageSize(stackSize)
 
-			err = b.arc.mmap(0, arcObjectMapEnd)
-			if err != nil {
-				return
-			}
-		}
-
-		// Executable file: text and space for stack, globals, and memory
-		// allocations.
-		var (
-			exeTextSize      = alignSize(b.textSize)
-			exeStackSize     = alignSize(maxStackSize)
-			exeStackOffset   = int64(exeTextSize)
-			exeGlobalsSize   = alignSize(globalsSize)
-			exeGlobalsOffset = exeStackOffset + int64(exeStackSize)
-			exeMemorySize    = alignSize(memorySize)
-			exeMemoryOffset  = exeGlobalsOffset + int64(exeGlobalsSize)
-			exeDataSize      = exeGlobalsSize + exeMemorySize
-			exeDataEnd       = exeMemoryOffset + int64(exeMemorySize)
-		)
-
-		b.exe.munmap()
-
-		err = b.exe.mmap(exeStackOffset, int(exeDataEnd-exeStackOffset))
+		b.inst.file, err = b.inst.storage.newInstanceFile()
 		if err != nil {
 			return
 		}
-
-		var (
-			mapDataOffset = exeGlobalsOffset - exeStackOffset
-		)
-
-		b.exe.text = buffer.Static{}
-		b.exe.stackDataThreshold = int64(exeStackOffset) + int64(exeStackSize)
-		b.stack = b.exe.mem[:exeStackSize]
-		b.data = buffer.MakeStatic(b.exe.mem[mapDataOffset:mapDataOffset], exeDataSize)
-
-		// Copy text to archive file.
-
-		b.arc.textDone = make(chan error, 1)
-
-		go func() { // TODO: profile with large input program
-			defer close(b.arc.textDone)
-
-			off1 := int64(0)
-			off2 := int64(arcTextOffset)
-			b.arc.textDone <- copyFileRange(b.exe.file.Fd(), &off1, b.arc.file.Fd(), &off2, alignSize(b.textSize))
+		defer func() {
+			if err != nil {
+				b.inst.file.Close()
+			}
 		}()
+
+		// Instance stack, globals and memory contents.
+		err = mmapp(&b.compileMem, b.inst.file, int64(b.inst.stackSize-stackMapSize), mapSize)
+		if err != nil {
+			return
+		}
 	}
 
-	b.arc.module = buffer.MakeStatic(b.arc.mem[arcModuleOffset:arcModuleOffset+b.arc.module.Len()], b.arc.module.Cap())
-	b.arc.stackSize = arcStackSize
-	b.arc.stackDataThreshold = int64(arcStackOffset) + int64(arcStackSize)
+	b.stack = b.compileMem[stackMapSize-stackUsage : stackMapSize]
+	b.data = buffer.MakeStatic(b.compileMem[stackMapSize:stackMapSize], dataMapSize)
 	b.globalsSize = globalsSize
 	b.memorySize = memorySize
 	b.maxMemorySize = maxMemorySize
 
-	// Copy object map to archive file.
+	// Copy or write object map to program.
+	var (
+		progCallSitesOffset = progModuleOffset + align8(int64(b.prog.module.Cap()))
+		progFuncAddrsOffset = progCallSitesOffset + int64(b.prog.callSitesSize())
+		progObjectMapEnd    = alignPageOffset(progFuncAddrsOffset + int64(b.prog.funcAddrsSize()))
+	)
 
-	b.arc.copyCallSitesTo(b.arc.mem[arcCallSitesOffset:])
-	b.arc.copyFuncAddrsTo(b.arc.mem[arcFuncAddrsOffset:])
+	if progObjectMapEnd-progModuleOffset <= int64(len(b.prog.moduleMem)) {
+		b.prog.copyObjectMapTo(b.prog.moduleMem[progCallSitesOffset-progModuleOffset:])
+	} else {
+		b.prog.writeObjectMapAt(progCallSitesOffset)
+	}
+
 	return
 }
 
-func (b *Build) SetupEntryStackFrame(entryIndex, entryAddr uint32) {
-	size := stack.SetupEntryFrame(b.stack, entryAddr, nil)
-
-	b.exe.entryIndex = entryIndex
-	b.exe.entryAddr = entryAddr
-	b.textAddr = 0
-	b.stackUsage = size
-	b.initRoutine = abi.TextAddrStart
-}
-
-func (b *Build) ReadSuspendedStack(r io.Reader, size int, types []wa.FuncType, funcTypeIndexes []uint32,
+// ReadStack if FinishText has been called with nonzero stackUsage.  It must
+// not be called after FinishProgram.
+func (b *Build) ReadStack(r io.Reader, types []wa.FuncType, funcTypeIndexes []uint32,
 ) (err error) {
-	if size > len(b.stack)-internal.StackLimitOffset {
-		err = resourcelimit.New("call stack size limit exceeded")
-		return
-	}
-	buf := b.stack[len(b.stack)-size:]
-
-	_, err = io.ReadFull(r, buf)
+	_, err = io.ReadFull(r, b.stack)
 	if err != nil {
 		return
 	}
 
-	textAddr, err := readRandTextAddr()
+	textAddr, err := generateRandTextAddr()
 	if err != nil {
 		return
 	}
 
-	err = importStack(buf, textAddr, *b.arc.objectMap, types, funcTypeIndexes)
+	err = importStack(b.stack, textAddr, *b.prog.objectMap, types, funcTypeIndexes)
 	if err != nil {
 		return
 	}
 
-	b.exe.entryIndex = 0
-	b.exe.entryAddr = 0
-	b.textAddr = textAddr
-	b.stackUsage = size
 	b.initRoutine = abi.TextAddrResume
+	b.textAddr = textAddr
+	b.stackUsage = len(b.stack)
 	return
 }
 
+// GlobalsMemoryBuffer is valid after FinishText.  It must be populated before
+// FinishProgram is called.
 func (b *Build) GlobalsMemoryBuffer() interface {
 	Bytes() []byte
 	ResizeBytes(n int) []byte
@@ -388,109 +287,85 @@ func (b *Build) GlobalsMemoryBuffer() interface {
 	return &b.data
 }
 
+// MemoryAlignment of GlobalsMemoryBuffer.
 func (*Build) MemoryAlignment() int {
 	return internal.PageSize
 }
 
-// FinishArchiveExecutable returns an executable only if a nonzero executable
-// reference was passed to NewBuild.
-func (b *Build) FinishArchiveExecutable(arcKey string, sectionMap SectionMap, globalTypes []wa.GlobalType, entryIndexes map[string]uint32, entryAddrs map[uint32]uint32,
-) (arc LocalArchive, exe *Executable, err error) {
+// FinishProgram after module, stack, globals and memory have been populated.
+func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType, entryIndexes map[string]uint32, entryAddrs map[uint32]uint32,
+) (prog *Program, err error) {
 	var (
-		moduleSize   = b.arc.module.Cap()
-		stackBufSize = len(b.stack)
-		dataSize     = b.data.Len()
+		dataSize   = b.data.Len()
+		moduleSize = b.prog.module.Cap()
 	)
 
-	b.arc.module = buffer.Static{}
 	b.stack = nil
 	b.data = buffer.Static{}
+	b.prog.module = buffer.Static{}
 
-	b.arc.munmap()
+	b.munmapAll()
 
-	var (
-		arcStackUsage int
-	)
-	if b.arc.stackSize != 0 {
-		arcStackUsage = b.stackUsage
-	}
+	if b.inst.file != nil {
+		// Copy stack, globals and memory contents from instance to program.
+		stackLen := alignPageSize(b.stackUsage)
+		dataLen := alignPageSize(dataSize)
 
-	if b.exe.file != nil {
-		b.exe.munmap()
+		off1 := int64(b.inst.stackSize - stackLen)
+		off2 := progGlobalsOffset - int64(stackLen)
 
-		// Copy stack, globals and memory contents to archive file.
-		var (
-			stackLen = alignSize(arcStackUsage)
-			dataLen  = alignSize(dataSize)
-		)
-
-		off1 := b.exe.stackDataThreshold - int64(stackLen)
-		off2 := b.arc.stackDataThreshold - int64(stackLen)
-		err = copyFileRange(b.exe.file.Fd(), &off1, b.arc.file.Fd(), &off2, stackLen+dataLen)
+		err = copyFileRange(b.inst.file.Fd(), &off1, b.prog.file.Fd(), &off2, stackLen+dataLen)
 		if err != nil {
 			return
 		}
 	}
 
-	err = b.arc.waitForText()
-	if err != nil {
-		return
+	man := manifest.Archive{
+		InitRoutine:     int32(b.initRoutine),
+		TextAddr:        b.textAddr,
+		TextSize:        uint32(b.prog.textSize),
+		StackUsage:      uint32(b.stackUsage),
+		GlobalsSize:     uint32(b.globalsSize),
+		MemoryDataSize:  uint32(dataSize - alignPageSize(b.globalsSize)),
+		MemorySize:      uint32(b.memorySize),
+		MemorySizeLimit: uint32(b.maxMemorySize),
+		ModuleSize:      int64(moduleSize),
+		Sections:        sectionMap.manifestSections(),
+		StackSection:    manifestByteRange(sectionMap.Stack),
+		GlobalTypes:     globalTypeBytes(globalTypes),
+		EntryIndexes:    entryIndexes,
+		EntryAddrs:      entryAddrs,
+		CallSitesSize:   uint32(b.prog.callSitesSize()),
+		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
 	}
 
-	arcMan := manifest.Archive{
-		ModuleSize:    int64(moduleSize),
-		Sections:      sectionMap.manifestSections(),
-		StackSection:  manifestByteRange(sectionMap.Stack),
-		GlobalTypes:   globalTypeBytes(globalTypes),
-		EntryIndexes:  entryIndexes,
-		EntryAddrs:    entryAddrs,
-		CallSitesSize: uint32(b.arc.callSitesSize()),
-		FuncAddrsSize: uint32(b.arc.funcAddrsSize()),
-		Exe: manifest.Executable{
-			TextAddr:        b.textAddr,
-			TextSize:        uint32(b.textSize),
-			StackSize:       uint32(b.arc.stackSize),
-			StackUsage:      uint32(arcStackUsage),
-			GlobalsSize:     uint32(b.globalsSize),
-			MemoryDataSize:  uint32(dataSize - alignSize(b.globalsSize)),
-			MemorySize:      uint32(b.memorySize),
-			MemorySizeLimit: uint32(b.maxMemorySize),
-			InitRoutine:     b.initRoutine,
-		},
-	}
-
-	arc, err = b.arc.back.give(arcKey, arcMan, b.arc.file, *b.arc.objectMap)
-	if err != nil {
-		return
-	}
-
-	if b.exe.file != nil {
-		exe = &Executable{
-			Man:        arcMan.Exe,
-			back:       b.exe.back,
-			file:       b.exe.file,
-			entryIndex: b.exe.entryIndex,
-			entryAddr:  b.exe.entryAddr,
-		}
-		exe.Man.StackSize = uint32(stackBufSize)
-		exe.Man.StackUsage = uint32(b.stackUsage)
-		b.exe.file = nil
-	}
+	prog = b.prog.storage.newProgram(man, b.prog.file, *b.prog.objectMap)
+	b.prog.file = nil
 	return
 }
 
-// FinishExecutable without an Archive.
-func (b *Build) FinishExecutable() (exe *Executable, err error) {
-	arc, exe, err := b.FinishArchiveExecutable("", SectionMap{}, nil, nil, nil)
-	if err != nil {
+// FinishInstance after FinishProgram.  Applicable only if an instance storage
+// was specified in NewBuild call.
+func (b *Build) FinishInstance(entryIndex, entryAddr uint32) (inst *Instance, err error) {
+	if entryAddr != 0 && b.stackUsage != 0 {
+		err = notfound.ErrSuspended
 		return
 	}
 
-	err = arc.Close()
-	if err != nil {
-		return
+	inst = &Instance{
+		file:          b.inst.file,
+		textAddr:      b.textAddr,
+		stackSize:     b.inst.stackSize,
+		stackUsage:    b.stackUsage,
+		globalsSize:   b.globalsSize,
+		memorySize:    b.memorySize,
+		maxMemorySize: b.maxMemorySize,
+		initRoutine:   b.initRoutine,
+		entryIndex:    entryIndex,
+		entryAddr:     entryAddr,
+		coherent:      true,
 	}
-
+	b.inst.file = nil
 	return
 }
 
@@ -501,30 +376,55 @@ func (b *Build) Close() (err error) {
 		}
 	}
 
-	setError(b.arc.waitForText())
-
-	b.arc.module = buffer.Static{}
-	b.arc.text = buffer.Limited{}
-	b.exe.text = buffer.Static{}
+	b.prog.text = buffer.Static{}
 	b.stack = nil
 	b.data = buffer.Static{}
+	b.prog.module = buffer.Static{}
 
-	if b.arc.file != nil {
-		setError(b.arc.file.Close())
-		b.arc.file = nil
+	if b.prog.file != nil {
+		setError(b.prog.file.Close())
+		b.prog.file = nil
 	}
-	if b.exe.file != nil {
-		setError(b.exe.file.Close())
-		b.exe.file = nil
+	if b.inst.file != nil {
+		setError(b.inst.file.Close())
+		b.inst.file = nil
 	}
 
-	if b.arc.mem != nil {
-		b.arc.munmap()
-	}
-	if b.exe.mem != nil {
-		b.exe.munmap()
-	}
+	b.munmapAll()
 	return
+}
+
+func (b *Build) munmapAll() {
+	munmapp(&b.compileMem)
+	munmapp(&b.prog.moduleMem)
+}
+
+// mmapp rounds length up to page.
+func mmapp(ptr *[]byte, f *file.File, offset int64, length int) (err error) {
+	if *ptr != nil {
+		panic("memory already mapped")
+	}
+
+	if length == 0 {
+		return
+	}
+
+	b, err := mmap(f.Fd(), offset, alignPageSize(length), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	if err != nil {
+		return
+	}
+
+	*ptr = b
+	return
+}
+
+func munmapp(ptr *[]byte) {
+	b := *ptr
+	*ptr = nil
+
+	if b != nil {
+		mustMunmap(b)
+	}
 }
 
 func globalTypeBytes(array []wa.GlobalType) []byte {
@@ -537,4 +437,16 @@ func globalTypeBytes(array []wa.GlobalType) []byte {
 		Cap:  cap(array),
 		Data: (uintptr)(unsafe.Pointer(&array[0])),
 	}))
+}
+
+func generateRandTextAddr() (textAddr uint64, err error) {
+	b := make([]byte, 4)
+
+	_, err = rand.Read(b)
+	if err != nil {
+		return
+	}
+
+	textAddr = internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b)
+	return
 }

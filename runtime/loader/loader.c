@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+#define __USE_EXTERN_INLINES // For CMSG_NXTHDR.
+
 #include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -10,6 +12,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
+#include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 
@@ -88,14 +91,14 @@ static int sys_fcntl(int fd, int cmd, int arg)
 	return retval;
 }
 
-static ssize_t sys_read(int fd, void *buf, size_t count)
+static ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
 {
 	ssize_t retval;
 
 	asm volatile(
 		"syscall"
 		: "=a"(retval)
-		: "a"(SYS_read), "D"(fd), "S"(buf), "d"(count)
+		: "a"(SYS_recvmsg), "D"(sockfd), "S"(msg), "d"(flags)
 		: "cc", "rcx", "r11", "memory");
 
 	return retval;
@@ -147,14 +150,73 @@ static int sys_close(int fd)
 	return retval;
 }
 
-static int read_full(void *buf, size_t size)
+// This is like imageInfo in runtime/process.go
+struct image_info {
+	uint16_t magic_number_1;
+	uint8_t debug_flag;
+	uint8_t init_routine;
+	uint32_t page_size;
+	uint64_t text_addr;
+	uint64_t stack_addr;
+	uint64_t heap_addr;
+	uint32_t text_size;
+	uint32_t stack_size;
+	uint32_t stack_unused;
+	uint32_t globals_size;
+	uint32_t init_memory_size;
+	uint32_t grow_memory_size;
+	uint32_t entry_addr;
+	uint32_t magic_number_2;
+} PACKED;
+
+static int receive_program(struct image_info *buf, int *text_fd, int *state_fd)
 {
-	for (size_t pos = 0; pos < size;) {
-		ssize_t len = sys_read(0, buf + pos, size - pos);
-		if (len < 0)
-			return -1;
-		pos += len;
-	}
+	struct iovec iov = {
+		.iov_base = buf,
+		.iov_len = sizeof(struct image_info),
+	};
+
+	union {
+		char buf[CMSG_SPACE(2 * sizeof(int))];
+		struct cmsghdr alignment;
+	} ctl;
+
+	struct msghdr msg = {
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+		.msg_control = ctl.buf,
+		.msg_controllen = sizeof ctl.buf,
+	};
+
+	ssize_t n = sys_recvmsg(GATE_INPUT_FD, &msg, MSG_CMSG_CLOEXEC);
+	if (n < 0)
+		return -1;
+
+	if (n != sizeof(struct image_info))
+		return -1;
+
+	if (msg.msg_flags & MSG_CTRUNC)
+		return -1;
+
+	struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+	if (cmsg == NULL)
+		return -1;
+
+	if (cmsg->cmsg_level != SOL_SOCKET)
+		return -1;
+
+	if (cmsg->cmsg_type != SCM_RIGHTS)
+		return -1;
+
+	if (cmsg->cmsg_len != CMSG_LEN(2 * sizeof(int)))
+		return -1;
+
+	const int *fds = (int *) CMSG_DATA(cmsg);
+	*text_fd = fds[0];
+	*state_fd = fds[1];
+
+	if (CMSG_NXTHDR(&msg, cmsg))
+		return -1;
 
 	return 0;
 }
@@ -170,25 +232,11 @@ int main(void)
 	if (sys_personality(0) < 0)
 		return ERR_LOAD_PERSONALITY_DEFAULT;
 
-	// This is like imageInfo in runtime/process.go
-	struct PACKED {
-		uint32_t magic_number_1;
-		uint32_t page_size;
-		uint64_t text_addr;
-		uint64_t stack_addr;
-		uint64_t heap_addr;
-		uint32_t text_size;
-		uint32_t stack_size;
-		uint32_t stack_unused;
-		uint32_t globals_size;
-		uint32_t init_memory_size;
-		uint32_t grow_memory_size;
-		uint16_t init_routine;
-		uint16_t debug_flag;
-		uint32_t magic_number_2;
-	} info;
+	struct image_info info = {0};
+	int text_fd = -1;
+	int state_fd = -1;
 
-	if (read_full(&info, sizeof info) != 0)
+	if (receive_program(&info, &text_fd, &state_fd) != 0)
 		return ERR_LOAD_READ_INFO;
 
 	if (info.magic_number_1 != GATE_MAGIC_NUMBER_1)
@@ -225,32 +273,39 @@ int main(void)
 
 	// Text
 
-	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE, GATE_IMAGE_FD, 0);
+	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE, text_fd, 0);
 	if (text_ptr != (void *) info.text_addr)
 		return ERR_LOAD_MMAP_TEXT;
 
+	if (sys_close(text_fd) != 0)
+		return ERR_LOAD_CLOSE_TEXT;
+
 	// Stack
 
-	size_t stack_offset = info.text_size;
-
-	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, GATE_IMAGE_FD, stack_offset);
+	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, state_fd, 0);
 	if (stack_buf != (void *) info.stack_addr)
 		return ERR_LOAD_MMAP_STACK;
 
-	*(uint32_t *) stack_buf = info.init_memory_size >> 16;
+	*(uint32_t *) stack_buf = info.init_memory_size >> 16; // WebAssembly pages.
 
 	void *stack_limit = stack_buf + GATE_STACK_LIMIT_OFFSET;
-	void *stack_ptr = stack_buf + info.stack_unused;
+	uint64_t *stack_ptr = stack_buf + info.stack_unused;
+
+	if (info.stack_unused == info.stack_size) {
+		// Synthesize initial stack frame for start or entry routine
+		// (checked in runtime/process.go).
+		*--stack_ptr = info.entry_addr;
+	}
 
 	// Globals and memory
 
-	size_t heap_offset = stack_offset + (size_t) info.stack_size;
+	size_t heap_offset = (size_t) info.stack_size;
 	size_t heap_size = (size_t) info.globals_size + (size_t) info.grow_memory_size;
 
 	void *memory_ptr = NULL;
 
 	if (heap_size > 0) {
-		void *heap_ptr = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, GATE_IMAGE_FD, heap_offset);
+		void *heap_ptr = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, state_fd, heap_offset);
 		if (heap_ptr != (void *) info.heap_addr)
 			return ERR_LOAD_MMAP_HEAP;
 
@@ -261,10 +316,8 @@ int main(void)
 		memory_ptr = heap_ptr + info.globals_size;
 	}
 
-	// Mappings done.
-
-	if (sys_close(GATE_IMAGE_FD) != 0)
-		return ERR_LOAD_CLOSE_IMAGE;
+	if (sys_close(state_fd) != 0)
+		return ERR_LOAD_CLOSE_STATE;
 
 	// Enable I/O signals for sending file descriptor.
 

@@ -51,7 +51,7 @@ var ProcessErrors = [42]Error{
 	28: {"ERR_LOAD_MMAP_TEXT", "process loader", "failed to mmap text section of image"},
 	29: {"ERR_LOAD_MMAP_STACK", "process loader", "failed to mmap stack section of image"},
 	30: {"ERR_LOAD_MMAP_HEAP", "process loader", "failed to mmap globals/memory section of image"},
-	31: {"ERR_LOAD_CLOSE_IMAGE", "process loader", "failed to close image fd"},
+	31: {"ERR_LOAD_CLOSE_STATE", "process loader", "failed to close program state fd"},
 	32: {"ERR_LOAD_MUNMAP_STACK", "process loader", "failed to munmap initial stack"},
 	33: {"ERR_LOAD_SIGACTION", "process loader", "sigaction call failed"},
 	34: {"ERR_LOAD_MUNMAP_LOADER", "process loader", "failed to munmap loader .text and .rodata"},
@@ -59,6 +59,7 @@ var ProcessErrors = [42]Error{
 	36: {"ERR_LOAD_ARGC", "process loader", "loader executed with arguments"},
 	39: {"ERR_LOAD_FCNTL_OUTPUT", "process loader", "failed to set output file flags"},
 	40: {"ERR_LOAD_MPROTECT_HEAP", "process loader", "mprotect: globals/memory protection failed"},
+	41: {"ERR_LOAD_CLOSE_TEXT", "process loader", "failed to close program text fd"},
 }
 
 var ErrorsInitialized struct{}

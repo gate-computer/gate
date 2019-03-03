@@ -5,20 +5,18 @@
 package image
 
 import (
+	"fmt"
+
 	"golang.org/x/sys/unix"
 )
 
-type descriptorFile interface {
-	Fd() uintptr
-}
-
-func copyFileRange(rfd uintptr, roff *int64, wfd uintptr, woff *int64, length int,
-) (err error) {
-	for length > 0 {
+func copyFileRange(rfd uintptr, roff *int64, wfd uintptr, woff *int64, length int) (err error) {
+	for length != 0 {
 		var n int
 
 		n, err = unix.CopyFileRange(int(rfd), roff, int(wfd), woff, length, 0)
 		if err != nil {
+			err = fmt.Errorf("copy_file_range: %v", err)
 			return
 		}
 

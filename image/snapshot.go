@@ -5,14 +5,10 @@
 package image
 
 import (
-	"crypto/sha512"
-	"encoding/base64"
 	"encoding/binary"
-	"io"
 	"syscall"
 
 	"github.com/tsavola/gate/image/wasm"
-	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/section"
@@ -22,78 +18,66 @@ import (
 
 const wasmModuleHeaderSize = 8
 
-func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspended bool,
-) (arcKey string, newArc LocalArchive, err error) {
-	// Old archive.
+func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, suspended bool,
+) (newProg *Program, err error) {
+	// Old program.
 	var (
-		arcMan    = oldArc.Manifest()
-		oldRanges = arcMan.Sections
-		oldFile   = oldArc.file()
+		man       = oldProg.Manifest()
+		oldRanges = man.Sections
+		oldFD     = oldProg.file.Fd()
 	)
 
-	objectMap, err := oldArc.ObjectMap()
+	// Instance file.
+	var (
+		instStackOffset   = int64(0)
+		instGlobalsOffset = instStackOffset + int64(inst.stackSize)
+		instMemoryOffset  = instGlobalsOffset + int64(alignPageSize(inst.globalsSize))
+	)
+
+	instMap, err := mmap(inst.file.Fd(), instStackOffset, int(instMemoryOffset-instStackOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
 		return
 	}
+	defer mustMunmap(instMap)
 
-	// Executable file.
 	var (
-		exeTextOffset    = int64(0)
-		exeStackOffset   = exeTextOffset + alignSize64(int64(exe.Man.TextSize))
-		exeGlobalsOffset = exeStackOffset + int64(exe.Man.StackSize)
-		exeMemoryOffset  = exeGlobalsOffset + alignSize64(int64(exe.Man.GlobalsSize))
+		instStackMapping   = instMap[:inst.stackSize]
+		instGlobalsMapping = instMap[inst.stackSize:]
 	)
 
-	// Memory mapping dimensions.  (Text and memory are not mapped.)
-	var (
-		exeMapStackOffset   = 0
-		exeMapGlobalsOffset = exeMapStackOffset + int(exe.Man.StackSize)
-		exeMapLen           = exeMapGlobalsOffset + alignSize(int(exe.Man.GlobalsSize))
-	)
-
-	exeMap, err := syscall.Mmap(int(exe.file.Fd()), alignSize64(int64(exe.Man.TextSize)), exeMapLen, syscall.PROT_READ, syscall.MAP_PRIVATE)
-	if err != nil {
-		return
-	}
-	defer syscall.Munmap(exeMap)
-
-	// Mapped segments.
-	var (
-		exeStackMap   = exeMap[:exeMapGlobalsOffset]
-		exeGlobalsMap = exeMap[exeMapGlobalsOffset:]
-	)
-
-	exeStackUnused, memorySize, ok := checkStack(exeStackMap, len(exeStackMap))
+	instStackUnused, memorySize, ok := checkStack(instStackMapping, len(instStackMapping))
 	if !ok {
-		err = ErrBadTermination
+		err = ErrInvalidState
 		return
 	}
-	if memorySize > exe.Man.MemorySizeLimit {
-		err = ErrBadTermination
+	if memorySize > uint32(inst.maxMemorySize) {
+		err = ErrInvalidState
 		return
 	}
 
 	// Stack, globals and memory contents without unused regions or padding.
 	var (
-		exeStackData   []byte
-		stackUsage     int
-		globalsData    = exeGlobalsMap[len(exeGlobalsMap)-len(arcMan.GlobalTypes)*8:]
-		newTextAddr    uint64
 		newInitRoutine int32
+		newTextAddr    uint64
+		instStackData  []byte
+		stackUsage     int
+		globalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(man.GlobalTypes)*8:]
 	)
 
 	if suspended {
-		if exeStackUnused != 0 {
-			exeStackData = exeStackMap[exeStackUnused:]
-			stackUsage = len(exeStackData)
-			newTextAddr = exe.Man.TextAddr
+		if instStackUnused != 0 {
+			newInitRoutine = abi.TextAddrResume
+			newTextAddr = inst.textAddr
+			instStackData = instStackMapping[instStackUnused:]
+			stackUsage = len(instStackData)
 		} else {
-			stackUsage = 16 // Return address and entry function argument.
+			// Starting is equivalent to resuming at virtual call site at
+			// beginning of start routine.
+			newInitRoutine = abi.TextAddrStart
+			stackUsage = 16
 		}
-
-		newInitRoutine = abi.TextAddrResume
 	} else {
-		// New archive reuses old text segment which may invoke start function.
+		// New program reuses old text segment which may invoke start function.
 		// Don't invoke it again.
 		newInitRoutine = abi.TextAddrEnter
 	}
@@ -101,9 +85,7 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	// New module sections.
 	// TODO: align section contents to facilitate reflinking?
 	// TODO: stitch module together during download?
-	var (
-		newRanges = make([]manifest.ByteRange, section.Data+1)
-	)
+	newRanges := make([]manifest.ByteRange, section.Data+1)
 
 	off := int64(wasmModuleHeaderSize)
 	off = mapOldSection(off, newRanges, oldRanges, section.Type)
@@ -114,7 +96,7 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	memorySection := makeMemorySection(memorySize) // TODO: maximum value
 	off = mapNewSection(off, newRanges, len(memorySection), section.Memory)
 
-	globalSection := makeGlobalSection(arcMan.GlobalTypes, globalsData)
+	globalSection := makeGlobalSection(man.GlobalTypes, globalsData)
 	off = mapNewSection(off, newRanges, len(globalSection), section.Global)
 
 	off = mapOldSection(off, newRanges, oldRanges, section.Export)
@@ -138,20 +120,19 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	off = mapNewSection(off, newRanges, dataSectionSize, section.Data)
 
 	// New module size.
-	newModuleSize := arcMan.ModuleSize
-	newModuleSize -= arcMan.Sections[section.Memory].Length
-	newModuleSize -= arcMan.Sections[section.Global].Length
-	newModuleSize -= arcMan.Sections[section.Start].Length
-	newModuleSize -= arcMan.StackSection.Length
-	newModuleSize -= arcMan.Sections[section.Data].Length
+	newModuleSize := man.ModuleSize
+	newModuleSize -= man.Sections[section.Memory].Length
+	newModuleSize -= man.Sections[section.Global].Length
+	newModuleSize -= man.Sections[section.Start].Length
+	newModuleSize -= man.StackSection.Length
+	newModuleSize -= man.Sections[section.Data].Length
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
 	newModuleSize += int64(stackSectionSize)
 	newModuleSize += int64(dataSectionSize)
 
-	// New archive file.
-
-	newFile, err := newBack.newArchiveFile()
+	// New program file.
+	newFile, err := newStorage.newProgramFile()
 	if err != nil {
 		return
 	}
@@ -162,7 +143,6 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	}()
 
 	// Copy module header and sections up to and including table section.
-
 	copyLen := int(wasmModuleHeaderSize)
 	for i := section.Table; i >= section.Type; i-- {
 		if newRanges[i].Offset != 0 {
@@ -171,18 +151,15 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 		}
 	}
 
-	newOff := int64(arcModuleOffset)
-	oldOff := int64(arcModuleOffset)
-	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, copyLen)
+	newOff := progModuleOffset
+	oldOff := progModuleOffset
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
 	if err != nil {
 		return
 	}
 
 	// Write new memory and global section, and skip old ones.
-
-	memoryGlobalSections := append(memorySection, globalSection...)
-
-	n, err := newFile.WriteAt(memoryGlobalSections, newOff)
+	n, err := newFile.WriteAt(append(memorySection, globalSection...), newOff)
 	if err != nil {
 		return
 	}
@@ -191,13 +168,10 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 
 	// If there is a start section, copy export section separately, and skip
 	// start section.
-
 	nextSection := section.Export
 
 	if oldRanges[section.Start].Length > 0 {
-		copyLen = int(oldRanges[section.Export].Length)
-
-		err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, copyLen)
+		err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, int(oldRanges[section.Export].Length))
 		if err != nil {
 			return
 		}
@@ -207,7 +181,6 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 	}
 
 	// Copy sections up to and including code section.
-
 	copyLen = 0
 	for _, s := range oldRanges[nextSection : section.Code+1] {
 		if s.Length > 0 {
@@ -215,30 +188,28 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 		}
 	}
 
-	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, copyLen)
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
 	if err != nil {
 		return
 	}
 
 	// Write new stack section, and skip old one.
-	var (
-		newStackData []byte
-	)
-
 	if suspended {
 		newStackSection := make([]byte, len(stackHeader)+stackUsage)
 		copy(newStackSection, stackHeader)
 
-		newStackData = newStackSection[len(stackHeader):]
+		newStack := newStackSection[len(stackHeader):]
 
-		if exeStackData != nil {
-			err = exportStack(newStackData, exeStackData, exe.Man.TextAddr, objectMap) // TODO: in-place?
+		if instStackData != nil {
+			err = exportStack(newStack, instStackData, inst.textAddr, oldProg.Map) // TODO: in-place?
 			if err != nil {
 				return
 			}
 		} else {
-			// Synthesize portable stack, suspended at virtual call site at index 0.
-			binary.LittleEndian.PutUint32(newStackData[8:], exe.entryIndex)
+			// Synthesize portable stack, suspended at virtual call site at
+			// index 0 (beginning of start routine).
+			binary.LittleEndian.PutUint64(newStack[0:], 0)
+			binary.LittleEndian.PutUint32(newStack[8:], inst.entryIndex)
 		}
 
 		n, err = newFile.WriteAt(newStackSection, newOff)
@@ -247,125 +218,79 @@ func Snapshot(newBack LocalStorage, oldArc LocalArchive, exe *Executable, suspen
 		}
 		newOff += int64(n)
 	}
+	oldOff += man.StackSection.Length
 
-	oldOff += arcMan.StackSection.Length
-
-	// Copy new data section from executable, and skip old archived one.
-
+	// Copy new data section from instance, and skip old one.
 	n, err = newFile.WriteAt(dataHeader, newOff)
 	if err != nil {
 		return
 	}
 	newOff += int64(n)
 
-	exeOff := exeMemoryOffset
-	err = copyFileRange(exe.file.Fd(), &exeOff, newFile.Fd(), &newOff, int(memorySize))
+	instOff := instMemoryOffset
+	err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, int(memorySize))
 	if err != nil {
 		return
 	}
 	oldOff += oldRanges[section.Data].Length
 
 	// Copy remaining (custom) sections.
-
-	copyLen = int(arcMan.ModuleSize - oldOff)
-
-	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, copyLen)
+	copyLen = int(man.ModuleSize - (oldOff - progModuleOffset))
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
 	if err != nil {
 		return
 	}
 
-	// Module key.
-
-	h := sha512.New384()
-
-	_, err = io.Copy(h, io.NewSectionReader(newFile, arcModuleOffset, newModuleSize))
+	// Copy object map from program.
+	newOff = align8(newOff)
+	oldOff = align8(oldOff)
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, int(man.CallSitesSize)+int(man.FuncAddrsSize))
 	if err != nil {
 		return
 	}
 
-	arcKey = base64.URLEncoding.EncodeToString(h.Sum(nil))
-
-	// Copy object map from archive.
-	var (
-		objectMapSize = int(arcMan.CallSitesSize) + int(arcMan.FuncAddrsSize)
-	)
-
-	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, objectMapSize)
+	// Copy text from program.  (Programs likely share the same backend.)
+	newOff = progTextOffset
+	oldOff = progTextOffset
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, alignPageSize32(man.TextSize))
 	if err != nil {
 		return
 	}
 
-	// Copy text from archive.  (Archives likely share the same backend.)
-
-	newOff = alignSize64(newOff)
-	oldOff = alignSize64(oldOff)
-	err = copyFileRange(oldFile.Fd(), &oldOff, newFile.Fd(), &newOff, alignSize(int(exe.Man.TextSize)))
-	if err != nil {
-		return
-	}
-
-	// Copy stack from executable (again).
-	var (
-		newStackSize = alignSize(stackUsage)
-	)
-
-	newOff = alignSize64(newOff)
-
-	if suspended {
-		if exeStackData != nil {
-			copyLen = alignSize(stackUsage)
-
-			newOff += int64(newStackSize) - int64(copyLen)
-			exeOff = alignSize64(exeStackOffset) + int64(exe.Man.StackSize) - int64(copyLen)
-			err = copyFileRange(exe.file.Fd(), &exeOff, newFile.Fd(), &newOff, copyLen)
-			if err != nil {
-				return
-			}
-		} else {
-			// Replace portable index with native address.
-			binary.LittleEndian.PutUint32(newStackData[8:], exe.entryAddr)
-
-			newOff += int64(newStackSize) - int64(stackUsage)
-			n, err = newFile.WriteAt(newStackData, newOff)
-			if err != nil {
-				return
-			}
-			newOff += int64(n)
+	// Copy stack from instance (again).
+	if instStackData != nil {
+		copyLen := alignPageSize(stackUsage)
+		newOff = progGlobalsOffset - int64(copyLen)
+		instOff = instGlobalsOffset - int64(copyLen)
+		err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, copyLen)
+		if err != nil {
+			return
 		}
 	}
 
-	// Copy globals and memory from executable (again).
-
-	copyLen = alignSize(int(exe.Man.GlobalsSize)) + int(memorySize)
-
-	exeOff = alignSize64(exeGlobalsOffset)
-	err = copyFileRange(exe.file.Fd(), &exeOff, newFile.Fd(), &newOff, copyLen)
+	// Copy globals and memory from instance (again).
+	newOff = progGlobalsOffset
+	instOff = instGlobalsOffset
+	err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, alignPageSize(inst.globalsSize)+int(memorySize))
 	if err != nil {
 		return
 	}
 
-	// New archive manifest.
-
-	arcMan.ModuleSize = newModuleSize
-	arcMan.Sections = newRanges
-	arcMan.StackSection = manifest.ByteRange{
+	// New program manifest.
+	man.InitRoutine = newInitRoutine
+	man.TextAddr = newTextAddr
+	man.StackUsage = uint32(stackUsage)
+	man.MemoryDataSize = memorySize
+	man.MemorySize = memorySize
+	man.ModuleSize = newModuleSize
+	man.Sections = newRanges
+	man.StackSection = manifest.ByteRange{
 		Offset: stackSectionOffset,
 		Length: int64(stackSectionSize),
 	}
-	arcMan.Exe.TextAddr = newTextAddr
-	arcMan.Exe.StackSize = uint32(newStackSize)
-	arcMan.Exe.StackUsage = uint32(stackUsage)
-	arcMan.Exe.MemoryDataSize = memorySize
-	arcMan.Exe.MemorySize = memorySize
-	arcMan.Exe.InitRoutine = newInitRoutine
 
-	// Archive it.
-
-	newArc, err = newBack.give(arcKey, arcMan, file.NewRef(newFile), objectMap)
-	if err != nil {
-		return
-	}
-
+	// Store it.
+	newProg = newStorage.newProgram(man, newFile, oldProg.Map)
 	return
 }
 

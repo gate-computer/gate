@@ -84,24 +84,19 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 	return
 }
 
-func (e *Executor) execute(ctx context.Context, proc *execProcess, image, input *file.Ref, output, debug *os.File,
+func (e *Executor) execute(ctx context.Context, proc *execProcess, input *file.Ref, output *file.File, debug *os.File,
 ) error {
 	proc.init(e)
 
-	image.Ref()
 	input.Ref()
 	defer func() {
-		if image != nil {
-			image.Close()
-		}
 		if input != nil {
 			input.Close()
 		}
 	}()
 
 	select {
-	case e.execRequests <- execRequest{proc, image, input, output, debug}:
-		image = nil
+	case e.execRequests <- execRequest{proc, input, output, debug}:
 		input = nil
 		return nil
 
@@ -166,7 +161,7 @@ func (e *Executor) sender(errorLog Logger) {
 
 			numProcs++ // Conservative estimate.
 
-			cmsg = syscall.UnixRights(execReq.fds()...)
+			cmsg = unixRights(execReq.fds()...)
 
 		case pid := <-e.killRequests:
 			if pid == 0 {
@@ -316,25 +311,18 @@ func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
 
 type execRequest struct {
 	proc   *execProcess
-	image  *file.Ref
 	input  *file.Ref
-	output *os.File
+	output *file.File
 	debug  *os.File // Optional
 }
 
 func (req *execRequest) fds() (fds []int) {
-	if req.debug == nil {
-		fds = make([]int, 3)
-	} else {
-		fds = make([]int, 4)
+	fds = []int{
+		int(req.input.Fd()),
+		int(req.output.Fd()),
 	}
-
-	fds[0] = int(req.input.Fd())
-	fds[1] = int(req.output.Fd())
-	fds[2] = int(req.image.Fd())
-
 	if req.debug != nil {
-		fds[3] = int(req.debug.Fd())
+		fds = append(fds, int(req.debug.Fd()))
 	}
 	return
 }
@@ -344,7 +332,6 @@ func (req *execRequest) release() {
 		return
 	}
 
-	req.image.Close()
 	req.input.Close()
 	req.output.Close()
 

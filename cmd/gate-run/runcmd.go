@@ -226,13 +226,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 
 	tBegin := time.Now()
 
-	ref, err := image.NewExecutableRef(image.Memory)
-	if err != nil {
-		log.Fatalf("executable: %v", err)
-	}
-	defer ref.Close()
-
-	proc, err := runtime.NewProcess(ctx, executor, ref, os.Stderr)
+	proc, err := runtime.NewProcess(ctx, executor, os.Stderr)
 	if err != nil {
 		log.Fatalf("process: %v", err)
 	}
@@ -244,16 +238,17 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	var ns = new(section.NameSection)
 	var cs = new(section.CustomSections)
 
-	funcSigs, exe, err := load(ref, filename, &im, ns, cs)
+	funcSigs, prog, inst, err := load(filename, &im, ns, cs)
 	if err != nil {
 		log.Fatalf("load: %v", err)
 	}
-	defer exe.Close()
+	defer prog.Close()
+	defer inst.Close()
 
 	tLoadEnd := time.Now()
 	tRunBegin := tLoadEnd
 
-	err = proc.Start(exe)
+	err = proc.Start(prog, inst)
 	if err != nil {
 		log.Fatalf("execute: %v", err)
 	}
@@ -282,7 +277,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	var trace []stack.Frame
 
 	if trapID != 0 || err != nil {
-		trace, err = exe.Stacktrace(im, funcSigs)
+		trace, err = inst.Stacktrace(im, funcSigs)
 		if err != nil {
 			log.Fatalf("stacktrace: %v", err)
 		}
@@ -298,15 +293,15 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	}
 }
 
-func load(ref image.ExecutableRef, filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *section.CustomSections,
-) (funcSigs []wa.FuncType, exe *image.Executable, err error) {
+func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *section.CustomSections,
+) (funcSigs []wa.FuncType, prog *image.Program, inst *image.Instance, err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 
-	build, err := image.NewBuild(image.Memory, image.Memory, ref, 0, compile.DefaultMaxTextSize, &codeMap.CallMap)
+	build, err := image.NewBuild(image.Memory, image.Memory, 0, compile.DefaultMaxTextSize, &codeMap.CallMap)
 	if err != nil {
 		return
 	}
@@ -352,11 +347,6 @@ func load(ref image.ExecutableRef, filename string, codeMap *debug.InsnMap, ns *
 	// textCopy := make([]byte, len(text.Bytes()))
 	// copy(textCopy, text.Bytes())
 
-	err = build.FinishText(0, c.Program.StackSize, mod.GlobalsSize(), mod.InitialMemorySize(), mod.MemorySizeLimit())
-	if err != nil {
-		return
-	}
-
 	var entryIndex uint32
 	var entryAddr uint32
 
@@ -369,7 +359,10 @@ func load(ref image.ExecutableRef, filename string, codeMap *debug.InsnMap, ns *
 		entryAddr = codeMap.FuncAddrs[entryIndex]
 	}
 
-	build.SetupEntryStackFrame(entryIndex, entryAddr)
+	err = build.FinishText(c.Program.StackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize(), mod.MemorySizeLimit())
+	if err != nil {
+		return
+	}
 
 	var dataConfig = &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
@@ -405,7 +398,12 @@ func load(ref image.ExecutableRef, filename string, codeMap *debug.InsnMap, ns *
 	// 	}
 	// }
 
-	exe, err = build.FinishExecutable()
+	prog, err = build.FinishProgram(image.SectionMap{}, nil, nil, nil)
+	if err != nil {
+		return
+	}
+
+	inst, err = build.FinishInstance(entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
