@@ -30,7 +30,7 @@ const (
 	accessControlMaxAge = "86400"
 	cacheControlStatic  = "public, max-age=3600"
 	contentTypeText     = "text/plain; charset=utf-8"
-	contentTypeJSON     = "application/json; chatset=utf-8"
+	contentTypeJSON     = "application/json; charset=utf-8"
 )
 
 var (

@@ -17,12 +17,7 @@ func TestStatusJSON(t *testing.T) {
 		Cause: serverapi.Status_Cause(trap.MemoryAccessOutOfBounds),
 	}
 
-	t.Log(status)
-
-	data, err := serverapi.MarshalJSON(status)
-	if err != nil {
-		t.Error(err)
-	}
+	data := serverapi.MustMarshalJSON(status)
 
 	if s := string(data); s != `{"state":"terminated","cause":"memory_access_out_of_bounds"}` {
 		t.Error(s)

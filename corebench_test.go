@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package runtime
+package gate_test
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -15,8 +16,6 @@ import (
 	"testing"
 
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/internal/test/imageutil"
-	"github.com/tsavola/gate/internal/test/runtimeutil"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/object/abi"
@@ -25,13 +24,63 @@ import (
 
 const benchPrepareCount = 32
 
-var benchExecutor = runtimeutil.NewExecutor(context.Background(), &runtime.Config{
-	LibDir: "../../../lib/gate/runtime",
-})
+type nopInstance struct{ *image.Instance }
 
-var benchRegistry = &testServiceRegistry{new(bytes.Buffer)}
+func (nopInstance) InitRoutine() uint8 { return abi.TextAddrNoFunction }
 
-func execInstBench(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
+var benchExecutor = newExecutor(context.Background(), nil)
+var benchRegistry = serviceRegistry{new(bytes.Buffer)}
+var benchFS image.LocalStorage
+
+type benchDatum struct {
+	name string
+	wasm []byte
+}
+
+var benchData = []benchDatum{
+	{"Nop", wasmNop},
+	{"Hello", wasmHello},
+}
+
+var optionalBenchData = []struct {
+	name string
+	path string
+}{
+	{"GainRel", "../gain/target/wasm32-unknown-unknown/release/examples/hello.wasm"},
+	{"GainDbg", "../gain/target/wasm32-unknown-unknown/debug/examples/hello.wasm"},
+}
+
+func init() {
+	for _, x := range optionalBenchData {
+		wasm, err := ioutil.ReadFile(x.path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			panic(err)
+		}
+		benchData = append(benchData, benchDatum{x.name, wasm})
+	}
+
+	dir := os.Getenv("GATE_BENCH_FILESYSTEM")
+	if dir == "" {
+		d := "testdata/filesystem"
+		if _, err := os.Stat(d); err == nil {
+			dir = d
+		} else if !os.IsNotExist(err) {
+			panic(err)
+		}
+	}
+
+	if dir != "" {
+		if err := os.RemoveAll(path.Join(dir, "v0/program")); err != nil {
+			panic(err)
+		}
+		benchFS = image.NewFilesystem(dir)
+	}
+}
+
+func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
 ) (exit int, trapID trap.ID, err error) {
 	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, nil)
 	if err != nil {
@@ -47,7 +96,7 @@ func execInstBench(ctx context.Context, prog runtime.ProgramCode, inst runtime.P
 	return proc.Serve(ctx, benchRegistry, nil)
 }
 
-func execProgBench(ctx context.Context, instStorage image.InstanceStorage, prog *image.Program,
+func executeProgram(ctx context.Context, instStorage image.InstanceStorage, prog *image.Program,
 ) (exit int, trapID trap.ID, err error) {
 	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, nil)
 	if err != nil {
@@ -55,7 +104,7 @@ func execProgBench(ctx context.Context, instStorage image.InstanceStorage, prog 
 	}
 	defer proc.Kill()
 
-	inst, err := image.NewInstance(instStorage, prog, testStackSize, 0, 0)
+	inst, err := image.NewInstance(instStorage, prog, stackSize, 0, 0)
 	if err != nil {
 		return
 	}
@@ -67,37 +116,6 @@ func execProgBench(ctx context.Context, instStorage image.InstanceStorage, prog 
 	}
 
 	return proc.Serve(ctx, benchRegistry, nil)
-}
-
-var benchFS image.LocalStorage
-
-func init() {
-	dir := os.Getenv("GATE_BENCH_FILESYSTEM")
-	if dir != "" {
-		dir = path.Join("../../..", dir)
-	} else {
-		d := "../../../testdata/filesystem"
-		if _, err := os.Stat(d); err == nil {
-			dir = d
-		} else if !os.IsNotExist(err) {
-			panic(err)
-		}
-	}
-
-	if dir != "" {
-		imageutil.MustCleanFilesystem(dir)
-		benchFS = image.NewFilesystem(dir)
-	}
-}
-
-var benchSources = []struct {
-	name string
-	wasm []byte
-}{
-	{"Nop", testProgNop},
-	{"Hello", testProgHello},
-	{"GainRel", runtimeutil.MustReadFile("../../../../gain/target/wasm32-unknown-unknown/release/examples/hello.wasm")},
-	{"GainDbg", runtimeutil.MustReadFile("../../../../gain/target/wasm32-unknown-unknown/debug/examples/hello.wasm")},
 }
 
 func BenchmarkBuildMem(b *testing.B) {
@@ -120,7 +138,7 @@ func BenchmarkBuildFS(b *testing.B) {
 }
 
 func benchBuild(b *testing.B, progStorage image.ProgramStorage, instStorage image.InstanceStorage) {
-	for _, x := range benchSources {
+	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
 			var codeMap object.CallMap
@@ -129,7 +147,7 @@ func benchBuild(b *testing.B, progStorage image.ProgramStorage, instStorage imag
 				codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 				codeMap.CallSites = codeMap.CallSites[:0]
 
-				prog, inst, _ := buildTest(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
+				prog, inst, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
 				inst.Close()
 				prog.Close()
 			}
@@ -153,7 +171,7 @@ func BenchmarkBuildStore(b *testing.B) {
 		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 		codeMap.CallSites = codeMap.CallSites[:0]
 
-		prog, inst, _ := buildTest(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(testProgNop), len(testProgNop), "")
+		prog, inst, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
 		err := prog.Store(prefix + strconv.Itoa(i))
 		inst.Close()
 		prog.Close()
@@ -181,7 +199,7 @@ func benchExecInst(b *testing.B, progStorage image.ProgramStorage, instStorage i
 
 	var codeMap object.CallMap
 
-	prog, instProto, _ := buildTest(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(testProgNop), len(testProgNop), "")
+	prog, instProto, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
 	defer prog.Close()
 	defer instProto.Close()
 
@@ -190,7 +208,7 @@ func benchExecInst(b *testing.B, progStorage image.ProgramStorage, instStorage i
 	for i := 0; i < b.N; i++ {
 		instClone := *instProto // Hack to work around state invalidation.
 
-		_, trapID, err := execInstBench(ctx, prog, nopInstance{&instClone})
+		_, trapID, err := executeInstance(ctx, prog, nopInstance{&instClone})
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -225,19 +243,19 @@ func benchExecProg(b *testing.B, progStorage image.ProgramStorage, instStorage i
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for _, x := range benchSources {
+	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
 			var codeMap object.CallMap
 
-			prog, inst, _ := buildTest(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
+			prog, inst, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
 			defer prog.Close()
 			inst.Close()
 
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_, trapID, err := execProgBench(ctx, instStorage, prog)
+				_, trapID, err := executeProgram(ctx, instStorage, prog)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -250,7 +268,3 @@ func benchExecProg(b *testing.B, progStorage image.ProgramStorage, instStorage i
 		})
 	}
 }
-
-type nopInstance struct{ *image.Instance }
-
-func (nopInstance) InitRoutine() uint8 { return abi.TextAddrNoFunction }
