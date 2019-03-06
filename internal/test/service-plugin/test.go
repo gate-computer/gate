@@ -35,9 +35,14 @@ func (testService) ServiceName() string {
 	return ServiceName
 }
 
-func (testService) Instantiate(_ service.InstanceConfig, state []byte) service.Instance {
+func (testService) CreateInstance(service.InstanceConfig) service.Instance {
 	log.Print(testConfig.MOTD)
 	return testInstance{}
+}
+
+func (testService) RecreateInstance(service.InstanceConfig, []byte) (service.Instance, error) {
+	log.Print(testConfig.MOTD, "again")
+	return testInstance{}, nil
 }
 
 type testInstance struct{}
@@ -49,8 +54,12 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 	}
 }
 
-func (testInstance) Shutdown() []byte {
+func (testInstance) ExtractState() []byte {
 	return []byte{0x73, 0x57}
+}
+
+func (testInstance) Close() (err error) {
+	return
 }
 
 func main() {}

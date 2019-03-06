@@ -116,7 +116,7 @@ func (cr *Connector) ServiceName() string {
 	return ServiceName
 }
 
-func (cr *Connector) Instantiate(config service.InstanceConfig, initialState []byte) service.Instance {
+func (cr *Connector) CreateInstance(config service.InstanceConfig) service.Instance {
 	return &instanceService{
 		handler: instanceHandler{
 			newConns:    cr.newConns,
@@ -124,6 +124,10 @@ func (cr *Connector) Instantiate(config service.InstanceConfig, initialState []b
 			maxDataSize: config.MaxPacketSize - packet.DataHeaderSize,
 		},
 	}
+}
+
+func (cr *Connector) RecreateInstance(config service.InstanceConfig, _ []byte) (service.Instance, error) {
+	return cr.CreateInstance(config), nil
 }
 
 type instanceService struct {
@@ -144,7 +148,11 @@ func (si *instanceService) Handle(ctx context.Context, replies chan<- packet.Buf
 	}
 }
 
-func (si *instanceService) Shutdown() (portableState []byte) {
+func (si *instanceService) ExtractState() []byte {
+	return nil
+}
+
+func (si *instanceService) Close() (err error) {
 	if si.requests != nil {
 		close(si.requests)
 	}

@@ -30,7 +30,8 @@ type InstanceConfig struct {
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
 	Handle(ctx context.Context, send chan<- packet.Buf, in packet.Buf)
-	Shutdown() (portableState []byte)
+	ExtractState() (portableState []byte)
+	Close() error
 }
 
 // Factory creates instances of a particular service implementation.
@@ -39,7 +40,8 @@ type Instance interface {
 // naming conventions.
 type Factory interface {
 	ServiceName() string
-	Instantiate(config InstanceConfig, initialState []byte) Instance
+	CreateInstance(config InstanceConfig) Instance
+	RecreateInstance(config InstanceConfig, initialState []byte) (Instance, error)
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
@@ -122,13 +124,27 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	states := make([]runtime.ServiceState, len(d.services))
 
 	for i, s := range d.services {
+		var code = packet.Code(i)
+		var inst Instance
+
 		if s.factory != nil {
-			code := packet.Code(i)
-			instances[code] = s.factory.Instantiate(InstanceConfig{serviceConfig, code}, s.Buffer)
-			s.Buffer = nil
+			config := InstanceConfig{serviceConfig, code}
+
+			if s.Buffer == nil {
+				inst = s.factory.CreateInstance(config)
+			} else {
+				var err error
+				inst, err = s.factory.RecreateInstance(config, s.Buffer)
+				if err != nil {
+					return nil, nil, err
+				}
+				s.Buffer = nil
+			}
 
 			states[i].SetAvail()
 		}
+
+		instances[code] = inst
 	}
 
 	go serve(ctx, serviceConfig, r, d, instances, send, recv)
@@ -148,7 +164,7 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 		inst, found := instances[code]
 		if !found {
 			if s := d.getServices()[code]; s.factory != nil {
-				inst = s.factory.Instantiate(InstanceConfig{serviceConfig, code}, nil)
+				inst = s.factory.CreateInstance(InstanceConfig{serviceConfig, code})
 			}
 			instances[code] = inst
 		}
@@ -230,8 +246,7 @@ func (d *discoverer) NumServices() int {
 	return len(d.services)
 }
 
-// ExtractState shuts down instances and returns their states the first time
-// it's called.
+// ExtractState from instances and close them.
 func (d *discoverer) ExtractState() (final []snapshot.Service) {
 	final = make([]snapshot.Service, len(d.services))
 
@@ -243,22 +258,24 @@ func (d *discoverer) ExtractState() (final []snapshot.Service) {
 
 	for code, inst := range instances {
 		if inst != nil {
-			if b := inst.Shutdown(); len(b) > 0 {
+			if b := inst.ExtractState(); len(b) > 0 {
 				final[code].Buffer = b
 			}
+
+			inst.Close()
 		}
 	}
 
 	return
 }
 
-// Close shuts down instances unless ExtractState already did so.
+// Close instances unless ExtractState already did so.
 func (d *discoverer) Close() (err error) {
 	instances := <-d.stopped
 
 	for _, inst := range instances {
 		if inst != nil {
-			inst.Shutdown()
+			inst.Close()
 		}
 	}
 
