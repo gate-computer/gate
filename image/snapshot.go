@@ -10,6 +10,7 @@ import (
 
 	"github.com/tsavola/gate/image/wasm"
 	"github.com/tsavola/gate/internal/manifest"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
@@ -18,7 +19,7 @@ import (
 
 const wasmModuleHeaderSize = 8
 
-func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, suspended bool,
+func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool,
 ) (newProg *Program, err error) {
 	// Old program.
 	var (
@@ -104,6 +105,37 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, suspe
 	off = mapOldSection(off, newRanges, oldRanges, section.Code)
 
 	var (
+		serviceSection       []byte
+		serviceSectionOffset int64
+	)
+	if len(buffers.Services) > 0 {
+		serviceSection = makeServiceSection(buffers.Services)
+		serviceSectionOffset = off
+		off += int64(len(serviceSection))
+	}
+
+	var (
+		ioSection       []byte
+		ioSectionOffset int64
+	)
+	if len(buffers.Input) > 0 || len(buffers.Output) > 0 {
+		ioSection = makeIOSection(len(buffers.Input), len(buffers.Output))
+		ioSectionOffset = off
+		off += int64(len(ioSection))
+	}
+
+	var (
+		bufferHeader        []byte
+		bufferSectionSize   int64
+		bufferSectionOffset int64
+	)
+	if len(serviceSection) > 0 || len(ioSection) > 0 {
+		bufferHeader, bufferSectionSize = makeBufferSectionHeader(buffers)
+		bufferSectionOffset = off
+		off += bufferSectionSize
+	}
+
+	var (
 		stackHeader        []byte
 		stackSectionSize   int
 		stackSectionOffset int64
@@ -124,10 +156,16 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, suspe
 	newModuleSize -= man.Sections[section.Memory].Length
 	newModuleSize -= man.Sections[section.Global].Length
 	newModuleSize -= man.Sections[section.Start].Length
+	newModuleSize -= man.ServiceSection.Length
+	newModuleSize -= man.IoSection.Length
+	newModuleSize -= man.BufferSection.Length
 	newModuleSize -= man.StackSection.Length
 	newModuleSize -= man.Sections[section.Data].Length
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
+	newModuleSize += int64(len(serviceSection))
+	newModuleSize += int64(len(ioSection))
+	newModuleSize += bufferSectionSize
 	newModuleSize += int64(stackSectionSize)
 	newModuleSize += int64(dataSectionSize)
 
@@ -192,6 +230,60 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, suspe
 	if err != nil {
 		return
 	}
+
+	// Write new service section, and skip old one.
+	if len(serviceSection) > 0 {
+		n, err = newFile.WriteAt(serviceSection, newOff)
+		if err != nil {
+			return
+		}
+		newOff += int64(n)
+	}
+	oldOff += man.ServiceSection.Length
+
+	// Write new I/O section, and skip old one.
+	if len(ioSection) > 0 {
+		n, err = newFile.WriteAt(ioSection, newOff)
+		if err != nil {
+			return
+		}
+		newOff += int64(n)
+	}
+	oldOff += man.IoSection.Length
+
+	// Write new buffer section, and skip old one.
+	if bufferSectionSize > 0 {
+		n, err = newFile.WriteAt(bufferHeader, newOff)
+		if err != nil {
+			return
+		}
+		newOff += int64(n)
+
+		for _, s := range buffers.Services {
+			n, err = newFile.WriteAt(s.Buffer, newOff)
+			if err != nil {
+				return
+			}
+			newOff += int64(n)
+		}
+
+		if len(buffers.Input) > 0 {
+			n, err = newFile.WriteAt(buffers.Input, newOff)
+			if err != nil {
+				return
+			}
+			newOff += int64(n)
+		}
+
+		if len(buffers.Output) > 0 {
+			n, err = newFile.WriteAt(buffers.Output, newOff)
+			if err != nil {
+				return
+			}
+			newOff += int64(n)
+		}
+	}
+	oldOff += man.BufferSection.Length
 
 	// Write new stack section, and skip old one.
 	if suspended {
@@ -284,6 +376,18 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, suspe
 	man.MemorySize = memorySize
 	man.ModuleSize = newModuleSize
 	man.Sections = newRanges
+	man.ServiceSection = manifest.ByteRange{
+		Offset: serviceSectionOffset,
+		Length: int64(len(serviceSection)),
+	}
+	man.IoSection = manifest.ByteRange{
+		Offset: ioSectionOffset,
+		Length: int64(len(ioSection)),
+	}
+	man.BufferSection = manifest.ByteRange{
+		Offset: bufferSectionOffset,
+		Length: bufferSectionSize,
+	}
 	man.StackSection = manifest.ByteRange{
 		Offset: stackSectionOffset,
 		Length: int64(stackSectionSize),
@@ -371,6 +475,97 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 		totalSize++
 	}
 
+	return
+}
+
+func makeServiceSection(services []snapshot.Service) []byte {
+	var (
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32        // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.ServiceSectionName) // Name length, name string.
+		maxItemHeaderSize   = binary.MaxVarintLen32            // Item count.
+
+		maxHeaderSize = maxSectionFrameSize + customHeaderSize + maxItemHeaderSize
+	)
+
+	maxSectionSize := maxHeaderSize
+	for _, s := range services {
+		// Name length, name string, buffer size.
+		maxSectionSize += 1 + len(s.Name) + binary.MaxVarintLen32
+	}
+
+	buf := make([]byte, maxSectionSize)
+
+	// Items.
+	end := maxHeaderSize
+	for _, s := range services {
+		buf[end] = byte(len(s.Name))
+		end++
+		end += copy(buf[end:], s.Name)
+		end += binary.PutUvarint(buf[end:], uint64(len(s.Buffer)))
+	}
+
+	// Header.
+	start := maxHeaderSize
+	start -= putVaruint32Before(buf, start, uint32(len(services)))
+	start -= len(wasm.ServiceSectionName)
+	copy(buf[start:], wasm.ServiceSectionName)
+	start--
+	buf[start] = byte(len(wasm.ServiceSectionName))
+	start -= putVaruint32Before(buf, start, uint32(end-start))
+	start--
+	buf[start] = byte(section.Custom)
+
+	return buf[start:end]
+}
+
+func makeIOSection(inputSize, outputSize int) []byte {
+	var (
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32   // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.IOSectionName) // Name length, name string.
+
+		maxHeaderSize  = maxSectionFrameSize + customHeaderSize
+		maxSectionSize = maxHeaderSize + binary.MaxVarintLen32*2
+	)
+
+	buf := make([]byte, maxSectionSize)
+
+	end := maxHeaderSize
+	end += binary.PutUvarint(buf[end:], uint64(inputSize))
+	end += binary.PutUvarint(buf[end:], uint64(outputSize))
+
+	start := maxHeaderSize
+	start -= len(wasm.IOSectionName)
+	copy(buf[start:], wasm.IOSectionName)
+	start--
+	buf[start] = byte(len(wasm.IOSectionName))
+	start -= putVaruint32Before(buf, start, uint32(end-start))
+	start--
+	buf[start] = byte(section.Custom)
+
+	return buf[start:end]
+}
+
+func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSize int64) {
+	var (
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32       // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.BufferSectionName) // Name length, name string.
+	)
+
+	var bufsize uint32
+	for _, s := range buffers.Services {
+		bufsize += uint32(len(s.Buffer))
+	}
+	bufsize += uint32(len(buffers.Input))
+	bufsize += uint32(len(buffers.Output))
+
+	buf := make([]byte, maxSectionFrameSize+customHeaderSize)
+	buf[0] = byte(section.Custom)
+	payloadLenSize := binary.PutUvarint(buf[1:], uint64(customHeaderSize)+uint64(bufsize))
+	buf[1+payloadLenSize] = byte(len(wasm.BufferSectionName))
+	copy(buf[1+payloadLenSize+1:], wasm.BufferSectionName)
+
+	header = buf[:1+payloadLenSize+1+len(wasm.BufferSectionName)]
+	sectionSize = int64(len(header)) + int64(bufsize)
 	return
 }
 

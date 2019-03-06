@@ -29,7 +29,8 @@ enum Op {
 	InstanceStatus = 13;
 	InstanceWait = 14;
 	InstanceSuspend = 15;
-	InstanceSnapshot = 16;
+	InstanceResume = 16;
+	InstanceSnapshot = 17;
 }
 
 message Context {

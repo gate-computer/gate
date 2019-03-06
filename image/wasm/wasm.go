@@ -6,5 +6,8 @@ package wasm
 
 // Custom WebAssembly sections.
 const (
-	StackSectionName = "gate.stack" // May appear once after data section.
+	ServiceSectionName = "gate.service" // May appear once after code section.
+	IOSectionName      = "gate.io"      // May appear once after service section.
+	BufferSectionName  = "gate.buffer"  // May appear once after I/O section.
+	StackSectionName   = "gate.stack"   // May appear once between buffer and data sections.
 )

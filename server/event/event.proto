@@ -33,7 +33,8 @@ message Event {
 		InstanceStatus = 18;
 		InstanceWait = 19;
 		InstanceSuspend = 20;
-		InstanceSnapshot = 21;
+		InstanceResume = 21;
+		InstanceSnapshot = 22;
 	}
 }
 
@@ -175,6 +176,11 @@ message InstanceWait {
 }
 
 message InstanceSuspend {
+	detail.Context ctx = 1;
+	string instance = 2;
+}
+
+message InstanceResume {
 	detail.Context ctx = 1;
 	string instance = 2;
 }

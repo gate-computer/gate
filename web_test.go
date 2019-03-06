@@ -73,6 +73,11 @@ func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int,
 		content = ioutil.NopCloser(bytes.NewReader(wasmHello))
 		return
 
+	case "/test/hello-debug":
+		contentLength = int64(len(wasmHelloDebug))
+		content = ioutil.NopCloser(bytes.NewReader(wasmHelloDebug))
+		return
+
 	default:
 		panic(uri)
 	}
@@ -115,11 +120,39 @@ func newServices() func() server.InstanceServices {
 	}
 }
 
+type debugBuffer struct{ bytes.Buffer }
+
+func (*debugBuffer) Close() error { return nil }
+
+var debugOutput = new(debugBuffer)
+
+func debugPolicy(ctx context.Context, option string) (status string, output io.WriteCloser, err error) {
+	switch option {
+	case "":
+		return
+
+	case "output":
+		output = debugOutput
+		status = "out-putting"
+		return
+
+	case "stderr":
+		output = os.Stderr
+		return
+
+	default:
+		err = server.RetryAfter(time.Now().Add(time.Hour))
+		return
+	}
+}
+
 func newServer(ctx context.Context) *server.Server {
+	access := server.NewPublicAccess(newServices())
+	access.Debug = debugPolicy
+
 	config := &server.Config{
 		Executor:     newExecutor(ctx, nil).Executor,
-		AccessPolicy: server.NewPublicAccess(newServices()),
-		Debug:        os.Stdout,
+		AccessPolicy: access,
 	}
 
 	return server.New(ctx, config)
@@ -595,6 +628,36 @@ func TestModuleSource(t *testing.T) {
 	})
 }
 
+func TestInstanceDebug(t *testing.T) {
+	ctx := context.Background()
+	handler := newHandler(ctx)
+
+	t.Run("Output", func(t *testing.T) {
+		debugOutput.Reset()
+
+		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&function=main&debug=output", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusOK)
+
+		if s := resp.Header.Get(webapi.HeaderDebug); s != "out-putting" {
+			t.Error(s)
+		}
+
+		if debugOutput.String() != "hello…\nworld\n" {
+			t.Errorf("%q", debugOutput)
+		}
+
+		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+			State: "terminated",
+			Debug: "out-putting",
+		})
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&debug=fail", nil)
+		checkResponse(t, handler, req, http.StatusTooManyRequests) // debugPolicy's error.
+	})
+}
+
 func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, expect interface{}) {
 	t.Helper()
 
@@ -759,11 +822,15 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main", wasmSuspend)
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main&debug=stderr", wasmSuspend)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
 			instID = resp.Header.Get(webapi.HeaderInstance)
+		}
+
+		if testing.Verbose() {
+			time.Sleep(time.Second / 3)
 		}
 
 		t.Run("Suspend", func(t *testing.T) {
@@ -843,15 +910,45 @@ func TestInstance(t *testing.T) {
 			}
 		})
 
+		t.Run("Resume", func(t *testing.T) {
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=stderr", nil)
+			checkResponse(t, handler, req, http.StatusNoContent)
+
+			if testing.Verbose() {
+				time.Sleep(time.Second / 3)
+			}
+
+			checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+				State: "running",
+			})
+
+			if testing.Verbose() {
+				time.Sleep(time.Second / 3)
+			}
+
+			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+			checkResponse(t, handler, req, http.StatusNoContent)
+
+			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+			checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+				State: "suspended",
+			})
+		})
+
 		t.Run("Restore", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch", snapshot)
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=stderr", snapshot)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
-
 			restoredID := resp.Header.Get(webapi.HeaderInstance)
 
+			if testing.Verbose() {
+				time.Sleep(time.Second / 3)
+			}
+
 			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=suspend", nil)
-			resp, _ = checkResponse(t, handler, req, http.StatusNoContent)
+			checkResponse(t, handler, req, http.StatusNoContent)
 
 			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=wait", nil)
 			resp, _ = checkResponse(t, handler, req, http.StatusNoContent)

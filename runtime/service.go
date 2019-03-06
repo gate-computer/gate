@@ -11,6 +11,7 @@ import (
 
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/packet"
+	"github.com/tsavola/gate/snapshot"
 )
 
 const maxServices = 256
@@ -33,11 +34,6 @@ type ServiceConfig struct {
 	MaxPacketSize int
 }
 
-type SuspendedService struct {
-	Name   string
-	Buffer []byte
-}
-
 // ServiceRegistry is a collection of configured services.
 //
 // StartServing is called once for each program instance.  The receive channel
@@ -47,16 +43,26 @@ type SuspendedService struct {
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
-	StartServing(ctx context.Context, config ServiceConfig, initial []SuspendedService, send chan<- packet.Buf, recv <-chan packet.Buf) (ServiceDiscoverer, []ServiceState, error)
+	StartServing(
+		ctx context.Context,
+		config ServiceConfig,
+		initialState []snapshot.Service,
+		send chan<- packet.Buf,
+		recv <-chan packet.Buf,
+	) (
+		ServiceDiscoverer,
+		[]ServiceState,
+		error,
+	)
 }
 
 // ServiceDiscoverer is used to look up service availability when responding to
 // a program's service discovery packet.  It modifies the internal state of the
 // ServiceRegistry server.
 type ServiceDiscoverer interface {
-	Discover(newNames []string) (allServices []ServiceState, err error)
+	Discover(newNames []string) (all []ServiceState, err error)
 	NumServices() int
-	Suspend() []SuspendedService
+	ExtractState() (finalState []snapshot.Service)
 	Close() error
 }
 

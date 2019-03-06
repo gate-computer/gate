@@ -38,6 +38,7 @@ type Config struct {
 	IdentityFile string
 	Function     string
 	Instance     string
+	Debug        string
 	TLS          bool
 	address      string
 }
@@ -53,6 +54,7 @@ Commands:
   io        connect to a running instance
   launch    create an instance from a wasm module
   modules   list wasm module references
+  resume    resume a suspended instance
   snapshot  create a wasm snapshot of an instance
   status    query current status of an instance
   suspend   suspend a running instance
@@ -158,6 +160,9 @@ var commands = map[string]struct {
 			}
 			if c.Function != "" {
 				params.Set(webapi.ParamFunction, c.Function)
+			}
+			if c.Debug != "" {
+				params.Set(webapi.ParamDebug, c.Debug)
 			}
 
 			var status webapi.Status
@@ -311,6 +316,9 @@ var commands = map[string]struct {
 			if c.Instance != "" {
 				params.Set(webapi.ParamInstance, c.Instance)
 			}
+			if c.Debug != "" {
+				params.Set(webapi.ParamDebug, c.Debug)
+			}
 
 			_, resp, err := doHTTP(req, uri, params)
 			if err != nil {
@@ -349,6 +357,31 @@ var commands = map[string]struct {
 				} else {
 					fmt.Println(m.Key)
 				}
+			}
+		},
+	},
+
+	"resume": {
+		usage: " <instance>",
+		do: func() {
+			flag.Parse()
+			if flag.NArg() != 1 {
+				flag.Usage()
+				os.Exit(2)
+			}
+
+			req := &http.Request{Method: http.MethodPost}
+
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionResume},
+			}
+			if c.Debug != "" {
+				params.Set(webapi.ParamDebug, c.Debug)
+			}
+
+			_, _, err := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			if err != nil {
+				log.Fatal(err)
 			}
 		},
 	},

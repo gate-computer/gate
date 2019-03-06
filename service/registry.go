@@ -11,6 +11,7 @@ import (
 
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
+	"github.com/tsavola/gate/snapshot"
 )
 
 const maxServiceNameLen = 127
@@ -29,7 +30,7 @@ type InstanceConfig struct {
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
 	Handle(ctx context.Context, send chan<- packet.Buf, in packet.Buf)
-	Shutdown(ctx context.Context) (finalState []byte)
+	Shutdown() (portableState []byte)
 }
 
 // Factory creates instances of a particular service implementation.
@@ -91,19 +92,23 @@ func (r *Registry) lookup(name string) (result Factory) {
 }
 
 // StartServing implements the runtime.ServiceRegistry interface function.
-func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []runtime.SuspendedService, send chan<- packet.Buf, recv <-chan packet.Buf,
+func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
 ) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),
-		stopped:    make(chan []runtime.SuspendedService, 1),
-		services:   make([]serviceState, len(initial)),
+		stopped:    make(chan map[packet.Code]Instance, 1),
+		services:   make([]discoveredService, len(initial)),
 	}
 
-	for i, is := range initial {
-		d.services[i].SuspendedService = is
+	for i, s := range initial {
+		d.services[i].Service = s
 
-		if f := d.registry.lookup(is.Name); f != nil {
+		if len(d.services[i].Buffer) == 0 {
+			d.services[i].Buffer = nil
+		}
+
+		if f := d.registry.lookup(s.Name); f != nil {
 			if _, dupe := d.discovered[f]; dupe {
 				return nil, nil, runtime.ErrDuplicateService
 			}
@@ -114,7 +119,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	}
 
 	instances := make(map[packet.Code]Instance)
-	states := make([]runtime.ServiceState, len(initial))
+	states := make([]runtime.ServiceState, len(d.services))
 
 	for i, s := range d.services {
 		if s.factory != nil {
@@ -132,7 +137,10 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 }
 
 func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) {
-	defer d.shutdown(ctx, instances)
+	defer func() {
+		d.stopped <- instances
+		close(d.stopped)
+	}()
 
 	for op := range recv {
 		code := op.Code()
@@ -153,27 +161,27 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 	}
 }
 
-type serviceState struct {
-	runtime.SuspendedService
+type discoveredService struct {
+	snapshot.Service
 	factory Factory
 }
 
 type discoverer struct {
 	registry   *Registry
 	discovered map[Factory]struct{}
-	stopped    chan []runtime.SuspendedService
+	stopped    chan map[packet.Code]Instance
 	lock       sync.Mutex
-	services   []serviceState
+	services   []discoveredService
 }
 
-func (d *discoverer) getServices() []serviceState {
+func (d *discoverer) getServices() []discoveredService {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
 	return d.services
 }
 
-func (d *discoverer) setServices(services []serviceState) {
+func (d *discoverer) setServices(services []discoveredService) {
 	d.lock.Lock()
 	defer d.lock.Unlock()
 
@@ -184,11 +192,15 @@ func (d *discoverer) Discover(newNames []string) (states []runtime.ServiceState,
 	oldCount := len(d.services)
 	newCount := oldCount + len(newNames)
 
-	newServices := make([]serviceState, oldCount, newCount)
+	newServices := make([]discoveredService, oldCount, newCount)
 	copy(newServices, d.services)
 
 	for _, name := range newNames {
-		var s serviceState
+		s := discoveredService{
+			Service: snapshot.Service{
+				Name: name,
+			},
+		}
 
 		if f := d.registry.lookup(name); f != nil {
 			if _, dupe := d.discovered[f]; dupe {
@@ -218,31 +230,37 @@ func (d *discoverer) NumServices() int {
 	return len(d.services)
 }
 
-func (d *discoverer) shutdown(ctx context.Context, instances map[packet.Code]Instance) {
-	// Actual shutdown of a service should have began when the context was
-	// canceled, so these Shutdown calls only need to wait for completion.
-
-	final := make([]runtime.SuspendedService, len(d.services))
+// ExtractState shuts down instances and returns their states the first time
+// it's called.
+func (d *discoverer) ExtractState() (final []snapshot.Service) {
+	final = make([]snapshot.Service, len(d.services))
 
 	for i, s := range d.services {
-		final[i] = s.SuspendedService
+		final[i] = s.Service
 	}
+
+	instances := <-d.stopped
 
 	for code, inst := range instances {
 		if inst != nil {
-			if b := inst.Shutdown(ctx); len(b) > 0 {
+			if b := inst.Shutdown(); len(b) > 0 {
 				final[code].Buffer = b
 			}
 		}
 	}
 
-	d.stopped <- final
+	return
 }
 
-func (d *discoverer) Suspend() []runtime.SuspendedService {
-	return <-d.stopped
-}
+// Close shuts down instances unless ExtractState already did so.
+func (d *discoverer) Close() (err error) {
+	instances := <-d.stopped
 
-func (d *discoverer) Close() error {
-	return nil
+	for _, inst := range instances {
+		if inst != nil {
+			inst.Shutdown()
+		}
+	}
+
+	return
 }

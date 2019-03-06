@@ -48,6 +48,7 @@ message Status {
 	Cause cause = 2;
 	int32 result = 3;
 	string error = 4;
+	string debug = 5;
 }
 
 message InstanceStatus {

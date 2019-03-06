@@ -38,13 +38,10 @@ const (
 
 // Query parameters for post and websocket requests.
 const (
-	ParamAction = "action"
-)
-
-// Query parameters for ActionCall and ActionLaunch requests.
-const (
-	ParamFunction = "function"
-	ParamInstance = "instance"
+	ParamAction   = "action"
+	ParamFunction = "function" // For call or launch action.
+	ParamInstance = "instance" // For call or launch action.
+	ParamDebug    = "debug"    // For call, launch or resume action.
 )
 
 // Actions on modules (references and other sources).
@@ -64,6 +61,7 @@ const (
 	ActionStatus   = "status"   // Post.
 	ActionWait     = "wait"     // Post.
 	ActionSuspend  = "suspend"  // Post.
+	ActionResume   = "resume"   // Post.
 	ActionSnapshot = "snapshot" // Post.
 )
 
@@ -83,6 +81,7 @@ const (
 	HeaderLocation = "Location"        // Absolute module ref path.
 	HeaderInstance = "X-Gate-Instance" // UUID.
 	HeaderStatus   = "X-Gate-Status"   // Status of instance as JSON.
+	HeaderDebug    = "X-Gate-Debug"
 )
 
 // The supported module content type.
@@ -155,6 +154,7 @@ type Status struct {
 	Cause  string `json:"cause,omitempty"`
 	Result int    `json:"result,omitempty"`
 	Error  string `json:"error,omitempty"`
+	Debug  string `json:"debug,omitempty"`
 }
 
 func (status Status) String() (s string) {
@@ -210,6 +210,7 @@ type Call struct {
 type CallConnection struct {
 	Location string `json:"location,omitempty"` // Absolute module ref path.
 	Instance string `json:"instance,omitempty"` // UUID.
+	Debug    string `json:"debug,omitempty"`
 }
 
 // ActionIO websocket request message.
@@ -219,7 +220,8 @@ type IO struct {
 
 // Reply to IO message.
 type IOConnection struct {
-	Connected bool `json:"connected"`
+	Connected bool   `json:"connected"`
+	Debug     string `json:"debug,omitempty"`
 }
 
 // Second and final text message on successful ActionCall or ActionIO websocket

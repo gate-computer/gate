@@ -6,6 +6,7 @@ package server
 
 import (
 	"context"
+	"io"
 
 	"github.com/tsavola/wag/wa"
 )
@@ -39,6 +40,7 @@ type InstancePolicy struct {
 	MaxMemorySize int                     // Linear memory growth limit.
 	StackSize     int                     // Including system/runtime overhead.
 	Services      func() InstanceServices // Defines the set of available services.
+	Debug         func(ctx context.Context, option string) (status string, output io.WriteCloser, err error)
 }
 
 // AccessAuthorizer authenticates, authorizes and limits access to Server
@@ -157,6 +159,7 @@ var DefaultAccessConfig = AccessConfig{
 	InstancePolicy{
 		DefaultMaxMemorySize,
 		DefaultStackSize,
+		nil,
 		nil,
 	},
 }

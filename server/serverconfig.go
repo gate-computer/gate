@@ -55,7 +55,6 @@ type Config struct {
 	AccessPolicy    AccessAuthorizer
 	PreforkProcs    int
 	Monitor         func(Event, error)
-	Debug           io.Writer
 }
 
 func (c *Config) Configured() bool {

@@ -8,7 +8,6 @@ import (
 	"context"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/tsavola/gate/image"
@@ -19,6 +18,7 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/trap"
 )
 
@@ -36,43 +36,6 @@ func validateInstanceID(s string) error {
 	return failrequest.New(event.FailRequest_InstanceIdInvalid, "instance id must be an RFC 4122 UUID version 4")
 }
 
-func makeInstanceFactory(ctx context.Context, s *Server) <-chan *Instance {
-	channel := make(chan *Instance, s.PreforkProcs-1)
-
-	go func() {
-		defer func() {
-			close(channel)
-
-			for inst := range channel {
-				inst.Close()
-			}
-		}()
-
-		for {
-			if inst, err := newInstance(ctx, s); err == nil {
-				select {
-				case channel <- inst:
-
-				case <-ctx.Done():
-					inst.Close()
-					return
-				}
-			} else {
-				select {
-				case <-ctx.Done():
-					return
-
-				default:
-					reportInternalError(ctx, s, nil, "", "", "", "instance factory", err)
-					time.Sleep(time.Second)
-				}
-			}
-		}
-	}()
-
-	return channel
-}
-
 type Status = serverapi.Status
 type InstanceStatus = serverapi.InstanceStatus
 type Instances []InstanceStatus
@@ -82,55 +45,54 @@ func (a Instances) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a Instances) Less(i, j int) bool { return a[i].Instance < a[j].Instance }
 
 type Instance struct {
-	stopped  chan struct{}    // Set in Instance.newInstance
-	process  *runtime.Process // Set in Instance.newInstance
-	image    *image.Instance  // Set in Server.CreateInstance or Server.loadModuleInstance
-	acc      *account         // Set in Server.newInstance
-	services InstanceServices // Set in Server.newInstance
-	id       string           // Set in Server.newInstance or Instance.refProgram
-	prog     *program         // Set in Instance.refProgram
-	function string           // Set in Instance.refProgram
-
-	ioState runtime.IOState // Must not be accessed during Instance.Run.
-
-	lock   sync.Mutex // Must be held when accessing status.
-	status Status     // Set in Instance.completeInit and Instance.Run
+	acc      *account
+	id       string
+	prog     *program
+	function string
+	lock     sync.Mutex
+	status   Status
+	image    *image.Instance
+	buffers  snapshot.Buffers
+	process  *runtime.Process
+	services InstanceServices
+	stopped  chan struct{}
 }
 
-func newInstance(ctx context.Context, s *Server) (inst *Instance, err error) {
-	proc, err := runtime.NewProcess(ctx, s.Executor, s.Debug)
-	if err != nil {
-		return
+// newInstance steals program reference, instance image, process and services.
+func newInstance(acc *account, id string, prog *program, function string, image *image.Instance, proc *runtime.Process, services InstanceServices, debug string) *Instance {
+	return &Instance{
+		acc:      acc,
+		id:       id,
+		prog:     prog,
+		function: function,
+		status: Status{
+			State: serverapi.Status_running,
+			Debug: debug,
+		},
+		image:    image,
+		process:  proc,
+		services: services,
+		stopped:  make(chan struct{}),
 	}
-
-	inst = &Instance{
-		stopped: make(chan struct{}),
-		process: proc,
-	}
-	return
 }
 
-// refProgram must be called before instance is shared with other goroutines.
-func (inst *Instance) refProgram(prog *program, function string) {
-	if inst.id == "" {
-		inst.id = makeInstanceID()
+// renew must be called with Instance.lock held.
+func (inst *Instance) renew(proc *runtime.Process, services InstanceServices, debug string) {
+	inst.status = serverapi.Status{
+		State: serverapi.Status_running,
+		Debug: debug,
 	}
-	inst.prog = prog.ref()
-	inst.function = function
-
-	// Lock doesn't need to be held because instance hasn't been shared yet.
-	inst.status.State = serverapi.Status_running
+	inst.process = proc
+	inst.services = services
+	inst.stopped = make(chan struct{})
 }
 
 func (inst *Instance) ID() string {
 	return inst.id
 }
 
-func (inst *Instance) PrincipalID() (s string) {
-	if inst.acc != nil {
-		s = inst.acc.PrincipalID
-	}
-	return
+func (inst *Instance) PrincipalID() string {
+	return inst.acc.PrincipalID
 }
 
 func (inst *Instance) Status() Status {
@@ -140,34 +102,49 @@ func (inst *Instance) Status() Status {
 	return inst.status
 }
 
-// Close instance.
-func (inst *Instance) Close() error {
-	if inst.image != nil {
-		inst.image.Close()
-		inst.image = nil
+func (inst *Instance) killProcess() {
+	if inst.process != nil {
+		inst.services.Close()
+		inst.process.Kill()
+		inst.process = nil
 	}
-
-	return inst.kill()
 }
 
-// kill execution.
-func (inst *Instance) kill() (err error) {
-	inst.process.Kill()
+func (inst *Instance) Kill(s *Server) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	if inst.services != nil {
-		err = inst.services.Close()
-	}
-	return
+	inst.killProcess()
+
+	inst.image.Close()
+	inst.image = nil
+
+	inst.prog.unref()
+	inst.prog = nil
 }
 
-// Connect.  Disconnection happens when context is canceled, the process
-// terminates, or the program closes the connection.  The program may choose to
-// close a connection when a new one is made.
+// Connect to a running instance.  Disconnection happens when context is
+// canceled, the process terminates, or the program closes the connection.
 func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (disconnected <-chan error) {
 	c := make(chan error)
 	disconnected = c
 
-	conn := inst.services.Connect(ctx)
+	services := func() InstanceServices {
+		inst.lock.Lock()
+		defer inst.lock.Unlock()
+
+		if inst.status.State == serverapi.Status_running {
+			return inst.services
+		} else {
+			return nil
+		}
+	}()
+	if services == nil {
+		close(c)
+		return
+	}
+
+	conn := services.Connect(ctx)
 	if conn == nil {
 		close(c)
 		return
@@ -185,18 +162,24 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (di
 // The returned error has already been reported, and its message has been
 // copied to result.Error.
 func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err error) {
-	defer inst.kill()
-	defer close(inst.stopped)
-
 	result.Error = "internal server error"
+	result.Debug = inst.status.Debug
 
 	defer func() {
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
+
 		inst.status = result
+		close(inst.stopped)
+		inst.killProcess()
 	}()
 
-	exit, trapID, err := inst.process.Serve(ctx, inst.services, &inst.ioState)
+	err = inst.process.Start(inst.prog.image, inst.image)
+	if err != nil {
+		return
+	}
+
+	exit, trapID, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
 	if err != nil {
 		if x, ok := err.(public.Error); ok {
 			result.Error = x.PublicError()

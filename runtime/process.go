@@ -18,6 +18,7 @@ import (
 	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/trap"
 )
@@ -227,10 +228,10 @@ func (p *Process) Start(code ProgramCode, state ProgramState) (err error) {
 // Start must have been called before this.  This must not be called after
 // Kill.
 //
-// The IOState object is mutated.
-func (p *Process) Serve(ctx context.Context, services ServiceRegistry, ioState *IOState,
+// Buffers will be mutated.
+func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers,
 ) (exit int, trapID trap.ID, err error) {
-	err = ioLoop(ctx, services, p, ioState)
+	err = ioLoop(ctx, services, p, buffers)
 	if err != nil {
 		return
 	}

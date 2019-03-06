@@ -21,7 +21,7 @@ func New(fd int) *File {
 
 func finalizeFile(f *File) {
 	if f.fd >= 0 {
-		log.Print("unreachable file")
+		log.Printf("closing unreachable file descriptor %d", f.fd)
 		f.Close()
 	}
 }
@@ -29,6 +29,7 @@ func finalizeFile(f *File) {
 func (f *File) Close() (err error) {
 	err = closeFD(f.fd)
 	f.fd = -1
+	runtime.KeepAlive(f)
 	return
 }
 

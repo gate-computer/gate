@@ -21,6 +21,8 @@ GEN_BIN_SOURCES := \
 	server/event/type.gen.go \
 	server/monitor/monitor.pb.go
 
+GOBENCHFLAGS	:= -bench=.*
+
 -include config.mk
 
 export GO111MODULE := on
@@ -48,7 +50,7 @@ check: lib bin
 	$(GO) test $(GOTESTFLAGS) ./...
 
 benchmark: lib bin
-	$(GO) test -run=^$$ -bench=.* $(GOBENCHFLAGS) ./... | tee bench-new.txt
+	$(GO) test -run=^$$ $(GOBENCHFLAGS) ./... | tee bench-new.txt
 	[ ! -e bench-old.txt ] || benchcmp bench-old.txt bench-new.txt
 
 install-lib:

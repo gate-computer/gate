@@ -22,10 +22,13 @@ message Archive {
 	uint32 memory_size_limit = 8;
 	int64 module_size = 9;
 	repeated ByteRange sections = 10;
-	ByteRange stack_section = 11;
-	bytes global_types = 12;                // Limited by wag's maxGlobals check.
-	map<string, uint32> entry_indexes = 13; // Limited by func name len and wag's maxExports check.
-	map<uint32, uint32> entry_addrs = 14;
-	uint32 call_sites_size = 15;
-	uint32 func_addrs_size = 16;
+	ByteRange service_section = 11;
+	ByteRange io_section = 12;
+	ByteRange buffer_section = 13;
+	ByteRange stack_section = 14;
+	bytes global_types = 15;                // Limited by wag's maxGlobals check.
+	map<string, uint32> entry_indexes = 16; // Limited by func name len and wag's maxExports check.
+	map<uint32, uint32> entry_addrs = 17;
+	uint32 call_sites_size = 18;
+	uint32 func_addrs_size = 19;
 }

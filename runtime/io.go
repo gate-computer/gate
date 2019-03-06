@@ -15,46 +15,40 @@ import (
 
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/packet"
+	"github.com/tsavola/gate/snapshot"
 )
 
 const (
 	packetReservedOffset = 7
 )
 
-// IOState of a program.  Contents are empty unless the program is suspended.
-type IOState struct {
-	Input    []byte // Buffered data which the program hasn't received yet.
-	Output   []byte // Buffered data which the program has already sent.
-	Services []SuspendedService
-}
-
-func (io *IOState) popInput() (input []byte) {
-	if io == nil {
+func popServiceBuffers(frozen *snapshot.Buffers) (services []snapshot.Service) {
+	if frozen == nil {
 		return
 	}
 
-	input = io.Input
-	io.Input = nil
+	services = frozen.Services
+	frozen.Services = nil
 	return
 }
 
-func (io *IOState) popOutput() (output []byte) {
-	if io == nil {
+func popInputBuffer(frozen *snapshot.Buffers) (input []byte) {
+	if frozen == nil {
 		return
 	}
 
-	output = io.Output
-	io.Output = nil
+	input = frozen.Input
+	frozen.Input = nil
 	return
 }
 
-func (io *IOState) popServices() (ss []SuspendedService) {
-	if io == nil {
+func popOutputBuffer(frozen *snapshot.Buffers) (output []byte) {
+	if frozen == nil {
 		return
 	}
 
-	ss = io.Services
-	io.Services = nil
+	output = frozen.Output
+	frozen.Output = nil
 	return
 }
 
@@ -64,9 +58,9 @@ type read struct {
 }
 
 // ioLoop mutates Process and IOState (if any).
-func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioState *IOState,
+func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers,
 ) (err error) {
-	if ioState == nil {
+	if frozen == nil {
 		subject.writerOut.Close()
 		subject.writerOut = nil
 	}
@@ -80,15 +74,15 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioS
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
 	)
-	discoverer, initialServiceState, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, ioState.popServices(), messageInput, messageOutput)
+	discoverer, initialServiceState, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput, messageOutput)
 	if err != nil {
 		return
 	}
 	defer func() {
 		close(messageOutput)
 
-		if ioState != nil && suspended == nil { // Suspended.
-			ioState.Services = discoverer.Suspend()
+		if frozen != nil && suspended == nil { // Suspended.
+			frozen.Services = discoverer.ExtractState()
 		}
 
 		if e := discoverer.Close(); err == nil {
@@ -96,13 +90,13 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioS
 		}
 	}()
 
-	pendingMsg, initialRead, err := splitBufferedPackets(ioState.popOutput(), discoverer)
+	pendingMsg, initialRead, err := splitBufferedPackets(popOutputBuffer(frozen), discoverer)
 	if err != nil {
 		return
 	}
 
 	var pendingEvs []packet.Buf
-	if ev := ioState.popInput(); len(ev) > 0 {
+	if ev := popInputBuffer(frozen); len(ev) > 0 {
 		pendingEvs = []packet.Buf{ev} // No need to split packets.
 	}
 
@@ -196,12 +190,12 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioS
 					subjectOutput = nil
 				}
 
-				if ioState != nil {
+				if frozen != nil {
 					if suspended == nil { // Suspended.
-						ioState.Output = append(pendingMsg, read.buf...)
+						frozen.Output = append(pendingMsg, read.buf...)
 						pendingMsg = nil
 
-						ioState.Input, err = ioutil.ReadAll(subject.writerOut)
+						frozen.Input, err = ioutil.ReadAll(subject.writerOut)
 						if err != nil {
 							return
 						}
@@ -211,12 +205,12 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, ioS
 							pendingLen += len(ev)
 						}
 
-						if n := len(ioState.Input) + pendingLen; cap(ioState.Input) < n {
-							ioState.Input = append(make([]byte, 0, n), ioState.Input...)
+						if n := len(frozen.Input) + pendingLen; cap(frozen.Input) < n {
+							frozen.Input = append(make([]byte, 0, n), frozen.Input...)
 						}
 
 						for _, ev := range pendingEvs {
-							ioState.Input = append(ioState.Input, ev...)
+							frozen.Input = append(frozen.Input, ev...)
 						}
 					}
 

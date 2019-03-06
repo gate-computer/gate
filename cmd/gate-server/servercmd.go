@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"log/syslog"
@@ -87,7 +88,6 @@ var c = new(struct {
 		InstanceStorage  string
 		PrepareInstances int
 		MaxConns         int
-		Debug            string
 	}
 
 	Access struct {
@@ -98,6 +98,8 @@ var c = new(struct {
 		SSH struct {
 			AuthorizedKeys string
 		}
+
+		Debug bool
 	}
 
 	Principal struct {
@@ -341,6 +343,16 @@ func main2(critLog *log.Logger) (err error) {
 		c.Server.Config.InstanceStorage = image.PrepareInstances(ctx, c.Server.Config.InstanceStorage, c.Server.PrepareInstances)
 	}
 
+	if c.Access.Debug {
+		c.Principal.Debug = func(ctx context.Context, option string) (status string, output io.WriteCloser, err error) {
+			if option == "stderr" {
+				status = option
+				output = os.Stderr
+			}
+			return
+		}
+	}
+
 	switch c.Access.Policy {
 	case "public":
 		c.Server.AccessPolicy = &server.PublicAccess{
@@ -374,16 +386,6 @@ func main2(critLog *log.Logger) (err error) {
 
 	default:
 		return fmt.Errorf("unknown access.policy option: %q", c.Access.Policy)
-	}
-
-	switch c.Server.Debug {
-	case "":
-
-	case "stderr":
-		c.Server.Config.Debug = os.Stderr
-
-	default:
-		return fmt.Errorf("unknown server.debug option: %q", c.Server.Debug)
 	}
 
 	if c.HTTP.Authority == "" {

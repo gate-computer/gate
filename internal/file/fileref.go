@@ -35,7 +35,9 @@ func finalizeRef(ref *Ref) {
 
 // Ref increments reference count.
 func (ref *Ref) Ref() *Ref {
-	atomic.AddInt32(&ref.refCount, 1)
+	if atomic.AddInt32(&ref.refCount, 1) <= 1 {
+		panic("referencing unreferenced file")
+	}
 	return ref
 }
 

@@ -11,18 +11,35 @@ static void slow_nop(void)
 
 static void delay(void)
 {
-	for (int i = 0; i < 10000000; i++)
+	for (int i = 0; i < 1000000; i++)
 		slow_nop();
 }
 
 static void iteration(long i)
 {
-	gate_debug2(i, "\n");
+	gate_debug3("suspend.c running: ", i, "\n");
 	delay();
 }
 
 int main(void)
 {
+	struct {
+		struct gate_service_name_packet header;
+		char names[25];
+	} packet = {
+		.header = {
+			.header = {
+				.size = sizeof packet,
+				.code = GATE_PACKET_CODE_SERVICES,
+			},
+			.count = 3,
+		},
+		.names = "origin\0test\0_nonexistent",
+	};
+
+	size_t n = sizeof packet;
+	gate_io(NULL, NULL, &packet, &n, 0);
+
 	for (long i = 0;; i++)
 		iteration(i);
 }

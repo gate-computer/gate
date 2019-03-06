@@ -36,6 +36,20 @@ func newAccount(pri *PrincipalKey) *account {
 	}
 }
 
+// cleanup must be called with Server.lock held.
+func (acc *account) cleanup() (is map[string]*Instance) {
+	ps := acc.programRefs
+	acc.programRefs = nil
+
+	for prog := range ps {
+		prog.unref()
+	}
+
+	is = acc.instances
+	acc.instances = nil
+	return
+}
+
 // ensureRefProgram must be called with Server.lock held.  It's safe to call
 // for an already referenced program.
 func (acc *account) ensureRefProgram(prog *program) {
@@ -45,13 +59,13 @@ func (acc *account) ensureRefProgram(prog *program) {
 	}
 }
 
-// unrefProgram must be called with Server.lock held.  Caller must invoke
-// prog.cleanup() separately if the final refrence was dropped.
-//
-// Results will be undefined if the program is not currently referenced.
-func (acc *account) unrefProgram(prog *program) (final bool) {
+// unrefProgram must be called with Server.lock held.
+func (acc *account) unrefProgram(prog *program) {
+	if _, ok := acc.programRefs[prog]; !ok {
+		panic("account does not reference program")
+	}
 	delete(acc.programRefs, prog)
-	return prog.unref()
+	prog.unref()
 }
 
 // checkUniqueInstanceID must be called with Server.lock held.

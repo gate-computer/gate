@@ -20,6 +20,7 @@ import (
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
@@ -72,7 +73,7 @@ func newExecutor(ctx context.Context, config *runtime.Config) (tester *executor)
 
 type serviceRegistry struct{ origin io.Writer }
 
-func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []runtime.SuspendedService, send chan<- packet.Buf, recv <-chan packet.Buf,
+func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
 ) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
 	d := new(serviceDiscoverer)
 
@@ -131,9 +132,9 @@ func (d *serviceDiscoverer) Discover(names []string) ([]runtime.ServiceState, er
 	return d.services, nil
 }
 
-func (d *serviceDiscoverer) NumServices() int                  { return len(d.services) }
-func (*serviceDiscoverer) Suspend() []runtime.SuspendedService { return nil }
-func (*serviceDiscoverer) Close() error                        { return nil }
+func (d *serviceDiscoverer) NumServices() int               { return len(d.services) }
+func (*serviceDiscoverer) ExtractState() []snapshot.Service { return nil }
+func (*serviceDiscoverer) Close() error                     { return nil }
 
 func prepareBuild(exec *executor, progStorage image.ProgramStorage, instStorage image.InstanceStorage, r compile.Reader, moduleSize int, codeMap *object.CallMap,
 ) (mod compile.Module, build *image.Build) {

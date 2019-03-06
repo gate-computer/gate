@@ -9,6 +9,7 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"log"
 	goruntime "runtime"
@@ -61,8 +62,8 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 }
 
 type program struct {
-	key string
-	*image.Program
+	key   string
+	image *image.Program
 
 	// Protected by Server.lock:
 	refCount int
@@ -284,7 +285,7 @@ func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, i
 func newProgram(key string, image *image.Program) *program {
 	prog := &program{
 		key:      key,
-		Program:  image,
+		image:    image,
 		refCount: 1,
 	}
 	goruntime.SetFinalizer(prog, finalizeProgram)
@@ -293,32 +294,38 @@ func newProgram(key string, image *image.Program) *program {
 
 func finalizeProgram(prog *program) {
 	if prog.refCount != 0 {
-		log.Printf("unreachable program with reference count %d", prog.refCount)
 		if prog.refCount > 0 {
-			prog.Close()
+			log.Printf("closing unreachable program %q with reference count %d", prog.key, prog.refCount)
+			prog.image.Close()
+			prog.image = nil
+		} else {
+			log.Printf("unreachable program %q with reference count %d", prog.key, prog.refCount)
 		}
 	}
 }
 
 // ref must be called with Server.lock held.
 func (prog *program) ref() *program {
+	if prog.refCount <= 0 {
+		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.key, prog.refCount))
+	}
+
 	prog.refCount++
 	return prog
 }
 
-// unref must be called with Server.lock held.  Caller must invoke the Close
-// method separately if the final reference was dropped.
-func (prog *program) unref() (final bool) {
-	prog.refCount--
-
-	switch {
-	case prog.refCount == 0:
-		final = true
-
-	case prog.refCount < 0:
-		panic("program reference count is negative")
+// unref must be called with Server.lock held.
+func (prog *program) unref() {
+	if prog.refCount <= 0 {
+		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.key, prog.refCount))
 	}
 
+	prog.refCount--
+	if prog.refCount == 0 {
+		prog.image.Close()
+		prog.image = nil
+		goruntime.KeepAlive(prog)
+	}
 	return
 }
 
@@ -327,12 +334,12 @@ func (prog *program) resolveEntry(name string) (index, addr uint32, err error) {
 		return
 	}
 
-	index, err = entry.MapFuncIndex(prog.Manifest().EntryIndexes, name)
+	index, err = entry.MapFuncIndex(prog.image.Manifest().EntryIndexes, name)
 	if err != nil {
 		return
 	}
 
-	addr = entry.MapFuncAddr(prog.Manifest().EntryAddrs, index)
+	addr = entry.MapFuncAddr(prog.image.Manifest().EntryAddrs, index)
 	return
 }
 

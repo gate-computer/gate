@@ -144,7 +144,7 @@ func (si *instanceService) Handle(ctx context.Context, replies chan<- packet.Buf
 	}
 }
 
-func (si *instanceService) Shutdown(ctx context.Context) (finalState []byte) {
+func (si *instanceService) Shutdown() (portableState []byte) {
 	if si.requests != nil {
 		close(si.requests)
 	}

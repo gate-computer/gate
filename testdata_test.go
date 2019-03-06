@@ -18,9 +18,10 @@ var (
 )
 
 var (
-	hashNop     = sha384(wasmNop)
-	hashHello   = sha384(wasmHello)
-	hashSuspend = sha384(wasmSuspend)
+	hashNop        = sha384(wasmNop)
+	hashHello      = sha384(wasmHello)
+	hashHelloDebug = sha384(wasmHelloDebug)
+	hashSuspend    = sha384(wasmSuspend)
 )
 
 func readFile(filename string) (data []byte) {
