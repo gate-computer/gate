@@ -8,9 +8,9 @@ import (
 	"encoding/binary"
 	"syscall"
 
-	"github.com/tsavola/gate/image/wasm"
 	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
@@ -480,9 +480,9 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 
 func makeServiceSection(services []snapshot.Service) []byte {
 	var (
-		maxSectionFrameSize = 1 + binary.MaxVarintLen32        // Section id, payload length.
-		customHeaderSize    = 1 + len(wasm.ServiceSectionName) // Name length, name string.
-		maxItemHeaderSize   = binary.MaxVarintLen32            // Item count.
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32    // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.ServiceSection) // Name length, name string.
+		maxItemHeaderSize   = binary.MaxVarintLen32        // Item count.
 
 		maxHeaderSize = maxSectionFrameSize + customHeaderSize + maxItemHeaderSize
 	)
@@ -507,10 +507,10 @@ func makeServiceSection(services []snapshot.Service) []byte {
 	// Header.
 	start := maxHeaderSize
 	start -= putVaruint32Before(buf, start, uint32(len(services)))
-	start -= len(wasm.ServiceSectionName)
-	copy(buf[start:], wasm.ServiceSectionName)
+	start -= len(wasm.ServiceSection)
+	copy(buf[start:], wasm.ServiceSection)
 	start--
-	buf[start] = byte(len(wasm.ServiceSectionName))
+	buf[start] = byte(len(wasm.ServiceSection))
 	start -= putVaruint32Before(buf, start, uint32(end-start))
 	start--
 	buf[start] = byte(section.Custom)
@@ -520,8 +520,8 @@ func makeServiceSection(services []snapshot.Service) []byte {
 
 func makeIOSection(inputSize, outputSize int) []byte {
 	var (
-		maxSectionFrameSize = 1 + binary.MaxVarintLen32   // Section id, payload length.
-		customHeaderSize    = 1 + len(wasm.IOSectionName) // Name length, name string.
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32 // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.IOSection)   // Name length, name string.
 
 		maxHeaderSize  = maxSectionFrameSize + customHeaderSize
 		maxSectionSize = maxHeaderSize + binary.MaxVarintLen32*2
@@ -534,10 +534,10 @@ func makeIOSection(inputSize, outputSize int) []byte {
 	end += binary.PutUvarint(buf[end:], uint64(outputSize))
 
 	start := maxHeaderSize
-	start -= len(wasm.IOSectionName)
-	copy(buf[start:], wasm.IOSectionName)
+	start -= len(wasm.IOSection)
+	copy(buf[start:], wasm.IOSection)
 	start--
-	buf[start] = byte(len(wasm.IOSectionName))
+	buf[start] = byte(len(wasm.IOSection))
 	start -= putVaruint32Before(buf, start, uint32(end-start))
 	start--
 	buf[start] = byte(section.Custom)
@@ -547,8 +547,8 @@ func makeIOSection(inputSize, outputSize int) []byte {
 
 func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSize int64) {
 	var (
-		maxSectionFrameSize = 1 + binary.MaxVarintLen32       // Section id, payload length.
-		customHeaderSize    = 1 + len(wasm.BufferSectionName) // Name length, name string.
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32   // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.BufferSection) // Name length, name string.
 	)
 
 	var bufsize uint32
@@ -561,10 +561,10 @@ func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSi
 	buf := make([]byte, maxSectionFrameSize+customHeaderSize)
 	buf[0] = byte(section.Custom)
 	payloadLenSize := binary.PutUvarint(buf[1:], uint64(customHeaderSize)+uint64(bufsize))
-	buf[1+payloadLenSize] = byte(len(wasm.BufferSectionName))
-	copy(buf[1+payloadLenSize+1:], wasm.BufferSectionName)
+	buf[1+payloadLenSize] = byte(len(wasm.BufferSection))
+	copy(buf[1+payloadLenSize+1:], wasm.BufferSection)
 
-	header = buf[:1+payloadLenSize+1+len(wasm.BufferSectionName)]
+	header = buf[:1+payloadLenSize+1+len(wasm.BufferSection)]
 	sectionSize = int64(len(header)) + int64(bufsize)
 	return
 }
@@ -574,15 +574,15 @@ func makeStackSectionHeader(stackSize int) []byte {
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
 	// Name length, name string.
-	var customHeaderSize = 1 + len(wasm.StackSectionName)
+	var customHeaderSize = 1 + len(wasm.StackSection)
 
 	buf := make([]byte, maxSectionFrameSize+customHeaderSize)
 	buf[0] = byte(section.Custom)
 	payloadLenSize := binary.PutUvarint(buf[1:], uint64(customHeaderSize+stackSize))
-	buf[1+payloadLenSize] = byte(len(wasm.StackSectionName))
-	copy(buf[1+payloadLenSize+1:], wasm.StackSectionName)
+	buf[1+payloadLenSize] = byte(len(wasm.StackSection))
+	copy(buf[1+payloadLenSize+1:], wasm.StackSection)
 
-	return buf[:1+payloadLenSize+1+len(wasm.StackSectionName)]
+	return buf[:1+payloadLenSize+1+len(wasm.StackSection)]
 }
 
 func makeDataSectionHeader(memorySize int) []byte {

@@ -16,13 +16,14 @@ import (
 
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/image/wasm"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
@@ -91,13 +92,25 @@ func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, i
 	var r = bufio.NewReader(io.TeeReader(io.TeeReader(content, build.ModuleWriter()), actualHash))
 
 	var sectionMap image.SectionMap
-	var sectionLoaders = make(section.CustomLoaders)
+	var loaders = make(section.CustomLoaders)
 	var sectionConfig = compile.Config{
 		SectionMapper:       sectionMap.Mapper(),
-		CustomSectionLoader: sectionLoaders.Load,
+		CustomSectionLoader: loaders.Load,
 	}
 
-	sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
+	var buffers snapshot.Buffers
+	var serviceBuf []byte
+
+	loaders[wasm.ServiceSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		return failrequest.New(event.FailRequest_ModuleError, "service section appears too early in wasm module")
+	}
+	loaders[wasm.IOSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		return failrequest.New(event.FailRequest_ModuleError, "io section appears too early in wasm module")
+	}
+	loaders[wasm.BufferSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		return failrequest.New(event.FailRequest_ModuleError, "buffer section appears too early in wasm module")
+	}
+	loaders[wasm.StackSection] = func(string, section.Reader, uint32) error {
 		return failrequest.New(event.FailRequest_ModuleError, "stack section appears too early in wasm module")
 	}
 
@@ -164,8 +177,77 @@ func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, i
 		entryAddr = codeMap.FuncAddrs[entryIndex]
 	}
 
-	sectionLoaders[wasm.StackSectionName] = func(_ string, r section.Reader, length uint32) (err error) {
-		sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
+	loaders[wasm.ServiceSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "multiple service sections in wasm module")
+		}
+
+		sectionMap.Service = sectionMap.Sections[section.Custom] // The section currently being loaded.
+
+		buffers.Services, serviceBuf, err = readServiceSection(r, length)
+		return
+	}
+
+	loaders[wasm.IOSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "service section must appear before io section in wasm module")
+		}
+		loaders[wasm.IOSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "multiple io sections in wasm module")
+		}
+
+		sectionMap.IO = sectionMap.Sections[section.Custom] // The section currently being loaded.
+
+		buffers.Input, buffers.Output, err = readIOSection(r, length)
+		return
+	}
+
+	loaders[wasm.BufferSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "service section must appear before buffer section in wasm module")
+		}
+		loaders[wasm.IOSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "io section must appear before buffer section in wasm module")
+		}
+		loaders[wasm.BufferSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "multiple buffer sections in wasm module")
+		}
+
+		if uint64(length) != uint64(len(serviceBuf)+len(buffers.Input)+len(buffers.Output)) {
+			err = failrequest.New(event.FailRequest_ModuleError, "unexpected buffer section length in wasm module")
+		}
+
+		sectionMap.Buffer = sectionMap.Sections[section.Custom] // The section currently being loaded.
+
+		_, err = io.ReadFull(r, serviceBuf)
+		if err != nil {
+			return
+		}
+
+		_, err = io.ReadFull(r, buffers.Input)
+		if err != nil {
+			return
+		}
+
+		_, err = io.ReadFull(r, buffers.Output)
+		if err != nil {
+			return
+		}
+
+		return
+	}
+
+	loaders[wasm.StackSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "service section must appear before stack section in wasm module")
+		}
+		loaders[wasm.IOSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "io section must appear before stack section in wasm module")
+		}
+		loaders[wasm.BufferSection] = func(string, section.Reader, uint32) error {
+			return failrequest.New(event.FailRequest_ModuleError, "buffer section must appear before stack section in wasm module")
+		}
+		loaders[wasm.StackSection] = func(string, section.Reader, uint32) error {
 			return failrequest.New(event.FailRequest_ModuleError, "multiple stack sections in wasm module")
 		}
 
@@ -200,15 +282,24 @@ func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, i
 		return
 	}
 
-	sectionLoaders[wasm.StackSectionName] = func(string, section.Reader, uint32) error {
-		return failrequest.New(event.FailRequest_ModuleError, "stack section appears too late in wasm module")
-	}
-
 	if sectionMap.Stack.Offset == 0 {
 		err = build.FinishText(stackSize, 0, module.GlobalsSize(), memorySize, maxMemorySize)
 		if err != nil {
 			return
 		}
+	}
+
+	loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
+		return failrequest.New(event.FailRequest_ModuleError, "service section appears too late in wasm module")
+	}
+	loaders[wasm.IOSection] = func(string, section.Reader, uint32) error {
+		return failrequest.New(event.FailRequest_ModuleError, "io section appears too late in wasm module")
+	}
+	loaders[wasm.BufferSection] = func(string, section.Reader, uint32) error {
+		return failrequest.New(event.FailRequest_ModuleError, "buffer section appears too late in wasm module")
+	}
+	loaders[wasm.StackSection] = func(string, section.Reader, uint32) error {
+		return failrequest.New(event.FailRequest_ModuleError, "stack section appears too late in wasm module")
 	}
 
 	var dataConfig = &compile.DataConfig{
@@ -346,4 +437,108 @@ func (prog *program) resolveEntry(name string) (index, addr uint32, err error) {
 func alignMemorySize(size int) int {
 	mask := wa.PageSize - 1
 	return (size + mask) &^ mask
+}
+
+// TODO: move these (and the custom section logic in buildProgram) to some other package
+
+func readServiceSection(r section.Reader, length uint32,
+) (services []snapshot.Service, buf []byte, err error) {
+	var readLen int
+
+	count, n, err := readVaruint32(r)
+	if err != nil {
+		return
+	}
+	readLen += n
+
+	// TODO: validate count
+
+	services = make([]snapshot.Service, count)
+	sizes := make([]uint32, count)
+
+	var totalSize uint64
+
+	for i := range services {
+		var nameLen byte
+
+		nameLen, err = r.ReadByte()
+		if err != nil {
+			return
+		}
+		readLen++
+
+		// TODO: validate nameLen
+
+		b := make([]byte, nameLen)
+		n, err = io.ReadFull(r, b)
+		if err != nil {
+			return
+		}
+		readLen += n
+		services[i].Name = string(b)
+
+		sizes[i], n, err = readVaruint32(r)
+		if err != nil {
+			return
+		}
+		readLen += n
+
+		// TODO: validate size
+
+		totalSize += uint64(sizes[i])
+	}
+
+	if uint64(readLen) != uint64(length) {
+		err = failrequest.New(event.FailRequest_ModuleError, "invalid service section in wasm module")
+		return
+	}
+
+	// TODO: validate totalSize
+
+	buf = make([]byte, totalSize)
+	return
+}
+
+func readIOSection(r section.Reader, length uint32) (inputBuf, outputBuf []byte, err error) {
+	inputSize, n1, err := readVaruint32(r)
+	if err != nil {
+		return
+	}
+
+	outputSize, n2, err := readVaruint32(r)
+	if err != nil {
+		return
+	}
+
+	// TODO: validate sizes
+
+	if uint64(n1+n2) != uint64(length) {
+		err = failrequest.New(event.FailRequest_ModuleError, "invalid io section in wasm module")
+		return
+	}
+
+	inputBuf = make([]byte, inputSize)
+	outputBuf = make([]byte, outputSize)
+	return
+}
+
+func readVaruint32(r section.Reader) (x uint32, n int, err error) {
+	var shift uint
+	for n = 1; ; n++ {
+		var b byte
+		b, err = r.ReadByte()
+		if err != nil {
+			return
+		}
+		if b < 0x80 {
+			if n > 5 || n == 5 && b > 0xf {
+				err = failrequest.New(event.FailRequest_ModuleError, "varuint32 is too large")
+				return
+			}
+			x |= uint32(b) << shift
+			return
+		}
+		x |= (uint32(b) & 0x7f) << shift
+		shift += 7
+	}
 }

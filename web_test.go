@@ -937,10 +937,12 @@ func TestInstance(t *testing.T) {
 			})
 		})
 
+		handler2 := newHandler(ctx)
+
 		t.Run("Restore", func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=stderr", snapshot)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
-			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+			resp, _ := checkResponse(t, handler2, req, http.StatusCreated)
 			restoredID := resp.Header.Get(webapi.HeaderInstance)
 
 			if testing.Verbose() {
@@ -948,10 +950,10 @@ func TestInstance(t *testing.T) {
 			}
 
 			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=suspend", nil)
-			checkResponse(t, handler, req, http.StatusNoContent)
+			checkResponse(t, handler2, req, http.StatusNoContent)
 
 			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=wait", nil)
-			resp, _ = checkResponse(t, handler, req, http.StatusNoContent)
+			resp, _ = checkResponse(t, handler2, req, http.StatusNoContent)
 
 			checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
 				State: "suspended",
