@@ -26,8 +26,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/state"
-	"github.com/tsavola/gate/server/state/sql"
+	"github.com/tsavola/gate/server/database"
+	"github.com/tsavola/gate/server/database/sql"
 	"github.com/tsavola/gate/server/webserver"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
@@ -83,10 +83,10 @@ func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int,
 	}
 }
 
-var accessTracker state.AccessTracker
+var nonceChecker database.NonceChecker
 
 func init() {
-	db, err := sql.Open(context.Background(), sql.Config{
+	db, err := sql.OpenNonceChecker(context.Background(), sql.Config{
 		Driver: "sqlite3",
 		DSN:    "file::memory:?cache=shared",
 	})
@@ -94,7 +94,7 @@ func init() {
 		panic(err)
 	}
 
-	accessTracker = db
+	nonceChecker = db
 }
 
 func newServices() func() server.InstanceServices {
@@ -162,7 +162,7 @@ func newHandler(ctx context.Context) http.Handler {
 	config := &webserver.Config{
 		Server:        newServer(ctx),
 		Authority:     "test",
-		AccessState:   accessTracker,
+		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
 	}
 

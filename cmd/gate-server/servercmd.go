@@ -28,11 +28,11 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/server/database"
+	_ "github.com/tsavola/gate/server/database/sql"
 	"github.com/tsavola/gate/server/monitor"
 	"github.com/tsavola/gate/server/monitor/webmonitor"
 	"github.com/tsavola/gate/server/sshkeys"
-	"github.com/tsavola/gate/server/state"
-	_ "github.com/tsavola/gate/server/state/sql"
 	"github.com/tsavola/gate/server/webserver"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
@@ -197,7 +197,7 @@ func main() {
 	}
 
 	c.Service = plugins.ServiceConfig
-	c.DB = state.DefaultConfig
+	c.DB = database.DefaultConfig
 
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig
@@ -392,12 +392,12 @@ func main2(critLog *log.Logger) (err error) {
 		c.HTTP.Authority = strings.Split(c.HTTP.Addr, ":")[0]
 	}
 
-	accessState, err := state.Open(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
+	nonceChecker, err := database.OpenNonceChecker(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
 	if err != nil {
 		return err
 	}
-	defer accessState.Close()
-	c.HTTP.AccessState = accessState
+	defer nonceChecker.Close()
+	c.HTTP.NonceStorage = nonceChecker
 
 	c.HTTP.ModuleSources = make(map[string]server.Source)
 	if c.Source.IPFS.Configured() {

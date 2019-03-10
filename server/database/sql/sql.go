@@ -12,20 +12,30 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"errors"
 	"time"
 
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/state"
+	"github.com/tsavola/gate/server/database"
 )
 
-var errNonceExists = errors.New("nonce already exists")
-
 func init() {
-	state.Register("sql", adapter{})
+	database.Register("sql", database.Adapter{
+		NewConfig: func() interface{} {
+			return new(Config)
+		},
+
+		OpenNonceChecker: func(ctx context.Context, config interface{}) (database.NonceChecker, error) {
+			nr, err := OpenNonceChecker(ctx, *config.(*Config))
+			if err != nil {
+				return nil, err
+			}
+
+			return nr, err
+		},
+	})
 }
 
-const Schema = `
+const NonceSchema = `
 CREATE TABLE IF NOT EXISTS nonce (
 	principal BYTEA NOT NULL,
 	nonce TEXT NOT NULL,
@@ -44,53 +54,43 @@ type Config struct {
 	Connector driver.Connector // Overrides Driver and DSN.
 }
 
-type adapter struct{}
-
-func (adapter) NewConfig() interface{} {
-	return new(Config)
-}
-
-func (adapter) Open(ctx context.Context, config interface{}) (state.DB, error) {
-	return Open(ctx, *config.(*Config))
-}
-
-type DB struct {
-	state.AccessTrackerBase
+type NonceChecker struct {
 	db *sql.DB
 }
 
-func Open(ctx context.Context, config Config) (db *DB, err error) {
-	db = new(DB)
+func OpenNonceChecker(ctx context.Context, config Config) (*NonceChecker, error) {
+	var err error
+	var nr = new(NonceChecker)
 
 	if config.Connector != nil {
-		db.db = sql.OpenDB(config.Connector)
+		nr.db = sql.OpenDB(config.Connector)
 	} else {
-		db.db, err = sql.Open(config.Driver, config.DSN)
+		nr.db, err = sql.Open(config.Driver, config.DSN)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 	defer func() {
 		if err != nil {
-			db.db.Close()
+			nr.db.Close()
 		}
 	}()
 
-	_, err = db.db.ExecContext(ctx, Schema)
+	_, err = nr.db.ExecContext(ctx, NonceSchema)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	return
+	return nr, nil
 }
 
-func (db *DB) Close() error {
-	return db.db.Close()
+func (nr *NonceChecker) Close() error {
+	return nr.db.Close()
 }
 
-func (db *DB) TrackNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expire time.Time,
+func (nr *NonceChecker) CheckNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expire time.Time,
 ) (err error) {
-	conn, err := db.db.Conn(ctx)
+	conn, err := nr.db.Conn(ctx)
 	if err != nil {
 		return
 	}
@@ -111,7 +111,7 @@ func (db *DB) TrackNonce(ctx context.Context, pri *server.PrincipalKey, nonce st
 		return
 	}
 	if n == 0 {
-		err = errNonceExists
+		err = database.ErrNonceReused
 		return
 	}
 

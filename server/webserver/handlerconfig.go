@@ -5,17 +5,22 @@
 package webserver
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/state"
 )
+
+type NonceChecker interface {
+	CheckNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expires time.Time) error
+}
 
 // Config for a web server.
 type Config struct {
 	Server        *server.Server
-	Authority     string              // External domain name with optional port number.
-	AccessState   state.AccessTracker // Remembers things within the Authority.
+	Authority     string // External domain name with optional port number.
+	NonceStorage  NonceChecker
 	ModuleSources map[string]server.Source
 	NewRequestID  func(*http.Request) uint64
 }

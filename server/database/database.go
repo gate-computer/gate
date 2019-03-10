@@ -2,23 +2,27 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package state
+package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
+	"time"
+
+	"github.com/tsavola/gate/server"
 )
 
-// DB implementations have same restrictions as AccessTracker implementations.
-type DB interface {
-	AccessTracker
-	io.Closer
+var ErrNonceReused = errors.New("nonce reused")
+
+type NonceChecker interface {
+	CheckNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expires time.Time) error
+	Close() error
 }
 
-type Adapter interface {
-	NewConfig() interface{}
-	Open(ctx context.Context, config interface{}) (DB, error)
+type Adapter struct {
+	NewConfig        func() interface{}
+	OpenNonceChecker func(ctx context.Context, config interface{}) (NonceChecker, error)
 }
 
 var (
@@ -44,12 +48,16 @@ func NewConfig(name string) (interface{}, error) {
 	return a.NewConfig(), nil
 }
 
-func Open(ctx context.Context, name string, config interface{}) (db DB, err error) {
+func OpenNonceChecker(ctx context.Context, name string, config interface{}) (db NonceChecker, err error) {
 	a, found := adapters[name]
 	if !found {
 		err = fmt.Errorf("database adapter not registered: %s", name)
 		return
 	}
+	if a.OpenNonceChecker == nil {
+		err = fmt.Errorf("database adapter does not support nonce checking: %s", name)
+		return
+	}
 
-	return a.Open(ctx, config)
+	return a.OpenNonceChecker(ctx, config)
 }
