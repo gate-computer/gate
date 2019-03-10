@@ -163,7 +163,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 
 	var pol progPolicy
 
-	err = s.AccessPolicy.AuthorizeProgramContent(ctx, pri, &pol.res, &pol.prog)
+	err = s.AccessPolicy.AuthorizeProgram(ctx, pri, &pol.res, &pol.prog)
 	if err != nil {
 		return
 	}
@@ -323,7 +323,7 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, al
 
 	var pol instProgPolicy
 
-	err = s.AccessPolicy.AuthorizeInstanceProgramContent(ctx, pri, &pol.res, &pol.inst, &pol.prog)
+	err = s.AccessPolicy.AuthorizeProgramInstance(ctx, pri, &pol.res, &pol.prog, &pol.inst)
 	if err != nil {
 		return
 	}
@@ -348,7 +348,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, so
 ) (progHash string, inst *Instance, err error) {
 	var pol instProgPolicy
 
-	err = s.AccessPolicy.AuthorizeInstanceProgramSource(ctx, pri, &pol.res, &pol.inst, &pol.prog, source)
+	err = s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, pri, &pol.res, &pol.prog, &pol.inst, source)
 	if err != nil {
 		return
 	}

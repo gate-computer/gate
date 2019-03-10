@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestAccessAuthorizers(*testing.T) {
-	var _ AccessAuthorizer = NoAccess{}
-	var _ AccessAuthorizer = new(PublicAccess)
+func TestAuthorizers(*testing.T) {
+	var _ Authorizer = NoAccess{}
+	var _ Authorizer = new(PublicAccess)
 }

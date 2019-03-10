@@ -42,3 +42,11 @@ func Context(ctx context.Context, pri *PrincipalKey) (c detail.Context) {
 
 	return
 }
+
+// Op returns the server operation type.
+func Op(ctx context.Context) (op detail.Op) {
+	if x := ctx.Value(contextKey{}); x != nil {
+		op = x.(detail.Context).Op
+	}
+	return
+}

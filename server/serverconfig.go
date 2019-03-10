@@ -52,7 +52,7 @@ type Config struct {
 	ProgramStorage  image.ProgramStorage
 	InstanceStorage image.InstanceStorage
 	Executor        *runtime.Executor
-	AccessPolicy    AccessAuthorizer
+	AccessPolicy    Authorizer
 	PreforkProcs    int
 	Monitor         func(Event, error)
 }

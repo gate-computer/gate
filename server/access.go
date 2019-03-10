@@ -43,39 +43,41 @@ type InstancePolicy struct {
 	Debug         func(ctx context.Context, option string) (status string, output io.WriteCloser, err error)
 }
 
-// AccessAuthorizer authenticates, authorizes and limits access to Server
-// methods.  If PrincipalKey is nil, the request didn't contain credentials,
-// and the access should be denied unless the policy allows anonymous access.
-// If PrincipalKey is non-nil, it should be checked unless the policy allows
-// access to everyone.
+// Authorizer and moderator of server access.  If PrincipalKey is nil, the
+// request didn't contain credentials, and the access should be denied unless
+// the policy allows anonymous access.  If PrincipalKey is non-nil, it should
+// be checked unless the policy allows access to everyone.
 //
 // The methods should return Unauthorized, Forbidden or TooManyRequests errors
 // to signal successful prevention of access.  Other types of errors are
 // interpreted as failures of the authorization mechanism.  Returning nil
 // grants access.
 //
-// The implementation should adjust the ResourcePolicy, InstancePolicy and
-// ProgramPolicy objects' fields.  The limits are enforced automatically by the
-// server, which may also lead to denial of access.
+// An implementation should adjust the ResourcePolicy, ProgramPolicy and
+// InstancePolicy objects' fields.  The limits are enforced automatically by
+// the server, which may also lead to denial of access.
 //
-// AccessAuthorizer may be expanded with new methods (prefixed with the
-// Authorize namespace) also between major releases.  Implementations must
-// inherit methods from a concrete access authorization type, and must not add
+// An implementation may choose to discriminate based on server operation type.
+// It can be obtained using the Op(context.Context) function.
+//
+// Authorizer may be expanded with new methods (prefixed with the Authorize
+// namespace) also between major releases.  Implementations must inherit
+// methods from a concrete access authorization type, and must not add
 // unrelated methods with the Authorize prefix to avoid breakage.
 //
 // The conservative choice is to inherit from NoAccess.  That way, new
 // functionality will be effectively disabled.
-type AccessAuthorizer interface {
-	AuthorizeProgramContent(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy) error
-	AuthorizeInstanceProgramContent(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy, *ProgramPolicy) error
-	AuthorizeInstanceProgramSource(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy, *ProgramPolicy, Source) error
-	AuthorizeInstance(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy) error
+type Authorizer interface {
 	Authorize(context.Context, *PrincipalKey) error
+	AuthorizeProgram(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy) error
+	AuthorizeInstance(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy) error
+	AuthorizeProgramInstance(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, *InstancePolicy) error
+	AuthorizeProgramInstanceSource(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, *InstancePolicy, Source) error
 
-	accessAuthorizer() // Force inheritance.
+	authorizer() // Force inheritance.
 }
 
-// Unauthorized access error.  The client is denied to access the server.
+// Unauthorized access error.  The client is denied access to the server.
 type Unauthorized interface {
 	error
 	Unauthorized()
@@ -114,15 +116,11 @@ type NoAccess struct{}
 
 var errNoAccess = AccessForbidden("no access policy")
 
-func (NoAccess) AuthorizeProgramContent(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy) error {
+func (NoAccess) Authorize(context.Context, *PrincipalKey) error {
 	return errNoAccess
 }
 
-func (NoAccess) AuthorizeInstanceProgramContent(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy, *ProgramPolicy) error {
-	return errNoAccess
-}
-
-func (NoAccess) AuthorizeInstanceProgramSource(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy, *ProgramPolicy, Source) error {
+func (NoAccess) AuthorizeProgram(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy) error {
 	return errNoAccess
 }
 
@@ -130,13 +128,17 @@ func (NoAccess) AuthorizeInstance(context.Context, *PrincipalKey, *ResourcePolic
 	return errNoAccess
 }
 
-func (NoAccess) Authorize(context.Context, *PrincipalKey) error {
+func (NoAccess) AuthorizeProgramInstance(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, *InstancePolicy) error {
 	return errNoAccess
 }
 
-func (NoAccess) accessAuthorizer() {}
+func (NoAccess) AuthorizeProgramInstanceSource(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, *InstancePolicy, Source) error {
+	return errNoAccess
+}
 
-// AccessConfig utility for AccessAuthorizer implementations.
+func (NoAccess) authorizer() {}
+
+// AccessConfig utility for Authorizer implementations.
 // InstancePolicy.Services must be set explicitly, other fields have defaults.
 type AccessConfig struct {
 	ResourcePolicy
@@ -218,23 +220,13 @@ func NewPublicAccess(services func() InstanceServices) (p *PublicAccess) {
 	return
 }
 
-func (p *PublicAccess) AuthorizeProgramContent(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, prog *ProgramPolicy) error {
-	p.ConfigureResource(res)
-	p.ConfigureProgram(prog)
+func (p *PublicAccess) Authorize(_ context.Context, _ *PrincipalKey) error {
 	return nil
 }
 
-func (p *PublicAccess) AuthorizeInstanceProgramContent(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, inst *InstancePolicy, prog *ProgramPolicy) error {
+func (p *PublicAccess) AuthorizeProgram(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, prog *ProgramPolicy) error {
 	p.ConfigureResource(res)
 	p.ConfigureProgram(prog)
-	p.ConfigureInstance(inst)
-	return nil
-}
-
-func (p *PublicAccess) AuthorizeInstanceProgramSource(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, inst *InstancePolicy, prog *ProgramPolicy, _ Source) error {
-	p.ConfigureResource(res)
-	p.ConfigureProgram(prog)
-	p.ConfigureInstance(inst)
 	return nil
 }
 
@@ -244,8 +236,18 @@ func (p *PublicAccess) AuthorizeInstance(_ context.Context, _ *PrincipalKey, res
 	return nil
 }
 
-func (p *PublicAccess) Authorize(_ context.Context, _ *PrincipalKey) error {
+func (p *PublicAccess) AuthorizeProgramInstance(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, prog *ProgramPolicy, inst *InstancePolicy) error {
+	p.ConfigureResource(res)
+	p.ConfigureProgram(prog)
+	p.ConfigureInstance(inst)
 	return nil
 }
 
-func (*PublicAccess) accessAuthorizer() {}
+func (p *PublicAccess) AuthorizeProgramInstanceSource(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, prog *ProgramPolicy, inst *InstancePolicy, _ Source) error {
+	p.ConfigureResource(res)
+	p.ConfigureProgram(prog)
+	p.ConfigureInstance(inst)
+	return nil
+}
+
+func (*PublicAccess) authorizer() {}
