@@ -174,7 +174,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 
 	// TODO: check resource policy
 
-	found, err := s.uploadKnownModule(ctx, acc, &pol, allegedHash, content)
+	found, err := s.uploadKnownModule(ctx, acc, &pol, allegedHash, content, contentLength)
 	if err != nil {
 		return
 	}
@@ -195,9 +195,9 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 	return
 }
 
-func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader,
+func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader, contentLength int64,
 ) (found bool, err error) {
-	prog, err := s.refProgram(ctx, allegedHash)
+	prog, err := s.refProgram(ctx, allegedHash, contentLength)
 	if err != nil || prog == nil {
 		return
 	}
@@ -395,7 +395,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 
 	// TODO: check resource policy
 
-	inst, err = s.loadKnownModuleInstance(ctx, acc, pol, allegedHash, content, function, instID, debug)
+	inst, err = s.loadKnownModuleInstance(ctx, acc, pol, allegedHash, content, contentLength, function, instID, debug)
 	if err != nil {
 		return
 	}
@@ -417,13 +417,13 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 	return
 }
 
-func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.Reader, function, instID, debug string,
+func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.Reader, contentLength int64, function, instID, debug string,
 ) (inst *Instance, err error) {
 	if allegedHash == "" {
 		return
 	}
 
-	prog, err := s.refProgram(ctx, allegedHash)
+	prog, err := s.refProgram(ctx, allegedHash, contentLength)
 	if err != nil || prog == nil {
 		return
 	}
@@ -946,14 +946,18 @@ func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account, err error) {
 	return
 }
 
-func (s *Server) refProgram(ctx context.Context, hash string) (prog *program, err error) {
+func (s *Server) refProgram(ctx context.Context, hash string, length int64) (prog *program, err error) {
 	s.lock.Lock()
 	prog = s.programs[hash]
 	if prog != nil {
-		prog.ref()
+		if length == prog.image.ModuleSize() {
+			prog.ref()
+		} else {
+			err = errModuleSizeMismatch
+		}
 	}
 	s.lock.Unlock()
-	if prog != nil {
+	if prog != nil || err != nil {
 		return
 	}
 
@@ -976,6 +980,11 @@ func (s *Server) refProgram(ctx context.Context, hash string) (prog *program, er
 
 	prog, _, err = s.mergeProgramRef(prog)
 	if err != nil {
+		return
+	}
+
+	if length != prog.image.ModuleSize() {
+		err = errModuleSizeMismatch
 		return
 	}
 

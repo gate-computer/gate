@@ -9,6 +9,7 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -35,6 +36,8 @@ var (
 	newHash      = sha512.New384
 	hashEncoding = base64.RawURLEncoding
 )
+
+var errModuleSizeMismatch = failrequest.Wrap(event.FailRequest_ModuleError, errors.New("content length does not match existing module size"), "invalid module content")
 
 func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 	digest1, err := hashEncoding.DecodeString(hash1)
