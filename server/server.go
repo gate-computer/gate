@@ -96,15 +96,10 @@ func New(ctx context.Context, config *Config) *Server {
 	s.accounts = make(map[[principalKeySize]byte]*account)
 	s.programs = make(map[string]*program)
 
-	go func() {
-		<-ctx.Done()
-		s.cleanup()
-	}()
-
 	return s
 }
 
-func (s *Server) cleanup() {
+func (s *Server) Shutdown(ctx context.Context) (err error) {
 	var is []*Instance
 
 	func() {
@@ -146,6 +141,8 @@ func (s *Server) cleanup() {
 
 		inst.Kill(s)
 	}
+
+	return
 }
 
 // UploadModule creates a new module reference.  Caller provides module
@@ -170,7 +167,10 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 		return
 	}
 
-	acc := s.ensureAccount(pri)
+	acc, err := s.ensureAccount(pri)
+	if err != nil {
+		return
+	}
 
 	// TODO: check resource policy
 
@@ -197,8 +197,8 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 
 func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader,
 ) (found bool, err error) {
-	prog := s.refProgram(ctx, allegedHash)
-	if prog == nil {
+	prog, err := s.refProgram(ctx, allegedHash)
+	if err != nil || prog == nil {
 		return
 	}
 	defer func() {
@@ -235,7 +235,10 @@ func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *pro
 		return
 	}
 
-	redundant := s.registerProgramRef(acc, prog)
+	redundant, err := s.registerProgramRef(acc, prog)
+	if err != nil {
+		return
+	}
 
 	if redundant {
 		s.Monitor(&event.ModuleUploadExist{
@@ -420,8 +423,8 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol 
 		return
 	}
 
-	prog := s.refProgram(ctx, allegedHash)
-	if prog == nil {
+	prog, err := s.refProgram(ctx, allegedHash)
+	if err != nil || prog == nil {
 		return
 	}
 	defer func() {
@@ -926,9 +929,14 @@ func (s *Server) Instances(ctx context.Context, pri *PrincipalKey) (is Instances
 	return
 }
 
-func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account) {
+func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	if s.accounts == nil {
+		err = context.Canceled
+		return
+	}
 
 	acc = s.accounts[pri.key]
 	if acc == nil {
@@ -938,15 +946,15 @@ func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account) {
 	return
 }
 
-func (s *Server) refProgram(ctx context.Context, hash string) *program {
+func (s *Server) refProgram(ctx context.Context, hash string) (prog *program, err error) {
 	s.lock.Lock()
-	prog := s.programs[hash]
+	prog = s.programs[hash]
 	if prog != nil {
 		prog.ref()
 	}
 	s.lock.Unlock()
 	if prog != nil {
-		return prog
+		return
 	}
 
 	progImage, err := s.ImageStorage.LoadProgram(hash)
@@ -955,18 +963,24 @@ func (s *Server) refProgram(ctx context.Context, hash string) *program {
 			Ctx:    Context(ctx, nil),
 			Module: hash,
 		}, err)
-		return nil
+		return
 	}
 	if progImage == nil {
-		return nil
+		return
 	}
 
 	prog = newProgram(hash, progImage)
+
 	s.lock.Lock()
-	prog, _ = s.mergeProgramRef(prog)
+	defer s.lock.Unlock()
+
+	prog, _, err = s.mergeProgramRef(prog)
+	if err != nil {
+		return
+	}
+
 	prog.ref()
-	s.lock.Unlock()
-	return prog
+	return
 }
 
 func (s *Server) unrefProgram(prog *program) {
@@ -1020,11 +1034,15 @@ func (s *Server) getAccountAndPrincipalProgramWithCallerLock(pri *PrincipalKey, 
 
 // registerProgramRef with the server and an account.  Caller's program
 // reference is stolen.
-func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool) {
+func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	prog, redundant = s.mergeProgramRef(prog)
+	prog, redundant, err = s.mergeProgramRef(prog)
+	if err != nil {
+		return
+	}
+
 	acc.ensureRefProgram(prog)
 	return
 }
@@ -1042,6 +1060,11 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *PrincipalKey, instID strin
 	if pri != nil {
 		s.lock.Lock()
 		defer s.lock.Unlock()
+
+		if s.accounts == nil {
+			err = context.Canceled
+			return
+		}
 
 		acc = s.accounts[pri.key]
 		if acc == nil {
@@ -1161,7 +1184,11 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, p
 		}
 	}
 
-	prog, redundant = s.mergeProgramRef(prog)
+	prog, redundant, err = s.mergeProgramRef(prog)
+	if err != nil {
+		return
+	}
+
 	inst = newInstance(acc, instID, prog.ref(), function, instImage, proc, services, debugStatus)
 
 	if acc != nil {
@@ -1174,21 +1201,24 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, p
 
 // mergeProgramRef must be called with Server.lock held.  The returned program
 // pointer is valid until the end of the critical section.
-func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant bool) {
+func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant bool, err error) {
 	switch existing := s.programs[prog.key]; existing {
 	case nil:
+		if s.programs == nil {
+			return nil, false, context.Canceled
+		}
 		s.programs[prog.key] = prog // Pass reference to map.
-		return prog, false
+		return prog, false, nil
 
 	case prog:
 		if prog.refCount < 2 {
 			panic("unexpected program reference count")
 		}
 		prog.unref() // Map has reference; safe to drop temporary reference.
-		return prog, false
+		return prog, false, nil
 
 	default:
 		prog.unref()
-		return existing, true
+		return existing, true, nil
 	}
 }

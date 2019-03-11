@@ -51,7 +51,8 @@ func (acc *account) cleanup() (is map[string]*Instance) {
 }
 
 // ensureRefProgram must be called with Server.lock held.  It's safe to call
-// for an already referenced program.
+// for an already referenced program.  It must not be called while the server
+// is shutting down.
 func (acc *account) ensureRefProgram(prog *program) {
 	if _, exists := acc.programRefs[prog]; !exists {
 		prog.ref()

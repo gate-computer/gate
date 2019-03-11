@@ -24,20 +24,25 @@ func newBenchServer(ctx context.Context) *server.Server {
 	return server.New(ctx, config)
 }
 
-func newBenchHandler(ctx context.Context) http.Handler {
+func newBenchHandler(ctx context.Context) (h http.Handler, s *server.Server) {
+	s = newBenchServer(ctx)
+
 	config := &webserver.Config{
-		Server:    newBenchServer(ctx),
+		Server:    s,
 		Authority: "bench",
 	}
 
-	return webserver.NewHandler(ctx, "/", config)
+	h = webserver.NewHandler(ctx, "/", config)
+	return
 }
 
 func BenchmarkCall(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	handler := newBenchHandler(ctx)
+	handler, server := newBenchHandler(ctx)
+	defer server.Shutdown(ctx)
+
 	uri := webapi.PathModuleRefs + hashNop + "?action=call"
 
 	for i := 0; i < b.N; i++ {
