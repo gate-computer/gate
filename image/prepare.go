@@ -71,13 +71,16 @@ func PrepareInstances(ctx context.Context, storage InstanceStorage, bufsize int)
 	}
 	c := make(chan fileResult, bufsize-1)
 	go prepareInstances(ctx, c, storage)
-	return preparedInstances(c)
+	return &preparedInstances{storage, c}
 }
 
-type preparedInstances <-chan fileResult
+type preparedInstances struct {
+	InstanceStorage
+	c <-chan fileResult
+}
 
-func (c preparedInstances) newInstanceFile() (f *file.File, err error) {
-	r, ok := <-c
+func (pi *preparedInstances) newInstanceFile() (f *file.File, err error) {
+	r, ok := <-pi.c
 	if !ok {
 		err = context.Canceled // TODO: actual error
 		return

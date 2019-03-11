@@ -16,12 +16,13 @@ import (
 type Program struct {
 	Map object.CallMap
 
-	man  manifest.Archive
-	file *file.File
-	dir  string // Pending storage location.
+	storage Storage
+	man     manifest.Program
+	file    *file.File
+	mem     []byte
 }
 
-func (prog *Program) Manifest() manifest.Archive { return prog.man }
+func (prog *Program) Manifest() manifest.Program { return prog.man }
 func (prog *Program) PageSize() int              { return internal.PageSize }
 func (prog *Program) TextSize() int              { return alignPageSize32(prog.man.TextSize) }
 func (prog *Program) ModuleSize() int64          { return prog.man.ModuleSize }
@@ -38,33 +39,21 @@ func (prog *Program) NewModuleReader() io.Reader {
 
 // Store the program if the associated ProgramStorage supports it.  The name
 // must not contain path separators.
-func (prog *Program) Store(name string) (err error) {
-	if prog.dir == "" {
-		return
-	}
-
-	err = storeProgram(prog, name)
-	if err != nil {
-		return
-	}
-
-	prog.dir = ""
-	return
+func (prog *Program) Store(name string) error {
+	return prog.storage.storeProgram(prog, name)
 }
 
 func (prog *Program) Close() (err error) {
 	err = prog.file.Close()
 	prog.file = nil
+
+	munmapp(&prog.mem)
 	return
 }
 
 type ProgramStorage interface {
-	// LoadProgram which has been stored previously.
-	LoadProgram(name string) (*Program, error)
-
 	newProgramFile() (*file.File, error)
-
-	// The file must have been created with newProgramFile of this
-	// ProgramStorage.  The Program takes ownership of the file.
-	newProgram(m manifest.Archive, f *file.File, objectMap object.CallMap) *Program
+	storeProgram(prog *Program, name string) error
+	loadProgram(combined Storage, name string) (*Program, error)
+	programBackend() interface{}
 }

@@ -301,7 +301,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 	}
 	defer f.Close()
 
-	build, err := image.NewBuild(image.Memory, image.Memory, 0, compile.DefaultMaxTextSize, &codeMap.CallMap)
+	build, err := image.NewBuild(image.Memory, 0, compile.DefaultMaxTextSize, &codeMap.CallMap, true)
 	if err != nil {
 		return
 	}

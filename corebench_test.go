@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -30,7 +29,6 @@ func (nopInstance) InitRoutine() uint8 { return abi.TextAddrNoFunction }
 
 var benchExecutor = newExecutor(context.Background(), nil)
 var benchRegistry = serviceRegistry{new(bytes.Buffer)}
-var benchFS image.LocalStorage
 
 type benchDatum struct {
 	name string
@@ -61,23 +59,6 @@ func init() {
 		}
 		benchData = append(benchData, benchDatum{x.name, wasm})
 	}
-
-	dir := os.Getenv("GATE_BENCH_FILESYSTEM")
-	if dir == "" {
-		d := "testdata/filesystem"
-		if _, err := os.Stat(d); err == nil {
-			dir = d
-		} else if !os.IsNotExist(err) {
-			panic(err)
-		}
-	}
-
-	if dir != "" {
-		if err := os.RemoveAll(path.Join(dir, "v0/program")); err != nil {
-			panic(err)
-		}
-		benchFS = image.NewFilesystem(dir)
-	}
 }
 
 func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
@@ -96,15 +77,14 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 	return proc.Serve(ctx, benchRegistry, nil)
 }
 
-func executeProgram(ctx context.Context, instStorage image.InstanceStorage, prog *image.Program,
-) (exit int, trapID trap.ID, err error) {
+func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID trap.ID, err error) {
 	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, nil)
 	if err != nil {
 		return
 	}
 	defer proc.Kill()
 
-	inst, err := image.NewInstance(instStorage, prog, stackSize, 0, 0)
+	inst, err := image.NewInstance(prog, stackSize, 0, 0)
 	if err != nil {
 		return
 	}
@@ -119,25 +99,25 @@ func executeProgram(ctx context.Context, instStorage image.InstanceStorage, prog
 }
 
 func BenchmarkBuildMem(b *testing.B) {
-	benchBuild(b, image.Memory, image.Memory)
+	benchBuild(b, image.Memory)
 }
 
 func BenchmarkBuildMemPrep(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	benchBuild(b, image.PreparePrograms(ctx, image.Memory, benchPrepareCount), image.PrepareInstances(ctx, image.Memory, benchPrepareCount))
+	benchBuild(b, image.CombinedStorage(image.PreparePrograms(ctx, image.Memory, benchPrepareCount), image.PrepareInstances(ctx, image.Memory, benchPrepareCount)))
 }
 
 func BenchmarkBuildFS(b *testing.B) {
-	if benchFS == nil {
-		b.Skip("filesystem backend unavailable")
+	if testFS == nil {
+		b.Skip("test filesystem not specified")
 	}
 
-	benchBuild(b, benchFS, benchFS)
+	benchBuild(b, testFS)
 }
 
-func benchBuild(b *testing.B, progStorage image.ProgramStorage, instStorage image.InstanceStorage) {
+func benchBuild(b *testing.B, storage image.Storage) {
 	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
@@ -147,7 +127,7 @@ func benchBuild(b *testing.B, progStorage image.ProgramStorage, instStorage imag
 				codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 				codeMap.CallSites = codeMap.CallSites[:0]
 
-				prog, inst, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
+				prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
 				inst.Close()
 				prog.Close()
 			}
@@ -156,12 +136,9 @@ func benchBuild(b *testing.B, progStorage image.ProgramStorage, instStorage imag
 }
 
 func BenchmarkBuildStore(b *testing.B) {
-	if benchFS == nil {
-		b.Skip("filesystem backend unavailable")
+	if testFS == nil {
+		b.Skip("test filesystem not specified")
 	}
-
-	var progStorage image.ProgramStorage = benchFS
-	var instStorage image.InstanceStorage = benchFS
 
 	prefix := fmt.Sprintf("%s.%d.", strings.Replace(b.Name(), "/", "-", -1), b.N)
 
@@ -171,7 +148,7 @@ func BenchmarkBuildStore(b *testing.B) {
 		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 		codeMap.CallSites = codeMap.CallSites[:0]
 
-		prog, inst, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
+		prog, inst, _ := buildInstance(benchExecutor, testFS, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
 		err := prog.Store(prefix + strconv.Itoa(i))
 		inst.Close()
 		prog.Close()
@@ -182,24 +159,24 @@ func BenchmarkBuildStore(b *testing.B) {
 }
 
 func BenchmarkExecInstMem(b *testing.B) {
-	benchExecInst(b, image.Memory, image.Memory)
+	benchExecInst(b, image.Memory)
 }
 
 func BenchmarkExecInstFS(b *testing.B) {
-	if benchFS == nil {
-		b.Skip("filesystem backend unavailable")
+	if testFS == nil {
+		b.Skip("test filesystem not specified")
 	}
 
-	benchExecInst(b, benchFS, benchFS)
+	benchExecInst(b, testFS)
 }
 
-func benchExecInst(b *testing.B, progStorage image.ProgramStorage, instStorage image.InstanceStorage) {
+func benchExecInst(b *testing.B, storage image.Storage) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	var codeMap object.CallMap
 
-	prog, instProto, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
+	prog, instProto, _ := buildInstance(benchExecutor, storage, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
 	defer prog.Close()
 	defer instProto.Close()
 
@@ -221,25 +198,25 @@ func benchExecInst(b *testing.B, progStorage image.ProgramStorage, instStorage i
 }
 
 func BenchmarkExecProgMem(b *testing.B) {
-	benchExecProg(b, image.Memory, image.Memory)
+	benchExecProg(b, image.Memory)
 }
 
 func BenchmarkExecProgMemPrep(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	benchExecProg(b, image.Memory, image.PrepareInstances(ctx, image.Memory, benchPrepareCount))
+	benchExecProg(b, image.CombinedStorage(image.Memory, image.PrepareInstances(ctx, image.Memory, benchPrepareCount)))
 }
 
 func BenchmarkExecProgFS(b *testing.B) {
-	if benchFS == nil {
-		b.Skip("filesystem backend unavailable")
+	if testFS == nil {
+		b.Skip("test filesystem not specified")
 	}
 
-	benchExecProg(b, benchFS, benchFS)
+	benchExecProg(b, testFS)
 }
 
-func benchExecProg(b *testing.B, progStorage image.ProgramStorage, instStorage image.InstanceStorage) {
+func benchExecProg(b *testing.B, storage image.Storage) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -248,14 +225,14 @@ func benchExecProg(b *testing.B, progStorage image.ProgramStorage, instStorage i
 		b.Run(x.name, func(b *testing.B) {
 			var codeMap object.CallMap
 
-			prog, inst, _ := buildInstance(benchExecutor, progStorage, instStorage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
+			prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
 			defer prog.Close()
 			inst.Close()
 
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_, trapID, err := executeProgram(ctx, instStorage, prog)
+				_, trapID, err := executeProgram(ctx, prog)
 				if err != nil {
 					b.Fatal(err)
 				}

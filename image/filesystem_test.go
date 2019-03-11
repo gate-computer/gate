@@ -11,5 +11,5 @@ import (
 func TestFilesystem(*testing.T) {
 	var _ InstanceStorage = new(Filesystem)
 	var _ ProgramStorage = new(Filesystem)
-	var _ LocalStorage = new(Filesystem)
+	var _ Storage = new(Filesystem)
 }

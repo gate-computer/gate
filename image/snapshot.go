@@ -19,7 +19,7 @@ import (
 
 const wasmModuleHeaderSize = 8
 
-func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool,
+func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool,
 ) (newProg *Program, err error) {
 	// Old program.
 	var (
@@ -31,8 +31,8 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 	// Instance file.
 	var (
 		instStackOffset   = int64(0)
-		instGlobalsOffset = instStackOffset + int64(inst.stackSize)
-		instMemoryOffset  = instGlobalsOffset + int64(alignPageSize(inst.globalsSize))
+		instGlobalsOffset = instStackOffset + int64(inst.man.StackSize)
+		instMemoryOffset  = instGlobalsOffset + alignPageOffset32(inst.man.GlobalsSize)
 	)
 
 	instMap, err := mmap(inst.file.Fd(), instStackOffset, int(instMemoryOffset-instStackOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
@@ -42,8 +42,8 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 	defer mustMunmap(instMap)
 
 	var (
-		instStackMapping   = instMap[:inst.stackSize]
-		instGlobalsMapping = instMap[inst.stackSize:]
+		instStackMapping   = instMap[:inst.man.StackSize]
+		instGlobalsMapping = instMap[inst.man.StackSize:]
 	)
 
 	instStackUnused, memorySize, ok := checkStack(instStackMapping, len(instStackMapping))
@@ -51,7 +51,7 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 		err = ErrInvalidState
 		return
 	}
-	if memorySize > uint32(inst.maxMemorySize) {
+	if memorySize > uint32(inst.man.MaxMemorySize) {
 		err = ErrInvalidState
 		return
 	}
@@ -68,7 +68,7 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 	if suspended {
 		if instStackUnused != 0 {
 			newInitRoutine = abi.TextAddrResume
-			newTextAddr = inst.textAddr
+			newTextAddr = inst.man.TextAddr
 			instStackData = instStackMapping[instStackUnused:]
 			stackUsage = len(instStackData)
 		} else {
@@ -170,7 +170,7 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 	newModuleSize += int64(dataSectionSize)
 
 	// New program file.
-	newFile, err := newStorage.newProgramFile()
+	newFile, err := oldProg.storage.newProgramFile()
 	if err != nil {
 		return
 	}
@@ -293,7 +293,7 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 		newStack := newStackSection[len(stackHeader):]
 
 		if instStackData != nil {
-			err = exportStack(newStack, instStackData, inst.textAddr, oldProg.Map) // TODO: in-place?
+			err = exportStack(newStack, instStackData, inst.man.TextAddr, oldProg.Map) // TODO: in-place?
 			if err != nil {
 				return
 			}
@@ -301,7 +301,7 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 			// Synthesize portable stack, suspended at virtual call site at
 			// index 0 (beginning of start routine).
 			binary.LittleEndian.PutUint64(newStack[0:], 0)
-			binary.LittleEndian.PutUint32(newStack[8:], inst.entryIndex)
+			binary.LittleEndian.PutUint32(newStack[8:], inst.man.EntryIndex)
 		}
 
 		n, err = newFile.WriteAt(newStackSection, newOff)
@@ -319,10 +319,14 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 	}
 	newOff += int64(n)
 
-	instOff := instMemoryOffset
-	err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, int(memorySize))
-	if err != nil {
-		return
+	if oldProg.storage.singleBackend() {
+		instOff := instMemoryOffset
+		err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, int(memorySize))
+		if err != nil {
+			return
+		}
+	} else {
+		panic("TODO")
 	}
 	oldOff += oldRanges[section.Data].Length
 
@@ -341,7 +345,7 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 		return
 	}
 
-	// Copy text from program.  (Programs likely share the same backend.)
+	// Copy text from program.
 	newOff = progTextOffset
 	oldOff = progTextOffset
 	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, alignPageSize32(man.TextSize))
@@ -349,23 +353,29 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 		return
 	}
 
-	// Copy stack from instance (again).
-	if instStackData != nil {
-		copyLen := alignPageSize(stackUsage)
-		newOff = progGlobalsOffset - int64(copyLen)
-		instOff = instGlobalsOffset - int64(copyLen)
-		err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, copyLen)
+	var newProgMem []byte
+
+	if oldProg.storage.singleBackend() {
+		// Copy stack from instance (again).
+		if instStackData != nil {
+			copyLen := alignPageSize(stackUsage)
+			newOff = progGlobalsOffset - int64(copyLen)
+			instOff := instGlobalsOffset - int64(copyLen)
+			err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, copyLen)
+			if err != nil {
+				return
+			}
+		}
+
+		// Copy globals and memory from instance (again).
+		newOff = progGlobalsOffset
+		instOff := instGlobalsOffset
+		err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, alignPageSize32(inst.man.GlobalsSize)+int(memorySize))
 		if err != nil {
 			return
 		}
-	}
-
-	// Copy globals and memory from instance (again).
-	newOff = progGlobalsOffset
-	instOff = instGlobalsOffset
-	err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, alignPageSize(inst.globalsSize)+int(memorySize))
-	if err != nil {
-		return
+	} else {
+		panic("TODO")
 	}
 
 	// New program manifest.
@@ -393,8 +403,13 @@ func Snapshot(newStorage ProgramStorage, oldProg *Program, inst *Instance, buffe
 		Length: int64(stackSectionSize),
 	}
 
-	// Store it.
-	newProg = newStorage.newProgram(man, newFile, oldProg.Map)
+	newProg = &Program{
+		Map:     oldProg.Map,
+		storage: oldProg.storage,
+		man:     man,
+		file:    newFile,
+		mem:     newProgMem,
+	}
 	return
 }
 

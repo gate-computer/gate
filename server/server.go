@@ -63,11 +63,8 @@ func New(ctx context.Context, config *Config) *Server {
 	if config != nil {
 		s.Config = *config
 	}
-	if s.ProgramStorage == nil {
-		s.ProgramStorage = image.Memory
-	}
-	if s.InstanceStorage == nil {
-		s.InstanceStorage = image.Memory
+	if s.ImageStorage == nil {
+		s.ImageStorage = image.Memory
 	}
 	if s.PreforkProcs == 0 {
 		s.PreforkProcs = DefaultPreforkProcs
@@ -233,7 +230,7 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 
 func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
 ) (err error) {
-	prog, _, err := buildProgram(&pol.prog, s.ProgramStorage, nil, nil, allegedHash, content, contentSize, "")
+	prog, _, err := buildProgram(s.ImageStorage, &pol.prog, nil, allegedHash, content, contentSize, "")
 	if err != nil {
 		return
 	}
@@ -288,7 +285,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 
 	// TODO: check resource policy (text/stack/memory/max-memory size etc.)
 
-	instImage, err := image.NewInstance(s.InstanceStorage, prog.image, pol.inst.StackSize, entryIndex, entryAddr)
+	instImage, err := image.NewInstance(prog.image, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
@@ -450,7 +447,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol 
 		return
 	}
 
-	instImage, err := image.NewInstance(s.InstanceStorage, prog.image, pol.inst.StackSize, entryIndex, entryAddr)
+	instImage, err := image.NewInstance(prog.image, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
 	}
@@ -480,7 +477,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol 
 
 func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, function, instID, debug string,
 ) (inst *Instance, err error) {
-	prog, instImage, err := buildProgram(&pol.prog, s.ProgramStorage, &pol.inst, s.InstanceStorage, allegedHash, content, contentSize, function)
+	prog, instImage, err := buildProgram(s.ImageStorage, &pol.prog, &pol.inst, allegedHash, content, contentSize, function)
 	if err != nil {
 		return
 	}
@@ -858,7 +855,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 			return nil, failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
 		}
 
-		return image.Snapshot(s.ProgramStorage, oldProg.image, inst.image, inst.buffers, suspended)
+		return image.Snapshot(oldProg.image, inst.image, inst.buffers, suspended)
 	}()
 	if err != nil {
 		return
@@ -952,7 +949,7 @@ func (s *Server) refProgram(ctx context.Context, hash string) *program {
 		return prog
 	}
 
-	progImage, err := s.ProgramStorage.LoadProgram(hash)
+	progImage, err := s.ImageStorage.LoadProgram(hash)
 	if err != nil {
 		s.Monitor(&event.FailInternal{
 			Ctx:    Context(ctx, nil),

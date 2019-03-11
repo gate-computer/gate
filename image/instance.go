@@ -8,11 +8,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"math"
+	"os"
 
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/wa"
@@ -26,24 +28,21 @@ const (
 
 type InstanceStorage interface {
 	newInstanceFile() (*file.File, error)
+	storeInstanceSupported() bool
+	storeInstance(inst *Instance, name string) (manifest.Instance, error)
+	LoadInstance(name string, man manifest.Instance) (*Instance, error)
+	instanceBackend() interface{}
 }
 
 // Instance is a program state.  It may be undergoing mutation.
 type Instance struct {
-	file          *file.File
-	initRoutine   uint8
-	textAddr      uint64
-	stackSize     int
-	stackUsage    int
-	globalsSize   int
-	memorySize    int
-	maxMemorySize int
-	entryIndex    uint32
-	entryAddr     uint32
-	coherent      bool
+	man      manifest.Instance
+	file     *file.File
+	coherent bool
+	path     string
 }
 
-func NewInstance(storage InstanceStorage, prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
+func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 ) (inst *Instance, err error) {
 	man := prog.Manifest()
 
@@ -68,7 +67,7 @@ func NewInstance(storage InstanceStorage, prog *Program, maxStackSize int, entry
 		return
 	}
 
-	instFile, err := storage.newInstanceFile()
+	instFile, err := prog.storage.newInstanceFile()
 	if err != nil {
 		return
 	}
@@ -79,37 +78,63 @@ func NewInstance(storage InstanceStorage, prog *Program, maxStackSize int, entry
 	}()
 
 	var (
-		off1    = progGlobalsOffset
-		off2    = int64(instStackSize)
-		copyLen = alignPageSize32(man.GlobalsSize) + alignPageSize32(man.MemoryDataSize)
+		stackMapSize   = alignPageSize(instStackUsage)
+		globalsMapSize = alignPageSize32(man.GlobalsSize)
+		memoryMapSize  = alignPageSize32(man.MemoryDataSize)
+		copyLen        = stackMapSize + globalsMapSize + memoryMapSize
+
+		off1 = progGlobalsOffset - int64(stackMapSize)
+		off2 = int64(instStackSize - stackMapSize)
 	)
 
-	if instStackUsage > 0 {
-		stackCopyLen := alignPageSize(instStackUsage)
-
-		off1 -= int64(stackCopyLen)
-		off2 -= int64(stackCopyLen)
-		copyLen += stackCopyLen
+	if prog.storage.singleBackend() {
+		// Copy stack, globals and memory from program file to instance file.
+		err = copyFileRange(prog.file.Fd(), &off1, instFile.Fd(), &off2, copyLen)
+	} else {
+		// Write stack, globals and memory from program mapping to instance file.
+		// TODO: trim range from beginning and end
+		_, err = prog.file.WriteAt(prog.mem[:copyLen], off2)
 	}
-
-	err = copyFileRange(prog.file.Fd(), &off1, instFile.Fd(), &off2, copyLen)
 	if err != nil {
 		return
 	}
 
 	inst = &Instance{
-		file:          instFile,
-		initRoutine:   uint8(man.InitRoutine),
-		textAddr:      instTextAddr,
-		stackSize:     instStackSize,
-		stackUsage:    instStackUsage,
-		globalsSize:   int(man.GlobalsSize),
-		memorySize:    int(man.MemorySize),
-		maxMemorySize: int(man.MemorySizeLimit),
-		entryIndex:    entryIndex,
-		entryAddr:     entryAddr,
-		coherent:      true,
+		man: manifest.Instance{
+			InitRoutine:   man.InitRoutine,
+			TextAddr:      instTextAddr,
+			StackSize:     uint32(instStackSize),
+			StackUsage:    uint32(instStackUsage),
+			GlobalsSize:   man.GlobalsSize,
+			MemorySize:    man.MemorySize,
+			MaxMemorySize: man.MemorySizeLimit,
+			EntryIndex:    entryIndex,
+			EntryAddr:     entryAddr,
+		},
+		file:     instFile,
+		coherent: true,
 	}
+	return
+}
+
+// Store the instance if the InstanceStorage associated with the Program
+// supports it.  The name must not contain path separators.
+func (inst *Instance) Store(name string, prog *Program) (man manifest.Instance, err error) {
+	if !prog.storage.storeInstanceSupported() {
+		// Zero manifest value represents nonexistent instance.
+		return
+	}
+
+	err = inst.CheckMutation()
+	if err != nil {
+		return
+	}
+
+	man, err = prog.storage.storeInstance(inst, name)
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -119,14 +144,14 @@ func (inst *Instance) Close() (err error) {
 	return
 }
 
-func (inst *Instance) InitRoutine() uint8 { return inst.initRoutine }
-func (inst *Instance) TextAddr() uint64   { return inst.textAddr }
-func (inst *Instance) StackSize() int     { return inst.stackSize }
-func (inst *Instance) StackUsage() int    { return inst.stackUsage }
-func (inst *Instance) GlobalsSize() int   { return alignPageSize(inst.globalsSize) }
-func (inst *Instance) MemorySize() int    { return inst.memorySize }
-func (inst *Instance) MaxMemorySize() int { return inst.maxMemorySize }
-func (inst *Instance) EntryAddr() uint32  { return inst.entryAddr }
+func (inst *Instance) InitRoutine() uint8 { return uint8(inst.man.InitRoutine) }
+func (inst *Instance) TextAddr() uint64   { return inst.man.TextAddr }
+func (inst *Instance) StackSize() int     { return int(inst.man.StackSize) }
+func (inst *Instance) StackUsage() int    { return int(inst.man.StackUsage) }
+func (inst *Instance) GlobalsSize() int   { return alignPageSize32(inst.man.GlobalsSize) }
+func (inst *Instance) MemorySize() int    { return int(inst.man.MemorySize) }
+func (inst *Instance) MaxMemorySize() int { return int(inst.man.MaxMemorySize) }
+func (inst *Instance) EntryAddr() uint32  { return inst.man.EntryAddr }
 
 // BeginMutation is invoked by a mutator when it takes exclusive ownership of
 // the instance state.  CheckMutation and Close may be called during the
@@ -138,7 +163,18 @@ func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintp
 		return
 	}
 
-	inst.textAddr = textAddr
+	if inst.path != "" {
+		err = os.Remove(inst.path)
+		inst.path = ""
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return
+			}
+			err = nil
+		}
+	}
+
+	inst.man.TextAddr = textAddr
 	inst.coherent = false
 	file = inst.file
 	return
@@ -160,28 +196,28 @@ func (inst *Instance) CheckMutation() (err error) {
 		return
 	}
 
-	unused, memorySize, ok := checkStack(b, inst.stackSize)
+	unused, memorySize, ok := checkStack(b, int(inst.man.StackSize))
 	if !ok {
 		err = ErrInvalidState
 		return
 	}
 
 	if unused == 0 {
-		inst.initRoutine = abi.TextAddrEnter
-		inst.stackUsage = 0
+		inst.man.InitRoutine = abi.TextAddrEnter
+		inst.man.StackUsage = 0
 	} else {
-		inst.initRoutine = abi.TextAddrResume
-		inst.stackUsage = inst.stackSize - int(unused)
+		inst.man.InitRoutine = abi.TextAddrResume
+		inst.man.StackUsage = inst.man.StackSize - unused
 	}
 
-	inst.memorySize = int(memorySize)
+	inst.man.MemorySize = memorySize
 	inst.coherent = true
 	return
 }
 
 func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
 ) (stacktrace []stack.Frame, err error) {
-	b := make([]byte, inst.stackSize)
+	b := make([]byte, inst.man.StackSize)
 
 	_, err = inst.file.ReadAt(b, 0)
 	if err != nil {
@@ -195,7 +231,7 @@ func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
 	}
 
 	if unused != 0 && int(unused) != len(b) {
-		stacktrace, err = stack.Trace(b[unused:], inst.textAddr, textMap, funcSigs)
+		stacktrace, err = stack.Trace(b[unused:], inst.man.TextAddr, textMap, funcSigs)
 	}
 	return
 }
@@ -235,7 +271,8 @@ func checkStack(b []byte, stackSize int) (unused, memorySize uint32, ok bool) {
 
 var pageMask = int64(internal.PageSize - 1)
 
-func align8(n int64) int64          { return (n + 7) &^ 7 }
-func alignPageSize(n int) int       { return int(alignPageOffset(int64(n))) }
-func alignPageSize32(n uint32) int  { return int(alignPageOffset(int64(n))) }
-func alignPageOffset(n int64) int64 { return (n + pageMask) &^ pageMask }
+func align8(n int64) int64             { return (n + 7) &^ 7 }
+func alignPageSize(n int) int          { return int(alignPageOffset(int64(n))) }
+func alignPageSize32(n uint32) int     { return int(alignPageOffset(int64(n))) }
+func alignPageOffset(n int64) int64    { return (n + pageMask) &^ pageMask }
+func alignPageOffset32(n uint32) int64 { return alignPageOffset(int64(n)) }

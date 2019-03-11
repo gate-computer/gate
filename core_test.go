@@ -11,6 +11,7 @@ import (
 	"hash/crc32"
 	"io"
 	"os"
+	"path"
 	"sync"
 	"testing"
 	"time"
@@ -19,11 +20,12 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/runtime/abi"
+	runtimeabi "github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
+	objectabi "github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack/stacktrace"
 	"github.com/tsavola/wag/trap"
@@ -136,18 +138,42 @@ func (d *serviceDiscoverer) NumServices() int               { return len(d.servi
 func (*serviceDiscoverer) ExtractState() []snapshot.Service { return nil }
 func (*serviceDiscoverer) Close() error                     { return nil }
 
-func prepareBuild(exec *executor, progStorage image.ProgramStorage, instStorage image.InstanceStorage, r compile.Reader, moduleSize int, codeMap *object.CallMap,
+var testFS image.Storage
+
+func init() {
+	dir := os.Getenv("GATE_TEST_FILESYSTEM")
+	if dir == "" {
+		d := "testdata/filesystem"
+		if _, err := os.Stat(d); err == nil {
+			dir = d
+		} else if !os.IsNotExist(err) {
+			panic(err)
+		}
+	}
+
+	if dir != "" {
+		if err := os.RemoveAll(path.Join(dir, "v0/program")); err != nil {
+			panic(err)
+		}
+		if err := os.RemoveAll(path.Join(dir, "v0/instance")); err != nil {
+			panic(err)
+		}
+		testFS = image.NewFilesystem(dir)
+	}
+}
+
+func prepareBuild(exec *executor, storage image.Storage, r compile.Reader, moduleSize int, codeMap *object.CallMap,
 ) (mod compile.Module, build *image.Build) {
 	mod, err := compile.LoadInitialSections(nil, r)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := binding.BindImports(&mod, abi.Imports); err != nil {
+	if err := binding.BindImports(&mod, runtimeabi.Imports); err != nil {
 		panic(err)
 	}
 
-	build, err = image.NewBuild(progStorage, instStorage, moduleSize, maxTextSize, codeMap)
+	build, err = image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
 	if err != nil {
 		panic(err)
 	}
@@ -155,9 +181,9 @@ func prepareBuild(exec *executor, progStorage image.ProgramStorage, instStorage 
 	return
 }
 
-func buildInstance(exec *executor, progStorage image.ProgramStorage, instStorage image.InstanceStorage, objectMapper compile.ObjectMapper, codeMap *object.CallMap, r compile.Reader, moduleSize int, function string,
+func buildInstance(exec *executor, storage image.Storage, objectMapper compile.ObjectMapper, codeMap *object.CallMap, r compile.Reader, moduleSize int, function string,
 ) (prog *image.Program, inst *image.Instance, mod compile.Module) {
-	mod, build := prepareBuild(exec, progStorage, instStorage, r, moduleSize, codeMap)
+	mod, build := prepareBuild(exec, storage, r, moduleSize, codeMap)
 	defer build.Close()
 
 	var codeConfig = &compile.CodeConfig{
@@ -215,7 +241,7 @@ func buildInstance(exec *executor, progStorage image.ProgramStorage, instStorage
 	return
 }
 
-func startInstance(ctx context.Context, t *testing.T, wasm []byte, function string, debugOut io.Writer,
+func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer,
 ) (*executor, *image.Program, *image.Instance, *runtime.Process, debug.InsnMap, compile.Module) {
 	var err error
 
@@ -228,7 +254,7 @@ func startInstance(ctx context.Context, t *testing.T, wasm []byte, function stri
 
 	var codeMap debug.InsnMap
 
-	prog, inst, mod := buildInstance(executor, image.Memory, image.Memory, &codeMap, &codeMap.CallMap, codeMap.Reader(bytes.NewReader(wasm)), len(wasm), function)
+	prog, inst, mod := buildInstance(executor, storage, &codeMap, &codeMap.CallMap, codeMap.Reader(bytes.NewReader(wasm)), len(wasm), function)
 	defer func() {
 		if err != nil {
 			prog.Close()
@@ -262,7 +288,7 @@ func startInstance(ctx context.Context, t *testing.T, wasm []byte, function stri
 func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer) (output bytes.Buffer) {
 	ctx := context.Background()
 
-	executor, prog, inst, proc, _, _ := startInstance(ctx, t, wasm, function, debug)
+	executor, prog, inst, proc, _, _ := startInstance(ctx, t, image.Memory, wasm, function, debug)
 	defer proc.Kill()
 	defer inst.Close()
 	defer prog.Close()
@@ -316,10 +342,22 @@ func TestRunHelloDebugNoDebug(t *testing.T) {
 	runProgram(t, wasmHelloDebug, "main", nil)
 }
 
-func TestRunSuspend(t *testing.T) {
+func TestRunSuspendMem(t *testing.T) {
+	testRunSuspend(t, image.Memory, objectabi.TextAddrNoFunction)
+}
+
+func TestRunSuspendFS(t *testing.T) {
+	if testFS == nil {
+		t.Skip("test filesystem not specified")
+	}
+
+	testRunSuspend(t, testFS, objectabi.TextAddrResume)
+}
+
+func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine int32) {
 	ctx := context.Background()
 
-	executor, prog, inst, proc, codeMap, mod := startInstance(ctx, t, wasmSuspend, "main", os.Stdout)
+	executor, prog, inst, proc, codeMap, mod := startInstance(ctx, t, storage, wasmSuspend, "main", os.Stdout)
 	defer proc.Kill()
 	defer inst.Close()
 	defer prog.Close()
@@ -339,6 +377,15 @@ func TestRunSuspend(t *testing.T) {
 
 	if err := inst.CheckMutation(); err != nil {
 		t.Errorf("instance state: %v", err)
+	}
+
+	man, err := inst.Store(t.Name(), prog)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if man.InitRoutine != expectInitRoutine {
+		t.Fatal(man.InitRoutine)
 	}
 
 	if false {

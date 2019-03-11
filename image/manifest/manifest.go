@@ -9,4 +9,5 @@ import (
 )
 
 type ByteRange = internal.ByteRange
-type Archive = internal.Archive
+type Program = internal.Program
+type Instance = internal.Instance

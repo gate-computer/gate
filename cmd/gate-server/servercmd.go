@@ -313,35 +313,39 @@ func main2(critLog *log.Logger) (err error) {
 		fs = image.NewFilesystem(c.Image.Filesystem)
 	}
 
+	var progStorage image.ProgramStorage
+	var instStorage image.InstanceStorage
+
 	switch c.Server.ProgramStorage {
 	case "memory":
-		c.Server.Config.ProgramStorage = image.Memory
+		progStorage = image.Memory
 
 	case "filesystem":
-		c.Server.Config.ProgramStorage = fs
+		progStorage = fs
 
 	default:
 		return fmt.Errorf("unknown server.programstorage option: %q", c.Server.ProgramStorage)
 	}
 
-	if c.Server.PreparePrograms > 0 {
-		c.Server.Config.ProgramStorage = image.PreparePrograms(ctx, c.Server.Config.ProgramStorage, c.Server.PreparePrograms)
-	}
-
 	switch c.Server.InstanceStorage {
 	case "memory":
-		c.Server.Config.InstanceStorage = image.Memory
+		instStorage = image.Memory
 
 	case "filesystem":
-		c.Server.Config.InstanceStorage = fs
+		instStorage = fs
 
 	default:
 		return fmt.Errorf("unknown server.instancestorage option: %q", c.Server.InstanceStorage)
 	}
 
-	if c.Server.PrepareInstances > 0 {
-		c.Server.Config.InstanceStorage = image.PrepareInstances(ctx, c.Server.Config.InstanceStorage, c.Server.PrepareInstances)
+	if c.Server.PreparePrograms > 0 {
+		progStorage = image.PreparePrograms(ctx, progStorage, c.Server.PreparePrograms)
 	}
+	if c.Server.PrepareInstances > 0 {
+		instStorage = image.PrepareInstances(ctx, instStorage, c.Server.PrepareInstances)
+	}
+
+	c.Server.Config.ImageStorage = image.CombinedStorage(progStorage, instStorage)
 
 	if c.Access.Debug {
 		c.Principal.Debug = func(ctx context.Context, option string) (status string, output io.WriteCloser, err error) {

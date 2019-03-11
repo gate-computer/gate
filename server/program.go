@@ -72,7 +72,7 @@ type program struct {
 
 // buildProgram returns an instance if instance policy is defined.  Entry name
 // can be provided only when building an instance.
-func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, instPolicy *InstancePolicy, instStorage image.InstanceStorage, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
+func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
 ) (prog *program, inst *image.Instance, err error) {
 	defer func() {
 		if content != nil {
@@ -82,7 +82,7 @@ func buildProgram(progPolicy *ProgramPolicy, progStorage image.ProgramStorage, i
 
 	var codeMap object.CallMap
 
-	build, err := image.NewBuild(progStorage, instStorage, contentSize, progPolicy.MaxTextSize, &codeMap)
+	build, err := image.NewBuild(storage, contentSize, progPolicy.MaxTextSize, &codeMap, instPolicy != nil)
 	if err != nil {
 		return
 	}

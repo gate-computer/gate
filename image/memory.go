@@ -5,9 +5,10 @@
 package image
 
 import (
+	"os"
+
 	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
-	"github.com/tsavola/wag/object"
 )
 
 const (
@@ -19,6 +20,10 @@ const (
 var Memory mem
 
 type mem struct{}
+
+func (mem) programBackend() interface{}  { return Memory }
+func (mem) instanceBackend() interface{} { return Memory }
+func (mem) singleBackend() bool          { return true }
 
 func (mem) newProgramFile() (f *file.File, err error) {
 	f, err = memfdCreate(memProgramName)
@@ -34,6 +39,10 @@ func (mem) newProgramFile() (f *file.File, err error) {
 	return
 }
 
+func (mem) storeProgram(*Program, string) (_ error)           { return }
+func (mem) loadProgram(Storage, string) (_ *Program, _ error) { return }
+func (mem) LoadProgram(string) (_ *Program, _ error)          { return }
+
 func (mem) newInstanceFile() (f *file.File, err error) {
 	f, err = memfdCreate(memInstanceName)
 	if err != nil {
@@ -48,14 +57,6 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 	return
 }
 
-func (mem) newProgram(man manifest.Archive, f *file.File, codeMap object.CallMap) *Program {
-	return &Program{
-		Map:  codeMap,
-		man:  man,
-		file: f,
-	}
-}
-
-func (mem) LoadProgram(name string) (prog *Program, err error) {
-	return
-}
+func (mem) storeInstanceSupported() bool                                   { return false }
+func (mem) storeInstance(*Instance, string) (_ manifest.Instance, _ error) { return }
+func (mem) LoadInstance(string, manifest.Instance) (*Instance, error)      { return nil, os.ErrNotExist }

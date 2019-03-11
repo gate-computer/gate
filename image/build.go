@@ -6,6 +6,7 @@ package image
 
 import (
 	"crypto/rand"
+	"errors"
 	"io"
 	"reflect"
 	"syscall"
@@ -32,7 +33,6 @@ const (
 )
 
 type programBuild struct {
-	storage   ProgramStorage
 	file      *file.File
 	text      buffer.Static
 	textSize  int
@@ -101,7 +101,7 @@ func (prog *programBuild) writeObjectMapAt(offset int64) (err error) {
 }
 
 type instanceBuild struct {
-	storage   InstanceStorage
+	enabled   bool
 	file      *file.File
 	stackSize int
 }
@@ -109,6 +109,7 @@ type instanceBuild struct {
 // Build a program and optionally an instance.  FinishText, FinishProgram and
 // (optionally) FinishInstance must be called in that order.
 type Build struct {
+	storage       Storage
 	prog          programBuild
 	inst          instanceBuild
 	compileMem    []byte
@@ -123,20 +124,20 @@ type Build struct {
 }
 
 // NewBuild for a program and optionally an instance.
-func NewBuild(progStorage ProgramStorage, instStorage InstanceStorage, moduleSize, maxTextSize int, objectMap *object.CallMap,
+func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool,
 ) (b *Build, err error) {
 	b = &Build{
+		storage: storage,
 		prog: programBuild{
-			storage:   progStorage,
 			objectMap: objectMap,
 		},
 		inst: instanceBuild{
-			storage: instStorage,
+			enabled: instance,
 		},
 		initRoutine: abi.TextAddrStart,
 	}
 
-	b.prog.file, err = b.prog.storage.newProgramFile()
+	b.prog.file, err = b.storage.newProgramFile()
 	if err != nil {
 		return
 	}
@@ -205,7 +206,7 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMe
 		mapSize        = stackMapSize + dataMapSize
 	)
 
-	if b.inst.storage == nil {
+	if !b.inst.enabled {
 		// Program stack, globals and memory contents.
 		err = mmapp(&b.compileMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapSize)
 		if err != nil {
@@ -214,7 +215,7 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMe
 	} else {
 		b.inst.stackSize = alignPageSize(stackSize)
 
-		b.inst.file, err = b.inst.storage.newInstanceFile()
+		b.inst.file, err = b.storage.newInstanceFile()
 		if err != nil {
 			return
 		}
@@ -295,41 +296,45 @@ func (*Build) MemoryAlignment() int {
 // FinishProgram after module, stack, globals and memory have been populated.
 func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType, entryIndexes map[string]uint32, entryAddrs map[uint32]uint32,
 ) (prog *Program, err error) {
+	if b.stackUsage != len(b.stack) {
+		err = errors.New("stack was not populated")
+		return
+	}
+
 	var (
-		dataSize   = b.data.Len()
-		moduleSize = b.prog.module.Cap()
+		stackMapSize = alignPageSize(b.stackUsage)
+		mapCopyLen   = stackMapSize + alignPageSize(b.data.Len())
 	)
 
-	b.stack = nil
-	b.data = buffer.Static{}
-	b.prog.module = buffer.Static{}
+	if b.inst.enabled {
+		var (
+			off1 = int64(b.inst.stackSize - stackMapSize)
+			off2 = progGlobalsOffset - int64(stackMapSize)
+		)
 
-	b.munmapAll()
-
-	if b.inst.file != nil {
-		// Copy stack, globals and memory contents from instance to program.
-		stackLen := alignPageSize(b.stackUsage)
-		dataLen := alignPageSize(dataSize)
-
-		off1 := int64(b.inst.stackSize - stackLen)
-		off2 := progGlobalsOffset - int64(stackLen)
-
-		err = copyFileRange(b.inst.file.Fd(), &off1, b.prog.file.Fd(), &off2, stackLen+dataLen)
+		if b.storage.singleBackend() {
+			// Copy stack, globals and memory from instance file to program file.
+			err = copyFileRange(b.inst.file.Fd(), &off1, b.prog.file.Fd(), &off2, mapCopyLen)
+		} else {
+			// Write stack, globals and memory from instance mapping to program file.
+			// TODO: trim range from beginning and end
+			_, err = b.prog.file.WriteAt(b.compileMem[:mapCopyLen], off2)
+		}
 		if err != nil {
 			return
 		}
 	}
 
-	man := manifest.Archive{
+	man := manifest.Program{
 		InitRoutine:     int32(b.initRoutine),
 		TextAddr:        b.textAddr,
 		TextSize:        uint32(b.prog.textSize),
 		StackUsage:      uint32(b.stackUsage),
 		GlobalsSize:     uint32(b.globalsSize),
-		MemoryDataSize:  uint32(dataSize - alignPageSize(b.globalsSize)),
+		MemoryDataSize:  uint32(b.data.Len() - alignPageSize(b.globalsSize)),
 		MemorySize:      uint32(b.memorySize),
 		MemorySizeLimit: uint32(b.maxMemorySize),
-		ModuleSize:      int64(moduleSize),
+		ModuleSize:      int64(b.prog.module.Cap()),
 		Sections:        sectionMap.manifestSections(),
 		ServiceSection:  manifestByteRange(sectionMap.Service),
 		IoSection:       manifestByteRange(sectionMap.IO),
@@ -342,7 +347,33 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
 	}
 
-	prog = b.prog.storage.newProgram(man, b.prog.file, *b.prog.objectMap)
+	b.stack = nil
+	b.data = buffer.Static{}
+	b.prog.module = buffer.Static{}
+
+	var progMem []byte
+
+	if !b.storage.singleBackend() {
+		if b.inst.enabled {
+			err = mmapp(&progMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapCopyLen)
+			if err != nil {
+				return
+			}
+		} else {
+			progMem = b.compileMem
+			b.compileMem = nil
+		}
+	}
+
+	b.munmapAll()
+
+	prog = &Program{
+		Map:     *b.prog.objectMap,
+		storage: b.storage,
+		man:     man,
+		file:    b.prog.file,
+		mem:     progMem,
+	}
 	b.prog.file = nil
 	return
 }
@@ -356,17 +387,19 @@ func (b *Build) FinishInstance(entryIndex, entryAddr uint32) (inst *Instance, er
 	}
 
 	inst = &Instance{
-		file:          b.inst.file,
-		textAddr:      b.textAddr,
-		stackSize:     b.inst.stackSize,
-		stackUsage:    b.stackUsage,
-		globalsSize:   b.globalsSize,
-		memorySize:    b.memorySize,
-		maxMemorySize: b.maxMemorySize,
-		initRoutine:   b.initRoutine,
-		entryIndex:    entryIndex,
-		entryAddr:     entryAddr,
-		coherent:      true,
+		man: manifest.Instance{
+			InitRoutine:   int32(b.initRoutine),
+			TextAddr:      b.textAddr,
+			StackSize:     uint32(b.inst.stackSize),
+			StackUsage:    uint32(b.stackUsage),
+			GlobalsSize:   uint32(b.globalsSize),
+			MemorySize:    uint32(b.memorySize),
+			MaxMemorySize: uint32(b.maxMemorySize),
+			EntryIndex:    entryIndex,
+			EntryAddr:     entryAddr,
+		},
+		file:     b.inst.file,
+		coherent: true,
 	}
 	b.inst.file = nil
 	return
