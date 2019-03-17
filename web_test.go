@@ -246,9 +246,9 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect webapi.Status) 
 	}
 }
 
-func TestRoot(t *testing.T) {
+func TestVersions(t *testing.T) {
 	ctx := context.Background()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, webapi.PathVersions, nil)
 	resp, content := checkResponse(t, newHandler(ctx), req, http.StatusOK)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
@@ -262,15 +262,15 @@ func TestRoot(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(versions, []interface{}{
-		strings.TrimLeft(webapi.Path, "/"),
+		fmt.Sprintf("v%d", webapi.Version),
 	}) {
 		t.Errorf("%#v", versions)
 	}
 }
 
-func TestRoot404(t *testing.T) {
+func TestVersion404(t *testing.T) {
 	ctx := context.Background()
-	req := httptest.NewRequest(http.MethodGet, "/foo", nil)
+	req := httptest.NewRequest(http.MethodGet, webapi.PathVersions+"foo", nil)
 	resp, content := checkResponse(t, newHandler(ctx), req, http.StatusNotFound)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "text/plain; charset=utf-8" {
