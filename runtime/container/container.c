@@ -8,6 +8,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,8 +28,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-#include <sys/capability.h>
 
 #include "align.h"
 #include "cgroup.h"
@@ -117,16 +116,20 @@ static void xset_pdeathsig(int signum)
 // Clear all process capabilities or die.
 static void xclear_caps(void)
 {
-	cap_t p = cap_init();
-	if (p == NULL)
-		xerror("cap_init");
+	struct {
+		uint32_t version;
+		int pid;
+	} header = {
+		.version = 0x20080522, // ABI version 3.
+		.pid = 0,
+	};
 
-	cap_clear(p);
+	const struct {
+		uint32_t effective, permitted, inheritable;
+	} data[2] = {{0}, {0}};
 
-	if (cap_set_proc(p) != 0)
-		xerror("cap_set_proc");
-
-	cap_free(p);
+	if (syscall(SYS_capset, &header, data) != 0)
+		xerror("clear capabilities");
 }
 
 // Fork with clone flags, or die.
@@ -154,11 +157,8 @@ static int xclone(int (*fn)(void *), int flags)
 // Change the root filesystem or die.
 static void xpivot_root(const char *new_root, const char *put_old)
 {
-	long ret = syscall(SYS_pivot_root, new_root, put_old);
-	if (ret < 0) {
-		errno = -ret;
+	if (syscall(SYS_pivot_root, new_root, put_old) < 0)
 		xerror("pivot_root");
-	}
 }
 
 // Convert a base 10 string to an unsigned integer or die.
@@ -375,7 +375,6 @@ static void sandbox_common(void)
 	xsetrlimit(RLIMIT_MEMLOCK, 0);
 	xsetrlimit(RLIMIT_MSGQUEUE, 0);
 	xsetrlimit(RLIMIT_RTPRIO, 0);
-	xsetrlimit(RLIMIT_RTTIME, 0);
 	xsetrlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
 }
 

@@ -3,7 +3,7 @@ SETCAP		?= setcap
 
 CGROUP_BACKEND	?= systemd
 
-pkgs		:= libcap
+pkgs		:=
 ifeq ($(CGROUP_BACKEND),systemd)
 pkgs		+= libsystemd
 endif

@@ -127,7 +127,6 @@ The non-Go components can be built with `make`.  They require:
   - uidmap (shadow-utils)
   - protobuf-compiler
   - libc-dev
-  - libcap-dev
   - libsystemd-dev, unless CGROUP_BACKEND=none is specified for make
 
 `make bin` builds the programs using the Go 1.11 module mechanism.
