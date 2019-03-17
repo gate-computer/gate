@@ -1,17 +1,18 @@
-CPPFLAGS	+= -I../include -DNDEBUG
+CPPFLAGS	+= -pthread -I../include -DNDEBUG
 CFLAGS		+= -std=gnu99 -O2 -fomit-frame-pointer -g -Wall -Wextra -Wno-unused-parameter
-LDFLAGS		+= -static
+LDFLAGS		+= -pthread -static
 
 include ../include/runtime.mk
 
 binary		:= ../../lib/gate/runtime/gate-runtime-executor.$(GATE_INTERNAL_API_VERSION)
+objects		:= executor.o reaper.o
 
-$(binary): executor.o
+$(binary): $(objects)
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ executor.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(objects)
 
-executor.o: executor.c buffer.h $(wildcard *.h ../include/*.h) Makefile ../include/runtime.mk
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ executor.c
+%.o: %.c $(wildcard *.h ../include/*.h) Makefile ../include/runtime.mk
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
 
 install:
 	install -m 755 $(binary) $(LIBDIR)/runtime

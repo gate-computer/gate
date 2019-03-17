@@ -10,6 +10,7 @@ import (
 	goruntime "runtime"
 	"time"
 
+	"github.com/tsavola/gate/runtime"
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/service"
@@ -41,9 +42,8 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 	services := server.NewInstanceServices(new(service.Registry), connector{})
 
 	return server.New(ctx, &server.Config{
-		Executor:     e,
-		AccessPolicy: server.NewPublicAccess(func() server.InstanceServices { return services }),
-		PreforkProcs: goruntime.GOMAXPROCS(0) * 100,
+		ProcessFactory: runtime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
+		AccessPolicy:   server.NewPublicAccess(func() server.InstanceServices { return services }),
 	})
 }
 

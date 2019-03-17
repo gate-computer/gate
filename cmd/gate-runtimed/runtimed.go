@@ -32,7 +32,6 @@ type Config struct {
 
 func main() {
 	c := new(Config)
-	c.Runtime.MaxProcs = runtime.DefaultMaxProcs
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 

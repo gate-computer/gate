@@ -63,13 +63,13 @@ func init() {
 
 func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
 ) (exit int, trapID trap.ID, err error) {
-	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, nil)
+	proc, err := benchExecutor.NewProcess(ctx)
 	if err != nil {
 		return
 	}
 	defer proc.Kill()
 
-	err = proc.Start(prog, inst)
+	err = proc.Start(prog, inst, nil)
 	if err != nil {
 		return
 	}
@@ -78,7 +78,7 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 }
 
 func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID trap.ID, err error) {
-	proc, err := runtime.NewProcess(ctx, benchExecutor.Executor, nil)
+	proc, err := benchExecutor.NewProcess(ctx)
 	if err != nil {
 		return
 	}
@@ -90,7 +90,7 @@ func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID 
 	}
 	defer inst.Close()
 
-	err = proc.Start(prog, nopInstance{inst})
+	err = proc.Start(prog, nopInstance{inst}, nil)
 	if err != nil {
 		return
 	}

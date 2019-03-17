@@ -12,13 +12,17 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
 #include <sys/types.h>
 
+#include "align.h"
 #include "debug.h"
 #include "errors.h"
 #include "runtime.h"
+#include "syscall.h"
 
 #define NORETURN __attribute__((noreturn))
 #define PACKED __attribute__((packed))
@@ -52,108 +56,50 @@ static uintptr_t runtime_func_addr(const void *new_base, code *func_ptr)
 	return (uintptr_t) new_base + ((uintptr_t) func_ptr - GATE_LOADER_ADDR);
 }
 
-static int sys_personality(unsigned long persona)
+static int sys_close(int fd)
 {
-	int retval;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_personality), "D"(persona)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
-}
-
-static int sys_prctl(int option, unsigned long arg2)
-{
-	int retval;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_prctl), "D"(option), "S"(arg2)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	return syscall1(SYS_close, fd);
 }
 
 static int sys_fcntl(int fd, int cmd, int arg)
 {
-	int retval;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_fcntl), "D"(fd), "S"(cmd), "d"(arg)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
-}
-
-static ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
-{
-	ssize_t retval;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_recvmsg), "D"(sockfd), "S"(msg), "d"(flags)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	return syscall3(SYS_fcntl, fd, cmd, arg);
 }
 
 static void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	void *retval;
-
-	register void *rdi asm("rdi") = addr;
-	register size_t rsi asm("rsi") = length;
-	register int rdx asm("rdx") = prot;
-	register int r10 asm("r10") = flags;
-	register int r8 asm("r8") = fd;
-	register off_t r9 asm("r9") = offset;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_mmap), "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	return (void *) syscall6(SYS_mmap, (uintptr_t) addr, length, prot, flags, fd, offset);
 }
 
 static int sys_mprotect(void *addr, size_t len, int prot)
 {
-	int retval;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_mprotect), "D"(addr), "S"(len), "d"(prot)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	return syscall3(SYS_mprotect, (uintptr_t) addr, len, prot);
 }
 
-static int sys_close(int fd)
+static int sys_prctl(int option, unsigned long arg2)
 {
-	int retval;
+	return syscall2(SYS_prctl, option, arg2);
+}
 
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_close), "D"(fd)
-		: "cc", "rcx", "r11", "memory");
+static ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
+{
+	return syscall3(SYS_recvmsg, sockfd, (uintptr_t) msg, flags);
+}
 
-	return retval;
+static int sys_setrlimit(int resource, rlim_t limit)
+{
+	const struct rlimit buf = {
+		.rlim_cur = limit,
+		.rlim_max = limit,
+	};
+
+	return syscall2(SYS_setrlimit, resource, (uintptr_t) &buf);
 }
 
 // This is like imageInfo in runtime/process.go
 struct image_info {
 	uint16_t magic_number_1;
-	uint8_t debug_flag;
+	uint8_t reserved;
 	uint8_t init_routine;
 	uint32_t page_size;
 	uint64_t text_addr;
@@ -169,7 +115,7 @@ struct image_info {
 	uint32_t magic_number_2;
 } PACKED;
 
-static int receive_program(struct image_info *buf, int *text_fd, int *state_fd)
+static int receive_info(struct image_info *buf, int *text_fd, int *state_fd)
 {
 	struct iovec iov = {
 		.iov_base = buf,
@@ -177,7 +123,7 @@ static int receive_program(struct image_info *buf, int *text_fd, int *state_fd)
 	};
 
 	union {
-		char buf[CMSG_SPACE(2 * sizeof(int))];
+		char buf[CMSG_SPACE(3 * sizeof(int))];
 		struct cmsghdr alignment;
 	} ctl;
 
@@ -208,35 +154,52 @@ static int receive_program(struct image_info *buf, int *text_fd, int *state_fd)
 	if (cmsg->cmsg_type != SCM_RIGHTS)
 		return -1;
 
-	if (cmsg->cmsg_len != CMSG_LEN(2 * sizeof(int)))
-		return -1;
-
 	const int *fds = (int *) CMSG_DATA(cmsg);
-	*text_fd = fds[0];
-	*state_fd = fds[1];
+	int debug_flag;
+
+	if (cmsg->cmsg_len == CMSG_LEN(2 * sizeof(int))) {
+		debug_flag = 0;
+		*text_fd = fds[0];
+		*state_fd = fds[1];
+	} else if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof(int))) {
+		if (fds[0] != GATE_DEBUG_FD)
+			return -1;
+
+		debug_flag = 1;
+		*text_fd = fds[1];
+		*state_fd = fds[2];
+	} else {
+		return -1;
+	}
 
 	if (CMSG_NXTHDR(&msg, cmsg))
 		return -1;
 
-	return 0;
+	return debug_flag;
 }
 
 int main(void)
 {
-	if (GATE_SANDBOX) {
+	if (GATE_SANDBOX)
 		if (sys_prctl(PR_SET_DUMPABLE, 0) != 0)
 			return ERR_LOAD_PRCTL_NOT_DUMPABLE;
-	}
 
-	// Undo the personality change by executor.
-	if (sys_personality(0) < 0)
-		return ERR_LOAD_PERSONALITY_DEFAULT;
+	if (sys_prctl(PR_SET_TSC, PR_TSC_SIGSEGV) != 0)
+		return ERR_LOAD_PRCTL_TSC_SIGSEGV;
+
+	if (sys_setrlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE) != 0)
+		return ERR_LOAD_SETRLIMIT_NOFILE;
+
+	if (sys_setrlimit(RLIMIT_NPROC, 0) != 0)
+		return ERR_LOAD_SETRLIMIT_NPROC;
+
+	// Image info and file descriptors
 
 	struct image_info info = {0};
 	int text_fd = -1;
 	int state_fd = -1;
-
-	if (receive_program(&info, &text_fd, &state_fd) != 0)
+	int debug_flag = receive_info(&info, &text_fd, &state_fd);
+	if (debug_flag < 0)
 		return ERR_LOAD_READ_INFO;
 
 	if (info.magic_number_1 != GATE_MAGIC_NUMBER_1)
@@ -258,7 +221,7 @@ int main(void)
 
 	uint64_t *vector_end = (uint64_t *) (runtime_ptr + info.page_size);
 
-	code *debug_func = (info.debug_flag & 1) ? &gate_debug : &gate_nop;
+	code *debug_func = debug_flag ? &gate_debug : &gate_nop;
 
 	// These assignments reflect the moduleFunctions map in runtime/abi/abi.go
 	*(vector_end - 6) = runtime_func_addr(runtime_ptr, debug_func);
@@ -328,15 +291,13 @@ int main(void)
 
 	code *init_routine = GATE_SANDBOX ? &runtime_init : &runtime_init_no_sandbox;
 
-	size_t pagemask = info.page_size - 1;
-
 	register void *rax asm("rax") = stack_ptr;
 	register void *rbx asm("rbx") = stack_limit;
 	register uint64_t rbp asm("rbp") = runtime_func_addr(runtime_ptr, init_routine);
-	register uint64_t rsi asm("rsi") = (GATE_LOADER_STACK_SIZE + pagemask) & ~pagemask;
+	register uint64_t rsi asm("rsi") = align_size(GATE_LOADER_STACK_SIZE, info.page_size);
 	register uint64_t r9 asm("r9") = runtime_func_addr(runtime_ptr, &signal_handler);
 	register uint64_t r10 asm("r10") = runtime_func_addr(runtime_ptr, &signal_restorer);
-	register uint64_t r11 asm("r11") = pagemask;
+	register uint64_t r11 asm("r11") = info.page_size - 1;
 	register void *r14 asm("r14") = memory_ptr;
 	register void *r15 asm("r15") = text_ptr + (uintptr_t) info.init_routine;
 

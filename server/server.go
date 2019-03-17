@@ -50,8 +50,6 @@ type Server struct {
 	Config
 	Info *Info
 
-	procFactory runtime.ProcessFactory
-
 	lock     sync.Mutex
 	accounts map[[principalKeySize]byte]*account
 	programs map[string]*program
@@ -66,9 +64,6 @@ func New(ctx context.Context, config *Config) *Server {
 	if s.ImageStorage == nil {
 		s.ImageStorage = image.Memory
 	}
-	if s.PreforkProcs == 0 {
-		s.PreforkProcs = DefaultPreforkProcs
-	}
 	if s.Monitor == nil {
 		s.Monitor = defaultMonitor
 	}
@@ -82,16 +77,6 @@ func New(ctx context.Context, config *Config) *Server {
 			MinABIVersion: runtimeabi.MinVersion,
 		},
 	}
-
-	procFactory, procErrors := runtime.PrepareProcesses(ctx, s.Executor, s.PreforkProcs)
-	s.procFactory = procFactory
-	go func() {
-		for err := range procErrors {
-			s.Monitor(&event.FailInternal{
-				Ctx: Context(ctx, nil),
-			}, err)
-		}
-	}()
 
 	s.accounts = make(map[[principalKeySize]byte]*account)
 	s.programs = make(map[string]*program)
@@ -805,12 +790,12 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *PrincipalKey, instID, 
 			return
 		}
 
-		proc, services, debugStatus, err := s.allocateInstanceResources(ctx, &pol.inst, debug)
+		proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, &pol.inst, debug)
 		if err != nil {
 			return
 		}
 
-		inst.renew(proc, services, debugStatus)
+		inst.renew(proc, services, debugStatus, debugOutput)
 		return
 	}()
 	if err != nil {
@@ -1121,9 +1106,7 @@ func (s *Server) refInstanceProgram(pri *PrincipalKey, instID string) (*program,
 }
 
 func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePolicy, debugOption string,
-) (proc *runtime.Process, services InstanceServices, debugStatus string, err error) {
-	var debugOutput io.WriteCloser
-
+) (proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser, err error) {
 	if debugOption != "" {
 		if pol.Debug == nil {
 			err = AccessForbidden("no debug policy")
@@ -1134,7 +1117,7 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 			return
 		}
 		defer func() {
-			if debugOutput != nil {
+			if err != nil {
 				debugOutput.Close()
 			}
 		}()
@@ -1151,16 +1134,11 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 		}
 	}()
 
-	if debugOutput == nil {
-		proc, err = s.procFactory.NewProcess(ctx)
-	} else {
-		proc, err = runtime.NewProcess(ctx, s.Executor, debugOutput)
-	}
+	proc, err = s.ProcessFactory.NewProcess(ctx)
 	if err != nil {
 		return
 	}
 
-	debugOutput = nil
 	return
 }
 
@@ -1168,12 +1146,13 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 // program reference and instance image are stolen (except on error).
 func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, prog *program, instImage *image.Instance, pol *InstancePolicy, function, instID, debug string,
 ) (inst *Instance, redundant bool, err error) {
-	proc, services, debugStatus, err := s.allocateInstanceResources(ctx, pol, debug)
+	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pol, debug)
 	if err != nil {
 		return
 	}
 	defer func() {
 		if err != nil {
+			debugOutput.Close()
 			proc.Kill()
 			services.Close()
 		}
@@ -1198,7 +1177,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, p
 		return
 	}
 
-	inst = newInstance(acc, instID, prog.ref(), function, instImage, proc, services, debugStatus)
+	inst = newInstance(acc, instID, prog.ref(), function, instImage, proc, services, debugStatus, debugOutput)
 
 	if acc != nil {
 		acc.ensureRefProgram(prog)

@@ -20,7 +20,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gorilla/handlers"
@@ -45,6 +44,7 @@ import (
 )
 
 const (
+	DefaultExecutorCount   = 1
 	DefaultProgramStorage  = "memory"
 	DefaultInstanceStorage = "memory"
 	DefaultIndexStatus     = http.StatusNotFound
@@ -67,10 +67,18 @@ const (
 )
 
 var c = new(struct {
-	Runtime runtime.Config
+	Runtime struct {
+		runtime.Config
+		PrepareProcesses int
+		ExecutorCount    int
+	}
 
 	Image struct {
-		Filesystem string
+		ProgramStorage   string
+		PreparePrograms  int
+		InstanceStorage  string
+		PrepareInstances int
+		Filesystem       string
 	}
 
 	Plugin struct {
@@ -83,11 +91,7 @@ var c = new(struct {
 
 	Server struct {
 		server.Config
-		ProgramStorage   string
-		PreparePrograms  int
-		InstanceStorage  string
-		PrepareInstances int
-		MaxConns         int
+		MaxConns int
 	}
 
 	Access struct {
@@ -164,18 +168,12 @@ func parseConfig(flags *flag.FlagSet) {
 func main() {
 	log.SetFlags(0)
 
-	var fileLimit syscall.Rlimit
-	if err := getrlimit(syscall.RLIMIT_NOFILE, &fileLimit); err != nil {
-		log.Fatal(err)
-	}
-
-	c.Runtime.MaxProcs = runtime.DefaultMaxProcs
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
+	c.Runtime.ExecutorCount = DefaultExecutorCount
 	c.Plugin.LibDir = "lib/gate/plugin"
-	c.Server.ProgramStorage = DefaultProgramStorage
-	c.Server.InstanceStorage = DefaultInstanceStorage
-	c.Server.PreforkProcs = server.DefaultPreforkProcs
+	c.Image.ProgramStorage = DefaultProgramStorage
+	c.Image.InstanceStorage = DefaultInstanceStorage
 	c.Principal.AccessConfig = server.DefaultAccessConfig
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
@@ -201,22 +199,6 @@ func main() {
 
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig
-
-	if c.Server.PreforkProcs <= 0 {
-		c.Server.PreforkProcs = 1
-	}
-
-	constantFileOverhead := serverFileOverhead + forkFileOverhead*c.Server.PreforkProcs + pluginFileOverhead*len(c.Service)
-	guessMaxConns := (int(fileLimit.Cur) - constantFileOverhead) / connFileOverhead
-
-	if c.Server.MaxConns == 0 {
-		if guessMaxConns <= 0 {
-			log.Fatalf("file descriptor limit is too low (%d) or number of preforked processes is too high (%d)", fileLimit.Cur, c.Server.PreforkProcs)
-		}
-		c.Server.MaxConns = guessMaxConns
-	} else if c.Server.MaxConns > guessMaxConns {
-		log.Printf("maximum number of accepted connections (%d) exceeds estimated limit (%d) in regard to file descriptor limit (%d)", c.Server.MaxConns, guessMaxConns, fileLimit.Cur)
-	}
 
 	flag.Usage = confi.FlagUsage(nil, c)
 	parseConfig(flag.CommandLine)
@@ -303,10 +285,27 @@ func main2(critLog *log.Logger) (err error) {
 		}()
 	}
 
-	c.Server.Executor, err = runtime.NewExecutor(ctx, &c.Runtime)
-	if err != nil {
-		return err
+	var executors []*runtime.Executor
+
+	for i := 0; i < c.Runtime.ExecutorCount; i++ {
+		e, err := runtime.NewExecutor(ctx, &c.Runtime.Config)
+		if err != nil {
+			return err
+		}
+		executors = append(executors, e)
 	}
+
+	var factories []runtime.ProcessFactory
+
+	for _, e := range executors {
+		var f runtime.ProcessFactory = e
+		if n := c.Runtime.PrepareProcesses; n > 0 {
+			f = runtime.PrepareProcesses(ctx, f, n)
+		}
+		factories = append(factories, f)
+	}
+
+	c.Server.ProcessFactory = runtime.DistributeProcesses(factories...)
 
 	var fs *image.Filesystem
 	if c.Image.Filesystem != "" {
@@ -316,7 +315,7 @@ func main2(critLog *log.Logger) (err error) {
 	var progStorage image.ProgramStorage
 	var instStorage image.InstanceStorage
 
-	switch c.Server.ProgramStorage {
+	switch s := c.Image.ProgramStorage; s {
 	case "memory":
 		progStorage = image.Memory
 
@@ -324,10 +323,10 @@ func main2(critLog *log.Logger) (err error) {
 		progStorage = fs
 
 	default:
-		return fmt.Errorf("unknown server.programstorage option: %q", c.Server.ProgramStorage)
+		return fmt.Errorf("unknown server.programstorage option: %q", s)
 	}
 
-	switch c.Server.InstanceStorage {
+	switch s := c.Image.InstanceStorage; s {
 	case "memory":
 		instStorage = image.Memory
 
@@ -335,14 +334,14 @@ func main2(critLog *log.Logger) (err error) {
 		instStorage = fs
 
 	default:
-		return fmt.Errorf("unknown server.instancestorage option: %q", c.Server.InstanceStorage)
+		return fmt.Errorf("unknown server.instancestorage option: %q", s)
 	}
 
-	if c.Server.PreparePrograms > 0 {
-		progStorage = image.PreparePrograms(ctx, progStorage, c.Server.PreparePrograms)
+	if n := c.Image.PreparePrograms; n > 0 {
+		progStorage = image.PreparePrograms(ctx, progStorage, n)
 	}
-	if c.Server.PrepareInstances > 0 {
-		instStorage = image.PrepareInstances(ctx, instStorage, c.Server.PrepareInstances)
+	if n := c.Image.PrepareInstances; n > 0 {
+		instStorage = image.PrepareInstances(ctx, instStorage, n)
 	}
 
 	c.Server.Config.ImageStorage = image.CombinedStorage(progStorage, instStorage)
@@ -439,16 +438,33 @@ func main2(critLog *log.Logger) (err error) {
 		l = netutil.LimitListener(l, n)
 	}
 
-	s := http.Server{Handler: handler}
+	httpServer := http.Server{Handler: handler}
 
 	go func() {
-		<-c.Server.Executor.Dead()
+		dead := make(chan struct{}, 1)
+
+		for _, e := range executors {
+			e := e
+			go func() {
+				<-e.Dead()
+				select {
+				case dead <- struct{}{}:
+				default:
+				}
+			}()
+		}
+
+		<-dead
 		critLog.Print("executor died")
 
 		ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
 
-		if err := s.Shutdown(ctx); err != nil {
+		if err := httpServer.Shutdown(ctx); err != nil {
+			critLog.Fatalf("shutdown: %v", err)
+		}
+
+		if err := c.HTTP.Server.Shutdown(ctx); err != nil {
 			critLog.Fatalf("shutdown: %v", err)
 		}
 	}()
@@ -468,18 +484,18 @@ func main2(critLog *log.Logger) (err error) {
 			ForceRSA:    c.ACME.ForceRSA,
 		}
 
-		s.TLSConfig = &tls.Config{
+		httpServer.TLSConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos:     []string{"h2", "http/1.1"},
 		}
-		l = tls.NewListener(l, s.TLSConfig)
+		l = tls.NewListener(l, httpServer.TLSConfig)
 
 		go func() {
 			critLog.Fatal(http.ListenAndServe(":http", m.HTTPHandler(http.HandlerFunc(handleHTTP))))
 		}()
 	}
 
-	return s.Serve(l)
+	return httpServer.Serve(l)
 }
 
 func newHTTPSHandler(gate http.Handler) http.Handler {

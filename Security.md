@@ -126,8 +126,6 @@ The process is configured in various ways:
 
   - The process is killed if the rdtsc instruction is executed (x86-64).
 
-  - Nice value is set to maximum.
-
   - Unnecessary file descriptors are closed.
 
   - The initial stack is unmapped.  It prevents the comm text from being
@@ -138,8 +136,6 @@ The process is configured in various ways:
 
   - Runtime code, and program code, data and stack are mapped at randomized
     addresses.
-
-  - The process is killed automatically if its parent dies.
 
   - The process cannot gain privileges or capabilities via execve (e.g. if the
     executor or loader binary is misconfigured as setuid root).

@@ -13,9 +13,6 @@ import (
 // PreparePrograms wraps a ProgramStorage.  The wrapper creates program
 // resources in advance.
 func PreparePrograms(ctx context.Context, storage ProgramStorage, bufsize int) ProgramStorage {
-	if bufsize <= 0 {
-		bufsize = 1
-	}
 	c := make(chan fileResult, bufsize-1)
 	go preparePrograms(ctx, c, storage)
 	return &preparedPrograms{storage, c}

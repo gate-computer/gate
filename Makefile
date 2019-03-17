@@ -43,6 +43,7 @@ generate: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
 all: lib bin
 
 check: lib bin
+	$(MAKE) -C runtime/executor/test check
 	$(MAKE) -C runtime/loader/test check
 	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/internal/generic-test.so ./internal/test/generic-plugin
 	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/internal/service-test.so ./internal/test/service-plugin
@@ -95,6 +96,7 @@ clean:
 	rm -rf bin lib tmp
 	$(MAKE) -C runtime/container clean
 	$(MAKE) -C runtime/executor clean
+	$(MAKE) -C runtime/executor/test clean
 	$(MAKE) -C runtime/loader clean
 	$(MAKE) -C runtime/loader/test clean
 

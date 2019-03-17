@@ -398,7 +398,7 @@ gate_io:
 	cmp	$-EINTR, %eax
 	je	.Lnot_sent
 
-	mov	$ERR_RT_SEND, %edi		// exit status
+	mov	$ERR_RT_WRITE, %edi		// exit status
 	jmp	.Lruntime_exit
 
 .Lnot_sent:
@@ -446,7 +446,7 @@ gate_io:
 	cmp	$-EINTR, %eax
 	je	.Lnot_received
 
-	mov	$ERR_RT_RECV, %edi		// exit status
+	mov	$ERR_RT_RECVFROM, %edi		// exit status
 	jmp	.Lruntime_exit
 
 .Lnot_received:

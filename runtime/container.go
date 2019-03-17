@@ -31,7 +31,7 @@ func startContainer(ctx context.Context, config *Config,
 		return
 	}
 
-	controlFile, connFile, err := socketFilePair(syscall.SOCK_NONBLOCK)
+	controlFile, connFile, err := socketFilePair(0)
 	if err != nil {
 		return
 	}

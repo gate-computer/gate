@@ -267,7 +267,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		t.Fatal(err)
 	}
 
-	proc, err := runtime.NewProcess(ctx, executor.Executor, debugOut)
+	proc, err := executor.NewProcess(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		}
 	}()
 
-	err = proc.Start(prog, inst)
+	err = proc.Start(prog, inst, debugOut)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func TestRunNop(t *testing.T) {
 func testRunHello(t *testing.T, debug io.Writer) {
 	output := runProgram(t, wasmHello, "main", debug)
 	if s := output.String(); s != "hello, world\n" {
-		t.Fail()
+		t.Errorf("%q", s)
 	}
 }
 
@@ -334,7 +334,7 @@ func TestRunHelloDebug(t *testing.T) {
 	s := debug.String()
 	t.Logf("debug: %q", s)
 	if s != "hello…\nworld\n" {
-		t.Fail()
+		t.Errorf("%q", s)
 	}
 }
 

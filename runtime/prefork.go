@@ -9,63 +9,61 @@ import (
 	"errors"
 )
 
-type ProcessFactory <-chan *Process
+var errProcessChanClosed = errors.New("process preparation loop terminated")
+
+type ProcessErr struct {
+	Proc *Process
+	Err  error
+}
+
+type ProcessChan <-chan ProcessErr
 
 // PrepareProcesses in advance.
-func PrepareProcesses(ctx context.Context, exec *Executor, bufsize int) (ProcessFactory, <-chan error) {
-	if bufsize <= 0 {
-		bufsize = 1
-	}
-
-	procs := make(chan *Process, bufsize-1)
-	errs := make(chan error)
+func PrepareProcesses(ctx context.Context, f ProcessFactory, bufsize int) ProcessChan {
+	c := make(chan ProcessErr, bufsize-1)
 
 	go func() {
 		defer func() {
-			close(errs)
-			close(procs)
-			for proc := range procs {
-				proc.Kill()
+			close(c)
+			for x := range c {
+				if x.Err == nil {
+					x.Proc.Kill()
+				}
 			}
 		}()
 
 		for {
-			if proc, err := NewProcess(ctx, exec, nil); err == nil {
-				select {
-				case procs <- proc:
+			p, err := f.NewProcess(ctx)
 
-				case <-ctx.Done():
-					proc.Kill()
-					return
-				}
-			} else {
-				select {
-				case errs <- err:
+			select {
+			case c <- ProcessErr{p, err}:
 
-				case <-ctx.Done():
-					return
+			case <-ctx.Done():
+				if err == nil {
+					p.Kill()
 				}
+				return
 			}
 		}
 	}()
 
-	return ProcessFactory(procs), errs
+	return ProcessChan(c)
 }
 
-func (channel ProcessFactory) NewProcess(ctx context.Context) (proc *Process, err error) {
+func (c ProcessChan) NewProcess(ctx context.Context) (proc *Process, err error) {
 	select {
-	case proc, ok := <-channel:
+	case x, ok := <-c:
 		if !ok {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
 
 			default:
-				return nil, errors.New("process factory terminated")
+				return nil, errProcessChanClosed
 			}
 		}
 
-		return proc, nil
+		return x.Proc, x.Err
 
 	case <-ctx.Done():
 		return nil, ctx.Err()

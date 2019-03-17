@@ -25,7 +25,10 @@ var subsystems = map[string][2]string{
 	"EXEC":     {"Executor", "runtime executor"},
 	"EXECHILD": {"Process", "process executor"},
 	"LOAD":     {"Process", "process loader"},
+	"REAP":     {"Executor", "runtime reaper"},
 	"RT":       {"Process", "process runtime"},
+	"SEND":     {"Executor", "runtime executor"},
+	"SENTINEL": {"Process", "sentinel process"},
 }
 
 func main() {

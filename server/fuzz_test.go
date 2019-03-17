@@ -60,10 +60,9 @@ func fuzzTest(ctx context.Context, t *testing.T, s *server.Server, filename stri
 	t.Helper()
 
 	var ok bool
-
 	defer func() {
 		if !ok {
-			t.Fail()
+			t.Error(t.Name())
 		}
 	}()
 

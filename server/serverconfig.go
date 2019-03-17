@@ -15,8 +15,6 @@ import (
 	"github.com/tsavola/gate/server/detail"
 )
 
-const DefaultPreforkProcs = 1
-
 type InstanceConnector interface {
 	// Connect allocates a new I/O stream.  The returned function is used to
 	// drive I/O between network connection and instance.  If it's non-nil, a
@@ -49,15 +47,14 @@ type Event interface {
 }
 
 type Config struct {
-	ImageStorage image.Storage
-	Executor     *runtime.Executor
-	AccessPolicy Authorizer
-	PreforkProcs int
-	Monitor      func(Event, error)
+	ImageStorage   image.Storage
+	ProcessFactory runtime.ProcessFactory
+	AccessPolicy   Authorizer
+	Monitor        func(Event, error)
 }
 
 func (c *Config) Configured() bool {
-	return c.Executor != nil && c.AccessPolicy != nil
+	return c.ProcessFactory != nil && c.AccessPolicy != nil
 }
 
 func AllocateIface(name string) detail.Iface {

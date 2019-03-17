@@ -55,11 +55,12 @@ type Instance struct {
 	buffers  snapshot.Buffers
 	process  *runtime.Process
 	services InstanceServices
+	debug    io.WriteCloser
 	stopped  chan struct{}
 }
 
 // newInstance steals program reference, instance image, process and services.
-func newInstance(acc *account, id string, prog *program, function string, image *image.Instance, proc *runtime.Process, services InstanceServices, debug string) *Instance {
+func newInstance(acc *account, id string, prog *program, function string, image *image.Instance, proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) *Instance {
 	return &Instance{
 		acc:      acc,
 		id:       id,
@@ -67,23 +68,25 @@ func newInstance(acc *account, id string, prog *program, function string, image 
 		function: function,
 		status: Status{
 			State: serverapi.Status_running,
-			Debug: debug,
+			Debug: debugStatus,
 		},
 		image:    image,
 		process:  proc,
 		services: services,
+		debug:    debugOutput,
 		stopped:  make(chan struct{}),
 	}
 }
 
 // renew must be called with Instance.lock held.
-func (inst *Instance) renew(proc *runtime.Process, services InstanceServices, debug string) {
+func (inst *Instance) renew(proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) {
 	inst.status = serverapi.Status{
 		State: serverapi.Status_running,
-		Debug: debug,
+		Debug: debugStatus,
 	}
 	inst.process = proc
 	inst.services = services
+	inst.debug = debugOutput
 	inst.stopped = make(chan struct{})
 }
 
@@ -107,6 +110,11 @@ func (inst *Instance) killProcess() {
 		inst.services.Close()
 		inst.process.Kill()
 		inst.process = nil
+	}
+
+	if inst.debug != nil {
+		inst.debug.Close()
+		inst.debug = nil
 	}
 }
 
@@ -174,7 +182,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 		inst.killProcess()
 	}()
 
-	err = inst.process.Start(inst.prog.image, inst.image)
+	err = inst.process.Start(inst.prog.image, inst.image, inst.debug)
 	if err != nil {
 		return
 	}

@@ -5,16 +5,14 @@
 package runtime
 
 import (
-	"bufio"
 	"context"
 	"encoding/binary"
 	"errors"
 	"io"
+	"math"
 	"net"
-	"os"
 	"os/exec"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/tsavola/gate/internal/defaultlog"
@@ -23,28 +21,33 @@ import (
 
 var errExecutorDead = errors.New("executor died unexpectedly")
 
-// recvEntry is like send_entry in runtime/executor/executor.c
-type recvEntry struct {
-	Pid    int32 // pid_t
-	Status int32
-}
+const (
+	execOpCreate uint8 = iota
+	execOpKill
+	execOpSuspend
+)
 
 // Executor manages Process resources in an isolated environment.
 type Executor struct {
-	conn            *net.UnixConn
-	execRequests    chan execRequest
-	killRequests    chan int32
-	doneSending     chan struct{}
-	doneReceiving   chan struct{}
-	maxProcs        int64
-	numProcs        int64 // Atomic
-	numProcsChanged chan struct{}
+	conn          *net.UnixConn
+	idAlloc       <-chan int16
+	idFree        chan<- int16
+	execRequests  chan execRequest
+	killRequests  chan int16
+	doneSending   chan struct{}
+	doneReceiving chan struct{}
 
 	lock    sync.Mutex
-	pending []*execProcess
+	waiters map[int16]chan<- syscall.WaitStatus
 }
 
 func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
+	maxProcs := config.maxProcesses()
+	if maxProcs > idAllocRangeLen {
+		err = errors.New("executor process limit is too high")
+		return
+	}
+
 	errorLog := config.ErrorLog
 	if errorLog == nil {
 		errorLog = defaultlog.StandardLogger{}
@@ -65,14 +68,15 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 	}
 
 	e = &Executor{
-		conn:            conn,
-		execRequests:    make(chan execRequest), // No buffering.  Request must be released.
-		killRequests:    make(chan int32, 16),   // TODO: how much buffering?
-		doneSending:     make(chan struct{}),
-		doneReceiving:   make(chan struct{}),
-		maxProcs:        config.maxProcs(),
-		numProcsChanged: make(chan struct{}, 1),
+		conn:          conn,
+		execRequests:  make(chan execRequest), // No buffering.  Request must be released.
+		killRequests:  make(chan int16, 16),   // TODO: how much buffering?
+		doneSending:   make(chan struct{}),
+		doneReceiving: make(chan struct{}),
+		waiters:       make(map[int16]chan<- syscall.WaitStatus),
 	}
+
+	e.idAlloc, e.idFree = makeIdAllocator(maxProcs)
 
 	go e.sender(errorLog)
 	go e.receiver(errorLog)
@@ -84,37 +88,54 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 	return
 }
 
-func (e *Executor) execute(ctx context.Context, proc *execProcess, input *file.Ref, output *file.File, debug *os.File,
-) error {
-	proc.init(e)
+func (e *Executor) NewProcess(ctx context.Context) (*Process, error) {
+	return newProcess(ctx, e)
+}
+
+func (e *Executor) execute(ctx context.Context, proc *execProcess, input *file.Ref, output *file.File,
+) (err error) {
+	select {
+	case id, ok := <-e.idAlloc:
+		if !ok {
+			err = context.Canceled // TODO: ?
+			return
+		}
+		proc.init(e, id)
+
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
+	}
 
 	input.Ref()
 	defer func() {
-		if input != nil {
+		if err != nil {
 			input.Close()
 		}
 	}()
 
 	select {
-	case e.execRequests <- execRequest{proc, input, output, debug}:
-		input = nil
-		return nil
+	case e.execRequests <- execRequest{proc, input, output}:
+		return
 
 	case <-e.doneSending:
-		return errExecutorDead
+		err = errExecutorDead
+		return
 
 	case <-e.doneReceiving:
-		return errExecutorDead
+		err = errExecutorDead
+		return
 
 	case <-ctx.Done():
-		return ctx.Err() // TODO: include subsystem in error
+		err = ctx.Err() // TODO: include subsystem in error
+		return
 	}
 }
 
 // Close kills all processes.
 func (e *Executor) Close() error {
 	select {
-	case e.killRequests <- 0:
+	case e.killRequests <- math.MaxInt16:
 		<-e.doneSending
 
 	case <-e.doneSending:
@@ -123,48 +144,42 @@ func (e *Executor) Close() error {
 
 	<-e.doneReceiving
 
+	// TODO: terminate id allocator
+
 	return e.conn.Close()
 }
 
 func (e *Executor) sender(errorLog Logger) {
 	var closed bool
-
 	defer func() {
 		if !closed {
 			close(e.doneSending)
 		}
 	}()
 
-	var numProcs int64
+	buf := make([]byte, 4) // sizeof(struct exec_request)
 
+	// TODO: send multiple entries at once
 	for {
 		var (
-			execRequests <-chan execRequest
-			execReq      execRequest
-			cmsg         []byte
-			buf          = make([]byte, 4) // sizeof (pid_t)
+			req  execRequest
+			cmsg []byte
 		)
 
-		if numProcs < e.maxProcs {
-			execRequests = e.execRequests
-		}
-
 		select {
-		case <-e.numProcsChanged:
-			numProcs = atomic.LoadInt64(&e.numProcs)
-			continue
-
-		case execReq = <-execRequests:
+		case req = <-e.execRequests:
 			e.lock.Lock()
-			e.pending = append(e.pending, execReq.proc)
+			e.waiters[req.proc.id] = req.proc.waiter
 			e.lock.Unlock()
 
-			numProcs++ // Conservative estimate.
+			// This is like exec_request in runtime/executor/executor.h
+			binary.LittleEndian.PutUint16(buf[0:], uint16(req.proc.id))
+			buf[2] = execOpCreate
 
-			cmsg = unixRights(execReq.fds()...)
+			cmsg = unixRights(req.fds()...)
 
-		case pid := <-e.killRequests:
-			if pid == 0 {
+		case id := <-e.killRequests:
+			if id == math.MaxInt16 {
 				close(e.doneSending)
 				closed = true
 
@@ -174,11 +189,19 @@ func (e *Executor) sender(errorLog Logger) {
 				return
 			}
 
-			binary.LittleEndian.PutUint32(buf, uint32(pid)) // sizeof (pid_t)
+			op := execOpKill
+			if id < 0 {
+				id = ^id
+				op = execOpSuspend
+			}
+
+			// This is like exec_request in runtime/executor/executor.h
+			binary.LittleEndian.PutUint16(buf[0:], uint16(id))
+			buf[2] = op
 		}
 
 		_, _, err := e.conn.WriteMsgUnix(buf, cmsg, nil)
-		execReq.release()
+		req.release()
 		if err != nil {
 			errorLog.Printf("executor socket: %v", err)
 			return
@@ -189,45 +212,37 @@ func (e *Executor) sender(errorLog Logger) {
 func (e *Executor) receiver(errorLog Logger) {
 	defer close(e.doneReceiving)
 
-	r := bufio.NewReader(e.conn)
-	running := make(map[int32]*execProcess)
-
-	var buf recvEntry
+	buf := make([]byte, 512*8) // N * sizeof(struct exec_status)
+	buffered := 0
 
 	for {
-		if err := binary.Read(r, binary.LittleEndian, &buf); err != nil {
+		n, err := e.conn.Read(buf[buffered:])
+		if err != nil {
 			if err != io.EOF {
 				errorLog.Printf("executor socket: %v", err)
 			}
 			return
 		}
 
-		var proc *execProcess
+		buffered += n
+		b := buf[:buffered]
 
-		if buf.Pid < 0 {
-			e.lock.Lock()
-			proc = e.pending[0]
-			e.pending = e.pending[1:]
-			e.lock.Unlock()
+		e.lock.Lock()
 
-			running[-buf.Pid] = proc
-		} else {
-			proc = running[buf.Pid]
-			delete(running, buf.Pid)
+		for ; len(b) >= 8; b = b[8:] {
+			// This is like exec_status in runtime/executor/executor.h
+			var (
+				id     = int16(binary.LittleEndian.Uint16(b[0:]))
+				status = int32(binary.LittleEndian.Uint32(b[4:]))
+			)
 
-			e.lock.Lock()
-			pendingLen := len(e.pending)
-			e.lock.Unlock()
-
-			atomic.StoreInt64(&e.numProcs, int64(pendingLen+len(running)))
-
-			select {
-			case e.numProcsChanged <- struct{}{}:
-			default:
-			}
+			e.waiters[id] <- syscall.WaitStatus(status)
+			delete(e.waiters, id)
 		}
 
-		proc.events <- buf
+		e.lock.Unlock()
+
+		buffered = copy(buf, b)
 	}
 }
 
@@ -241,38 +256,30 @@ func (e *Executor) Dead() <-chan struct{} {
 // high-level Process type.
 type execProcess struct {
 	executor *Executor
-	events   chan recvEntry
-	pid      int32 // In another pid namespace.
-	killed   bool
+	waiter   chan syscall.WaitStatus
+	id       int16
 }
 
-func (p *execProcess) init(e *Executor) {
+func (p *execProcess) init(e *Executor, id int16) {
 	p.executor = e
-	p.events = make(chan recvEntry, 2) // Space for reply and status.
-}
-
-func (p *execProcess) initPid() {
-	if p.pid == 0 {
-		entry := <-p.events
-		p.pid = -entry.Pid
-	}
+	p.waiter = make(chan syscall.WaitStatus, 1)
+	p.id = id
 }
 
 func (p *execProcess) kill(suspend bool) {
-	if p.killed {
+	if p.id < 0 {
 		return
 	}
 
-	p.initPid()
-
-	value := p.pid
+	value := p.id
 	if suspend {
-		value = -value
+		value = ^value
 	}
 
 	select {
 	case p.executor.killRequests <- value:
-		p.killed = true
+		p.executor.idFree <- p.id
+		p.id = -1
 
 	case <-p.executor.doneSending:
 
@@ -281,25 +288,23 @@ func (p *execProcess) kill(suspend bool) {
 }
 
 func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
-	p.initPid()
-
-	var killRequests chan<- int32
-	if !p.killed {
+	var killRequests chan<- int16
+	if p.id >= 0 {
 		killRequests = p.executor.killRequests
 	}
 
 	for {
 		select {
-		case killRequests <- p.pid:
+		case killRequests <- p.id:
 			killRequests = nil
-			p.killed = true
+			p.executor.idFree <- p.id
+			p.id = -1
 
 		case <-p.executor.doneSending:
 			// No way to kill it anymore.
 			killRequests = nil
 
-		case entry := <-p.events:
-			status = syscall.WaitStatus(entry.Status)
+		case status = <-p.waiter:
 			return
 
 		case <-p.executor.doneReceiving:
@@ -313,18 +318,13 @@ type execRequest struct {
 	proc   *execProcess
 	input  *file.Ref
 	output *file.File
-	debug  *os.File // Optional
 }
 
-func (req *execRequest) fds() (fds []int) {
-	fds = []int{
+func (req *execRequest) fds() []int {
+	return []int{
 		int(req.input.Fd()),
 		int(req.output.Fd()),
 	}
-	if req.debug != nil {
-		fds = append(fds, int(req.debug.Fd()))
-	}
-	return
 }
 
 func (req *execRequest) release() {
@@ -334,8 +334,4 @@ func (req *execRequest) release() {
 
 	req.input.Close()
 	req.output.Close()
-
-	if req.debug != nil {
-		req.debug.Close()
-	}
 }

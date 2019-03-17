@@ -63,7 +63,7 @@ func testIPFSKey(t *testing.T, source server.Source) {
 	}
 
 	if tooLong {
-		t.FailNow()
+		t.Error("too long")
 	}
 
 	if string(data) != "hello worlds\n" {
@@ -78,7 +78,7 @@ func testIPFSPath(t *testing.T, source server.Source) {
 	}
 
 	if tooLong {
-		t.FailNow()
+		t.Error("too long")
 	}
 
 	if !strings.HasPrefix(string(data), "# IPFS Examples\n") {
@@ -93,7 +93,7 @@ func testIPFSTimeout(t *testing.T, source server.Source) {
 	}
 
 	if tooLong {
-		t.FailNow()
+		t.Error("too long")
 	}
 }
 
@@ -104,7 +104,7 @@ func testIPFSLength(t *testing.T, source server.Source) {
 	}
 
 	if !tooLong {
-		t.FailNow()
+		t.Error("not too long")
 	}
 }
 
@@ -125,7 +125,7 @@ func testIPFS(t *testing.T, source server.Source, uri string, maxSize int, timeo
 		}
 
 		if maxSize >= 13 {
-			t.FailNow()
+			t.Error("failed without good reason")
 		}
 
 		tooLong = true

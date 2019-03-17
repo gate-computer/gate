@@ -124,7 +124,10 @@ type debugBuffer struct{ bytes.Buffer }
 
 func (*debugBuffer) Close() error { return nil }
 
-var debugOutput = new(debugBuffer)
+var (
+	debugOutput = new(debugBuffer)
+	debugLog    interface{ Logf(string, ...interface{}) }
+)
 
 func debugPolicy(ctx context.Context, option string) (status string, output io.WriteCloser, err error) {
 	switch option {
@@ -136,8 +139,23 @@ func debugPolicy(ctx context.Context, option string) (status string, output io.W
 		status = "out-putting"
 		return
 
-	case "stderr":
-		output = os.Stderr
+	case "log":
+		r, w := io.Pipe()
+		go func() {
+			defer r.Close()
+			b := make([]byte, 256)
+			for {
+				n, err := r.Read(b)
+				if err != nil {
+					if err == io.EOF {
+						return
+					}
+					panic(err)
+				}
+				debugLog.Logf("debug: %s", b[:n])
+			}
+		}()
+		output = w
 		return
 
 	default:
@@ -151,8 +169,8 @@ func newServer(ctx context.Context) *server.Server {
 	access.Debug = debugPolicy
 
 	config := &server.Config{
-		Executor:     newExecutor(ctx, nil).Executor,
-		AccessPolicy: access,
+		ProcessFactory: newExecutor(ctx, nil),
+		AccessPolicy:   access,
 	}
 
 	return server.New(ctx, config)
@@ -349,8 +367,8 @@ func TestModuleRef(t *testing.T) {
 		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-		if _, found := resp.Header[webapi.HeaderContentType]; found {
-			t.Fail()
+		if s, found := resp.Header[webapi.HeaderContentType]; found {
+			t.Errorf("%q", s)
 		}
 
 		if len(content) != 0 {
@@ -422,8 +440,8 @@ func TestModuleRef(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=call&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if _, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
 			}
 
 			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
@@ -447,8 +465,8 @@ func TestModuleRef(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if _, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
 			}
 
 			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
@@ -465,8 +483,8 @@ func TestModuleRef(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if _, found := resp.Header[webapi.HeaderContentType]; found {
-			t.Fail()
+		if s, found := resp.Header[webapi.HeaderContentType]; found {
+			t.Errorf("%q", s)
 		}
 
 		if len(content) != 0 {
@@ -494,8 +512,8 @@ func TestModuleRef(t *testing.T) {
 			t.Error(x)
 		}
 
-		if _, found := resp.Header[webapi.HeaderContentType]; found {
-			t.Fail()
+		if s, found := resp.Header[webapi.HeaderContentType]; found {
+			t.Errorf("%q", s)
 		}
 
 		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
@@ -535,14 +553,14 @@ func TestModuleSource(t *testing.T) {
 			req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello?action=call&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if _, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
 			}
-			if _, found := resp.Header[webapi.HeaderLocation]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderLocation]; found {
+				t.Errorf("%q", s)
 			}
-			if _, found := resp.Header[webapi.HeaderInstance]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderInstance]; found {
+				t.Errorf("%q", s)
 			}
 
 			if string(content) != expect {
@@ -566,8 +584,8 @@ func TestModuleSource(t *testing.T) {
 				t.Error(x)
 			}
 
-			if _, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
 			}
 
 			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
@@ -595,8 +613,8 @@ func TestModuleSource(t *testing.T) {
 				t.Error(x)
 			}
 
-			if _, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
 			}
 
 			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
@@ -685,8 +703,8 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 	req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=status", nil)
 	resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-	if _, found := resp.Header[webapi.HeaderContentType]; found {
-		t.Fail()
+	if s, found := resp.Header[webapi.HeaderContentType]; found {
+		t.Errorf("%q", s)
 	}
 
 	if len(content) != 0 {
@@ -697,6 +715,9 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 }
 
 func TestInstance(t *testing.T) {
+	debugLog = t
+	defer func() { debugLog = nil }()
+
 	ctx := context.Background()
 	handler := newHandler(ctx)
 	pri := newPrincipalKey()
@@ -741,8 +762,8 @@ func TestInstance(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if _, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Fail()
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
 			}
 
 			if string(content) != "hello, world\n" {
@@ -794,8 +815,8 @@ func TestInstance(t *testing.T) {
 					req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
 					resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-					if _, found := resp.Header[webapi.HeaderContentType]; found {
-						t.Fail()
+					if s, found := resp.Header[webapi.HeaderContentType]; found {
+						t.Errorf("%q", s)
 					}
 
 					if string(content) != "hello, world\n" {
@@ -822,7 +843,7 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main&debug=stderr", wasmSuspend)
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main&debug=log", wasmSuspend)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -911,7 +932,7 @@ func TestInstance(t *testing.T) {
 		})
 
 		t.Run("Resume", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=stderr", nil)
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=log", nil)
 			checkResponse(t, handler, req, http.StatusNoContent)
 
 			if testing.Verbose() {
@@ -940,7 +961,7 @@ func TestInstance(t *testing.T) {
 		handler2 := newHandler(ctx)
 
 		t.Run("Restore", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=stderr", snapshot)
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler2, req, http.StatusCreated)
 			restoredID := resp.Header.Get(webapi.HeaderInstance)

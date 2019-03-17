@@ -36,9 +36,9 @@ import (
 )
 
 const (
-	DefaultMaxProcs  = 100
-	DefaultStackSize = wa.PageSize
-	DefaultFunction  = "main"
+	DefaultMaxProcesses = 100
+	DefaultStackSize    = wa.PageSize
+	DefaultFunction     = "main"
 )
 
 type ProgramConfig struct {
@@ -83,7 +83,7 @@ func parseConfig(flags *flag.FlagSet) {
 }
 
 func main() {
-	c.Runtime.MaxProcs = DefaultMaxProcs
+	c.Runtime.MaxProcesses = DefaultMaxProcesses
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Program.StackSize = DefaultStackSize
@@ -226,7 +226,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 
 	tBegin := time.Now()
 
-	proc, err := runtime.NewProcess(ctx, executor, os.Stderr)
+	proc, err := executor.NewProcess(ctx)
 	if err != nil {
 		log.Fatalf("process: %v", err)
 	}
@@ -248,7 +248,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	tLoadEnd := time.Now()
 	tRunBegin := tLoadEnd
 
-	err = proc.Start(prog, inst)
+	err = proc.Start(prog, inst, os.Stderr)
 	if err != nil {
 		log.Fatalf("execute: %v", err)
 	}

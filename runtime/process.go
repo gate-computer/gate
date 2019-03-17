@@ -28,7 +28,7 @@ const imageInfoSize = 64
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
 	MagicNumber1   uint16
-	DebugFlag      uint8
+	_              uint8
 	InitRoutine    uint8
 	PageSize       uint32
 	TextAddr       uint64
@@ -62,73 +62,53 @@ type ProgramState interface {
 	BeginMutation(textAddr uint64) (interface{ Fd() uintptr }, error)
 }
 
-// Process is used to execute a single program image once.
+type ProcessFactory interface {
+	NewProcess(context.Context) (*Process, error)
+}
+
+// Process is used to execute a single program image once.  Created via an
+// Executor or a derivative ProcessFactory.
+//
+// A process is idle until its Start method is called.  Kill must eventually be
+// called to release resources.
 type Process struct {
 	execution execProcess // Executor's low-level process state.
 	writer    *os.File
 	writerOut *file.Ref
 	reader    *os.File
 	suspended chan struct{}
+	debugFile *os.File
 	debugging <-chan struct{}
 }
 
-// Allocate a process using the given executor.
-//
-// The process is idle until its Start method is called.  Kill must be
-// eventually called to release resources.
-func NewProcess(ctx context.Context, e *Executor, debug io.Writer) (p *Process, err error) {
-	var (
-		inputR  *file.Ref
-		inputW  *os.File
-		outputR *os.File
-		outputW *file.File
-		debugR  *os.File
-		debugW  *os.File
-	)
-
+func newProcess(ctx context.Context, e *Executor) (*Process, error) {
+	inputR, inputW, err := socketPipe()
+	if err != nil {
+		return nil, err
+	}
 	defer func() {
-		if inputR != nil {
-			inputR.Close()
-		}
-		if inputW != nil {
+		if err != nil {
 			inputW.Close()
-		}
-		if outputR != nil {
-			outputR.Close()
-		}
-		if outputW != nil {
-			outputW.Close()
-		}
-		if debugR != nil {
-			debugR.Close()
-		}
-		if debugW != nil {
-			debugW.Close()
+			inputR.Close()
 		}
 	}()
 
-	inputR, inputW, err = socketPipe()
+	outputR, outputW, err := pipe2(syscall.O_NONBLOCK)
 	if err != nil {
-		return
+		return nil, err
 	}
-
-	outputR, outputW, err = pipe2(syscall.O_NONBLOCK)
-	if err != nil {
-		return
-	}
-
-	if debug != nil {
-		debugR, debugW, err = os.Pipe()
+	defer func() {
 		if err != nil {
-			return
+			outputW.Close()
+			outputR.Close()
 		}
-	}
+	}()
 
-	p = new(Process)
+	p := new(Process)
 
-	err = e.execute(ctx, &p.execution, inputR, outputW, debugW)
+	err = e.execute(ctx, &p.execution, inputR, outputW)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	p.writer = inputW
@@ -136,19 +116,7 @@ func NewProcess(ctx context.Context, e *Executor, debug io.Writer) (p *Process, 
 	p.reader = outputR
 	p.suspended = make(chan struct{}, 1)
 
-	if debug != nil {
-		done := make(chan struct{})
-		go copyDebug(done, debug, debugR)
-		p.debugging = done
-	}
-
-	inputR = nil
-	inputW = nil
-	outputR = nil
-	outputW = nil
-	debugR = nil
-	debugW = nil
-	return
+	return p, nil
 }
 
 // Start the program.  The program state will be undergoing mutation until the
@@ -156,7 +124,7 @@ func NewProcess(ctx context.Context, e *Executor, debug io.Writer) (p *Process, 
 //
 // This function must be called before Serve, and must not be called after
 // Kill.
-func (p *Process) Start(code ProgramCode, state ProgramState) (err error) {
+func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Writer) (err error) {
 	textAddr, heapAddr, stackAddr, err := generateRandAddrs(state.TextAddr())
 	if err != nil {
 		return
@@ -179,10 +147,6 @@ func (p *Process) Start(code ProgramCode, state ProgramState) (err error) {
 		MagicNumber2:   magicNumber2,
 	}
 
-	if p.debugging != nil {
-		info.DebugFlag = 1
-	}
-
 	switch info.InitRoutine {
 	case abi.TextAddrNoFunction, abi.TextAddrStart, abi.TextAddrEnter:
 
@@ -202,6 +166,23 @@ func (p *Process) Start(code ProgramCode, state ProgramState) (err error) {
 		panic(err)
 	}
 
+	var (
+		debugReader *os.File
+		debugWriter *os.File
+	)
+	if debugOutput != nil {
+		debugReader, debugWriter, err = os.Pipe()
+		if err != nil {
+			return
+		}
+		defer func() {
+			debugWriter.Close()
+			if err != nil {
+				debugReader.Close()
+			}
+		}()
+	}
+
 	textFile, err := code.Text()
 	if err != nil {
 		return
@@ -212,11 +193,22 @@ func (p *Process) Start(code ProgramCode, state ProgramState) (err error) {
 		return
 	}
 
-	cmsg := unixRights(int(textFile.Fd()), int(stateFile.Fd()))
+	var cmsg []byte
+	if debugOutput == nil {
+		cmsg = unixRights(int(textFile.Fd()), int(stateFile.Fd()))
+	} else {
+		cmsg = unixRights(int(debugWriter.Fd()), int(textFile.Fd()), int(stateFile.Fd()))
+	}
 
 	err = sendmsg(p.writer.Fd(), buf.Bytes(), cmsg, nil, 0)
 	if err != nil {
 		return
+	}
+
+	if debugOutput != nil {
+		done := make(chan struct{})
+		go copyDebug(done, debugOutput, debugReader)
+		p.debugging = done
 	}
 
 	return
@@ -312,6 +304,11 @@ func (p *Process) Kill() {
 	if p.writerOut != nil {
 		p.writerOut.Close()
 		p.writerOut = nil
+	}
+
+	if p.debugFile != nil {
+		p.debugFile.Close()
+		p.debugFile = nil
 	}
 }
 

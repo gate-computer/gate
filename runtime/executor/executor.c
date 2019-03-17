@@ -23,29 +23,46 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "buffer.h"
+#include "align.h"
 #include "errors.h"
+#include "executor.h"
 #include "execveat.h"
+#include "map.h"
+#include "reaper.h"
 #include "runtime.h"
 
 #define NOINLINE __attribute__((noinline))
-#define NORETURN __attribute__((noreturn))
-#define PACKED __attribute__((packed))
 
-#define CHILD_NICE 19
+#define RECEIVE_BUFLEN 128
 
-#define SENDING_CAPACITY (BUFFER_MAX_ENTRIES * sizeof(struct send_entry))
-#define KILLED_CAPACITY (BUFFER_MAX_ENTRIES * sizeof(pid_t))
-#define DIED_CAPACITY (BUFFER_MAX_ENTRIES * sizeof(pid_t))
+union control_buffer {
+	char buf[CMSG_SPACE(2 * sizeof(int))]; // Space for 2 file descriptors.
+	struct cmsghdr alignment;
+};
 
-// runtime/executor.go relies on this assumption
-static_assert(sizeof(pid_t) == sizeof(int32_t), "pid_t size");
+// Close a file descriptor or die.
+static void xclose(int fd)
+{
+	if (close(fd) != 0)
+		_exit(ERR_SENTINEL_CLOSE);
+}
 
-// send_entry is like recvEntry in runtime/executor.go
-struct send_entry {
-	pid_t pid;      // Negated value acknowledges execution request.
-	int32_t status; // Defined only if pid is positive.
-} PACKED;
+static void sentinel_child(void)
+{
+	sigset_t sigmask;
+	sigemptyset(&sigmask);
+	if (pthread_sigmask(SIG_SETMASK, &sigmask, NULL) != 0)
+		_exit(ERR_SENTINEL_SIGMASK);
+
+	xclose(GATE_CONTROL_FD);
+	xclose(GATE_LOADER_FD);
+
+	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
+		_exit(ERR_SENTINEL_PRCTL_PDEATHSIG);
+
+	pause();
+	_exit(ERR_SENTINEL_PAUSE);
+}
 
 // Duplicate a file descriptor or die.
 static void xdup2(int oldfd, int newfd)
@@ -54,47 +71,11 @@ static void xdup2(int oldfd, int newfd)
 		_exit(ERR_EXECHILD_DUP2);
 }
 
-// Set a resource limit or die.
-static void xlimit(int resource, rlim_t rlim, int exitcode)
-{
-	struct rlimit buf = {
-		.rlim_cur = rlim,
-		.rlim_max = rlim,
-	};
-
-	if (setrlimit(resource, &buf) != 0)
-		_exit(exitcode);
-}
-
-static void sandbox_child(void)
-{
-	xlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE, ERR_EXECHILD_SETRLIMIT_NOFILE);
-	xlimit(RLIMIT_NPROC, 0, ERR_EXECHILD_SETRLIMIT_NPROC);
-
-	if (prctl(PR_SET_TSC, PR_TSC_SIGSEGV, 0, 0, 0) != 0)
-		_exit(ERR_EXECHILD_PRCTL_TSC_SIGSEGV);
-}
-
 NORETURN
-static inline void execute_child(const int *fds, int num_fds)
+static void execute_child(int input_fd, int output_fd)
 {
-	xdup2(fds[0], GATE_INPUT_FD);
-	xdup2(fds[1], GATE_OUTPUT_FD);
-
-	if (num_fds > 2)
-		xdup2(fds[2], GATE_DEBUG_FD);
-
-	if (nice(CHILD_NICE) != CHILD_NICE)
-		_exit(ERR_EXECHILD_NICE);
-
-	if (GATE_SANDBOX)
-		sandbox_child();
-
-	// ASLR makes stack size and stack pointer position unpredictable, so
-	// it's hard to unmap the initial stack.  Run-time mapping addresses
-	// are randomized manually.
-	if (personality(ADDR_NO_RANDOMIZE) < 0)
-		_exit(ERR_EXECHILD_PERSONALITY_ADDR_NO_RANDOMIZE);
+	xdup2(input_fd, GATE_INPUT_FD);
+	xdup2(output_fd, GATE_OUTPUT_FD);
 
 	char *none[] = {NULL};
 
@@ -103,17 +84,177 @@ static inline void execute_child(const int *fds, int num_fds)
 }
 
 NOINLINE
-static pid_t spawn_child(const int *fds, int num_fds)
+static pid_t spawn_child(int input_fd, int output_fd)
 {
 	pid_t pid = vfork();
 	if (pid == 0)
-		execute_child(fds, num_fds);
+		execute_child(input_fd, output_fd);
 
 	return pid;
 }
 
+static pid_t create_process(struct cmsghdr *cmsg, struct pid_map *map, int16_t new_id, int16_t *old_id_out)
+{
+	if (cmsg->cmsg_level != SOL_SOCKET)
+		_exit(ERR_EXEC_CMSG_LEVEL);
+
+	if (cmsg->cmsg_type != SCM_RIGHTS)
+		_exit(ERR_EXEC_CMSG_TYPE);
+
+	if (cmsg->cmsg_len != CMSG_LEN(2 * sizeof(int)))
+		_exit(ERR_EXEC_CMSG_LEN);
+
+	const int *fds = (int *) CMSG_DATA(cmsg);
+
+	pid_t pid = spawn_child(fds[0], fds[1]);
+	if (pid <= 0)
+		_exit(ERR_EXEC_VFORK);
+
+	if (pid_map_replace(map, pid, new_id, old_id_out) < 0)
+		_exit(ERR_EXEC_MAP_INSERT);
+
+	close(fds[1]);
+	close(fds[0]);
+
+	return pid;
+}
+
+static bool signal_process(pid_t pid, int signum)
+{
+	if (pid == 0)
+		return false;
+
+	if (kill(pid, signum) != 0) {
+		// The child might have been reaped after the map lookup.  No
+		// processes are created between the map lookup and kill, so
+		// the pid cannot have been reused.
+		if (errno == ESRCH)
+			return false;
+
+		_exit(ERR_EXEC_KILL);
+	}
+
+	return true;
+}
+
+static void suspend_process(pid_t pid)
+{
+	if (!signal_process(pid, SIGXCPU))
+		return;
+
+	const struct rlimit cpu = {
+		.rlim_cur = 1,
+		.rlim_max = 1, // SIGKILL in one second.
+	};
+
+	if (prlimit(pid, RLIMIT_CPU, &cpu, NULL) != 0) {
+		// See the comment in kill_existing.
+		if (errno == ESRCH)
+			return;
+
+		_exit(ERR_EXEC_PRLIMIT_CPU);
+	}
+}
+
+static void *executor(void *params)
+{
+	sigset_t sigmask;
+	sigemptyset(&sigmask);
+	sigaddset(&sigmask, SIGCHLD);
+	if (pthread_sigmask(SIG_SETMASK, &sigmask, NULL) != 0)
+		_exit(ERR_EXEC_SIGMASK);
+
+	struct params *args = params;
+	struct pid_map *map = &args->pid_map;
+	pid_t sentinel_pid = args->sentinel_pid;
+	pid_t *id_pids = args->id_pids;
+
+	struct mmsghdr msgs[RECEIVE_BUFLEN];
+	struct iovec iovs[RECEIVE_BUFLEN];
+	struct exec_request reqs[RECEIVE_BUFLEN];
+	union control_buffer ctls[RECEIVE_BUFLEN];
+
+	memset(msgs, 0, sizeof msgs);
+	memset(iovs, 0, sizeof iovs);
+
+	for (int i = 0; i < RECEIVE_BUFLEN; i++) {
+		iovs[i].iov_base = &reqs[i];
+		iovs[i].iov_len = sizeof reqs[i];
+		msgs[i].msg_hdr.msg_iov = &iovs[i];
+		msgs[i].msg_hdr.msg_iovlen = 1;
+		msgs[i].msg_hdr.msg_control = ctls[i].buf;
+	}
+
+	while (1) {
+		for (int i = 0; i < RECEIVE_BUFLEN; i++)
+			msgs[i].msg_hdr.msg_controllen = sizeof ctls[i].buf;
+
+		int count = recvmmsg(GATE_CONTROL_FD, msgs, RECEIVE_BUFLEN, MSG_CMSG_CLOEXEC | MSG_WAITFORONE, NULL);
+		if (count <= 0)
+			_exit(ERR_EXEC_RECVMSG);
+
+		for (int i = 0; i < count; i++) {
+			if (msgs[i].msg_len == 0) {
+				if (kill(sentinel_pid, SIGTERM) != 0)
+					_exit(ERR_EXEC_KILL_SENTINEL);
+
+				return NULL;
+			}
+
+			if (msgs[i].msg_len != sizeof reqs[i])
+				_exit(ERR_EXEC_MSG_LEN);
+
+			if (msgs[i].msg_hdr.msg_flags & MSG_CTRUNC)
+				_exit(ERR_EXEC_MSG_CTRUNC);
+
+			int16_t id = reqs[i].id;
+			if (id < 0 || id >= ID_NUM)
+				_exit(ERR_EXEC_ID_RANGE);
+
+			struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msgs[i].msg_hdr);
+			int16_t old_id = -1;
+			pid_t pid;
+
+			switch (reqs[i].op) {
+			case EXEC_OP_CREATE:
+				if (cmsg == NULL)
+					_exit(ERR_EXEC_CMSG_OP_MISMATCH);
+
+				pid = create_process(cmsg, map, id, &old_id);
+				if (old_id >= 0)
+					id_pids[old_id] = 0;
+				id_pids[id] = pid;
+
+				// Only one control message per exec_request.
+				if (CMSG_NXTHDR(&msgs[i].msg_hdr, cmsg))
+					_exit(ERR_EXEC_CMSG_NXTHDR);
+				break;
+
+			case EXEC_OP_KILL:
+				if (cmsg)
+					_exit(ERR_EXEC_CMSG_OP_MISMATCH);
+
+				signal_process(id_pids[id], SIGKILL);
+				id_pids[id] = 0;
+				break;
+
+			case EXEC_OP_SUSPEND:
+				if (cmsg)
+					_exit(ERR_EXEC_CMSG_OP_MISMATCH);
+
+				suspend_process(id_pids[id]);
+				id_pids[id] = 0;
+				break;
+
+			default:
+				_exit(ERR_EXEC_OP);
+			}
+		}
+	}
+}
+
 // Set close-on-exec flag on a file descriptor or die.
-static void xcloexec(int fd)
+static void set_cloexec(int fd)
 {
 	int flags = fcntl(fd, F_GETFD);
 	if (flags < 0)
@@ -123,267 +264,100 @@ static void xcloexec(int fd)
 		_exit(ERR_EXEC_FCNTL_CLOEXEC);
 }
 
-static void sighandler(int signum)
+// Increase program break or die.
+static void *xbrk(size_t size, long pagesize)
 {
+	size = align_size(size, pagesize);
+
+	// musl doesn't support sbrk at all; use brk directly.
+	unsigned long begin = syscall(SYS_brk, 0);
+	unsigned long end = syscall(SYS_brk, begin + size);
+	if (end != begin + size)
+		_exit(ERR_EXEC_BRK);
+
+	return (void *) begin;
 }
 
-static void init_sigchld()
+// Set a resource limit or die.
+static void xsetrlimit(int resource, rlim_t limit, int exitcode)
 {
-	sigset_t mask;
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGCHLD);
-	if (sigprocmask(SIG_SETMASK, &mask, NULL) != 0)
-		_exit(ERR_EXEC_SIGPROCMASK);
-
-	if (signal(SIGCHLD, sighandler) == SIG_ERR)
-		_exit(ERR_EXEC_SIGNAL_HANDLER);
-}
-
-// Set up polling and signal mask according to buffer status and return revents
-// by value.
-static inline int do_ppoll(struct buffer *sending, struct buffer *killed, struct buffer *died)
-{
-	struct pollfd pollfd = {
-		.fd = GATE_CONTROL_FD,
+	const struct rlimit buf = {
+		.rlim_cur = limit,
+		.rlim_max = limit,
 	};
 
-	sigset_t pollmask_storage;
-	sigset_t *pollmask = NULL;
-
-	if (buffer_space(sending, sizeof(struct send_entry))) {
-		if (buffer_space_pid(killed))
-			pollfd.events |= POLLIN;
-
-		if (buffer_space_pid(died)) {
-			// Enable reaping.
-			pollmask = &pollmask_storage;
-			sigemptyset(pollmask);
-		}
-	}
-
-	if (buffer_content(sending))
-		pollfd.events |= POLLOUT;
-
-	int count = ppoll(&pollfd, 1, NULL, pollmask); // May invoke sighandler.
-	if (count < 0) {
-		if (errno == EINTR)
-			return -1; // Reap.
-
-		_exit(ERR_EXEC_PPOLL);
-	}
-
-	return (unsigned short) pollfd.revents; // Zero-extension.
-}
-
-static inline ssize_t do_recvmsg(struct msghdr *msg, void *buf, size_t buflen, int flags)
-{
-	struct iovec io = {
-		.iov_base = buf,
-		.iov_len = buflen,
-	};
-
-	msg->msg_iov = &io;
-	msg->msg_iovlen = 1;
-
-	return recvmsg(GATE_CONTROL_FD, msg, flags);
-}
-
-static inline void handle_control_message(struct buffer *sending, struct cmsghdr *cmsg)
-{
-	if (cmsg->cmsg_level != SOL_SOCKET)
-		_exit(ERR_EXEC_CMSG_LEVEL);
-
-	if (cmsg->cmsg_type != SCM_RIGHTS)
-		_exit(ERR_EXEC_CMSG_TYPE);
-
-	int num_fds;
-	if (cmsg->cmsg_len == CMSG_LEN(2 * sizeof(int)))
-		num_fds = 2;
-	else if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof(int)))
-		num_fds = 3;
-	else
-		_exit(ERR_EXEC_CMSG_LEN);
-
-	const int *fds = (int *) CMSG_DATA(cmsg);
-
-	pid_t pid = spawn_child(fds, num_fds);
-	if (pid <= 0)
-		_exit(ERR_EXEC_VFORK);
-
-	for (int i = 0; i < num_fds; i++)
-		close(fds[i]);
-
-	const struct send_entry entry = {-pid, 0};
-	if (buffer_append(sending, &entry, sizeof entry) != 0)
-		_exit(ERR_EXEC_SENDBUF_OVERFLOW_CMSG);
-}
-
-static inline void handle_pid_message(struct buffer *killed, struct buffer *died, pid_t pid)
-{
-	int signum = SIGKILL;
-
-	if (pid < 0) {
-		pid = -pid;
-		signum = SIGXCPU;
-	}
-
-	if (pid == 1)
-		_exit(ERR_EXEC_KILLMSG_PID);
-
-	if (!buffer_remove_pid(died, pid)) {
-		if (kill(pid, signum) != 0)
-			_exit(ERR_EXEC_KILL);
-
-		if (signum == SIGXCPU) {
-			struct rlimit buf = {
-				.rlim_cur = 1,
-				.rlim_max = 1, // SIGKILL in one second.
-			};
-
-			if (prlimit(pid, RLIMIT_CPU, &buf, NULL) != 0)
-				_exit(ERR_EXEC_PRLIMIT);
-		}
-
-		if (buffer_append_pid(killed, pid) != 0)
-			_exit(ERR_EXEC_KILLBUF_OVERFLOW);
-	}
-}
-
-static inline void handle_receiving(struct buffer *sending, struct buffer *killed, struct buffer *died)
-{
-	union {
-		char buf[sizeof(pid_t)];
-		pid_t pid;
-	} receive;
-
-	for (size_t receive_len = 0; receive_len < sizeof receive.buf;) {
-		union {
-			char buf[CMSG_SPACE(5 * sizeof(int))];
-			struct cmsghdr alignment;
-		} ctl;
-
-		struct msghdr msg = {
-			.msg_control = ctl.buf,
-			.msg_controllen = sizeof ctl.buf,
-		};
-
-		int flags = MSG_CMSG_CLOEXEC;
-		if (receive_len == 0)
-			flags |= MSG_DONTWAIT;
-
-		ssize_t len = do_recvmsg(&msg, receive.buf + receive_len, sizeof receive.buf - receive_len, flags);
-		if (len <= 0) {
-			if (len == 0)
-				_exit(0);
-
-			if (receive_len == 0) {
-				if (errno == EAGAIN || errno == EWOULDBLOCK)
-					return;
-			} else {
-				if (errno == EINTR)
-					continue;
-			}
-
-			_exit(ERR_EXEC_RECVMSG);
-		}
-
-		receive_len += len;
-
-		if (msg.msg_flags & MSG_CTRUNC)
-			_exit(ERR_EXEC_MSG_CTRUNC);
-
-		struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
-		if (cmsg) {
-			handle_control_message(sending, cmsg);
-
-			// Only one message per sizeof(pid_t) bytes, otherwise
-			// we may overflow sending buffer.
-			if (CMSG_NXTHDR(&msg, cmsg))
-				_exit(ERR_EXEC_CMSG_NXTHDR);
-		}
-	}
-
-	if (receive.pid != 0)
-		handle_pid_message(killed, died, receive.pid);
-}
-
-static inline void handle_sending(struct buffer *sending)
-{
-	ssize_t len = buffer_send(sending, GATE_CONTROL_FD, MSG_DONTWAIT);
-	if (len <= 0) {
-		if (len == 0)
-			_exit(0);
-
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return;
-
-		_exit(ERR_EXEC_SEND);
-	}
-}
-
-static inline void handle_reaping(struct buffer *sending, struct buffer *killed, struct buffer *died)
-{
-	while (1) {
-		int status;
-		pid_t pid = waitpid(-1, &status, WNOHANG);
-		if (pid <= 0) {
-			if (pid == 0 || errno == ECHILD)
-				return;
-
-			_exit(ERR_EXEC_WAITPID);
-		}
-
-		if (WIFSTOPPED(status) || WIFCONTINUED(status))
-			continue;
-
-		const struct send_entry entry = {pid, status};
-		if (buffer_append(sending, &entry, sizeof entry) != 0)
-			_exit(ERR_EXEC_SENDBUF_OVERFLOW_REAP);
-
-		if (!buffer_remove_pid(killed, pid))
-			if (buffer_append_pid(died, pid) != 0)
-				_exit(ERR_EXEC_DEADBUF_OVERFLOW);
-	}
-}
-
-static void sandbox_common(void)
-{
-	if (prctl(PR_SET_DUMPABLE, 0) != 0)
-		_exit(ERR_EXEC_PRCTL_NOT_DUMPABLE);
-
-	xlimit(RLIMIT_DATA, GATE_LIMIT_DATA, ERR_EXEC_SETRLIMIT_DATA);
-
-	// TODO: seccomp
+	if (setrlimit(resource, &buf) != 0)
+		_exit(exitcode);
 }
 
 int main(void)
 {
-	xcloexec(STDIN_FILENO);
-	xcloexec(STDOUT_FILENO);
-	// Keep stderr (/dev/null) open; it will become GATE_DEBUG_FD by default.
-	xcloexec(GATE_CONTROL_FD);
-	xcloexec(GATE_LOADER_FD);
-
-	init_sigchld();
-
-	char buffers[BUFFER_STORAGE_SIZE(SENDING_CAPACITY + KILLED_CAPACITY + DIED_CAPACITY)];
-	struct buffer sending = BUFFER_INITIALIZER(buffers, 0);
-	struct buffer killed = BUFFER_INITIALIZER(buffers, SENDING_CAPACITY);
-	struct buffer died = BUFFER_INITIALIZER(buffers, SENDING_CAPACITY + KILLED_CAPACITY);
+	set_cloexec(STDIN_FILENO);
+	set_cloexec(STDOUT_FILENO);
+	set_cloexec(STDERR_FILENO);
+	set_cloexec(GATE_CONTROL_FD);
+	set_cloexec(GATE_LOADER_FD);
 
 	if (GATE_SANDBOX)
-		sandbox_common();
+		if (prctl(PR_SET_DUMPABLE, 0) != 0)
+			_exit(ERR_EXEC_PRCTL_NOT_DUMPABLE);
 
-	while (1) {
-		int revents = do_ppoll(&sending, &killed, &died);
-		if (revents < 0) {
-			handle_reaping(&sending, &killed, &died);
-		} else {
-			if (revents & POLLOUT)
-				handle_sending(&sending);
+	// Block all signals during thread creation to avoid race conditions.
+	sigset_t sigmask;
+	sigfillset(&sigmask);
+	sigdelset(&sigmask, SIGILL);
+	sigdelset(&sigmask, SIGFPE);
+	sigdelset(&sigmask, SIGSEGV);
+	sigdelset(&sigmask, SIGBUS);
+	if (pthread_sigmask(SIG_SETMASK, &sigmask, NULL) != 0)
+		_exit(ERR_EXEC_SIGMASK);
 
-			if (revents & POLLIN)
-				handle_receiving(&sending, &killed, &died);
-		}
+	// Sentinel process ensures that waitpid doesn't fail with ECHILD
+	// during normal operation.  Shutdown is signaled by its termination.
+	pid_t sentinel_pid = fork();
+	if (sentinel_pid < 0)
+		_exit(ERR_EXEC_FORK_SENTINEL);
+	if (sentinel_pid == 0)
+		sentinel_child();
+
+	long pagesize = sysconf(_SC_PAGESIZE);
+	if (pagesize <= 0)
+		_exit(ERR_EXEC_PAGESIZE);
+
+	size_t stack_size = align_size(GATE_EXECUTOR_STACK_SIZE, pagesize);
+	void *stack = xbrk(stack_size + sizeof(struct params), pagesize);
+	struct params *args = stack + stack_size;
+	pid_map_init(&args->pid_map);
+	args->sentinel_pid = sentinel_pid;
+
+	if (GATE_SANDBOX) {
+		xsetrlimit(RLIMIT_DATA, GATE_LIMIT_DATA, ERR_EXEC_SETRLIMIT_DATA);
+		xsetrlimit(RLIMIT_STACK, align_size(GATE_LOADER_STACK_SIZE, pagesize), ERR_EXEC_SETRLIMIT_STACK);
 	}
+
+	// ASLR makes stack size and stack pointer position unpredictable, so
+	// it's hard to unmap the initial stack.  Run-time mapping addresses
+	// are randomized manually.
+	if (personality(ADDR_NO_RANDOMIZE) < 0)
+		_exit(ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE);
+
+	pthread_t thread;
+	pthread_attr_t thread_attr;
+
+	if (pthread_attr_init(&thread_attr) != 0)
+		_exit(ERR_EXEC_THREAD_ATTR);
+
+	if (pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED) != 0)
+		_exit(ERR_EXEC_THREAD_ATTR);
+
+	if (pthread_attr_setstack(&thread_attr, stack, stack_size) != 0)
+		_exit(ERR_EXEC_THREAD_ATTR);
+
+	if (pthread_create(&thread, &thread_attr, executor, args) != 0)
+		_exit(ERR_EXEC_THREAD_CREATE);
+
+	if (pthread_attr_destroy(&thread_attr) != 0)
+		_exit(ERR_EXEC_THREAD_ATTR);
+
+	reaper(args);
 }

@@ -15,7 +15,6 @@
 #include <fcntl.h>
 #include <grp.h>
 #include <libgen.h>
-#include <linux/random.h>
 #include <sched.h>
 #include <spawn.h>
 #include <sys/mount.h>
@@ -31,6 +30,7 @@
 
 #include <sys/capability.h>
 
+#include "align.h"
 #include "cgroup.h"
 #include "errors.h"
 #include "execveat.h"
@@ -92,12 +92,12 @@ static void xread_until_eof(int fd)
 }
 
 // Set a resource limit or die.
-static void xlimit(int resource, rlim_t rlim)
+static void xsetrlimit(int resource, rlim_t rlim)
 {
-	struct rlimit buf;
-
-	buf.rlim_cur = rlim;
-	buf.rlim_max = rlim;
+	const struct rlimit buf = {
+		.rlim_cur = rlim,
+		.rlim_max = rlim,
+	};
 
 	if (setrlimit(resource, &buf) != 0)
 		xerror("setrlimit");
@@ -371,12 +371,12 @@ static void sandbox_common(void)
 {
 	umask(0777);
 
-	xlimit(RLIMIT_FSIZE, 0);
-	xlimit(RLIMIT_MEMLOCK, 0);
-	xlimit(RLIMIT_MSGQUEUE, 0);
-	xlimit(RLIMIT_RTPRIO, 0);
-	xlimit(RLIMIT_RTTIME, 0);
-	xlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
+	xsetrlimit(RLIMIT_FSIZE, 0);
+	xsetrlimit(RLIMIT_MEMLOCK, 0);
+	xsetrlimit(RLIMIT_MSGQUEUE, 0);
+	xsetrlimit(RLIMIT_RTPRIO, 0);
+	xsetrlimit(RLIMIT_RTTIME, 0);
+	xsetrlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
 }
 
 static void sandbox_by_child(void)
@@ -442,9 +442,9 @@ static void sandbox_by_child(void)
 	if (pagesize <= 0)
 		xerror("sysconf: _SC_PAGESIZE");
 
-	xlimit(RLIMIT_AS, GATE_LIMIT_AS);
-	xlimit(RLIMIT_CORE, 0);
-	xlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE + pagesize - 1) & ~(pagesize - 1));
+	xsetrlimit(RLIMIT_AS, GATE_LIMIT_AS);
+	xsetrlimit(RLIMIT_CORE, 0);
+	xsetrlimit(RLIMIT_STACK, align_size(GATE_EXECUTOR_STACK_SIZE, pagesize));
 }
 
 static struct cred container_cred;
@@ -543,11 +543,12 @@ static int child_main(void *dummy_arg)
 	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
 		xerror("prctl: PR_CAP_AMBIENT_CLEAR_ALL");
 
-	// Enable scheduler's autogroup feature.
+	// New session and process group.  Enables scheduler's autogroup feature.
 	if (setsid() < 0)
 		xerror("setsid");
 
-	xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
+	if (GATE_SANDBOX)
+		xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
 	char *argv[] = {EXECUTOR_FILENAME, NULL};
 	char *envp[] = {NULL};

@@ -5,7 +5,6 @@
 package runtime
 
 const (
-	DefaultMaxProcs    = 32767 - 1 // Practical maximum (minus init process).
 	DefaultCgroupTitle = "gate-runtime"
 )
 
@@ -15,7 +14,7 @@ type Cred struct {
 }
 
 type Config struct {
-	MaxProcs     int
+	MaxProcesses int
 	DaemonSocket string
 	ErrorLog     Logger
 
@@ -26,12 +25,12 @@ type Config struct {
 	Cgroup    CgroupConfig
 }
 
-func (c *Config) maxProcs() int64 {
-	if c.MaxProcs == 0 {
-		return DefaultMaxProcs
+func (c *Config) maxProcesses() int {
+	if c.MaxProcesses == 0 {
+		return idAllocRangeLen
 	}
 
-	return int64(c.MaxProcs)
+	return c.MaxProcesses
 }
 
 // CgroupConfig is effective if gate-runtime-container was compiled with cgroup
