@@ -67,10 +67,9 @@ func serveIdAllocations(alloc chan<- int16, free <-chan int16, limit int) {
 	}
 }
 
-// idAllocator allocates ids in range [2,32767] in arbitrary order.
 type idAllocator struct {
-	level3 [512]uint64
-	level2 [8]uint64
+	level3 [256]uint64
+	level2 [8]uint32
 	level1 uint8
 	minId  int16
 }
@@ -80,7 +79,7 @@ func (ar *idAllocator) init(limit int) {
 		ar.level3[i] = ^uint64(0)
 	}
 	for i := 0; i < len(ar.level2); i++ {
-		ar.level2[i] = ^uint64(0)
+		ar.level2[i] = ^uint32(0)
 	}
 	ar.level1 = ^uint8(0)
 	ar.minId = int16(16384 - limit)
@@ -88,15 +87,15 @@ func (ar *idAllocator) init(limit int) {
 
 func (ar *idAllocator) alloc() int16 {
 	bit1 := uint(bits.Len8(ar.level1)) - 1
-	bit2 := uint(bits.Len64(ar.level2[bit1])) - 1
-	bit3 := uint(bits.Len64(ar.level3[bit1<<6|bit2])) - 1
-	id := int16(bit1<<12 | bit2<<6 | bit3)
+	bit2 := uint(bits.Len32(ar.level2[bit1])) - 1
+	bit3 := uint(bits.Len64(ar.level3[bit1<<5|bit2])) - 1
+	id := int16(bit1<<11 | bit2<<6 | bit3)
 	if id < ar.minId {
 		return -1
 	}
 
-	ar.level3[bit1<<6|bit2] ^= 1 << bit3
-	if ar.level3[bit1<<6|bit2] == 0 {
+	ar.level3[bit1<<5|bit2] ^= 1 << bit3
+	if ar.level3[bit1<<5|bit2] == 0 {
 		ar.level2[bit1] ^= 1 << bit2
 		if ar.level2[bit1] == 0 {
 			ar.level1 ^= 1 << bit1
@@ -107,11 +106,11 @@ func (ar *idAllocator) alloc() int16 {
 }
 
 func (ar *idAllocator) free(id int16) {
-	bit1 := uint(id >> 12)
-	bit2 := uint(id>>6) & 63
+	bit1 := uint(id >> 11)
+	bit2 := uint(id>>6) & 31
 	bit3 := uint(id) & 63
 
-	ar.level3[bit1<<6|bit2] |= 1 << bit3
+	ar.level3[bit1<<5|bit2] |= 1 << bit3
 	ar.level2[bit1] |= 1 << bit2
 	ar.level1 |= 1 << bit1
 }
