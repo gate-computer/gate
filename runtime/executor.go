@@ -30,8 +30,7 @@ const (
 // Executor manages Process resources in an isolated environment.
 type Executor struct {
 	conn          *net.UnixConn
-	idAlloc       <-chan int16
-	idFree        chan<- int16
+	ids           chan int16
 	execRequests  chan execRequest
 	killRequests  chan int16
 	doneSending   chan struct{}
@@ -43,7 +42,7 @@ type Executor struct {
 
 func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 	maxProcs := config.maxProcesses()
-	if maxProcs > idAllocRangeLen {
+	if maxProcs > MaxProcesses {
 		err = errors.New("executor process limit is too high")
 		return
 	}
@@ -69,6 +68,7 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 
 	e = &Executor{
 		conn:          conn,
+		ids:           make(chan int16, maxProcs),
 		execRequests:  make(chan execRequest), // No buffering.  Request must be released.
 		killRequests:  make(chan int16, 16),   // TODO: how much buffering?
 		doneSending:   make(chan struct{}),
@@ -76,7 +76,9 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 		waiters:       make(map[int16]chan<- syscall.WaitStatus),
 	}
 
-	e.idAlloc, e.idFree = makeIdAllocator(maxProcs)
+	for i := 0; i < maxProcs; i++ {
+		e.ids <- int16(i)
+	}
 
 	go e.sender(errorLog)
 	go e.receiver(errorLog)
@@ -95,7 +97,7 @@ func (e *Executor) NewProcess(ctx context.Context) (*Process, error) {
 func (e *Executor) execute(ctx context.Context, proc *execProcess, input *file.Ref, output *file.File,
 ) (err error) {
 	select {
-	case id, ok := <-e.idAlloc:
+	case id, ok := <-e.ids:
 		if !ok {
 			err = context.Canceled // TODO: ?
 			return
@@ -143,8 +145,6 @@ func (e *Executor) Close() error {
 	}
 
 	<-e.doneReceiving
-
-	// TODO: terminate id allocator
 
 	return e.conn.Close()
 }
@@ -278,7 +278,7 @@ func (p *execProcess) kill(suspend bool) {
 
 	select {
 	case p.executor.killRequests <- value:
-		p.executor.idFree <- p.id
+		p.executor.ids <- p.id
 		p.id = -1
 
 	case <-p.executor.doneSending:
@@ -297,7 +297,7 @@ func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
 		select {
 		case killRequests <- p.id:
 			killRequests = nil
-			p.executor.idFree <- p.id
+			p.executor.ids <- p.id
 			p.id = -1
 
 		case <-p.executor.doneSending:

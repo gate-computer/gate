@@ -5,6 +5,7 @@
 package runtime
 
 const (
+	MaxProcesses       = 16384 // Per Executor.
 	DefaultCgroupTitle = "gate-runtime"
 )
 
@@ -27,7 +28,7 @@ type Config struct {
 
 func (c *Config) maxProcesses() int {
 	if c.MaxProcesses == 0 {
-		return idAllocRangeLen
+		return MaxProcesses
 	}
 
 	return c.MaxProcesses
