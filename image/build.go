@@ -154,7 +154,7 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 		return
 	}
 
-	b.prog.text = buffer.MakeStatic(b.compileMem[:0], maxTextSize)
+	b.prog.text = buffer.MakeStatic(b.compileMem[:0:maxTextSize])
 
 	if moduleSize > 0 {
 		// Program module.
@@ -163,7 +163,7 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 			return
 		}
 
-		b.prog.module = buffer.MakeStatic(b.prog.moduleMem[:0], moduleSize)
+		b.prog.module = buffer.MakeStatic(b.prog.moduleMem[:0:moduleSize])
 	}
 
 	return
@@ -232,8 +232,8 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMe
 		}
 	}
 
-	b.stack = b.compileMem[stackMapSize-stackUsage : stackMapSize]
-	b.data = buffer.MakeStatic(b.compileMem[stackMapSize:stackMapSize], dataMapSize)
+	b.stack = b.compileMem[stackMapSize-stackUsage : stackMapSize : stackMapSize]
+	b.data = buffer.MakeStatic(b.compileMem[stackMapSize:stackMapSize:mapSize])
 	b.globalsSize = globalsSize
 	b.memorySize = memorySize
 	b.maxMemorySize = maxMemorySize
