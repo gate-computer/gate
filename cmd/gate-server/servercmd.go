@@ -309,7 +309,11 @@ func main2(critLog *log.Logger) (err error) {
 
 	var fs *image.Filesystem
 	if c.Image.Filesystem != "" {
-		fs = image.NewFilesystem(c.Image.Filesystem)
+		fs, err = image.NewFilesystem(c.Image.Filesystem)
+		if err != nil {
+			return fmt.Errorf("filesystem: %v", err)
+		}
+		defer fs.Close()
 	}
 
 	var progStorage image.ProgramStorage

@@ -37,8 +37,7 @@ func (prog *Program) NewModuleReader() io.Reader {
 	return io.NewSectionReader(prog.file, progModuleOffset, prog.man.ModuleSize)
 }
 
-// Store the program if the associated ProgramStorage supports it.  The name
-// must not contain path separators.
+// Store the program.  The name must not contain path separators.
 func (prog *Program) Store(name string) error {
 	return prog.storage.storeProgram(prog, name)
 }

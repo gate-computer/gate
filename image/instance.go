@@ -28,7 +28,6 @@ const (
 
 type InstanceStorage interface {
 	newInstanceFile() (*file.File, error)
-	storeInstanceSupported() bool
 	storeInstance(inst *Instance, name string) (manifest.Instance, error)
 	LoadInstance(name string, man manifest.Instance) (*Instance, error)
 	instanceBackend() interface{}
@@ -39,7 +38,8 @@ type Instance struct {
 	man      manifest.Instance
 	file     *file.File
 	coherent bool
-	path     string
+	dir      *file.File
+	name     string
 }
 
 func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
@@ -117,14 +117,8 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 	return
 }
 
-// Store the instance if the InstanceStorage associated with the Program
-// supports it.  The name must not contain path separators.
+// Store the instance.  The name must not contain path separators.
 func (inst *Instance) Store(name string, prog *Program) (man manifest.Instance, err error) {
-	if !prog.storage.storeInstanceSupported() {
-		// Zero manifest value represents nonexistent instance.
-		return
-	}
-
 	err = inst.CheckMutation()
 	if err != nil {
 		return
@@ -163,14 +157,23 @@ func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintp
 		return
 	}
 
-	if inst.path != "" {
-		err = os.Remove(inst.path)
-		inst.path = ""
+	if inst.name != "" {
+		dir := inst.dir
+		name := inst.name
+		inst.dir = nil
+		inst.name = ""
+
+		err = unlinkat(dir.Fd(), name)
 		if err != nil {
 			if !os.IsNotExist(err) {
 				return
 			}
 			err = nil
+		}
+
+		err = fdatasync(dir.Fd())
+		if err != nil {
+			return
 		}
 	}
 

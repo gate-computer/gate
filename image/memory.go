@@ -57,6 +57,5 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 	return
 }
 
-func (mem) storeInstanceSupported() bool                                   { return false }
 func (mem) storeInstance(*Instance, string) (_ manifest.Instance, _ error) { return }
 func (mem) LoadInstance(string, manifest.Instance) (*Instance, error)      { return nil, os.ErrNotExist }
