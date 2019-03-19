@@ -37,7 +37,7 @@ const (
 	PathInstances  = Path + "/instance/"                 // Instance ids.
 )
 
-// Query parameters for post and websocket requests.
+// Query parameters for post, put and websocket requests.
 const (
 	ParamAction   = "action"
 	ParamFunction = "function" // For call or launch action.
@@ -47,8 +47,8 @@ const (
 
 // Actions on modules (references and other sources).
 const (
-	ActionCall   = "call"   // Post or websocket.
-	ActionLaunch = "launch" // Post.
+	ActionCall   = "call"   // Post, put or websocket.
+	ActionLaunch = "launch" // Post or put.
 )
 
 // Actions on module references.

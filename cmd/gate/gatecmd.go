@@ -281,7 +281,7 @@ var commands = map[string]struct {
 				os.Exit(2)
 			}
 
-			req := &http.Request{Method: http.MethodPost}
+			req := &http.Request{Method: http.MethodPut}
 
 			var uri string
 

@@ -479,6 +479,50 @@ func TestModuleRef(t *testing.T) {
 		})
 	}
 
+	t.Run("PutCall", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=call", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, content := checkResponse(t, handler, req, http.StatusCreated)
+
+		if s, found := resp.Header[webapi.HeaderContentType]; found {
+			t.Errorf("%q", s)
+		}
+
+		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			t.Error(err)
+		}
+
+		if len(content) != 0 {
+			t.Errorf("%q", content)
+		}
+
+		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+			State: "terminated",
+		})
+
+		if len(resp.Trailer) != 1 {
+			t.Errorf("trailer: %v", resp.Trailer)
+		}
+	})
+
+	t.Run("PutLaunch", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, content := checkResponse(t, handler, req, http.StatusCreated)
+
+		if s, found := resp.Header[webapi.HeaderContentType]; found {
+			t.Errorf("%q", s)
+		}
+
+		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			t.Error(err)
+		}
+
+		if len(content) != 0 {
+			t.Errorf("%q", content)
+		}
+	})
+
 	t.Run("Unref", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
@@ -504,7 +548,7 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("LaunchContent", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=launch", wasmHello)
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch", wasmHello)
 		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -732,7 +776,7 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=launch&function=main", wasmHello)
+			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&function=main", wasmHello)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -798,7 +842,7 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=launch&function=multi", wasmHello)
+			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&function=multi", wasmHello)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -843,7 +887,7 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main&debug=log", wasmSuspend)
+			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main&debug=log", wasmSuspend)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -961,7 +1005,7 @@ func TestInstance(t *testing.T) {
 		handler2 := newHandler(ctx)
 
 		t.Run("Restore", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
+			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler2, req, http.StatusCreated)
 			restoredID := resp.Header.Get(webapi.HeaderInstance)

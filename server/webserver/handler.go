@@ -398,15 +398,53 @@ func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 }
 
 func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
-	mustNotHaveQuery(w, r, s)
+	query := mustParseQuery(w, r, s)
 
-	switch mustParseContentType(w, r, s) {
-	case webapi.ContentTypeWebAssembly:
-		mustHaveContentLength(w, r, s)
-		handleModulePut(w, r, s, key)
+	if _, actionable := query[webapi.ParamAction]; actionable {
+		switch mustPopParam(w, r, s, query, webapi.ParamAction) {
+		case webapi.ActionCall:
+			function := mustPopOptionalFunctionParam(w, r, s, query)
+			debug := mustPopOptionalParam(w, r, s, query, webapi.ParamDebug)
+			mustNotHaveParams(w, r, s, query)
 
-	default:
-		respondUnsupportedMediaType(w, r, s)
+			switch mustParseContentType(w, r, s) {
+			case webapi.ContentTypeWebAssembly:
+				mustHaveContentLength(w, r, s)
+				handleCall(w, r, s, server.OpCallRef, true, nil, key, function, debug)
+
+			default:
+				respondUnsupportedMediaType(w, r, s)
+			}
+
+		case webapi.ActionLaunch:
+			function := mustPopOptionalFunctionParam(w, r, s, query)
+			instance := mustPopOptionalParam(w, r, s, query, webapi.ParamInstance)
+			debug := mustPopOptionalParam(w, r, s, query, webapi.ParamDebug)
+			mustNotHaveParams(w, r, s, query)
+
+			switch mustParseContentType(w, r, s) {
+			case webapi.ContentTypeWebAssembly:
+				mustHaveContentLength(w, r, s)
+				handleLaunchContent(w, r, s, key, function, instance, debug)
+
+			default:
+				respondUnsupportedMediaType(w, r, s)
+			}
+
+		default:
+			respondUnsupportedAction(w, r, s)
+		}
+	} else {
+		mustNotHaveQuery(w, r, s)
+
+		switch mustParseContentType(w, r, s) {
+		case webapi.ContentTypeWebAssembly:
+			mustHaveContentLength(w, r, s)
+			handleModulePut(w, r, s, key)
+
+		default:
+			respondUnsupportedMediaType(w, r, s)
+		}
 	}
 }
 
@@ -418,34 +456,15 @@ func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, k
 		function := mustPopOptionalFunctionParam(w, r, s, query)
 		debug := mustPopOptionalParam(w, r, s, query, webapi.ParamDebug)
 		mustNotHaveParams(w, r, s, query)
-
-		switch mustParseContentType(w, r, s) {
-		case webapi.ContentTypeWebAssembly:
-			mustHaveContentLength(w, r, s)
-			handleCallPost(w, r, s, server.OpCallRef, true, nil, key, function, debug)
-
-		default:
-			handleCallPost(w, r, s, server.OpCallRef, false, nil, key, function, debug)
-		}
+		handleCall(w, r, s, server.OpCallRef, false, nil, key, function, debug)
 
 	case webapi.ActionLaunch:
 		function := mustPopOptionalFunctionParam(w, r, s, query)
 		instance := mustPopOptionalParam(w, r, s, query, webapi.ParamInstance)
 		debug := mustPopOptionalParam(w, r, s, query, webapi.ParamDebug)
 		mustNotHaveParams(w, r, s, query)
-
-		switch mustParseContentType(w, r, s) {
-		case "":
-			mustNotHaveContent(w, r, s)
-			handleLaunch(w, r, s, server.OpLaunchRef, nil, key, function, instance, debug)
-
-		case webapi.ContentTypeWebAssembly:
-			mustHaveContentLength(w, r, s)
-			handleLaunchContent(w, r, s, key, function, instance, debug)
-
-		default:
-			respondUnsupportedMediaType(w, r, s)
-		}
+		mustNotHaveContent(w, r, s)
+		handleLaunch(w, r, s, server.OpLaunchRef, nil, key, function, instance, debug)
 
 	case webapi.ActionUnref:
 		mustNotHaveParams(w, r, s, query)
@@ -481,7 +500,7 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 		function := mustPopOptionalFunctionParam(w, r, s, query)
 		debug := mustPopOptionalParam(w, r, s, query, webapi.ParamDebug)
 		mustNotHaveParams(w, r, s, query)
-		handleCallPost(w, r, s, server.OpCallSource, false, source, key, function, debug)
+		handleCall(w, r, s, server.OpCallSource, false, source, key, function, debug)
 
 	case webapi.ActionLaunch:
 		function := mustPopOptionalFunctionParam(w, r, s, query)
@@ -630,7 +649,7 @@ func handleModuleUnref(w http.ResponseWriter, r *http.Request, s *webserver, key
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleCallPost(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, content bool, source server.Source, key, function, debug string) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, content bool, source server.Source, key, function, debug string) {
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
@@ -690,7 +709,7 @@ func handleCallPost(w http.ResponseWriter, r *http.Request, s *webserver, op det
 		w.Header().Set(webapi.HeaderInstance, inst.ID())
 	}
 
-	if pri != nil && source != nil {
+	if pri != nil && (content || source != nil) {
 		w.WriteHeader(http.StatusCreated)
 	} else {
 		w.WriteHeader(http.StatusOK)
