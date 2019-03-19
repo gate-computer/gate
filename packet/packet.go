@@ -147,13 +147,13 @@ func (b Buf) String() (s string) {
 	return
 }
 
-// Split a packet into two parts.  The length of the first part is given as an
-// argument.  The first part must not be extended with append(), because the
-// underlying storage is shared with the second part.  The header size argument
-// determins how many bytes are initialized in the second part.  If the buffer
-// is too short for the second part, nil is returned.
+// Split a packet into two parts.  The headerSize parameter determins how many
+// bytes are initialized in the second part: the header is copied from the
+// first part.  The length (and capacity) of the first part is given as the
+// packetSize parameter.  If the buffer is too short for the second part, nil
+// is returned.
 func (b Buf) Split(headerSize, packetSize int) (prefix, unused Buf) {
-	prefix = b.Slice(packetSize)
+	prefix = b[:packetSize:packetSize]
 	unused = b[len(prefix):]
 
 	if len(unused) < headerSize {
