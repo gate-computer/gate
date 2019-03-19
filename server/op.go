@@ -11,13 +11,14 @@ import (
 // Server operation types.  Returned by Op(context.Context) function.
 const (
 	OpModuleList       = detail.Op_ModuleList
-	OpModuleUpload     = detail.Op_ModuleUpload
 	OpModuleDownload   = detail.Op_ModuleDownload
+	OpModuleUpload     = detail.Op_ModuleUpload
+	OpModuleSource     = detail.Op_ModuleSource
 	OpModuleUnref      = detail.Op_ModuleUnref
-	OpCallRef          = detail.Op_CallRef
+	OpCallExtant       = detail.Op_CallExtant
 	OpCallUpload       = detail.Op_CallUpload
 	OpCallSource       = detail.Op_CallSource
-	OpLaunchRef        = detail.Op_LaunchRef
+	OpLaunchExtant     = detail.Op_LaunchExtant
 	OpLaunchUpload     = detail.Op_LaunchUpload
 	OpLaunchSource     = detail.Op_LaunchSource
 	OpInstanceList     = detail.Op_InstanceList

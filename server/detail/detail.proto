@@ -15,22 +15,23 @@ enum Iface {
 enum Op {
 	Unknown = 0;
 	ModuleList = 1;
-	ModuleUpload = 2;
-	ModuleDownload = 3;	
-	ModuleUnref = 4;
-	CallRef = 5;
-	CallUpload = 6;
-	CallSource = 7;
-	LaunchRef = 8;
-	LaunchUpload = 9;
-	LaunchSource = 10;
-	InstanceList = 11;
-	InstanceConnect = 12;
-	InstanceStatus = 13;
-	InstanceWait = 14;
-	InstanceSuspend = 15;
-	InstanceResume = 16;
-	InstanceSnapshot = 17;
+	ModuleDownload = 2;
+	ModuleUpload = 3;
+	ModuleSource = 4;
+	ModuleUnref = 5;
+	CallExtant = 6;
+	CallUpload = 7;
+	CallSource = 8;
+	LaunchExtant = 9;
+	LaunchUpload = 10;
+	LaunchSource = 11;
+	InstanceList = 12;
+	InstanceConnect = 13;
+	InstanceStatus = 14;
+	InstanceWait = 15;
+	InstanceSuspend = 16;
+	InstanceResume = 17;
+	InstanceSnapshot = 18;
 }
 
 message Context {

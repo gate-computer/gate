@@ -17,16 +17,13 @@ import (
 	"github.com/tsavola/gate/webapi"
 )
 
-func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string) *server.PrincipalKey {
+func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) *server.PrincipalKey {
+	if str == "" && !require {
+		return nil
+	}
+
 	token := mustParseBearerToken(ctx, ew, s, str)
 	return mustParseJWT(ctx, ew, s, []byte(token))
-}
-
-func mustParseOptionalAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string) (pri *server.PrincipalKey) {
-	if str != "" {
-		pri = mustParseAuthorization(ctx, ew, s, str)
-	}
-	return
 }
 
 func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str string) string {

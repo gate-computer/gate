@@ -37,7 +37,7 @@ const (
 	PathInstances  = Path + "/instance/"                 // Instance ids.
 )
 
-// Query parameters for post, put and websocket requests.
+// Query parameters.
 const (
 	ParamAction   = "action"
 	ParamFunction = "function" // For call or launch action.
@@ -45,15 +45,13 @@ const (
 	ParamDebug    = "debug"    // For call, launch or resume action.
 )
 
-// Actions on modules (references and other sources).
+// Actions on modules.  Ref action can be combined with call or launch in a
+// single request (action parameter appears twice).
 const (
-	ActionCall   = "call"   // Post, put or websocket.
-	ActionLaunch = "launch" // Post or put.
-)
-
-// Actions on module references.
-const (
-	ActionUnref = "unref" // Post.
+	ActionRef    = "ref"    // Put (reference), post (source) or websocket (call/launch).
+	ActionUnref  = "unref"  // Post (reference).
+	ActionCall   = "call"   // Put (reference), post (any) or websocket (any).
+	ActionLaunch = "launch" // Put (reference), post (any).
 )
 
 // Actions on instances.

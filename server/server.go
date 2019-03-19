@@ -130,15 +130,19 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 	return
 }
 
-// UploadModule creates a new module reference.  Caller provides module
-// content.
-func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHash string, content io.ReadCloser, contentLength int64,
+// UploadModule creates a new module reference if refModule is true.  Caller
+// provides module content which is compiled or validated in any case.
+func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
 ) (err error) {
 	defer func() {
 		if content != nil {
 			content.Close()
 		}
 	}()
+
+	if pri == nil && refModule {
+		panic("referencing module without principal")
+	}
 
 	var pol progPolicy
 
@@ -152,14 +156,17 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 		return
 	}
 
-	acc, err := s.ensureAccount(pri)
-	if err != nil {
-		return
+	var acc *account
+	if refModule {
+		acc, err = s.ensureAccount(pri)
+		if err != nil {
+			return
+		}
 	}
 
 	// TODO: check resource policy
 
-	found, err := s.uploadKnownModule(ctx, acc, &pol, allegedHash, content, contentLength)
+	found, err := s.loadKnownModule(ctx, acc, &pol, allegedHash, content, contentLength)
 	if err != nil {
 		return
 	}
@@ -172,7 +179,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 			return
 		}
 	} else {
-		err = s.uploadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
+		_, err = s.loadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
 		if err != nil {
 			return
 		}
@@ -180,7 +187,51 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, allegedHas
 	return
 }
 
-func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader, contentLength int64,
+// SourceModule creates a new module reference if refModule is true.  Module
+// content is read from a source - it is compiled or validated in any case.
+func (s *Server) SourceModule(ctx context.Context, pri *PrincipalKey, refModule bool, source Source, uri string,
+) (progHash string, err error) {
+	if pri == nil && refModule {
+		panic("referencing module without principal")
+	}
+
+	var pol progPolicy
+
+	err = s.AccessPolicy.AuthorizeProgramSource(ctx, pri, &pol.res, &pol.prog, source)
+	if err != nil {
+		return
+	}
+
+	var acc *account
+	if refModule {
+		acc, err = s.ensureAccount(pri)
+		if err != nil {
+			return
+		}
+	}
+
+	size, content, err := source.OpenURI(ctx, uri, pol.prog.MaxModuleSize)
+	if err != nil {
+		return
+	}
+	if content == nil {
+		if size > 0 {
+			err = resourcelimit.New("program size limit exceeded")
+			return
+		}
+		err = resourcenotfound.ErrModule
+		return
+	}
+
+	progHash, err = s.loadUnknownModule(ctx, acc, &pol, "", content, int(size))
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader, contentLength int64,
 ) (found bool, err error) {
 	prog, err := s.refProgram(ctx, allegedHash, contentLength)
 	if err != nil || prog == nil {
@@ -213,8 +264,8 @@ func (s *Server) uploadKnownModule(ctx context.Context, acc *account, pol *progP
 	return
 }
 
-func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
-) (err error) {
+func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
+) (progHash string, err error) {
 	prog, _, err := buildProgram(s.ImageStorage, &pol.prog, nil, allegedHash, content, contentSize, "")
 	if err != nil {
 		return
@@ -237,6 +288,8 @@ func (s *Server) uploadUnknownModule(ctx context.Context, acc *account, pol *pro
 			Module: prog.key,
 		}, nil)
 	}
+
+	progHash = prog.key
 	return
 }
 
@@ -283,7 +336,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 		}
 	}()
 
-	inst, _, err = s.registerProgramRefInstance(ctx, acc, prog, instImage, &pol.inst, function, instID, debug)
+	inst, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, function, instID, debug)
 	if err != nil {
 		return
 	}
@@ -296,15 +349,20 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 	return
 }
 
-// UploadModuleInstance creates a new module reference and instantiates it.
-// Caller provides module content.  Instance id is optional.
-func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, allegedHash string, content io.ReadCloser, contentLength int64, function, instID, debug string,
+// UploadModuleInstance creates a new module reference if refModule is true.
+// The module is instantiated in any case.  Caller provides module content.
+// Instance id is optional.
+func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64, function, instID, debug string,
 ) (inst *Instance, err error) {
 	defer func() {
 		if content != nil {
 			content.Close()
 		}
 	}()
+
+	if pri == nil && refModule {
+		panic("referencing module without principal")
+	}
 
 	var pol instProgPolicy
 
@@ -318,7 +376,7 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, al
 		return
 	}
 
-	inst, err = s.loadModuleInstance(ctx, acc, &pol, allegedHash, content, contentLength, function, instID, debug)
+	inst, err = s.loadModuleInstance(ctx, acc, refModule, &pol, allegedHash, content, contentLength, function, instID, debug)
 	content = nil
 	if err != nil {
 		return
@@ -327,10 +385,15 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, al
 	return
 }
 
-// SourceModuleInstance creates a new module reference and instantiates it.
-// Module content is read from a source.  Instance id is optional.
-func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, source Source, uri, function, instID, debug string,
+// SourceModuleInstance creates a new module reference if refModule is true.
+// The module is instantiated in any case.  Module content is read from a
+// source.  Instance id is optional.
+func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, refModule bool, source Source, uri, function, instID, debug string,
 ) (progHash string, inst *Instance, err error) {
+	if pri == nil && refModule {
+		panic("referencing module without principal")
+	}
+
 	var pol instProgPolicy
 
 	err = s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, pri, &pol.res, &pol.prog, &pol.inst, source)
@@ -356,7 +419,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, so
 		return
 	}
 
-	inst, err = s.loadModuleInstance(ctx, acc, &pol, "", content, int64(size), function, instID, debug)
+	inst, err = s.loadModuleInstance(ctx, acc, refModule, &pol, "", content, int64(size), function, instID, debug)
 	if err != nil {
 		return
 	}
@@ -365,7 +428,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, so
 	return
 }
 
-func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, function, instID, debug string,
+func (s *Server) loadModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, function, instID, debug string,
 ) (inst *Instance, err error) {
 	defer func() {
 		if content != nil {
@@ -380,7 +443,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 
 	// TODO: check resource policy
 
-	inst, err = s.loadKnownModuleInstance(ctx, acc, pol, allegedHash, content, contentLength, function, instID, debug)
+	inst, err = s.loadKnownModuleInstance(ctx, acc, refModule, pol, allegedHash, content, contentLength, function, instID, debug)
 	if err != nil {
 		return
 	}
@@ -393,7 +456,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 			return
 		}
 	} else {
-		inst, err = s.loadUnknownModuleInstance(ctx, acc, pol, allegedHash, content, int(contentLength), function, instID, debug)
+		inst, err = s.loadUnknownModuleInstance(ctx, acc, refModule, pol, allegedHash, content, int(contentLength), function, instID, debug)
 		if err != nil {
 			return
 		}
@@ -402,7 +465,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, pol *inst
 	return
 }
 
-func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.Reader, contentLength int64, function, instID, debug string,
+func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content io.Reader, contentLength int64, function, instID, debug string,
 ) (inst *Instance, err error) {
 	if allegedHash == "" {
 		return
@@ -445,7 +508,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol 
 		}
 	}()
 
-	inst, _, err = s.registerProgramRefInstance(ctx, acc, prog, instImage, &pol.inst, function, instID, debug)
+	inst, _, err = s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, function, instID, debug)
 	if err != nil {
 		return
 	}
@@ -463,7 +526,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, pol 
 	return
 }
 
-func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, function, instID, debug string,
+func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, function, instID, debug string,
 ) (inst *Instance, err error) {
 	prog, instImage, err := buildProgram(s.ImageStorage, &pol.prog, &pol.inst, allegedHash, content, contentSize, function)
 	if err != nil {
@@ -476,7 +539,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, po
 		}
 	}()
 
-	inst, redundant, err := s.registerProgramRefInstance(ctx, acc, prog, instImage, &pol.inst, function, instID, debug)
+	inst, redundant, err := s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, function, instID, debug)
 	if err != nil {
 		return
 	}
@@ -1037,7 +1100,9 @@ func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool
 		return
 	}
 
-	acc.ensureRefProgram(prog)
+	if acc != nil {
+		acc.ensureRefProgram(prog)
+	}
 	return
 }
 
@@ -1142,9 +1207,9 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 	return
 }
 
-// registerProgramRefInstance with server and an account (if any).  Caller's
-// program reference and instance image are stolen (except on error).
-func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, prog *program, instImage *image.Instance, pol *InstancePolicy, function, instID, debug string,
+// registerProgramRefInstance with server, and an account if refModule is true.
+// Caller's program reference and instance image are stolen (except on error).
+func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, refModule bool, prog *program, instImage *image.Instance, pol *InstancePolicy, function, instID, debug string,
 ) (inst *Instance, redundant bool, err error) {
 	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pol, debug)
 	if err != nil {
@@ -1180,7 +1245,9 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, p
 	inst = newInstance(acc, instID, prog.ref(), function, instImage, proc, services, debugStatus, debugOutput)
 
 	if acc != nil {
-		acc.ensureRefProgram(prog)
+		if refModule {
+			acc.ensureRefProgram(prog)
+		}
 		acc.instances[instID] = inst
 	}
 

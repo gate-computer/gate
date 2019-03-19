@@ -90,7 +90,7 @@ func mustParseOptionalQuery(w http.ResponseWriter, r *http.Request, s *webserver
 	return
 }
 
-func mustPopParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) string {
+func popLastParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) string {
 	switch values := query[key]; len(values) {
 	case 1:
 		delete(query, key)
@@ -106,7 +106,7 @@ func mustPopParam(w http.ResponseWriter, r *http.Request, s *webserver, query ur
 	}
 }
 
-func mustPopOptionalParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) string {
+func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) string {
 	switch values := query[key]; len(values) {
 	case 1:
 		delete(query, key)
@@ -121,8 +121,23 @@ func mustPopOptionalParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
-func mustPopOptionalFunctionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) (value string) {
-	value = mustPopOptionalParam(w, r, s, query, webapi.ParamFunction)
+func popOptionalRefActionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) bool {
+	values := query[webapi.ParamAction]
+	for i, s := range values {
+		if s == webapi.ActionRef {
+			if len(values) > 1 {
+				query[webapi.ParamAction] = append(values[:i], values[i+1:]...)
+			} else {
+				delete(query, webapi.ParamAction)
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func mustPopOptionalLastFunctionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) (value string) {
+	value = popOptionalLastParam(w, r, s, query, webapi.ParamFunction)
 	if value != "" && !webapi.FunctionRegexp.MatchString(value) {
 		respondInvalidFunction(w, r, s, value)
 		panic(nil)
@@ -137,22 +152,24 @@ func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, que
 	}
 }
 
-func mustParseContentType(w http.ResponseWriter, r *http.Request, s *webserver) string {
+func mustHaveWebAssemblyContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	switch values := r.Header[webapi.HeaderContentType]; len(values) {
 	case 1:
 		tokens := strings.SplitN(values[0], ";", 2)
-		return strings.TrimSpace(tokens[0])
+		if strings.TrimSpace(tokens[0]) != webapi.ContentTypeWebAssembly {
+			respondUnsupportedMediaType(w, r, s)
+			panic(nil)
+		}
 
 	case 0:
-		return ""
+		respondUnsupportedMediaType(w, r, s)
+		panic(nil)
 
 	default:
 		respondDuplicateHeader(w, r, s, webapi.HeaderContentType)
 		panic(nil)
 	}
-}
 
-func mustHaveContentLength(w http.ResponseWriter, r *http.Request, s *webserver) {
 	if r.ContentLength < 0 {
 		respondLengthRequired(w, r, s)
 		panic(nil)
@@ -160,7 +177,7 @@ func mustHaveContentLength(w http.ResponseWriter, r *http.Request, s *webserver)
 }
 
 func mustNotHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver) {
-	if mustParseContentType(w, r, s) != "" {
+	if _, found := r.Header[webapi.HeaderContentType]; found {
 		respondUnsupportedMediaType(w, r, s)
 		panic(nil)
 	}
@@ -173,22 +190,18 @@ func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	}
 }
 
-func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver) (pri *server.PrincipalKey) {
-	pri = mustParseOptionalAuthorizationHeader(ctx, wr, s)
-	if pri == nil {
-		respondUnauthorized(ctx, wr, s, nil)
-		panic(nil)
-	}
-	return
-}
-
-func mustParseOptionalAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver) *server.PrincipalKey {
+func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) *server.PrincipalKey {
 	switch values := wr.request.Header[webapi.HeaderAuthorization]; len(values) {
 	case 1:
-		return mustParseAuthorization(ctx, wr, s, values[0])
+		return mustParseAuthorization(ctx, wr, s, values[0], true)
 
 	case 0:
-		return nil
+		if !require {
+			return nil
+		}
+
+		respondUnauthorized(ctx, wr, s, nil)
+		panic(nil)
 
 	default:
 		// TODO: RFC 6750 says that this should be Bad Request

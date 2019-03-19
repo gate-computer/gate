@@ -70,6 +70,7 @@ type InstancePolicy struct {
 type Authorizer interface {
 	Authorize(context.Context, *PrincipalKey) error
 	AuthorizeProgram(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy) error
+	AuthorizeProgramSource(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, Source) error
 	AuthorizeInstance(context.Context, *PrincipalKey, *ResourcePolicy, *InstancePolicy) error
 	AuthorizeProgramInstance(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, *InstancePolicy) error
 	AuthorizeProgramInstanceSource(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, *InstancePolicy, Source) error
@@ -121,6 +122,10 @@ func (NoAccess) Authorize(context.Context, *PrincipalKey) error {
 }
 
 func (NoAccess) AuthorizeProgram(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy) error {
+	return errNoAccess
+}
+
+func (NoAccess) AuthorizeProgramSource(context.Context, *PrincipalKey, *ResourcePolicy, *ProgramPolicy, Source) error {
 	return errNoAccess
 }
 
@@ -225,6 +230,12 @@ func (p *PublicAccess) Authorize(_ context.Context, _ *PrincipalKey) error {
 }
 
 func (p *PublicAccess) AuthorizeProgram(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, prog *ProgramPolicy) error {
+	p.ConfigureResource(res)
+	p.ConfigureProgram(prog)
+	return nil
+}
+
+func (p *PublicAccess) AuthorizeProgramSource(_ context.Context, _ *PrincipalKey, res *ResourcePolicy, prog *ProgramPolicy, _ Source) error {
 	p.ConfigureResource(res)
 	p.ConfigureProgram(prog)
 	return nil

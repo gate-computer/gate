@@ -30,12 +30,14 @@ import (
 )
 
 const (
+	DefaultRef      = true
 	DefaultFunction = "main"
 	DefaultTLS      = true
 )
 
 type Config struct {
 	IdentityFile string
+	Ref          bool
 	Function     string
 	Instance     string
 	Debug        string
@@ -78,6 +80,7 @@ func main() {
 		c.IdentityFile = path.Join(home, ".ssh/id_ed25519")
 	}
 
+	c.Ref = DefaultRef
 	c.Function = DefaultFunction
 	c.TLS = DefaultTLS
 
@@ -172,9 +175,17 @@ var commands = map[string]struct {
 				status = callPost(webapi.PathModuleRefs+arg, params)
 
 			case strings.HasPrefix(arg, "/ipfs/"):
+				if c.Ref {
+					params.Add(webapi.ParamAction, webapi.ActionRef)
+				}
+
 				status = callPost(webapi.PathModule+arg, params)
 
 			default:
+				if c.Ref {
+					params.Add(webapi.ParamAction, webapi.ActionRef)
+				}
+
 				status = callWebsocket(arg, params)
 			}
 
@@ -281,32 +292,6 @@ var commands = map[string]struct {
 				os.Exit(2)
 			}
 
-			req := &http.Request{Method: http.MethodPut}
-
-			var uri string
-
-			switch arg := flag.Arg(0); {
-			case !strings.Contains(arg, "/"):
-				uri = webapi.PathModuleRefs + arg
-
-			case strings.HasPrefix(arg, "/ipfs/"):
-				uri = webapi.PathModule + arg
-
-			default:
-				module, key, err := loadModule(arg)
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				uri = webapi.PathModuleRefs + key
-
-				req.Header = http.Header{
-					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
-				}
-				req.Body = ioutil.NopCloser(module)
-				req.ContentLength = int64(module.Len())
-			}
-
 			params := url.Values{
 				webapi.ParamAction: []string{webapi.ActionLaunch},
 			}
@@ -318,6 +303,42 @@ var commands = map[string]struct {
 			}
 			if c.Debug != "" {
 				params.Set(webapi.ParamDebug, c.Debug)
+			}
+
+			var req = new(http.Request)
+			var uri string
+
+			switch arg := flag.Arg(0); {
+			case !strings.Contains(arg, "/"):
+				req.Method = http.MethodPost
+				uri = webapi.PathModuleRefs + arg
+
+			case strings.HasPrefix(arg, "/ipfs/"):
+				req.Method = http.MethodPut
+				uri = webapi.PathModule + arg
+
+				if c.Ref {
+					params.Add(webapi.ParamAction, webapi.ActionRef)
+				}
+
+			default:
+				module, key, err := loadModule(arg)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				req.Method = http.MethodPut
+				uri = webapi.PathModuleRefs + key
+
+				if c.Ref {
+					params.Add(webapi.ParamAction, webapi.ActionRef)
+				}
+
+				req.Header = http.Header{
+					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
+				}
+				req.Body = ioutil.NopCloser(module)
+				req.ContentLength = int64(module.Len())
 			}
 
 			_, resp, err := doHTTP(req, uri, params)
@@ -468,7 +489,12 @@ var commands = map[string]struct {
 				ContentLength: int64(module.Len()),
 			}
 
-			_, _, err = doHTTP(req, webapi.PathModuleRefs+key, nil)
+			var params url.Values
+			if c.Ref {
+				params = url.Values{webapi.ParamAction: []string{webapi.ActionRef}}
+			}
+
+			_, _, err = doHTTP(req, webapi.PathModuleRefs+key, params)
 			if err != nil {
 				log.Fatal(err)
 			}

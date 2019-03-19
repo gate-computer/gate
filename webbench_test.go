@@ -90,7 +90,7 @@ func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory
 			}()
 
 			for i := 0; i < loops; i++ {
-				req := newRequest(http.MethodPost, uri, wasmNop)
+				req := newRequest(http.MethodPut, uri, wasmNop)
 				req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 				w := httptest.NewRecorder()
 				handler.ServeHTTP(w, req)
