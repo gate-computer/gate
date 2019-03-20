@@ -21,7 +21,7 @@ static void iteration(long i)
 	delay();
 }
 
-int main(void)
+int loop(void)
 {
 	struct {
 		struct gate_service_name_packet header;

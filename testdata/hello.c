@@ -177,7 +177,7 @@ static int send_hello(int16_t origin_code, int32_t id, int *flow)
 	return 0;
 }
 
-int main(void)
+int greet(void)
 {
 	int16_t origin_code;
 	int16_t test_code;

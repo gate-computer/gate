@@ -3,7 +3,7 @@ WAT2WASM	:= wat2wasm
 
 CPPFLAGS	+= -nostdlibinc -I../include
 CFLAGS		+= --target=wasm32-unknown-unknown -Os -fomit-frame-pointer -fno-inline -Wall -Wextra
-LDFLAGS		+= -nostdlib -Wl,--allow-undefined -Wl,--entry=__wasm_call_ctors -Wl,--export=main
+LDFLAGS		+= -nostdlib -Wl,--allow-undefined -Wl,--no-entry
 
 -include ../config.mk
 
@@ -16,7 +16,11 @@ all: $(patsubst %.c,%.wasm,$(wildcard *.c)) nop.wasm
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $*.o
 	chmod -x $@
 
-hello.wasm: LDFLAGS += -Wl,--export=twice -Wl,--export=multi -Wl,--export=fail -Wl,--export=test_plugin
+hello.wasm: LDFLAGS += -Wl,--export=greet -Wl,--export=twice -Wl,--export=multi -Wl,--export=fail -Wl,--export=test_plugin
+
+hello-debug.wasm: LDFLAGS += -Wl,--export=log
+
+suspend.wasm: LDFLAGS += -Wl,--export=loop
 
 nop.wasm: nop.wat
 	$(WAT2WASM) -o $@ nop.wat

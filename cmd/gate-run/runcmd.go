@@ -38,7 +38,6 @@ import (
 const (
 	DefaultMaxProcesses = 100
 	DefaultStackSize    = wa.PageSize
-	DefaultFunction     = "main"
 )
 
 type ProgramConfig struct {
@@ -87,7 +86,6 @@ func main() {
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Program.StackSize = DefaultStackSize
-	c.Function = DefaultFunction
 	c.Benchmark.Repeat = 1
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)

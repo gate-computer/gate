@@ -480,7 +480,7 @@ func TestModuleRef(t *testing.T) {
 
 	for _, spec := range [][2]string{
 		{"", ""},
-		{"main", "hello, world\n"},
+		{"greet", "hello, world\n"},
 		{"twice", "hello, world\nhello, world\n"},
 	} {
 		fn := spec[0]
@@ -785,7 +785,7 @@ func TestModuleSource(t *testing.T) {
 
 	for _, spec := range [][2]string{
 		{"", ""},
-		{"main", "hello, world\n"},
+		{"greet", "hello, world\n"},
 		{"twice", "hello, world\nhello, world\n"},
 	} {
 		fn := spec[0]
@@ -965,7 +965,7 @@ func TestInstanceDebug(t *testing.T) {
 	t.Run("Output", func(t *testing.T) {
 		debugOutput.Reset()
 
-		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&function=main&debug=output", nil)
+		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&function=log&debug=output", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusOK)
 
 		if s := resp.Header.Get(webapi.HeaderDebug); s != "out-putting" {
@@ -1051,7 +1051,7 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=main", wasmHello)
+			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=greet", wasmHello)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -1161,7 +1161,7 @@ func TestInstance(t *testing.T) {
 		var instID string
 
 		{
-			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=main&debug=log", wasmSuspend)
+			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=log", wasmSuspend)
 			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 

@@ -30,9 +30,8 @@ import (
 )
 
 const (
-	DefaultRef      = true
-	DefaultFunction = "main"
-	DefaultTLS      = true
+	DefaultRef = true
+	DefaultTLS = true
 )
 
 type Config struct {
@@ -81,7 +80,6 @@ func main() {
 	}
 
 	c.Ref = DefaultRef
-	c.Function = DefaultFunction
 	c.TLS = DefaultTLS
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)

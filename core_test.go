@@ -318,7 +318,7 @@ func TestRunNop(t *testing.T) {
 }
 
 func testRunHello(t *testing.T, debug io.Writer) {
-	output := runProgram(t, wasmHello, "main", debug)
+	output := runProgram(t, wasmHello, "greet", debug)
 	if s := output.String(); s != "hello, world\n" {
 		t.Errorf("%q", s)
 	}
@@ -334,7 +334,7 @@ func TestRunHelloNoDebug(t *testing.T) {
 
 func TestRunHelloDebug(t *testing.T) {
 	var debug bytes.Buffer
-	runProgram(t, wasmHelloDebug, "main", &debug)
+	runProgram(t, wasmHelloDebug, "log", &debug)
 	s := debug.String()
 	t.Logf("debug: %q", s)
 	if s != "hello…\nworld\n" {
@@ -343,7 +343,7 @@ func TestRunHelloDebug(t *testing.T) {
 }
 
 func TestRunHelloDebugNoDebug(t *testing.T) {
-	runProgram(t, wasmHelloDebug, "main", nil)
+	runProgram(t, wasmHelloDebug, "log", nil)
 }
 
 func TestRunSuspendMem(t *testing.T) {
@@ -361,7 +361,7 @@ func TestRunSuspendFS(t *testing.T) {
 func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine int32) {
 	ctx := context.Background()
 
-	executor, prog, inst, proc, codeMap, mod := startInstance(ctx, t, storage, wasmSuspend, "main", os.Stdout)
+	executor, prog, inst, proc, codeMap, mod := startInstance(ctx, t, storage, wasmSuspend, "loop", os.Stdout)
 	defer proc.Kill()
 	defer inst.Close()
 	defer prog.Close()
