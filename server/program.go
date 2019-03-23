@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	goruntime "runtime"
+	"sync"
 
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
@@ -68,6 +69,9 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 type program struct {
 	key   string
 	image *image.Program
+
+	storeLock sync.Mutex
+	stored    bool
 
 	// Protected by Server.lock:
 	refCount int
@@ -362,11 +366,6 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		}
 	}()
 
-	err = progImage.Store(key)
-	if err != nil {
-		return
-	}
-
 	inst, err = build.FinishInstance(entryIndex, entryAddr)
 	if err != nil {
 		return
@@ -420,6 +419,23 @@ func (prog *program) unref() {
 		prog.image = nil
 		goruntime.KeepAlive(prog)
 	}
+	return
+}
+
+func (prog *program) ensureStorage() (err error) {
+	prog.storeLock.Lock()
+	defer prog.storeLock.Unlock()
+
+	if prog.stored {
+		return
+	}
+
+	err = prog.image.Store(prog.key)
+	if err != nil {
+		return
+	}
+
+	prog.stored = true
 	return
 }
 

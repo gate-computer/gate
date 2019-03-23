@@ -255,7 +255,17 @@ func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPol
 		return
 	}
 
-	s.registerProgramRef(acc, prog)
+	if acc != nil {
+		err = prog.ensureStorage()
+		if err != nil {
+			return
+		}
+	}
+
+	_, err = s.registerProgramRef(acc, prog)
+	if err != nil {
+		return
+	}
 
 	s.Monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
@@ -269,6 +279,18 @@ func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progP
 	prog, _, err := buildProgram(s.ImageStorage, &pol.prog, nil, allegedHash, content, contentSize, "")
 	if err != nil {
 		return
+	}
+	defer func() {
+		if err != nil {
+			prog.unref()
+		}
+	}()
+
+	if acc != nil {
+		err = prog.ensureStorage()
+		if err != nil {
+			return
+		}
 	}
 
 	redundant, err := s.registerProgramRef(acc, prog)
@@ -498,6 +520,11 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 		return
 	}
 
+	err = prog.ensureStorage()
+	if err != nil {
+		return
+	}
+
 	instImage, err := image.NewInstance(prog.image, pol.inst.StackSize, entryIndex, entryAddr)
 	if err != nil {
 		return
@@ -535,9 +562,14 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	defer func() {
 		if err != nil {
 			instImage.Close()
-			s.unrefProgram(prog)
+			prog.unref()
 		}
 	}()
+
+	err = prog.ensureStorage()
+	if err != nil {
+		return
+	}
 
 	inst, redundant, err := s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, function, instID, debug)
 	if err != nil {
@@ -929,7 +961,10 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 		return
 	}
 
-	s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage))
+	_, err = s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage))
+	if err != nil {
+		return
+	}
 
 	s.Monitor(&event.InstanceSnapshot{
 		Ctx:      Context(ctx, pri),
