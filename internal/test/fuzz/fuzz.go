@@ -30,7 +30,7 @@ func init() {
 func Fuzz(data []byte) int {
 	ctx := context.Background()
 
-	inst, err := s.UploadModuleInstance(ctx, nil, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), fuzzutil.Function, "", "")
+	inst, err := s.UploadModuleInstance(ctx, nil, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), false, fuzzutil.Function, "", "")
 	if err != nil {
 		if fuzzutil.IsFine(err) {
 			return 1

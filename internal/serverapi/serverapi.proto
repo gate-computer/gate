@@ -23,14 +23,13 @@ message Status {
 		running = 1;
 		suspended = 2;
 		terminated = 3;
+		killed = 4;
 	}
 
 	enum Cause {
-		// Traps:
+		DEFAULT = 0; // Suspended, terminated (exit trap), or killed.
 
-		natural = 0; // exit or suspended
 		no_function = 1;
-		// "suspended" trap id is replaced with "natural"
 		unreachable = 3;
 		call_stack_exhausted = 4;
 		memory_access_out_of_bounds = 5;
@@ -38,8 +37,6 @@ message Status {
 		indirect_call_signature_mismatch = 7;
 		integer_divide_by_zero = 8;
 		integer_overflow = 9;
-
-		// Other:
 
 		abi_violation = 65;
 	}

@@ -683,7 +683,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		pri = mustParseAuthorizationHeader(ctx, wr, s, ref)
 		progHash = key
 
-		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, false, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
 			return
@@ -693,7 +693,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		pri = mustParseAuthorizationHeader(ctx, wr, s, true)
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, pri, key, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, pri, key, false, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
 			return
@@ -702,17 +702,14 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	default:
 		pri = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, false, function, "", debug)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, wr, s, pri, key, "", function, "", err)
 			return
 		}
 	}
-
-	if pri == nil {
-		defer inst.Kill(s.Server)
-	}
+	defer inst.Kill(s.Server)
 
 	w.Header().Set("Trailer", webapi.HeaderStatus)
 
@@ -830,7 +827,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			return
 		}
 
-		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, ioutil.NopCloser(frame), r.ContentLength, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, ioutil.NopCloser(frame), r.ContentLength, false, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, w, s, pri, "", key, function, "", err)
 			return
@@ -840,7 +837,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		pri = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, pri, key, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, pri, key, false, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, w, s, pri, "", key, function, "", err)
 			return
@@ -849,17 +846,14 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		pri = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, false, function, "", debug)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, w, s, pri, key, "", function, "", err)
 			return
 		}
 	}
-
-	if pri == nil {
-		defer inst.Kill(s.Server)
-	}
+	defer inst.Kill(s.Server)
 
 	var reply webapi.CallConnection
 
@@ -910,13 +904,13 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	if source == nil {
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, pri, key, function, instID, debug)
+		inst, err = s.Server.CreateInstance(ctx, pri, key, true, function, instID, debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
 			return
 		}
 	} else {
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, function, instID, debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, true, function, instID, debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, pri, key, "", function, "", err)
 			return
@@ -944,7 +938,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-	inst, err := s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, function, instID, debug)
+	inst, err := s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, true, function, instID, debug)
 	if err != nil {
 		respondServerError(ctx, wr, s, pri, "", key, function, "", err)
 		return

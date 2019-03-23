@@ -6,6 +6,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 
@@ -36,6 +37,11 @@ func validateInstanceID(s string) error {
 	return failrequest.New(event.FailRequest_InstanceIdInvalid, "instance id must be an RFC 4122 UUID version 4")
 }
 
+func instanceStorageKey(acc *account, instID string) string {
+	// The delimiter must be suitable for URL-safe base64 and UUID.
+	return fmt.Sprintf("%s.%s", acc.PrincipalID, instID)
+}
+
 type Status = serverapi.Status
 type InstanceStatus = serverapi.InstanceStatus
 type Instances []InstanceStatus
@@ -48,6 +54,7 @@ type Instance struct {
 	acc      *account
 	id       string
 	prog     *program
+	persist  bool
 	function string
 	lock     sync.Mutex
 	status   Status
@@ -60,11 +67,12 @@ type Instance struct {
 }
 
 // newInstance steals program reference, instance image, process and services.
-func newInstance(acc *account, id string, prog *program, function string, image *image.Instance, proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) *Instance {
+func newInstance(acc *account, id string, prog *program, persist bool, function string, image *image.Instance, proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) *Instance {
 	return &Instance{
 		acc:      acc,
 		id:       id,
 		prog:     prog,
+		persist:  persist,
 		function: function,
 		status: Status{
 			State: serverapi.Status_running,
@@ -124,6 +132,7 @@ func (inst *Instance) Kill(s *Server) {
 
 	inst.killProcess()
 
+	inst.image.Unstore()
 	inst.image.Close()
 	inst.image = nil
 
@@ -195,7 +204,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 
 		switch err.(type) {
 		case badprogram.Error:
-			result.State = serverapi.Status_terminated
+			result.State = serverapi.Status_killed
 			result.Cause = serverapi.Status_abi_violation
 
 			reportProgramError(ctx, s, inst.acc, inst.prog.key, inst.function, inst.id, err)
@@ -207,9 +216,28 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 		return
 	}
 
+	if inst.persist {
+		err = inst.prog.ensureStorage()
+		if err == nil {
+			_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.id), inst.prog.image)
+		}
+		if err != nil {
+			if x, ok := err.(public.Error); ok {
+				result.Error = x.PublicError()
+			}
+
+			reportInternalError(ctx, s, inst.acc, inst.prog.key, inst.function, inst.id, "", err)
+			return
+		}
+	}
+
 	switch trapID {
 	case trap.Suspended:
 		result.State = serverapi.Status_suspended
+
+	case trap.CallStackExhausted:
+		result.State = serverapi.Status_suspended
+		result.Cause = serverapi.Status_Cause(trapID)
 
 	default:
 		result.State = serverapi.Status_terminated

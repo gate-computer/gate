@@ -132,6 +132,32 @@ func (inst *Instance) Store(name string, prog *Program) (man manifest.Instance, 
 	return
 }
 
+func (inst *Instance) Unstore() (err error) {
+	if inst.name == "" {
+		return
+	}
+
+	dir := inst.dir
+	name := inst.name
+	inst.dir = nil
+	inst.name = ""
+
+	err = unlinkat(dir.Fd(), name)
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = fdatasync(dir.Fd())
+		}
+		return
+	}
+
+	err = fdatasync(dir.Fd())
+	if err != nil {
+		return
+	}
+
+	return
+}
+
 func (inst *Instance) Close() (err error) {
 	err = inst.file.Close()
 	inst.file = nil
@@ -157,24 +183,9 @@ func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintp
 		return
 	}
 
-	if inst.name != "" {
-		dir := inst.dir
-		name := inst.name
-		inst.dir = nil
-		inst.name = ""
-
-		err = unlinkat(dir.Fd(), name)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return
-			}
-			err = nil
-		}
-
-		err = fdatasync(dir.Fd())
-		if err != nil {
-			return
-		}
+	err = inst.Unstore()
+	if err != nil {
+		return
 	}
 
 	inst.man.TextAddr = textAddr
