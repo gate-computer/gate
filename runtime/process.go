@@ -28,8 +28,8 @@ const imageInfoSize = 72
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
 	MagicNumber1   uint16
+	_              uint8
 	InitRoutine    uint8
-	RandomGlobal   int8
 	PageSize       uint32
 	TextAddr       uint64
 	StackAddr      uint64
@@ -48,7 +48,7 @@ type imageInfo struct {
 type ProgramCode interface {
 	PageSize() int
 	TextSize() int
-	RandomGlobal() int8
+	RandomSeed() bool
 	Text() (interface{ Fd() uintptr }, error)
 }
 
@@ -127,9 +127,7 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 // This function must be called before Serve, and must not be called after
 // Kill.
 func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Writer) (err error) {
-	randGlobal := code.RandomGlobal()
-	textAddr := state.TextAddr()
-	textAddr, heapAddr, stackAddr, randVal, err := getRand(textAddr, randGlobal != 0)
+	textAddr, heapAddr, stackAddr, randValue, err := getRand(state.TextAddr(), code.RandomSeed())
 	if err != nil {
 		return
 	}
@@ -137,12 +135,11 @@ func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Wri
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
 		InitRoutine:    state.InitRoutine(),
-		RandomGlobal:   randGlobal,
 		PageSize:       uint32(code.PageSize()),
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
 		HeapAddr:       heapAddr,
-		RandomValue:    randVal,
+		RandomValue:    randValue,
 		TextSize:       uint32(code.TextSize()),
 		StackSize:      uint32(state.StackSize()),
 		StackUnused:    uint32(state.StackSize() - state.StackUsage()),
@@ -326,13 +323,13 @@ func (p *Process) killWait() (syscall.WaitStatus, error) {
 	return p.execution.killWait()
 }
 
-func getRand(fixedTextAddr uint64, needRandVal bool,
-) (textAddr, heapAddr, stackAddr, randVal uint64, err error) {
+func getRand(fixedTextAddr uint64, needValue bool,
+) (textAddr, heapAddr, stackAddr, randValue uint64, err error) {
 	n := 4 + 4
 	if fixedTextAddr == 0 {
 		n += 4
 	}
-	if needRandVal {
+	if needValue {
 		n += 8
 	}
 
@@ -355,8 +352,8 @@ func getRand(fixedTextAddr uint64, needRandVal bool,
 		b = b[4:]
 	}
 
-	if needRandVal {
-		randVal = binary.LittleEndian.Uint64(b)
+	if needValue {
+		randValue = binary.LittleEndian.Uint64(b)
 		b = b[8:]
 	}
 

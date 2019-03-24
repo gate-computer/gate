@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	wasmNop        = readFile("testdata/nop.wasm")
 	wasmHello      = readFile("testdata/hello.wasm")
 	wasmHelloDebug = readFile("testdata/hello-debug.wasm")
+	wasmNop        = readFile("testdata/nop.wasm")
+	wasmRandomSeed = readFile("testdata/randomseed.wasm")
 	wasmSuspend    = readFile("testdata/suspend.wasm")
 )
 

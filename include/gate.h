@@ -89,6 +89,7 @@ void __gate_debug(const void *data, size_t len) GATE_NOEXCEPT;
 void __gate_debug_type_not_supported(void); // No implementation.
 GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
 void __GATE_IO(void *GATE_RESTRICT recv, size_t *GATE_RESTRICT recvlen, const void *GATE_RESTRICT send, size_t *GATE_RESTRICT sendlen, unsigned flags) GATE_NOEXCEPT;
+uint64_t __gate_randomseed(void) GATE_NOEXCEPT;
 
 static inline void __gate_debug_str(const char *s) GATE_NOEXCEPT
 {
@@ -106,7 +107,7 @@ static inline void __gate_debug_hex(uint64_t n) GATE_NOEXCEPT
 	int i = sizeof buf;
 
 	do {
-		int m = n & 3;
+		int m = n & 15;
 		char c;
 		if (m < 10)
 			c = '0' + m;
@@ -317,6 +318,11 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 static inline void gate_io(void *GATE_RESTRICT recv, size_t *GATE_RESTRICT recvlen, const void *GATE_RESTRICT send, size_t *GATE_RESTRICT sendlen, unsigned flags) GATE_NOEXCEPT
 {
 	__GATE_IO(recv, recvlen, send, sendlen, flags);
+}
+
+static inline uint64_t gate_randomseed(void) GATE_NOEXCEPT
+{
+	return __gate_randomseed();
 }
 
 #ifdef __cplusplus

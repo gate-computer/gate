@@ -15,34 +15,41 @@ const (
 )
 
 type function struct {
-	index int
-	sig   wa.FuncType
+	index  int
+	sig    wa.FuncType
+	random bool
 }
 
 // Mirrors the vector initialization in runtime/loader/loader.c
 var moduleFunctions = map[string]map[string]function{
 	"gate": {
-		"debug":    {-6, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}},
-		"exit":     {-5, wa.FuncType{Params: []wa.Type{wa.I32}}},
-		"io.65536": {-4, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}},
+		"debug":      {-7, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}, false},
+		"exit":       {-6, wa.FuncType{Params: []wa.Type{wa.I32}}, false},
+		"io.65536":   {-5, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}, false},
+		"randomseed": {-4, wa.FuncType{Result: wa.I64}, true},
 	},
 	"env": {
-		"__gate_debug":    {-6, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}},
-		"__gate_exit":     {-5, wa.FuncType{Params: []wa.Type{wa.I32}}},
-		"__gate_io_65536": {-4, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}},
+		"__gate_debug":      {-7, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}, false},
+		"__gate_exit":       {-6, wa.FuncType{Params: []wa.Type{wa.I32}}, false},
+		"__gate_io_65536":   {-5, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}, false},
+		"__gate_randomseed": {-4, wa.FuncType{Result: wa.I64}, true},
 	},
 }
 
 type ImportResolver struct {
-	random bool
+	RandomSeed bool
 }
 
-func (*ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, err error) {
+func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, err error) {
 	if functions, found := moduleFunctions[module]; found {
 		if f, found := functions[field]; found {
 			if !f.sig.Equal(sig) {
 				err = badprogram.Errorf("function %s.%s %s imported with wrong signature %s", module, field, f.sig, sig)
 				return
+			}
+
+			if f.random {
+				ir.RandomSeed = true
 			}
 
 			index = f.index
@@ -54,23 +61,7 @@ func (*ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (index
 	return
 }
 
-func (ir *ImportResolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
-	if module == "gate" && field == "random.8" && t == wa.I64 {
-		ir.random = true
-		// Value will be initialized separately for each instance.
-		return
-	}
-
+func (*ImportResolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
 	err = badprogram.Errorf("import global not supported: %q %q %s", module, field, t)
-	return
-}
-
-func (ir *ImportResolver) RandomGlobal() (index int, imported bool) {
-	if ir.random {
-		// Imports precede other globals and this is the only one we support,
-		// so it's always first.
-		index = -1
-		imported = true
-	}
 	return
 }

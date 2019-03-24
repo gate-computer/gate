@@ -354,9 +354,7 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		EntryAddrs:      entryAddrs,
 		CallSitesSize:   uint32(b.prog.callSitesSize()),
 		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
-	}
-	if index, imported := b.imports.RandomGlobal(); imported {
-		man.RandomGlobal = int32(index) // Index is nonzero by internal contract.
+		RandomSeed:      b.imports.RandomSeed,
 	}
 
 	b.stack = nil

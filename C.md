@@ -59,13 +59,13 @@ GATE_SERVICE_STATE_AVAIL
 #### Functions
 
 ```c
-void gate_debug(arg)
-void gate_debug1(arg)
-void gate_debug2(arg, arg)
-void gate_debug3(arg, arg, arg)
-void gate_debug4(arg, arg, arg, arg)
-void gate_debug5(arg, arg, arg, arg, arg)
-void gate_debug6(arg, arg, arg, arg, arg, arg)
+void gate_debug(arg);
+void gate_debug1(arg);
+void gate_debug2(arg, arg);
+void gate_debug3(arg, arg, arg);
+void gate_debug4(arg, arg, arg, arg);
+void gate_debug5(arg, arg, arg, arg, arg);
+void gate_debug6(arg, arg, arg, arg, arg, arg);
 ```
 > Write to the debug log if enabled by runtime and `NDEBUG` wasn't defined
 > during compilation.  The arguments can be integers, strings or void-pointers.
@@ -73,16 +73,16 @@ void gate_debug6(arg, arg, arg, arg, arg, arg)
 
 
 ```c
-void gate_debug_int(int64_t n)
-void gate_debug_uint(uint64_t n)
+void gate_debug_int(int64_t n);
+void gate_debug_uint(uint64_t n);
 ```
 > Write a decimal number to the debug log if enabled by runtime and `NDEBUG`
 > wasn't defined during compilation.
 
 
 ```c
-void gate_debug_hex(uint64_t n)
-void gate_debug_ptr(const void *ptr)
+void gate_debug_hex(uint64_t n);
+void gate_debug_ptr(const void *ptr);
 ```
 > Write a hexadecimal number to the debug log if enabled by runtime and
 > `NDEBUG` wasn't defined during compilation.  The "ptr" variant writes "0x"
@@ -90,24 +90,26 @@ void gate_debug_ptr(const void *ptr)
 
 
 ```c
-void gate_debug_str(const char *s)
-void gate_debug_data(const char *data, size_t size)
+void gate_debug_str(const char *s);
+void gate_debug_data(const char *data, size_t size);
 ```
 > Write a UTF-8 string to the debug log if enabled by runtime and `NDEBUG`
 > wasn't defined during compilation.
 
 
 ```c
-void gate_exit(int status)
+void gate_exit(int status);
 ```
 > Terminate the program.  Status 0 indicates success and 1 indicates failure.
 > Other values are interpreted as 1.
 
 
 ```c
-void gate_io(void * restrict recv_buffer, size_t * restrict recv_length,
-             const void * restrict send_buffer, size_t * restrict send_length,
-			 unsigned io_flags)
+void gate_io(void * restrict recv_buffer,
+             size_t * restrict recv_length,
+             const void * restrict send_buffer,
+             size_t * restrict send_length,
+             unsigned io_flags);
 ```
 > Receive and/or send packet data.
 >
@@ -124,6 +126,13 @@ void gate_io(void * restrict recv_buffer, size_t * restrict recv_length,
 > without receive is not supported.
 
 
+```c
+uint64_t gate_randomseed();
+```
+> Return a cryptographically secure pseudorandom number.  If called multiple
+> times, a different number may or may not be returned.
+
+
 
 #### Packet header
 
@@ -132,7 +141,7 @@ struct gate_packet {
 	uint32_t size;
 	int16_t code;
 	uint8_t domain;
-}
+};
 ```
 > The size includes the header and the trailing contents.
 >
@@ -158,7 +167,7 @@ struct gate_service_name_packet {
 	struct gate_packet header;
 	uint16_t count;
 	char names[0]; // Variable length.
-}
+};
 ```
 > Service discovery request, sent with the `GATE_PACKET_CODE_SERVICES` code.
 > *count* indicates how many nul-terminated service names are concatenated in
@@ -176,7 +185,7 @@ struct gate_service_state_packet {
 	struct gate_packet header;
 	uint16_t count;
 	uint8_t states[0]; // Variable length.
-}
+};
 ```
 > Service discovery response or state change notification, received with
 > `GATE_PACKET_CODE_SERVICES` code.   *count* is the total number of discovered
@@ -206,7 +215,7 @@ flow control and don't generate packets before permitted by the program.
 struct gate_flow_packet {
 	struct gate_packet header;
 	struct gate_flow flows[0]; // Variable length.
-}
+};
 ```
 > Reception capacity notification for one or more streams.  All streams belong
 > to the service identified by the code in the packet header.
@@ -216,7 +225,7 @@ struct gate_flow_packet {
 struct gate_flow {
 	int32_t id;
 	uint32_t increment;
-}
+};
 ```
 > Indicates that the reception capacity of the stream identified by *id* has
 > increased by *increment* bytes.
@@ -227,7 +236,7 @@ struct gate_data_packet {
 	struct gate_packet header;
 	int32_t id;
 	char data[0]; // Variable length.
-}
+};
 ```
 > Data transfer for the stream identified by *id*, which belongs to the service
 > identified by the code in the packet header.  The length of *data* is

@@ -40,6 +40,7 @@ extern code gate_debug;
 extern code gate_exit;
 extern code gate_io;
 extern code gate_nop;
+extern code gate_randomseed;
 extern code grow_memory;
 extern code retpoline;
 extern code runtime_code_begin;
@@ -99,8 +100,8 @@ static int sys_setrlimit(int resource, rlim_t limit)
 // This is like imageInfo in runtime/process.go
 struct image_info {
 	uint16_t magic_number_1;
+	uint8_t reserved;
 	uint8_t init_routine;
-	int8_t random_global;
 	uint32_t page_size;
 	uint64_t text_addr;
 	uint64_t stack_addr;
@@ -225,9 +226,11 @@ int main(void)
 	code *debug_func = debug_flag ? &gate_debug : &gate_nop;
 
 	// These assignments reflect the moduleFunctions map in runtime/abi/abi.go
-	*(vector_end - 6) = runtime_func_addr(runtime_ptr, debug_func);
-	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &gate_exit);
-	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_io);
+	*(vector_end - 8) = info.random_value;
+	*(vector_end - 7) = runtime_func_addr(runtime_ptr, debug_func);
+	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &gate_exit);
+	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &gate_io);
+	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_randomseed);
 	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
 	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
 	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
@@ -282,11 +285,6 @@ int main(void)
 
 	if (sys_close(state_fd) != 0)
 		return ERR_LOAD_CLOSE_STATE;
-
-	// Initialize imported random field.
-
-	if (info.random_global < 0)
-		*((uint64_t *) memory_ptr + info.random_global) = info.random_value;
 
 	// Enable I/O signals for sending file descriptor.
 

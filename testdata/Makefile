@@ -20,6 +20,8 @@ hello.wasm: LDFLAGS += -Wl,--export=greet -Wl,--export=twice -Wl,--export=multi 
 
 hello-debug.wasm: LDFLAGS += -Wl,--export=log
 
+randomseed.wasm: LDFLAGS += -Wl,--export=check
+
 suspend.wasm: LDFLAGS += -Wl,--export=loop
 
 nop.wasm: nop.wat

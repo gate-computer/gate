@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -291,7 +292,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer) (output bytes.Buffer) {
 	ctx := context.Background()
 
-	executor, prog, inst, proc, _, _ := startInstance(ctx, t, image.Memory, wasm, function, debug)
+	executor, prog, inst, proc, insnMap, mod := startInstance(ctx, t, image.Memory, wasm, function, debug)
 	defer proc.Kill()
 	defer inst.Close()
 	defer prog.Close()
@@ -302,6 +303,13 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer) (ou
 		t.Errorf("run error: %v", err)
 	} else if trapID != 0 {
 		t.Errorf("run %v", trapID)
+		trace, err := inst.Stacktrace(&insnMap, mod.FuncTypes())
+		if err == nil {
+			err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
+		}
+		if err != nil {
+			t.Errorf("stacktrace: %v", err)
+		}
 	} else if exit != 0 {
 		t.Errorf("run exit: %d", exit)
 	}
@@ -399,6 +407,28 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine int32
 
 		if len(trace) > 0 {
 			stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
+		}
+	}
+}
+
+func TestRandomSeed(t *testing.T) {
+	values := make([]uint64, 10)
+
+	for i := 0; i < len(values); i++ {
+		var debug bytes.Buffer
+		runProgram(t, wasmRandomSeed, "check", &debug)
+		n, err := strconv.ParseUint(debug.String(), 16, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		values[i] = n
+	}
+
+	for i := 0; i < len(values); i++ {
+		for j := 0; j < len(values); j++ {
+			if i != j && values[i] == values[j] {
+				t.Fatal(values[i])
+			}
 		}
 	}
 }

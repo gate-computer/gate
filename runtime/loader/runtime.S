@@ -471,6 +471,17 @@ gate_io:
 	jmp	trap_handler
 
 .align	16,INT3
+.globl	gate_randomseed
+.type	gate_randomseed,@function
+
+gate_randomseed:
+	test	$1, %ebx
+	jne	.Lsuspended
+
+	mov	-8*8(%r15), %rax
+	jmp	.Lresume
+
+.align	16,INT3
 .globl	gate_nop
 .type	gate_nop,@function
 

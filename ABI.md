@@ -42,14 +42,11 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 > receive is not supported.
 
 
-### Globals
-
 ```wasm
-(import "gate" "random.8" (type i64))
+(import "gate" "randomseed" (func (result i64)))
 ```
-> A cryptographically secure pseudorandom number.
->
-> It may change during the execution of a program.
+> Return a cryptographically secure pseudorandom number.  If called multiple
+> times, a different number may or may not be returned.
 
 
 ### Packets
