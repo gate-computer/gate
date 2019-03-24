@@ -1216,7 +1216,7 @@ func TestInstance(t *testing.T) {
 				}
 			}
 
-			if _, err := wag.Compile(nil, bytes.NewReader(snapshot), abi.Imports); err != nil {
+			if _, err := wag.Compile(nil, bytes.NewReader(snapshot), new(abi.ImportResolver)); err != nil {
 				t.Error(err)
 			}
 		})

@@ -26,6 +26,7 @@ func (prog *Program) Manifest() manifest.Program { return prog.man }
 func (prog *Program) PageSize() int              { return internal.PageSize }
 func (prog *Program) TextSize() int              { return alignPageSize32(prog.man.TextSize) }
 func (prog *Program) ModuleSize() int64          { return prog.man.ModuleSize }
+func (prog *Program) RandomGlobal() int8         { return int8(prog.man.RandomGlobal) }
 
 // Text file handle is valid until the next Program method call.
 func (prog *Program) Text() (file interface{ Fd() uintptr }, err error) {

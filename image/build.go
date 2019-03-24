@@ -17,9 +17,10 @@ import (
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
+	runtimeabi "github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/wag/buffer"
 	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/object/abi"
+	objectabi "github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/wa"
 )
 
@@ -112,6 +113,7 @@ type Build struct {
 	storage       Storage
 	prog          programBuild
 	inst          instanceBuild
+	imports       runtimeabi.ImportResolver
 	compileMem    []byte
 	initRoutine   uint8
 	textAddr      uint64
@@ -134,7 +136,7 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 		inst: instanceBuild{
 			enabled: instance,
 		},
-		initRoutine: abi.TextAddrStart,
+		initRoutine: objectabi.TextAddrStart,
 	}
 
 	b.prog.file, err = b.storage.newProgramFile()
@@ -173,6 +175,13 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 // FinishProgram is called.
 func (b *Build) ModuleWriter() io.Writer {
 	return &b.prog.module
+}
+
+func (b *Build) ImportResolver() interface {
+	ResolveFunc(module, field string, sig wa.FuncType) (index int, err error)
+	ResolveGlobal(module, field string, t wa.Type) (value uint64, err error)
+} {
+	return &b.imports
 }
 
 // TextBuffer is valid after NewBuild.  It must be populated before FinishText
@@ -273,7 +282,7 @@ func (b *Build) ReadStack(r io.Reader, types []wa.FuncType, funcTypeIndexes []ui
 		return
 	}
 
-	b.initRoutine = abi.TextAddrResume
+	b.initRoutine = objectabi.TextAddrResume
 	b.textAddr = textAddr
 	b.stackUsage = len(b.stack)
 	return
@@ -345,6 +354,9 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		EntryAddrs:      entryAddrs,
 		CallSitesSize:   uint32(b.prog.callSitesSize()),
 		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
+	}
+	if index, imported := b.imports.RandomGlobal(); imported {
+		man.RandomGlobal = int32(index) // Index is nonzero by internal contract.
 	}
 
 	b.stack = nil

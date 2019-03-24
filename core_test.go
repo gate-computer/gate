@@ -20,7 +20,6 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
-	runtimeabi "github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
@@ -173,12 +172,12 @@ func prepareBuild(exec *executor, storage image.Storage, r compile.Reader, modul
 		panic(err)
 	}
 
-	if err := binding.BindImports(&mod, runtimeabi.Imports); err != nil {
+	build, err = image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
+	if err != nil {
 		panic(err)
 	}
 
-	build, err = image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
-	if err != nil {
+	if err := binding.BindImports(&mod, build.ImportResolver()); err != nil {
 		panic(err)
 	}
 

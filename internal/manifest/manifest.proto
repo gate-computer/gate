@@ -27,10 +27,11 @@ message Program {
 	ByteRange buffer_section = 13;
 	ByteRange stack_section = 14;
 	bytes global_types = 15;                // Limited by wag's maxGlobals check.
-	map<string, uint32> entry_indexes = 16; // Limited by func name len and wag's maxExports check.
-	map<uint32, uint32> entry_addrs = 17;
-	uint32 call_sites_size = 18;
-	uint32 func_addrs_size = 19;
+	sint32 random_global = 16;              // Global index as negative offset.
+	map<string, uint32> entry_indexes = 17; // Limited by func name len and wag's maxExports check.
+	map<uint32, uint32> entry_addrs = 18;
+	uint32 call_sites_size = 19;
+	uint32 func_addrs_size = 20;
 }
 
 message Instance {

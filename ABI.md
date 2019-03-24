@@ -42,6 +42,16 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 > receive is not supported.
 
 
+### Globals
+
+```wasm
+(import "gate" "random.8" (type i64))
+```
+> A cryptographically secure pseudorandom number.
+>
+> It may change during the execution of a program.
+
+
 ### Packets
 
 The I/O function exchanges packets with the runtime.  Packets have a 8-byte

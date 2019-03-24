@@ -23,17 +23,18 @@ import (
 	"github.com/tsavola/wag/trap"
 )
 
-const imageInfoSize = 64
+const imageInfoSize = 72
 
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
 	MagicNumber1   uint16
-	_              uint8
 	InitRoutine    uint8
+	RandomGlobal   int8
 	PageSize       uint32
 	TextAddr       uint64
 	StackAddr      uint64
 	HeapAddr       uint64
+	RandomValue    uint64
 	TextSize       uint32
 	StackSize      uint32
 	StackUnused    uint32
@@ -47,6 +48,7 @@ type imageInfo struct {
 type ProgramCode interface {
 	PageSize() int
 	TextSize() int
+	RandomGlobal() int8
 	Text() (interface{ Fd() uintptr }, error)
 }
 
@@ -125,7 +127,9 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 // This function must be called before Serve, and must not be called after
 // Kill.
 func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Writer) (err error) {
-	textAddr, heapAddr, stackAddr, err := generateRandAddrs(state.TextAddr())
+	randGlobal := code.RandomGlobal()
+	textAddr := state.TextAddr()
+	textAddr, heapAddr, stackAddr, randVal, err := getRand(textAddr, randGlobal != 0)
 	if err != nil {
 		return
 	}
@@ -133,10 +137,12 @@ func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Wri
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
 		InitRoutine:    state.InitRoutine(),
+		RandomGlobal:   randGlobal,
 		PageSize:       uint32(code.PageSize()),
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
 		HeapAddr:       heapAddr,
+		RandomValue:    randVal,
 		TextSize:       uint32(code.TextSize()),
 		StackSize:      uint32(state.StackSize()),
 		StackUnused:    uint32(state.StackSize() - state.StackUsage()),
@@ -320,27 +326,40 @@ func (p *Process) killWait() (syscall.WaitStatus, error) {
 	return p.execution.killWait()
 }
 
-func generateRandAddrs(fixedTextAddr uint64) (textAddr, heapAddr, stackAddr uint64, err error) {
-	b := make([]byte, 12)
-
-	if fixedTextAddr != 0 {
-		_, err = rand.Read(b[:8])
-		if err != nil {
-			return
-		}
-
-		textAddr = fixedTextAddr
-	} else {
-		_, err = rand.Read(b[:12])
-		if err != nil {
-			return
-		}
-
-		textAddr = executable.RandAddr(executable.MinTextAddr, executable.MaxTextAddr, b[8:])
+func getRand(fixedTextAddr uint64, needRandVal bool,
+) (textAddr, heapAddr, stackAddr, randVal uint64, err error) {
+	n := 4 + 4
+	if fixedTextAddr == 0 {
+		n += 4
+	}
+	if needRandVal {
+		n += 8
 	}
 
-	heapAddr = executable.RandAddr(executable.MinHeapAddr, executable.MaxHeapAddr, b[4:])
-	stackAddr = executable.RandAddr(executable.MinStackAddr, executable.MaxStackAddr, b[0:])
+	b := make([]byte, n)
+	_, err = rand.Read(b)
+	if err != nil {
+		return
+	}
+
+	heapAddr = executable.RandAddr(executable.MinHeapAddr, executable.MaxHeapAddr, b)
+	b = b[4:]
+
+	stackAddr = executable.RandAddr(executable.MinStackAddr, executable.MaxStackAddr, b)
+	b = b[4:]
+
+	if fixedTextAddr != 0 {
+		textAddr = fixedTextAddr
+	} else {
+		textAddr = executable.RandAddr(executable.MinTextAddr, executable.MaxTextAddr, b)
+		b = b[4:]
+	}
+
+	if needRandVal {
+		randVal = binary.LittleEndian.Uint64(b)
+		b = b[8:]
+	}
+
 	return
 }
 

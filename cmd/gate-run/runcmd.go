@@ -22,7 +22,6 @@ import (
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
@@ -324,7 +323,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	err = binding.BindImports(&mod, abi.Imports)
+	err = binding.BindImports(&mod, build.ImportResolver())
 	if err != nil {
 		return
 	}

@@ -33,11 +33,11 @@ var moduleFunctions = map[string]map[string]function{
 	},
 }
 
-var Imports resolver
+type ImportResolver struct {
+	random bool
+}
 
-type resolver struct{}
-
-func (resolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, err error) {
+func (*ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, err error) {
 	if functions, found := moduleFunctions[module]; found {
 		if f, found := functions[field]; found {
 			if !f.sig.Equal(sig) {
@@ -54,7 +54,23 @@ func (resolver) ResolveFunc(module, field string, sig wa.FuncType) (index int, e
 	return
 }
 
-func (resolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
+func (ir *ImportResolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
+	if module == "gate" && field == "random.8" && t == wa.I64 {
+		ir.random = true
+		// Value will be initialized separately for each instance.
+		return
+	}
+
 	err = badprogram.Errorf("import global not supported: %q %q %s", module, field, t)
+	return
+}
+
+func (ir *ImportResolver) RandomGlobal() (index int, imported bool) {
+	if ir.random {
+		// Imports precede other globals and this is the only one we support,
+		// so it's always first.
+		index = -1
+		imported = true
+	}
 	return
 }

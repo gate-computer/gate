@@ -99,12 +99,13 @@ static int sys_setrlimit(int resource, rlim_t limit)
 // This is like imageInfo in runtime/process.go
 struct image_info {
 	uint16_t magic_number_1;
-	uint8_t reserved;
 	uint8_t init_routine;
+	int8_t random_global;
 	uint32_t page_size;
 	uint64_t text_addr;
 	uint64_t stack_addr;
 	uint64_t heap_addr;
+	uint64_t random_value;
 	uint32_t text_size;
 	uint32_t stack_size;
 	uint32_t stack_unused;
@@ -281,6 +282,11 @@ int main(void)
 
 	if (sys_close(state_fd) != 0)
 		return ERR_LOAD_CLOSE_STATE;
+
+	// Initialize imported random field.
+
+	if (info.random_global < 0)
+		*((uint64_t *) memory_ptr + info.random_global) = info.random_value;
 
 	// Enable I/O signals for sending file descriptor.
 

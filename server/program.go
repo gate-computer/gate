@@ -21,7 +21,6 @@ import (
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
-	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/snapshot"
@@ -149,7 +148,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		}
 	}
 
-	err = binding.BindImports(&module, abi.Imports)
+	err = binding.BindImports(&module, build.ImportResolver())
 	if err != nil {
 		return
 	}
