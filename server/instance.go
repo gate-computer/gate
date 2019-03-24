@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/tsavola/gate/image"
@@ -61,13 +62,14 @@ type Instance struct {
 	image    *image.Instance
 	buffers  snapshot.Buffers
 	process  *runtime.Process
+	timeReso time.Duration
 	services InstanceServices
 	debug    io.WriteCloser
 	stopped  chan struct{}
 }
 
 // newInstance steals program reference, instance image, process and services.
-func newInstance(acc *account, id string, prog *program, persist bool, function string, image *image.Instance, proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) *Instance {
+func newInstance(acc *account, id string, prog *program, persist bool, function string, image *image.Instance, proc *runtime.Process, timeReso time.Duration, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) *Instance {
 	return &Instance{
 		acc:      acc,
 		id:       id,
@@ -80,6 +82,7 @@ func newInstance(acc *account, id string, prog *program, persist bool, function 
 		},
 		image:    image,
 		process:  proc,
+		timeReso: timeReso,
 		services: services,
 		debug:    debugOutput,
 		stopped:  make(chan struct{}),
@@ -87,12 +90,13 @@ func newInstance(acc *account, id string, prog *program, persist bool, function 
 }
 
 // renew must be called with Instance.lock held.
-func (inst *Instance) renew(proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) {
+func (inst *Instance) renew(proc *runtime.Process, timeReso time.Duration, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) {
 	inst.status = serverapi.Status{
 		State: serverapi.Status_running,
 		Debug: debugStatus,
 	}
 	inst.process = proc
+	inst.timeReso = timeReso
 	inst.services = services
 	inst.debug = debugOutput
 	inst.stopped = make(chan struct{})
@@ -191,7 +195,12 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 		inst.killProcess()
 	}()
 
-	err = inst.process.Start(inst.prog.image, inst.image, inst.debug)
+	policy := runtime.ProcessPolicy{
+		TimeResolution: inst.timeReso,
+		Debug:          inst.debug,
+	}
+
+	err = inst.process.Start(inst.prog.image, inst.image, policy)
 	if err != nil {
 		return
 	}

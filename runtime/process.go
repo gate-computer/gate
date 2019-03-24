@@ -12,8 +12,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/bits"
 	"os"
 	"syscall"
+	"time"
 
 	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/executable"
@@ -23,13 +25,11 @@ import (
 	"github.com/tsavola/wag/trap"
 )
 
-const imageInfoSize = 72
+const imageInfoSize = 80
 
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
-	MagicNumber1   uint16
-	_              uint8
-	InitRoutine    uint8
+	MagicNumber1   uint32
 	PageSize       uint32
 	TextAddr       uint64
 	StackAddr      uint64
@@ -41,7 +41,9 @@ type imageInfo struct {
 	GlobalsSize    uint32
 	InitMemorySize uint32
 	GrowMemorySize uint32
+	InitRoutine    uint32
 	EntryAddr      uint32
+	TimeMask       uint32
 	MagicNumber2   uint32
 }
 
@@ -59,9 +61,14 @@ type ProgramState interface {
 	GlobalsSize() int
 	MemorySize() int
 	MaxMemorySize() int
-	InitRoutine() uint8
+	InitRoutine() uint32
 	EntryAddr() uint32
 	BeginMutation(textAddr uint64) (interface{ Fd() uintptr }, error)
+}
+
+type ProcessPolicy struct {
+	TimeResolution time.Duration
+	Debug          io.Writer
 }
 
 type ProcessFactory interface {
@@ -126,15 +133,19 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 //
 // This function must be called before Serve, and must not be called after
 // Kill.
-func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Writer) (err error) {
+func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPolicy) (err error) {
 	textAddr, heapAddr, stackAddr, randValue, err := getRand(state.TextAddr(), code.RandomSeed())
 	if err != nil {
 		return
 	}
 
+	if policy.TimeResolution <= 0 || policy.TimeResolution > time.Second {
+		policy.TimeResolution = time.Second
+	}
+	timeMask := ^(1<<uint(bits.Len32(uint32(policy.TimeResolution))) - 1)
+
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
-		InitRoutine:    state.InitRoutine(),
 		PageSize:       uint32(code.PageSize()),
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
@@ -146,7 +157,9 @@ func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Wri
 		GlobalsSize:    uint32(state.GlobalsSize()),
 		InitMemorySize: uint32(state.MemorySize()),
 		GrowMemorySize: uint32(state.MaxMemorySize()), // TODO: check policy too
+		InitRoutine:    state.InitRoutine(),
 		EntryAddr:      state.EntryAddr(),
+		TimeMask:       uint32(timeMask),
 		MagicNumber2:   magicNumber2,
 	}
 
@@ -173,7 +186,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Wri
 		debugReader *os.File
 		debugWriter *os.File
 	)
-	if debugOutput != nil {
+	if policy.Debug != nil {
 		debugReader, debugWriter, err = os.Pipe()
 		if err != nil {
 			return
@@ -197,7 +210,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Wri
 	}
 
 	var cmsg []byte
-	if debugOutput == nil {
+	if policy.Debug == nil {
 		cmsg = unixRights(int(textFile.Fd()), int(stateFile.Fd()))
 	} else {
 		cmsg = unixRights(int(debugWriter.Fd()), int(textFile.Fd()), int(stateFile.Fd()))
@@ -208,9 +221,9 @@ func (p *Process) Start(code ProgramCode, state ProgramState, debugOutput io.Wri
 		return
 	}
 
-	if debugOutput != nil {
+	if policy.Debug != nil {
 		done := make(chan struct{})
-		go copyDebug(done, debugOutput, debugReader)
+		go copyDebug(done, policy.Debug, debugReader)
 		p.debugging = done
 	}
 

@@ -115,7 +115,6 @@ type Build struct {
 	inst          instanceBuild
 	imports       runtimeabi.ImportResolver
 	compileMem    []byte
-	initRoutine   uint8
 	textAddr      uint64
 	stack         []byte
 	stackUsage    int
@@ -123,6 +122,7 @@ type Build struct {
 	globalsSize   int
 	memorySize    int
 	maxMemorySize int
+	initRoutine   uint32
 }
 
 // NewBuild for a program and optionally an instance.
@@ -335,7 +335,6 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 	}
 
 	man := manifest.Program{
-		InitRoutine:     int32(b.initRoutine),
 		TextAddr:        b.textAddr,
 		TextSize:        uint32(b.prog.textSize),
 		StackUsage:      uint32(b.stackUsage),
@@ -343,6 +342,7 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		MemoryDataSize:  uint32(b.data.Len() - alignPageSize(b.globalsSize)),
 		MemorySize:      uint32(b.memorySize),
 		MemorySizeLimit: uint32(b.maxMemorySize),
+		InitRoutine:     b.initRoutine,
 		ModuleSize:      int64(b.prog.module.Cap()),
 		Sections:        sectionMap.manifestSections(),
 		ServiceSection:  manifestByteRange(sectionMap.Service),
@@ -398,13 +398,13 @@ func (b *Build) FinishInstance(entryIndex, entryAddr uint32) (inst *Instance, er
 
 	inst = &Instance{
 		man: manifest.Instance{
-			InitRoutine:   int32(b.initRoutine),
 			TextAddr:      b.textAddr,
 			StackSize:     uint32(b.inst.stackSize),
 			StackUsage:    uint32(b.stackUsage),
 			GlobalsSize:   uint32(b.globalsSize),
 			MemorySize:    uint32(b.memorySize),
 			MaxMemorySize: uint32(b.maxMemorySize),
+			InitRoutine:   b.initRoutine,
 			EntryIndex:    entryIndex,
 			EntryAddr:     entryAddr,
 		},

@@ -108,8 +108,9 @@ runtime_code_begin:
 
 .Lseccomp_filters:
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, 0				// Syscall number
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      10,  0	// Third block
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         16,  0	// Allow
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      11,  0	// Third block
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         17,  0	// Allow
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_clock_gettime, 16,  0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_mprotect,       2,  0	// Second block
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_rt_sigreturn,  14,  0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_exit_group,    13, 12	// Allow, kill
@@ -478,7 +479,49 @@ gate_randomseed:
 	test	$1, %ebx
 	jne	.Lsuspended
 
-	mov	-8*8(%r15), %rax
+	mov	-10*8(%r15), %rax
+	jmp	.Lresume
+
+.align	16,INT3
+.globl	gate_time
+.type	gate_time,@function
+
+gate_time:
+	test	$1, %ebx
+	jne	.Lsuspended
+
+	mov	16(%rsp), %edi			// Clock id.
+	test	$~1, %edi			// Accept 0 and 1.
+	jne	.Lclock_error
+	add	$5, %edi			// Coarse clock (5 or 6).
+
+	current_memory %r13d
+	shl	$16, %r13d			// Current memory size.
+	add	%r14, %r13			// Current memory end address.
+
+	mov	8(%rsp), %esi			// Relative buffer address.
+	add	%r14, %rsi			// Absolute buffer address.
+	lea	16(%rsi), %r11			// End of absolute buffer.
+
+	cmp	%r11, %r13			// Check against memory limit,
+	jl	.Lout_of_bounds			//
+	cmp	%rsi, %r11			// and detect wrap-around.
+	jl	.Lout_of_bounds			//
+
+	mov	$SYS_clock_gettime, %eax
+	syscall
+	mov	$ERR_RT_CLOCK_GETTIME, %edi	// Exit status.
+	test	%eax, %eax
+	jne	.Lruntime_exit
+
+	mov	-9*8(%r15), %eax		// Time mask.
+	and	%rax, 8(%rsi)			// tv_nsec
+
+	xor	%eax, %eax			// Success.
+	jmp	.Lresume
+
+.Lclock_error:
+	mov	$-1, %eax			// Error: clock id not supported.
 	jmp	.Lresume
 
 .align	16,INT3

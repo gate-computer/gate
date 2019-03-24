@@ -16,6 +16,7 @@ var (
 	wasmNop        = readFile("testdata/nop.wasm")
 	wasmRandomSeed = readFile("testdata/randomseed.wasm")
 	wasmSuspend    = readFile("testdata/suspend.wasm")
+	wasmTime       = readFile("testdata/time.wasm")
 )
 
 var (

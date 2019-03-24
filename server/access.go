@@ -7,6 +7,7 @@ package server
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/tsavola/wag/wa"
 )
@@ -20,6 +21,7 @@ const (
 	DefaultMaxTextSize       = 16 * 1024 * 1024
 	DefaultMaxMemorySize     = 32 * 1024 * 1024
 	DefaultStackSize         = wa.PageSize
+	DefaultTimeResolution    = time.Second / 100
 )
 
 // TODO: ResourcePolicy is not yet enforced by server
@@ -37,10 +39,11 @@ type ProgramPolicy struct {
 }
 
 type InstancePolicy struct {
-	MaxMemorySize int                     // Linear memory growth limit.
-	StackSize     int                     // Including system/runtime overhead.
-	Services      func() InstanceServices // Defines the set of available services.
-	Debug         func(ctx context.Context, option string) (status string, output io.WriteCloser, err error)
+	MaxMemorySize  int                     // Linear memory growth limit.
+	StackSize      int                     // Including system/runtime overhead.
+	TimeResolution time.Duration           // Granularity of gate.time function.
+	Services       func() InstanceServices // Defines the set of available services.
+	Debug          func(ctx context.Context, option string) (status string, output io.WriteCloser, err error)
 }
 
 // Authorizer and moderator of server access.  If PrincipalKey is nil, the
@@ -166,6 +169,7 @@ var DefaultAccessConfig = AccessConfig{
 	InstancePolicy{
 		DefaultMaxMemorySize,
 		DefaultStackSize,
+		DefaultTimeResolution,
 		nil,
 		nil,
 	},
@@ -210,6 +214,9 @@ func (config *AccessConfig) ConfigureInstance(policy *InstancePolicy) {
 	}
 	if policy.StackSize == 0 {
 		policy.StackSize = DefaultStackSize
+	}
+	if policy.TimeResolution == 0 {
+		policy.TimeResolution = DefaultTimeResolution
 	}
 }
 

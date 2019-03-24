@@ -281,7 +281,12 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		}
 	}()
 
-	err = proc.Start(prog, inst, debugOut)
+	policy := runtime.ProcessPolicy{
+		TimeResolution: time.Microsecond,
+		Debug:          debugOut,
+	}
+
+	err = proc.Start(prog, inst, policy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +379,7 @@ func TestRunSuspendPersistMem(t *testing.T) {
 	testRunSuspend(t, s, objectabi.TextAddrResume)
 }
 
-func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine int32) {
+func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint32) {
 	ctx := context.Background()
 
 	executor, prog, inst, proc, codeMap, mod := startInstance(ctx, t, storage, wasmSuspend, "loop", os.Stdout)
@@ -440,4 +445,8 @@ func TestRandomSeed(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestTime(t *testing.T) {
+	runProgram(t, wasmTime, "check", os.Stderr)
 }

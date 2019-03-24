@@ -90,6 +90,7 @@ void __gate_debug_type_not_supported(void); // No implementation.
 GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
 void __GATE_IO(void *GATE_RESTRICT recv, size_t *GATE_RESTRICT recvlen, const void *GATE_RESTRICT send, size_t *GATE_RESTRICT sendlen, unsigned flags) GATE_NOEXCEPT;
 uint64_t __gate_randomseed(void) GATE_NOEXCEPT;
+int __gate_time(int clockid, int64_t buf[2]) GATE_NOEXCEPT;
 
 static inline void __gate_debug_str(const char *s) GATE_NOEXCEPT
 {
@@ -215,6 +216,16 @@ enum {
 
 #define gate_debug gate_debug1
 
+enum gate_clockid {
+	GATE_CLOCK_REALTIME,
+	GATE_CLOCK_MONOTONIC,
+};
+
+struct gate_timespec {
+	int64_t sec;
+	long nsec;
+};
+
 struct gate_packet {
 	uint32_t size;
 	int16_t code;
@@ -323,6 +334,17 @@ static inline void gate_io(void *GATE_RESTRICT recv, size_t *GATE_RESTRICT recvl
 static inline uint64_t gate_randomseed(void) GATE_NOEXCEPT
 {
 	return __gate_randomseed();
+}
+
+static inline int gate_gettime(enum gate_clockid clk_id, struct gate_timespec *tp) GATE_NOEXCEPT
+{
+	int64_t buf[2];
+	int ret = __gate_time(clk_id, buf);
+	if (ret >= 0) {
+		tp->sec = buf[0];
+		tp->nsec = buf[1];
+	}
+	return ret;
 }
 
 #ifdef __cplusplus

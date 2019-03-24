@@ -49,6 +49,19 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 > times, a different number may or may not be returned.
 
 
+```c
+(import "gate" "time" (func (param i32) (param i32) (result i32)))
+```
+> Get current wall-clock or monotonic time.  The first parameter identifies the
+> clock: 0 means realtime and 1 monotonic time.  The second parameter is a
+> pointer to a 16-byte target buffer: second and nanosecond values are stored
+> into it as 64-bit integers.  The nanosecond value will be in range
+> [0,999999999].  Actual resolution is unspecified.
+>
+> On success 0 is returned.  If an unsupported clock id is specified, -1 is
+> returned.
+
+
 ### Packets
 
 The I/O function exchanges packets with the runtime.  Packets have a 8-byte

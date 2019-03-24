@@ -109,8 +109,9 @@ Possible operations:
   - Terminate the process with an arbitrary exit status.  It can be used to
     communicate a fake trap or error condition.
 
-  - Call clock_gettime, getcpu, gettimeofday and time syscalls via vDSO.  This
-    is worrisome, as it may enable timing-based attacks.
+  - Call clock_gettime syscall with maximum resolution.
+
+  - Call getcpu, gettimeofday and time syscalls via vDSO.
 
 
 ### 3. Process

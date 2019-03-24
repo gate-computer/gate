@@ -12,14 +12,14 @@ message ByteRange {
 }
 
 message Program {
-	int32 init_routine = 1;
-	uint64 text_addr = 2;   // Nonzero if suspended.
-	uint32 text_size = 3;
-	uint32 stack_usage = 4; // Nonzero if suspended.
-	uint32 globals_size = 5;
-	uint32 memory_data_size = 6;
-	uint32 memory_size = 7;
-	uint32 memory_size_limit = 8;
+	uint64 text_addr = 1;   // Nonzero if suspended.
+	uint32 text_size = 2;
+	uint32 stack_usage = 3; // Nonzero if suspended.
+	uint32 globals_size = 4;
+	uint32 memory_data_size = 5;
+	uint32 memory_size = 6;
+	uint32 memory_size_limit = 7;
+	uint32 init_routine = 8;
 	int64 module_size = 9;
 	repeated ByteRange sections = 10;
 	ByteRange service_section = 11;
@@ -35,13 +35,13 @@ message Program {
 }
 
 message Instance {
-	int32 init_routine = 1;
-	uint64 text_addr = 2;   // Nonzero if suspended.
-	uint32 stack_size = 3;
-	uint32 stack_usage = 4; // Nonzero if suspended.
-	uint32 globals_size = 5;
-	uint32 memory_size = 6;
-	uint32 max_memory_size = 7;
+	uint64 text_addr = 1;   // Nonzero if suspended.
+	uint32 stack_size = 2;
+	uint32 stack_usage = 3; // Nonzero if suspended.
+	uint32 globals_size = 4;
+	uint32 memory_size = 5;
+	uint32 max_memory_size = 6;
+	uint32 init_routine = 7;
 	uint32 entry_index = 8;
 	uint32 entry_addr = 9;
 }

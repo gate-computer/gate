@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
@@ -25,7 +26,7 @@ const benchPrepareCount = 32
 
 type nopInstance struct{ *image.Instance }
 
-func (nopInstance) InitRoutine() uint8 { return abi.TextAddrNoFunction }
+func (nopInstance) InitRoutine() uint32 { return abi.TextAddrNoFunction }
 
 var benchExecutor = newExecutor(context.Background(), nil)
 var benchRegistry = serviceRegistry{new(bytes.Buffer)}
@@ -69,7 +70,11 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 	}
 	defer proc.Kill()
 
-	err = proc.Start(prog, inst, nil)
+	policy := runtime.ProcessPolicy{
+		TimeResolution: time.Millisecond,
+	}
+
+	err = proc.Start(prog, inst, policy)
 	if err != nil {
 		return
 	}
@@ -90,7 +95,7 @@ func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID 
 	}
 	defer inst.Close()
 
-	err = proc.Start(prog, nopInstance{inst}, nil)
+	err = proc.Start(prog, nopInstance{inst}, runtime.ProcessPolicy{})
 	if err != nil {
 		return
 	}

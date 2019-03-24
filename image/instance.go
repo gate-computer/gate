@@ -170,14 +170,14 @@ func (inst *Instance) Close() (err error) {
 	return
 }
 
-func (inst *Instance) InitRoutine() uint8 { return uint8(inst.man.InitRoutine) }
-func (inst *Instance) TextAddr() uint64   { return inst.man.TextAddr }
-func (inst *Instance) StackSize() int     { return int(inst.man.StackSize) }
-func (inst *Instance) StackUsage() int    { return int(inst.man.StackUsage) }
-func (inst *Instance) GlobalsSize() int   { return alignPageSize32(inst.man.GlobalsSize) }
-func (inst *Instance) MemorySize() int    { return int(inst.man.MemorySize) }
-func (inst *Instance) MaxMemorySize() int { return int(inst.man.MaxMemorySize) }
-func (inst *Instance) EntryAddr() uint32  { return inst.man.EntryAddr }
+func (inst *Instance) TextAddr() uint64    { return inst.man.TextAddr }
+func (inst *Instance) StackSize() int      { return int(inst.man.StackSize) }
+func (inst *Instance) StackUsage() int     { return int(inst.man.StackUsage) }
+func (inst *Instance) GlobalsSize() int    { return alignPageSize32(inst.man.GlobalsSize) }
+func (inst *Instance) MemorySize() int     { return int(inst.man.MemorySize) }
+func (inst *Instance) MaxMemorySize() int  { return int(inst.man.MaxMemorySize) }
+func (inst *Instance) InitRoutine() uint32 { return inst.man.InitRoutine }
+func (inst *Instance) EntryAddr() uint32   { return inst.man.EntryAddr }
 
 // BeginMutation is invoked by a mutator when it takes exclusive ownership of
 // the instance state.  CheckMutation and Close may be called during the

@@ -133,6 +133,22 @@ uint64_t gate_randomseed();
 > times, a different number may or may not be returned.
 
 
+```c
+enum gate_clock { GATE_CLOCK_REALTIME, GATE_CLOCK_MONOTONIC };
+
+struct gate_timespec {
+	int64_t sec;
+	long nsec;
+}
+
+int gate_gettime(enum gate_clock id, struct gate_timespec *buf);
+```
+> Get current wall-clock or monotonic time.  Actual resolution is unspecified.
+>
+> On success 0 is returned.  If an unsupported clock id is specified, -1 is
+> returned.
+
+
 
 #### Packet header
 

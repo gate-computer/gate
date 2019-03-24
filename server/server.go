@@ -890,7 +890,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *PrincipalKey, instID, 
 			return
 		}
 
-		inst.renew(proc, services, debugStatus, debugOutput)
+		inst.renew(proc, pol.inst.TimeResolution, services, debugStatus, debugOutput)
 		return
 	}()
 	if err != nil {
@@ -1277,7 +1277,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		return
 	}
 
-	inst = newInstance(acc, instID, prog.ref(), persistInst, function, instImage, proc, services, debugStatus, debugOutput)
+	inst = newInstance(acc, instID, prog.ref(), persistInst, function, instImage, proc, pol.TimeResolution, services, debugStatus, debugOutput)
 
 	if acc != nil {
 		if refModule {

@@ -58,7 +58,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// Stack, globals and memory contents without unused regions or padding.
 	var (
-		newInitRoutine int32
+		newInitRoutine uint32
 		newTextAddr    uint64
 		instStackData  []byte
 		stackUsage     int
@@ -379,11 +379,11 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 
 	// New program manifest.
-	man.InitRoutine = newInitRoutine
 	man.TextAddr = newTextAddr
 	man.StackUsage = uint32(stackUsage)
 	man.MemoryDataSize = memorySize
 	man.MemorySize = memorySize
+	man.InitRoutine = newInitRoutine
 	man.ModuleSize = newModuleSize
 	man.Sections = newRanges
 	man.ServiceSection = manifest.ByteRange{

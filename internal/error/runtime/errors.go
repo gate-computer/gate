@@ -55,6 +55,7 @@ var ProcessErrors = [46]Error{
 	3:  {"ERR_RT_WRITE", "process runtime", "write call failed"},
 	4:  {"ERR_RT_DEBUG", "process runtime", "debug write call failed"},
 	5:  {"ERR_RT_MPROTECT", "process runtime", "mprotect call failed"},
+	6:  {"ERR_RT_CLOCK_GETTIME", "process runtime", "clock_gettime call failed"},
 	9:  {"ERR_SENTINEL_SIGNAL_HANDLER", "sentinel process", "signal handler registration failed"},
 	10: {"ERR_SENTINEL_CLOSE", "dummy process", "TODO: ERR_SENTINEL_CLOSE"},
 	11: {"ERR_SENTINEL_PAUSE", "dummy process", "TODO: ERR_SENTINEL_PAUSE"},

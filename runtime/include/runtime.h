@@ -44,5 +44,5 @@
 
 #define GATE_TEXT_ADDR_RESUME 0x10 // Per wag object ABI.
 
-#define GATE_MAGIC_NUMBER_1 0x8f3a
+#define GATE_MAGIC_NUMBER_1 0x19328f3a
 #define GATE_MAGIC_NUMBER_2 0x7e1c5d67

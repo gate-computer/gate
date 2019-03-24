@@ -49,6 +49,11 @@ type timing struct {
 	overall time.Duration
 }
 
+var processPolicy = runtime.ProcessPolicy{
+	TimeResolution: 1, // Best resolution.
+	Debug:          os.Stderr,
+}
+
 func init() {
 	log.SetFlags(0)
 }
@@ -245,7 +250,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	tLoadEnd := time.Now()
 	tRunBegin := tLoadEnd
 
-	err = proc.Start(prog, inst, os.Stderr)
+	err = proc.Start(prog, inst, processPolicy)
 	if err != nil {
 		log.Fatalf("execute: %v", err)
 	}
