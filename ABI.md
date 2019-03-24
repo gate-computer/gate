@@ -49,7 +49,7 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 > times, a different number may or may not be returned.
 
 
-```c
+```wasm
 (import "gate" "time" (func (param i32) (param i32) (result i32)))
 ```
 > Get current wall-clock or monotonic time.  The first parameter identifies the
