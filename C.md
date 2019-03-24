@@ -17,6 +17,13 @@ GATE_API_VERSION
 
 
 ```c
+GATE_CLOCK_REALTIME
+GATE_CLOCK_MONOTONIC
+```
+> Supported clock identifiers.
+
+
+```c
 GATE_DEBUG_SEPARATOR
 ```
 > A string which can be used in debug log messages.  It will start a new line
@@ -134,14 +141,12 @@ uint64_t gate_randomseed();
 
 
 ```c
-enum gate_clock { GATE_CLOCK_REALTIME, GATE_CLOCK_MONOTONIC };
-
 struct gate_timespec {
 	int64_t sec;
 	long nsec;
 }
 
-int gate_gettime(enum gate_clock id, struct gate_timespec *buf);
+int gate_gettime(enum gate_clockid clk_id, struct gate_timespec *tp);
 ```
 > Get current wall-clock or monotonic time.  Actual resolution is unspecified.
 >
