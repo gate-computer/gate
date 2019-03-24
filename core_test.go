@@ -138,7 +138,7 @@ func (d *serviceDiscoverer) NumServices() int               { return len(d.servi
 func (*serviceDiscoverer) ExtractState() []snapshot.Service { return nil }
 func (*serviceDiscoverer) Close() error                     { return nil }
 
-var testFS image.Storage
+var testFS *image.Filesystem
 
 func init() {
 	dir := os.Getenv("GATE_TEST_FILESYSTEM")
@@ -363,6 +363,15 @@ func TestRunSuspendFS(t *testing.T) {
 	}
 
 	testRunSuspend(t, testFS, objectabi.TextAddrResume)
+}
+
+func TestRunSuspendPersistMem(t *testing.T) {
+	if testFS == nil {
+		t.Skip("test filesystem not specified")
+	}
+
+	s := image.CombinedStorage(testFS, image.PersistentMemory(testFS))
+	testRunSuspend(t, s, objectabi.TextAddrResume)
 }
 
 func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine int32) {

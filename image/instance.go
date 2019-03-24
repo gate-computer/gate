@@ -28,6 +28,7 @@ const (
 
 type InstanceStorage interface {
 	newInstanceFile() (*file.File, error)
+	storeInstanceSupported() bool
 	storeInstance(inst *Instance, name string) (manifest.Instance, error)
 	LoadInstance(name string, man manifest.Instance) (*Instance, error)
 	instanceBackend() interface{}
@@ -119,6 +120,11 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 
 // Store the instance.  The name must not contain path separators.
 func (inst *Instance) Store(name string, prog *Program) (man manifest.Instance, err error) {
+	if !prog.storage.storeInstanceSupported() {
+		// Zero manifest value represents nonexistent instance.
+		return
+	}
+
 	err = inst.CheckMutation()
 	if err != nil {
 		return

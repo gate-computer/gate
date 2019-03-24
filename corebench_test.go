@@ -216,6 +216,15 @@ func BenchmarkExecProgFS(b *testing.B) {
 	benchExecProg(b, testFS)
 }
 
+func BenchmarkExecProgPersistMem(b *testing.B) {
+	if testFS == nil {
+		b.Skip("test filesystem not specified")
+	}
+
+	s := image.CombinedStorage(testFS, image.PersistentMemory(testFS))
+	benchExecProg(b, s)
+}
+
 func benchExecProg(b *testing.B, storage image.Storage) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

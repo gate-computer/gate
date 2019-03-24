@@ -27,7 +27,8 @@ const (
 	manifestHeaderSize = 8
 )
 
-// Filesystem implements LocalStorage.  It supports program persistence.
+// Filesystem implements Storage.  It supports program and instance
+// persistence.
 type Filesystem struct {
 	progDir *file.File
 	instDir *file.File
@@ -191,6 +192,10 @@ func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
 	}
 
 	return
+}
+
+func (*Filesystem) storeInstanceSupported() bool {
+	return true
 }
 
 func (fs *Filesystem) storeInstance(inst *Instance, name string) (man manifest.Instance, err error) {
