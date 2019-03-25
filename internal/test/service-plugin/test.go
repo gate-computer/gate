@@ -47,6 +47,9 @@ func (testService) RecreateInstance(service.InstanceConfig, []byte) (service.Ins
 
 type testInstance struct{}
 
+func (testInstance) Resume(ctx context.Context, replies chan<- packet.Buf) {
+}
+
 func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {
 	switch p.Domain() {
 	case packet.DomainCall:

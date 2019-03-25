@@ -29,6 +29,7 @@ type InstanceConfig struct {
 
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
+	Resume(ctx context.Context, send chan<- packet.Buf)
 	Handle(ctx context.Context, send chan<- packet.Buf, in packet.Buf)
 	ExtractState() (portableState []byte)
 	Close() error
@@ -126,21 +127,14 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	for i, s := range d.services {
 		var code = packet.Code(i)
 		var inst Instance
+		var err error
 
 		if s.factory != nil {
-			config := InstanceConfig{serviceConfig, code}
-
-			if s.Buffer == nil {
-				inst = s.factory.CreateInstance(config)
-			} else {
-				var err error
-				inst, err = s.factory.RecreateInstance(config, s.Buffer)
-				if err != nil {
-					return nil, nil, err
-				}
-				s.Buffer = nil
+			inst, err = s.factory.RecreateInstance(InstanceConfig{serviceConfig, code}, s.Buffer)
+			if err != nil {
+				return nil, nil, err
 			}
-
+			s.Buffer = nil
 			states[i].SetAvail()
 		}
 
@@ -157,6 +151,12 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 		d.stopped <- instances
 		close(d.stopped)
 	}()
+
+	for _, inst := range instances {
+		if inst != nil {
+			inst.Resume(ctx, send)
+		}
+	}
 
 	for op := range recv {
 		code := op.Code()

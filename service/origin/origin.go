@@ -135,6 +135,9 @@ type instanceService struct {
 	requests chan packet.Buf
 }
 
+func (si *instanceService) Resume(ctx context.Context, replies chan<- packet.Buf) {
+}
+
 func (si *instanceService) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {
 	if si.requests == nil {
 		c := make(chan packet.Buf)
