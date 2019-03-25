@@ -1,0 +1,28 @@
+// Copyright (c) 2019 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+namespace localhost;
+
+table HTTPRequest {
+    method: string;
+    uri: string;
+    content_type: string;
+    body: [ubyte];
+}
+
+table HTTPResponse {
+    status_code: int;
+    content_length: int64;
+    content_type: string;
+    body: [ubyte];
+    body_stream_id: int32;
+}
+
+union Function {
+    HTTPRequest,
+}
+
+table Call {
+    function: Function;
+}
