@@ -88,13 +88,27 @@ func parseConfig(flags *flag.FlagSet) {
 func main() {
 	c.Runtime.MaxProcesses = DefaultMaxProcesses
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
-	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Program.StackSize = DefaultStackSize
 	c.Benchmark.Repeat = 1
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	parseConfig(flags)
+
+	if c.Runtime.LibDir == "" || c.Plugin.LibDir == "" {
+		filename, err := os.Executable()
+		if err != nil {
+			log.Fatalf("%s: %v", os.Args[0], err)
+		}
+		bindir := path.Dir(filename)
+		libdir := path.Join(bindir, "..", "lib", "gate")
+		if c.Runtime.LibDir == "" {
+			c.Runtime.LibDir = path.Join(libdir, "runtime")
+		}
+		if c.Plugin.LibDir == "" {
+			c.Plugin.LibDir = path.Join(libdir, "plugin")
+		}
+	}
 
 	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
 	if err != nil {
@@ -127,15 +141,6 @@ func main() {
 
 	if err := plugins.InitServices(serviceConfig); err != nil {
 		log.Fatal(err)
-	}
-
-	if c.Runtime.LibDir == "" {
-		filename, err := os.Executable()
-		if err != nil {
-			log.Fatalf("%s: %v", os.Args[0], err)
-		}
-
-		c.Runtime.LibDir = path.Join(path.Dir(filename), "../lib/gate/runtime")
 	}
 
 	var execClosed bool
