@@ -33,34 +33,33 @@ const (
 )
 
 type Config struct {
-	*url.URL
-	*http.Client
+	Addr string
 }
 
-var mutableConfig Config
+var pluginConfig Config
 
 func ServiceConfig() interface{} {
-	return &mutableConfig
+	return &pluginConfig
 }
 
 func InitServices(initConfig service.Config) (err error) {
-	c := mutableConfig
-
-	if c.URL.Host == "" || !c.URL.IsAbs() {
-		err = fmt.Errorf("localhost URL is invalid: %s", c.URL)
+	u, err := url.Parse(pluginConfig.Addr)
+	if err != nil {
+		return
+	}
+	if u.Hostname() == "" || !u.IsAbs() {
+		err = fmt.Errorf("localhost service: invalid URL: %s", u)
 		return
 	}
 
-	if c.Client == nil {
-		c.Client = http.DefaultClient
-	}
-
-	initConfig.Registry.Register(&localhost{c})
+	initConfig.Registry.Register(&localhost{u.Scheme, u.Host, http.DefaultClient})
 	return
 }
 
 type localhost struct {
-	Config
+	scheme string
+	host   string
+	client *http.Client
 }
 
 func (*localhost) ServiceName() string {
@@ -167,9 +166,8 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 		return
 	}
 	req.URL = &url.URL{
-		Scheme:   inst.service.Scheme,
-		User:     inst.service.User,
-		Host:     inst.service.Host,
+		Scheme:   inst.service.scheme,
+		Host:     inst.service.host,
 		Path:     callURL.Path,
 		RawQuery: callURL.RawQuery,
 	}
@@ -186,7 +184,7 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 		req.Body = ioutil.NopCloser(bytes.NewReader(call.BodyBytes()))
 	}
 
-	res, err := inst.service.Do(req.WithContext(ctx))
+	res, err := inst.service.client.Do(req.WithContext(ctx))
 	if err != nil {
 		if req.Method == http.MethodGet || req.Method == http.MethodHead {
 			select {

@@ -43,7 +43,7 @@ func TestHTTPRequest(t *testing.T) {
 		panic(err)
 	}
 
-	i := instance{&localhost{Config{u, s.Client()}}, testCode, nil}
+	i := instance{&localhost{u.Scheme, u.Host, s.Client()}, testCode, nil}
 
 	b := flatbuffers.NewBuilder(0)
 	method := b.CreateString(http.MethodGet)
