@@ -125,8 +125,6 @@ The process is configured in various ways:
 
   - The process is not dumpable.
 
-  - The process is killed if the rdtsc instruction is executed (x86-64).
-
   - Unnecessary file descriptors are closed.
 
   - The initial stack is unmapped.  It prevents the comm text from being

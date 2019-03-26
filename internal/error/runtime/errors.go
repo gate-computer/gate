@@ -50,7 +50,7 @@ var ExecutorErrors = [65]Error{
 	64: {"ERR_EXEC_RAISE", "runtime repaer", "TODO: ERR_EXEC_RAISE"},
 }
 
-var ProcessErrors = [46]Error{
+var ProcessErrors = [48]Error{
 	2:  {"ERR_RT_RECVFROM", "process runtime", "recvfrom call failed"},
 	3:  {"ERR_RT_WRITE", "process runtime", "write call failed"},
 	4:  {"ERR_RT_DEBUG", "process runtime", "debug write call failed"},
@@ -64,7 +64,6 @@ var ProcessErrors = [46]Error{
 	19: {"ERR_LOAD_SETRLIMIT_NOFILE", "process executor", "child: setrlimit: failed to set NOFILE limit"},
 	20: {"ERR_LOAD_SETRLIMIT_NPROC", "process executor", "child: setrlimit: failed to set NPROC limit"},
 	21: {"ERR_LOAD_PRCTL_NOT_DUMPABLE", "process loader", "prctl: failed to set not dumpable"},
-	22: {"ERR_LOAD_PRCTL_TSC_SIGSEGV", "process executor", "prctl: failed to set PR_TSC_SIGSEGV"},
 	23: {"ERR_LOAD_READ_INFO", "process loader", "failed to read image info from input fd"},
 	24: {"ERR_LOAD_MAGIC_1", "process loader", "magic number #1 mismatch"},
 	25: {"ERR_LOAD_MAGIC_2", "process loader", "magic number #2 mismatch"},
@@ -78,13 +77,15 @@ var ProcessErrors = [46]Error{
 	33: {"ERR_LOAD_SIGACTION", "process loader", "sigaction call failed"},
 	34: {"ERR_LOAD_MUNMAP_LOADER", "process loader", "failed to munmap loader .text and .rodata"},
 	35: {"ERR_LOAD_SECCOMP", "process loader", "seccomp call failed"},
-	36: {"ERR_LOAD_ARGC", "process loader", "loader executed with arguments"},
+	36: {"ERR_LOAD_ARG_ENV", "process loader", "loader executed with arguments or environment"},
+	37: {"ERR_LOAD_NO_VDSO", "process loader", "vdso address not found in auxiliary vector"},
 	39: {"ERR_LOAD_FCNTL_OUTPUT", "process loader", "failed to set output file flags"},
 	40: {"ERR_LOAD_MPROTECT_HEAP", "process loader", "mprotect: globals/memory protection failed"},
 	41: {"ERR_LOAD_CLOSE_TEXT", "process loader", "failed to close program text fd"},
 	42: {"ERR_LOAD_SETPRIORITY", "process loader", "TODO: ERR_LOAD_SETPRIORITY"},
 	44: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "dummy process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
 	45: {"ERR_SENTINEL_SIGMASK", "sentinel process", "TODO: ERR_SENTINEL_SIGMASK"},
+	47: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "__vdso_clock_gettime symbol not found in vDSO ELF"},
 }
 
 var ErrorsInitialized struct{}

@@ -108,9 +108,8 @@ runtime_code_begin:
 
 .Lseccomp_filters:
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, 0				// Syscall number
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      11,  0	// Third block
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         17,  0	// Allow
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_clock_gettime, 16,  0	// Allow
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      10,  0	// Third block
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         16,  0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_mprotect,       2,  0	// Second block
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_rt_sigreturn,  14,  0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_exit_group,    13, 12	// Allow, kill
@@ -508,13 +507,22 @@ gate_time:
 	cmp	%rsi, %r11			// and detect wrap-around.
 	jl	.Lout_of_bounds			//
 
-	mov	$SYS_clock_gettime, %eax
-	syscall
+	push	%rbx
+	push	%r14
+	push	%r15
+
+	mov	-6*8(%r15), %rcx		// clock_gettime C ABI function.
+	call	retpoline
+
+	pop	%r15
+	pop	%r14
+	pop	%rbx
+
 	mov	$ERR_RT_CLOCK_GETTIME, %edi	// Exit status.
 	test	%eax, %eax
 	jne	.Lruntime_exit
 
-	mov	-9*8(%r15), %eax		// Time mask.
+	mov	-7*8(%r15), %eax		// Time mask.
 	and	%rax, 8(%rsi)			// tv_nsec
 
 	xor	%eax, %eax			// Success.

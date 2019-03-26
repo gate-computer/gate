@@ -24,17 +24,17 @@ type function struct {
 var moduleFunctions = map[string]map[string]function{
 	"gate": {
 		"debug":      {-8, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}, false},
-		"exit":       {-7, wa.FuncType{Params: []wa.Type{wa.I32}}, false},
-		"io.65536":   {-6, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}, false},
-		"randomseed": {-5, wa.FuncType{Result: wa.I64}, true},
-		"time":       {-4, wa.FuncType{Result: wa.I32, Params: []wa.Type{wa.I32, wa.I32}}, false},
+		"exit":       {-11, wa.FuncType{Params: []wa.Type{wa.I32}}, false},
+		"io.65536":   {-4, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}, false},
+		"randomseed": {-9, wa.FuncType{Result: wa.I64}, true},
+		"time":       {-5, wa.FuncType{Result: wa.I32, Params: []wa.Type{wa.I32, wa.I32}}, false},
 	},
 	"env": {
 		"__gate_debug":      {-8, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32}}, false},
-		"__gate_exit":       {-7, wa.FuncType{Params: []wa.Type{wa.I32}}, false},
-		"__gate_io_65536":   {-6, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}, false},
-		"__gate_randomseed": {-5, wa.FuncType{Result: wa.I64}, true},
-		"__gate_time":       {-4, wa.FuncType{Result: wa.I32, Params: []wa.Type{wa.I32, wa.I32}}, false},
+		"__gate_exit":       {-11, wa.FuncType{Params: []wa.Type{wa.I32}}, false},
+		"__gate_io_65536":   {-4, wa.FuncType{Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32}}, false},
+		"__gate_randomseed": {-9, wa.FuncType{Result: wa.I64}, true},
+		"__gate_time":       {-5, wa.FuncType{Result: wa.I32, Params: []wa.Type{wa.I32, wa.I32}}, false},
 	},
 }
 

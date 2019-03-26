@@ -119,7 +119,7 @@ static inline void debug_hex(uint64_t n)
 	int i = sizeof buf;
 
 	do {
-		int m = n & 3;
+		int m = n & 15;
 		char c;
 		if (m < 10)
 			c = '0' + m;

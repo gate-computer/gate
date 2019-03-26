@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+#define __ASSEMBLY__
+
+#include <bits/auxv.h>
 #include <sys/syscall.h>
 
 #include "errors.h"
@@ -13,29 +16,46 @@
 .type	_start,@function
 
 _start:
-	mov	%rsp, %rax		// save stack top for main
+	mov	%rsp, %rax		// Stack iterator.
 
-	pop	%rdi			// argc
+	mov	(%rax), %rdi		// argc
 	test	%rdi, %rdi
-	jne	.Ltoo_many_args
+	jne	.Lvector_not_empty
+	add	$8, %rax
 
-	mov	%rsp, %rsi		// argv
-	add	$8, %rsp		// skip argv null terminator
+	add	$8, %rax		// Skip argv null terminator.
 
-	mov	%rsp, %rdx		// envp
+	mov	%rax, %rdx		// envp
+	cmp	$0, (%rdx)
+	jne	.Lvector_not_empty
 
-	// Store stack pointer for unmapping in the enter function.  At this
-	// point it should be well within the highest stack page (determined
-	// experimentally using runtime/loader/test/stack.c).
-	movq	%rsp, %mm7
+.Lvdso_loop:
+	add	$8, %rax		// Skip previous item (envp null terminator or auxv value).
 
-	mov	%rax, %rsp		// restore stack top for main
-	call	main
-	mov	%eax, %edi		// exit status
+	mov	(%rax), %rbx		// Type of auxv entry.
+	add	$8, %rax
+	cmp	$AT_SYSINFO_EHDR, %rbx
+	je	.Lvdso_found
+	test	%rbx, %rbx
+	jne	.Lvdso_loop
+
+	mov	$ERR_LOAD_NO_VDSO, %edi	// Exit status.
 	jmp	.Lexit
 
-.Ltoo_many_args:
-	mov	$ERR_LOAD_ARGC, %edi	// exit status
+.Lvdso_found:
+	mov	(%rax), %rsi		// vDSO ELF address as argv pointer.
+
+	// Store stack iterator for unmapping stack in the enter function.
+	// At this point it should be well within the highest stack page
+	// (determined experimentally using runtime/loader/test/stack.c).
+	movq	%rax, %mm7
+
+	call	main
+	mov	%eax, %edi		// Exit status.
+	jmp	.Lexit
+
+.Lvector_not_empty:
+	mov	$ERR_LOAD_ARG_ENV, %edi	// Exit status.
 .Lexit:
 	mov	$SYS_exit_group, %eax
 	syscall

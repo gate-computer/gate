@@ -5,10 +5,12 @@
 #define __USE_EXTERN_INLINES // For CMSG_NXTHDR.
 
 #include <signal.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
+#include <elf.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -181,14 +183,66 @@ static int receive_info(struct image_info *buf, int *text_fd, int *state_fd)
 	return debug_flag;
 }
 
-int main(void)
+static bool strcmp__vdso_clock_gettime(const char *name)
 {
+	if (strlen(name) != 20)
+		return false;
+
+	if (((const uint64_t *) name)[0] != 0x635f6f7364765f5fULL) // Little-endian "__vdso_c"
+		return false;
+
+	if (((const uint64_t *) name)[1] != 0x7465675f6b636f6cULL) // Little-endian "lock_get"
+		return false;
+
+	if (((const uint32_t *) name)[4] != 0x656d6974UL) // Little-endian "time"
+		return false;
+
+	return true;
+}
+
+static const Elf64_Shdr *elf_section(const Elf64_Ehdr *elf, unsigned index)
+{
+	return (const void *) elf + elf->e_shoff + elf->e_shentsize * index;
+}
+
+static const char *elf_string(const Elf64_Ehdr *elf, unsigned strtab_index, unsigned str_index)
+{
+	const Elf64_Shdr *strtab = (const void *) elf + elf->e_shoff + elf->e_shentsize * strtab_index;
+	return (void *) elf + strtab->sh_offset + str_index;
+}
+
+int main(int argc, char **argv)
+{
+	// _start routine smuggles vDSO ELF address as argv pointer.
+	// Use it to lookup clock_gettime function.
+
+	const Elf64_Ehdr *vdso = (void *) argv;
+	uintptr_t clock_gettime_addr = 0;
+
+	for (unsigned i = 0; i < vdso->e_shnum; i++) {
+		const Elf64_Shdr *shdr = elf_section(vdso, i);
+		if (shdr->sh_type != SHT_DYNSYM)
+			continue;
+
+		for (uint64_t off = 0; off < shdr->sh_size; off += shdr->sh_entsize) {
+			const Elf64_Sym *sym = (const void *) vdso + shdr->sh_offset + off;
+
+			const char *name = elf_string(vdso, shdr->sh_link, sym->st_name);
+			if (!strcmp__vdso_clock_gettime(name))
+				continue;
+
+			clock_gettime_addr = (uintptr_t) vdso + sym->st_value;
+			goto clock_gettime_found;
+		}
+	}
+	return ERR_LOAD_NO_CLOCK_GETTIME;
+
+clock_gettime_found:
+	// Miscellaneous preparations.
+
 	if (GATE_SANDBOX)
 		if (sys_prctl(PR_SET_DUMPABLE, 0) != 0)
 			return ERR_LOAD_PRCTL_NOT_DUMPABLE;
-
-	if (sys_prctl(PR_SET_TSC, PR_TSC_SIGSEGV) != 0)
-		return ERR_LOAD_PRCTL_TSC_SIGSEGV;
 
 	if (sys_setrlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE) != 0)
 		return ERR_LOAD_SETRLIMIT_NOFILE;
@@ -227,13 +281,14 @@ int main(void)
 	code *debug_func = debug_flag ? &gate_debug : &gate_nop;
 
 	// These assignments reflect the moduleFunctions map in runtime/abi/abi.go
+	*(vector_end - 11) = runtime_func_addr(runtime_ptr, &gate_exit);
 	*(vector_end - 10) = info.random_value;
-	*(vector_end - 9) = info.time_mask;
+	*(vector_end - 9) = runtime_func_addr(runtime_ptr, &gate_randomseed);
 	*(vector_end - 8) = runtime_func_addr(runtime_ptr, debug_func);
-	*(vector_end - 7) = runtime_func_addr(runtime_ptr, &gate_exit);
-	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &gate_io);
-	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &gate_randomseed);
-	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_time);
+	*(vector_end - 7) = info.time_mask;
+	*(vector_end - 6) = clock_gettime_addr;
+	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &gate_time);
+	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_io);
 	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
 	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
 	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
