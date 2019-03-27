@@ -74,8 +74,9 @@ const (
 	FlowHeaderSize = HeaderSize
 
 	// Data packet header
-	OffsetDataID   = HeaderSize + 0
-	DataHeaderSize = HeaderSize + 8
+	OffsetDataID       = HeaderSize + 0
+	offsetDataReserved = HeaderSize + 4
+	DataHeaderSize     = HeaderSize + 8
 )
 
 const (
