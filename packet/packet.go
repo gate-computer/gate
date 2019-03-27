@@ -115,11 +115,6 @@ func (b Buf) Content() []byte {
 	return b[HeaderSize:]
 }
 
-// Slice off the tail of a packet.
-func (b Buf) Slice(packetSize int) (prefix Buf) {
-	return b[:packetSize]
-}
-
 func (b Buf) String() (s string) {
 	var (
 		size     string
