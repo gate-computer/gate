@@ -14,8 +14,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/tsavola/gate/packet"
@@ -43,16 +45,71 @@ func ServiceConfig() interface{} {
 }
 
 func InitServices(initConfig service.Config) (err error) {
+	if pluginConfig.Addr == "" {
+		err = errors.New("localhost service: no address")
+		return
+	}
+
 	u, err := url.Parse(pluginConfig.Addr)
 	if err != nil {
 		return
 	}
-	if u.Hostname() == "" || !u.IsAbs() {
-		err = fmt.Errorf("localhost service: invalid URL: %s", u)
+	if !u.IsAbs() {
+		err = fmt.Errorf("localhost service: URL is not absolute: %s", u)
 		return
 	}
 
-	initConfig.Registry.Register(&localhost{u.Scheme, u.Host, http.DefaultClient})
+	var srv *localhost
+
+	switch u.Scheme {
+	case "http", "https":
+		if u.Hostname() == "" {
+			err = fmt.Errorf("localhost service: URL has no host: %s", u)
+			return
+		}
+		if u.Path != "" && u.Path != "/" {
+			err = fmt.Errorf("localhost service: URL has a path: %s", u)
+			return
+		}
+
+		srv = &localhost{u.Scheme, u.Host, http.DefaultClient}
+
+	case "unix":
+		if u.Host != "" {
+			err = fmt.Errorf("localhost service: URL has a host: %s", u)
+			return
+		}
+		if u.Path == "" {
+			err = fmt.Errorf("localhost service: URL has no path: %s", u)
+			return
+		}
+
+		dialer := net.Dialer{
+			Timeout:   30 * time.Second, // Same as http.DefaultTransport (Go 1.12).
+			KeepAlive: 30 * time.Second, //
+		}
+
+		unixClient := &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return dialer.DialContext(ctx, "unix", u.Path)
+				},
+				DisableCompression:    true,
+				MaxIdleConns:          1,
+				MaxIdleConnsPerHost:   1,
+				IdleConnTimeout:       1,
+				ExpectContinueTimeout: time.Second, // Same as http.DefaultTransport (Go 1.12).
+			},
+		}
+
+		srv = &localhost{"http", "localhost", unixClient}
+
+	default:
+		err = fmt.Errorf("localhost service: URL scheme not supported: %s", u)
+		return
+	}
+
+	initConfig.Registry.Register(srv)
 	return
 }
 
