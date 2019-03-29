@@ -4,7 +4,7 @@
 
 package main
 
-//go:generate flatc --go --go-namespace flat localhost.fbs
+//go:generate flatc --go localhost.fbs
 
 import (
 	"bytes"
