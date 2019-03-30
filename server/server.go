@@ -12,7 +12,9 @@ import (
 
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
+	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/internal/serverapi"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
 	runtimeabi "github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
@@ -20,6 +22,8 @@ import (
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	objectabi "github.com/tsavola/wag/object/abi"
 )
+
+type principalKeyArray [32]byte
 
 type progPolicy struct {
 	res  ResourcePolicy
@@ -51,11 +55,11 @@ type Server struct {
 	Info *Info
 
 	lock     sync.Mutex
-	accounts map[[principalKeySize]byte]*account
+	accounts map[principalKeyArray]*account
 	programs map[string]*program
 }
 
-func New(ctx context.Context, config *Config) *Server {
+func New(config *Config) *Server {
 	s := new(Server)
 
 	if config != nil {
@@ -78,7 +82,7 @@ func New(ctx context.Context, config *Config) *Server {
 		},
 	}
 
-	s.accounts = make(map[[principalKeySize]byte]*account)
+	s.accounts = make(map[principalKeyArray]*account)
 	s.programs = make(map[string]*program)
 
 	return s
@@ -132,7 +136,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 
 // UploadModule creates a new module reference if refModule is true.  Caller
 // provides module content which is compiled or validated in any case.
-func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
+func (s *Server) UploadModule(ctx context.Context, pri *principal.Key, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
 ) (err error) {
 	defer func() {
 		if content != nil {
@@ -189,7 +193,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *PrincipalKey, refModule 
 
 // SourceModule creates a new module reference if refModule is true.  Module
 // content is read from a source - it is compiled or validated in any case.
-func (s *Server) SourceModule(ctx context.Context, pri *PrincipalKey, refModule bool, source Source, uri string,
+func (s *Server) SourceModule(ctx context.Context, pri *principal.Key, refModule bool, source Source, uri string,
 ) (progHash string, err error) {
 	if pri == nil && refModule {
 		panic("referencing module without principal")
@@ -316,7 +320,7 @@ func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progP
 }
 
 // CreateInstance instantiates a module reference.  Instance id is optional.
-func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash string, persistInst bool, function string, instID, debug string,
+func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHash string, persistInst bool, function string, instID, debug string,
 ) (inst *Instance, err error) {
 	var pol instPolicy
 
@@ -374,7 +378,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *PrincipalKey, progHash
 // UploadModuleInstance creates a new module reference if refModule is true.
 // The module is instantiated in any case.  Caller provides module content.
 // Instance id is optional.
-func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
+func (s *Server) UploadModuleInstance(ctx context.Context, pri *principal.Key, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
 ) (inst *Instance, err error) {
 	defer func() {
 		if content != nil {
@@ -410,7 +414,7 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *PrincipalKey, re
 // SourceModuleInstance creates a new module reference if refModule is true.
 // The module is instantiated in any case.  Module content is read from a
 // source.  Instance id is optional.
-func (s *Server) SourceModuleInstance(ctx context.Context, pri *PrincipalKey, refModule bool, source Source, uri string, persistInst bool, function, instID, debug string,
+func (s *Server) SourceModuleInstance(ctx context.Context, pri *principal.Key, refModule bool, source Source, uri string, persistInst bool, function, instID, debug string,
 ) (progHash string, inst *Instance, err error) {
 	if pri == nil && refModule {
 		panic("referencing module without principal")
@@ -483,7 +487,6 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, refModule
 			return
 		}
 	}
-
 	return
 }
 
@@ -614,7 +617,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	return
 }
 
-func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs ModuleRefs, err error) {
+func (s *Server) ModuleRefs(ctx context.Context, pri *principal.Key) (refs ModuleRefs, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
@@ -624,7 +627,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 		s.lock.Lock()
 		defer s.lock.Unlock()
 
-		acc := s.accounts[pri.key]
+		acc := s.accounts[inprincipal.RawKey(pri)]
 		if acc == nil {
 			return nil
 		}
@@ -647,7 +650,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *PrincipalKey) (refs Module
 }
 
 // ModuleContent for downloading.
-func (s *Server) ModuleContent(ctx context.Context, pri *PrincipalKey, hash string,
+func (s *Server) ModuleContent(ctx context.Context, pri *principal.Key, hash string,
 ) (content io.ReadCloser, length int64, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -684,7 +687,7 @@ func (mc moduleContent) Close() (err error) {
 	return
 }
 
-func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string) (err error) {
+func (s *Server) UnrefModule(ctx context.Context, pri *principal.Key, hash string) (err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
@@ -725,7 +728,7 @@ func (s *Server) UnrefModule(ctx context.Context, pri *PrincipalKey, hash string
 	return
 }
 
-func (s *Server) InstanceConnection(ctx context.Context, pri *PrincipalKey, instID string,
+func (s *Server) InstanceConnection(ctx context.Context, pri *principal.Key, instID string,
 ) (connIO func(context.Context, io.Reader, io.Writer) (Status, error), err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -773,7 +776,7 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *PrincipalKey, inst
 }
 
 // InstanceStatus of an existing instance.
-func (s *Server) InstanceStatus(ctx context.Context, pri *PrincipalKey, instID string,
+func (s *Server) InstanceStatus(ctx context.Context, pri *principal.Key, instID string,
 ) (status Status, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -795,7 +798,7 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *PrincipalKey, instID s
 	return
 }
 
-func (s *Server) WaitInstance(ctx context.Context, pri *PrincipalKey, instID string,
+func (s *Server) WaitInstance(ctx context.Context, pri *principal.Key, instID string,
 ) (status Status, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -826,7 +829,7 @@ func (s *Server) WaitInstance(ctx context.Context, pri *PrincipalKey, instID str
 	return
 }
 
-func (s *Server) SuspendInstance(ctx context.Context, pri *PrincipalKey, instID string,
+func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID string,
 ) (status Status, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -856,7 +859,7 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *PrincipalKey, instID 
 	return
 }
 
-func (s *Server) ResumeInstance(ctx context.Context, pri *PrincipalKey, instID, debug string,
+func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID, debug string,
 ) (inst *Instance, err error) {
 	var pol instPolicy
 
@@ -885,7 +888,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *PrincipalKey, instID, 
 			return
 		}
 
-		proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, &pol.inst, debug)
+		proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pri, &pol.inst, debug)
 		if err != nil {
 			return
 		}
@@ -905,7 +908,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *PrincipalKey, instID, 
 	return
 }
 
-func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID string,
+func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID string,
 ) (moduleKey string, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
@@ -974,7 +977,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *PrincipalKey, instID s
 	return
 }
 
-func (s *Server) Instances(ctx context.Context, pri *PrincipalKey) (is Instances, err error) {
+func (s *Server) Instances(ctx context.Context, pri *principal.Key) (is Instances, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
@@ -985,7 +988,7 @@ func (s *Server) Instances(ctx context.Context, pri *PrincipalKey) (is Instances
 		s.lock.Lock()
 		defer s.lock.Unlock()
 
-		acc := s.accounts[pri.key]
+		acc := s.accounts[inprincipal.RawKey(pri)]
 		if acc == nil {
 			return
 		}
@@ -1012,7 +1015,7 @@ func (s *Server) Instances(ctx context.Context, pri *PrincipalKey) (is Instances
 	return
 }
 
-func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account, err error) {
+func (s *Server) ensureAccount(pri *principal.Key) (acc *account, err error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -1021,10 +1024,10 @@ func (s *Server) ensureAccount(pri *PrincipalKey) (acc *account, err error) {
 		return
 	}
 
-	acc = s.accounts[pri.key]
+	acc = s.accounts[inprincipal.RawKey(pri)]
 	if acc == nil {
 		acc = newAccount(pri)
-		s.accounts[pri.key] = acc
+		s.accounts[inprincipal.RawKey(pri)] = acc
 	}
 	return
 }
@@ -1095,11 +1098,11 @@ func (s *Server) refAccountProgram(acc *account, hash string) *program {
 	return nil
 }
 
-func (s *Server) refPrincipalProgram(pri *PrincipalKey, hash string) *program {
+func (s *Server) refPrincipalProgram(pri *principal.Key, hash string) *program {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if acc := s.accounts[pri.key]; acc != nil {
+	if acc := s.accounts[inprincipal.RawKey(pri)]; acc != nil {
 		if prog := s.programs[hash]; prog != nil {
 			if _, own := acc.programRefs[prog]; own {
 				return prog.ref()
@@ -1110,9 +1113,9 @@ func (s *Server) refPrincipalProgram(pri *PrincipalKey, hash string) *program {
 	return nil
 }
 
-func (s *Server) getAccountAndPrincipalProgramWithCallerLock(pri *PrincipalKey, hash string,
+func (s *Server) getAccountAndPrincipalProgramWithCallerLock(pri *principal.Key, hash string,
 ) (*account, *program) {
-	acc := s.accounts[pri.key]
+	acc := s.accounts[inprincipal.RawKey(pri)]
 	if acc != nil {
 		if prog := s.programs[hash]; prog != nil {
 			if _, own := acc.programRefs[prog]; own {
@@ -1142,7 +1145,7 @@ func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool
 }
 
 // checkInstanceIDAndEnsureAccount if pri is non-nil.
-func (s *Server) checkInstanceIDAndEnsureAccount(pri *PrincipalKey, instID string,
+func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.Key, instID string,
 ) (acc *account, err error) {
 	if instID != "" {
 		err = validateInstanceID(instID)
@@ -1160,10 +1163,10 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *PrincipalKey, instID strin
 			return
 		}
 
-		acc = s.accounts[pri.key]
+		acc = s.accounts[inprincipal.RawKey(pri)]
 		if acc == nil {
 			acc = newAccount(pri)
-			s.accounts[pri.key] = acc
+			s.accounts[inprincipal.RawKey(pri)] = acc
 		}
 
 		if instID != "" {
@@ -1176,11 +1179,11 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *PrincipalKey, instID strin
 	return
 }
 
-func (s *Server) getInstance(pri *PrincipalKey, instID string) *Instance {
+func (s *Server) getInstance(pri *principal.Key, instID string) *Instance {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	acc := s.accounts[pri.key]
+	acc := s.accounts[inprincipal.RawKey(pri)]
 	if acc == nil {
 		return nil
 	}
@@ -1188,11 +1191,11 @@ func (s *Server) getInstance(pri *PrincipalKey, instID string) *Instance {
 	return acc.instances[instID]
 }
 
-func (s *Server) refInstanceProgram(pri *PrincipalKey, instID string) (*program, *Instance) {
+func (s *Server) refInstanceProgram(pri *principal.Key, instID string) (*program, *Instance) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	acc := s.accounts[pri.key]
+	acc := s.accounts[inprincipal.RawKey(pri)]
 	if acc == nil {
 		return nil, nil
 	}
@@ -1205,8 +1208,10 @@ func (s *Server) refInstanceProgram(pri *PrincipalKey, instID string) (*program,
 	return inst.prog.ref(), inst
 }
 
-func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePolicy, debugOption string,
+func (s *Server) allocateInstanceResources(ctx context.Context, pri *principal.Key, pol *InstancePolicy, debugOption string,
 ) (proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser, err error) {
+	ctx = inprincipal.ContextWithIDFrom(ctx, pri)
+
 	if debugOption != "" {
 		if pol.Debug == nil {
 			err = AccessForbidden("no debug policy")
@@ -1227,7 +1232,7 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 		err = AccessForbidden("no service policy")
 		return
 	}
-	services = pol.Services()
+	services = pol.Services(ctx)
 	defer func() {
 		if err != nil {
 			services.Close()
@@ -1246,7 +1251,12 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 // Caller's program reference and instance image are stolen (except on error).
 func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, refModule bool, prog *program, instImage *image.Instance, pol *InstancePolicy, persistInst bool, function, instID, debug string,
 ) (inst *Instance, redundant bool, err error) {
-	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pol, debug)
+	var pri *principal.Key
+	if acc != nil {
+		pri = acc.Key
+	}
+
+	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pri, pol, debug)
 	if err != nil {
 		return
 	}

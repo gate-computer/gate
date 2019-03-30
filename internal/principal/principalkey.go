@@ -2,27 +2,25 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package server
+package principal
 
 import (
+	"context"
 	"encoding/base64"
 )
 
 const (
-	principalKeySize = 32
-	encodedKeyLen    = 43
+	keySize       = 32
+	encodedKeyLen = 43
 )
 
-type PrincipalKey struct {
-	key [principalKeySize]byte
-
-	PrincipalID string
+type Key struct {
+	key         [keySize]byte
+	principalID ID
 }
 
-func ParsePrincipalKey(principalID, encodedKey string) (pri *PrincipalKey, err error) {
-	pri = &PrincipalKey{
-		PrincipalID: principalID,
-	}
+func ParseEd25519Key(encodedKey string) (pri *Key, err error) {
+	pri = new(Key)
 
 	if len(encodedKey) != encodedKeyLen {
 		err = principalKeyError("encoded principal key has wrong length")
@@ -40,18 +38,24 @@ func ParsePrincipalKey(principalID, encodedKey string) (pri *PrincipalKey, err e
 		return
 	}
 
+	pri.principalID = makeEd25519ID(encodedKey)
 	return
 }
 
-func (pri *PrincipalKey) KeyBytes() []byte {
-	return pri.key[:]
+func RawKey(pri *Key) [keySize]byte {
+	return pri.key
 }
 
-// KeyPtr returns a pointer to byte array of the given size if the key size
-// matches it.  Otherwise it returns an unspecified value that cannot be
-// converted to a pointer to a byte array of the given size.
-func (pri *PrincipalKey) KeyPtr(size int) interface{} {
-	return &pri.key
+func KeyPrincipalID(pri *Key) ID {
+	return pri.principalID
+}
+
+func ContextWithIDFrom(ctx context.Context, key *Key) context.Context {
+	if key == nil {
+		return ctx
+	}
+
+	return ContextWithID(ctx, key.principalID)
 }
 
 type principalKeyError string

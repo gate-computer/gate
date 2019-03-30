@@ -8,11 +8,12 @@ import (
 	"context"
 
 	"github.com/tsavola/gate/internal/error/subsystem"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/event"
 )
 
-func reportInternalError(ctx context.Context, s *webserver, pri *server.PrincipalKey, sourceURI, progHash, function, instID string, err error) {
+func reportInternalError(ctx context.Context, s *webserver, pri *principal.Key, sourceURI, progHash, function, instID string, err error) {
 	var subsys string
 
 	if x, ok := err.(subsystem.Error); ok {
@@ -35,13 +36,13 @@ func reportNetworkError(ctx context.Context, s *webserver, err error) {
 	}, err)
 }
 
-func reportProtocolError(ctx context.Context, s *webserver, pri *server.PrincipalKey, err error) {
+func reportProtocolError(ctx context.Context, s *webserver, pri *principal.Key, err error) {
 	s.Server.Monitor(&event.FailProtocol{
 		Ctx: server.Context(ctx, pri),
 	}, err)
 }
 
-func reportRequestError(ctx context.Context, s *webserver, pri *server.PrincipalKey, failType event.FailRequest_Type, sourceURI, progHash, function, instID string, err error) {
+func reportRequestError(ctx context.Context, s *webserver, pri *principal.Key, failType event.FailRequest_Type, sourceURI, progHash, function, instID string, err error) {
 	s.Server.Monitor(&event.FailRequest{
 		Ctx:      server.Context(ctx, pri),
 		Failure:  failType,
@@ -52,14 +53,14 @@ func reportRequestError(ctx context.Context, s *webserver, pri *server.Principal
 	}, err)
 }
 
-func reportRequestFailure(ctx context.Context, s *webserver, pri *server.PrincipalKey, failType event.FailRequest_Type) {
+func reportRequestFailure(ctx context.Context, s *webserver, pri *principal.Key, failType event.FailRequest_Type) {
 	s.Server.Monitor(&event.FailRequest{
 		Ctx:     server.Context(ctx, pri),
 		Failure: failType,
 	}, nil)
 }
 
-func reportPayloadError(ctx context.Context, s *webserver, pri *server.PrincipalKey, err error) {
+func reportPayloadError(ctx context.Context, s *webserver, pri *principal.Key, err error) {
 	s.Server.Monitor(&event.FailRequest{
 		Ctx:     server.Context(ctx, pri),
 		Failure: event.FailRequest_PayloadError,

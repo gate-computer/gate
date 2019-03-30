@@ -40,7 +40,7 @@ type Executor struct {
 	waiters map[int16]chan<- syscall.WaitStatus
 }
 
-func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
+func NewExecutor(config *Config) (e *Executor, err error) {
 	maxProcs := config.maxProcesses()
 	if maxProcs > MaxProcesses {
 		err = errors.New("executor process limit is too high")
@@ -58,9 +58,9 @@ func NewExecutor(ctx context.Context, config *Config) (e *Executor, err error) {
 	)
 
 	if config.DaemonSocket != "" {
-		conn, err = dialContainerDaemon(ctx, config)
+		conn, err = dialContainerDaemon(config)
 	} else {
-		cmd, conn, err = startContainer(ctx, config)
+		cmd, conn, err = startContainer(config)
 	}
 	if err != nil {
 		return

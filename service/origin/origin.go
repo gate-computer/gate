@@ -116,7 +116,11 @@ func (cr *Connector) ServiceName() string {
 	return ServiceName
 }
 
-func (cr *Connector) CreateInstance(config service.InstanceConfig) service.Instance {
+func (cr *Connector) Discoverable(ctx context.Context) bool {
+	return true
+}
+
+func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig) service.Instance {
 	return &instanceService{
 		handler: instanceHandler{
 			newConns:    cr.newConns,
@@ -126,8 +130,8 @@ func (cr *Connector) CreateInstance(config service.InstanceConfig) service.Insta
 	}
 }
 
-func (cr *Connector) RecreateInstance(config service.InstanceConfig, _ []byte) (service.Instance, error) {
-	return cr.CreateInstance(config), nil
+func (cr *Connector) RecreateInstance(ctx context.Context, config service.InstanceConfig, _ []byte) (service.Instance, error) {
+	return cr.CreateInstance(ctx, config), nil
 }
 
 type instanceService struct {

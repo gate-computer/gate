@@ -16,11 +16,14 @@ import (
 	"log"
 	"os"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/internal/principal"
+	"github.com/tsavola/gate/internal/system"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
@@ -60,6 +63,14 @@ func init() {
 
 type Config struct {
 	Runtime runtime.Config
+
+	Principal struct {
+		ID string
+	}
+
+	Scope struct {
+		System bool
+	}
 
 	Plugin struct {
 		LibDir string
@@ -133,19 +144,26 @@ func main() {
 		os.Exit(2)
 	}
 
-	ctx := context.Background()
-
-	serviceConfig := service.Config{
-		Registry: new(service.Registry),
+	principalID, err := principal.ParseID(c.Principal.ID)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	if err := plugins.InitServices(serviceConfig); err != nil {
+	ctx := context.Background()
+	ctx = principal.ContextWithID(ctx, principalID)
+	if c.Scope.System {
+		ctx = system.ContextWithUserID(ctx, strconv.Itoa(os.Getuid()))
+	}
+
+	serviceRegistry := new(service.Registry)
+
+	if err := plugins.InitServices(serviceRegistry); err != nil {
 		log.Fatal(err)
 	}
 
 	var execClosed bool
 
-	executor, err := runtime.NewExecutor(ctx, &c.Runtime)
+	executor, err := runtime.NewExecutor(&c.Runtime)
 	if err != nil {
 		log.Fatalf("runtime: %v", err)
 	}
@@ -189,7 +207,7 @@ func main() {
 				}
 			}()
 
-			r := serviceConfig.Registry.Clone()
+			r := serviceRegistry.Clone()
 			r.Register(connector)
 
 			go func() {

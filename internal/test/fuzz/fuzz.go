@@ -28,7 +28,8 @@ func init() {
 }
 
 func Fuzz(data []byte) int {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), fuzzutil.RunTimeout)
+	defer cancel()
 
 	inst, err := s.UploadModuleInstance(ctx, nil, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), false, fuzzutil.Function, "", "")
 	if err != nil {
@@ -38,14 +39,8 @@ func Fuzz(data []byte) int {
 		return 0
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, fuzzutil.RunTimeout)
-	defer cancel()
-
-	_, err = inst.Run(ctx, s)
-	if err != nil {
-		if fuzzutil.IsFine(err) {
-			return 1
-		}
+	status := inst.Wait(ctx)
+	if !fuzzutil.IsGood(status) {
 		return 0
 	}
 

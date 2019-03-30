@@ -9,6 +9,7 @@ import (
 	"log"
 
 	"github.com/tsavola/gate/packet"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/service"
 )
 
@@ -24,8 +25,8 @@ func ServiceConfig() interface{} {
 	return &testConfig
 }
 
-func InitServices(config service.Config) (err error) {
-	config.Registry.Register(testService{})
+func InitServices(r *service.Registry) (err error) {
+	r.Register(testService{})
 	return
 }
 
@@ -35,12 +36,17 @@ func (testService) ServiceName() string {
 	return ServiceName
 }
 
-func (testService) CreateInstance(service.InstanceConfig) service.Instance {
+func (testService) Discoverable(ctx context.Context) bool {
+	_, ok := principal.ContextID(ctx)
+	return ok
+}
+
+func (testService) CreateInstance(context.Context, service.InstanceConfig) service.Instance {
 	log.Print(testConfig.MOTD)
 	return testInstance{}
 }
 
-func (testService) RecreateInstance(service.InstanceConfig, []byte) (service.Instance, error) {
+func (testService) RecreateInstance(context.Context, service.InstanceConfig, []byte) (service.Instance, error) {
 	log.Print(testConfig.MOTD, "again")
 	return testInstance{}, nil
 }

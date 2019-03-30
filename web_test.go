@@ -98,7 +98,7 @@ func init() {
 	nonceChecker = db
 }
 
-func newServices() func() server.InstanceServices {
+func newServices() func(context.Context) server.InstanceServices {
 	registry := new(service.Registry)
 
 	plugins, err := plugin.OpenAll("lib/gate/plugin")
@@ -106,18 +106,16 @@ func newServices() func() server.InstanceServices {
 		panic(err)
 	}
 
-	err = plugins.InitServices(service.Config{
-		Registry: registry,
-	})
+	err = plugins.InitServices(registry)
 	if err != nil {
 		panic(err)
 	}
 
-	return func() server.InstanceServices {
+	return func(ctx context.Context) server.InstanceServices {
 		connector := origin.New(nil)
 		r := registry.Clone()
 		r.Register(connector)
-		return server.NewInstanceServices(r, connector)
+		return server.NewInstanceServices(connector, r)
 	}
 }
 
@@ -188,27 +186,27 @@ func debugPolicy(ctx context.Context, option string) (status string, output io.W
 	}
 }
 
-func newServer(ctx context.Context) *server.Server {
+func newServer() *server.Server {
 	access := server.NewPublicAccess(newServices())
 	access.Debug = debugPolicy
 
 	config := &server.Config{
-		ProcessFactory: newExecutor(ctx, nil),
+		ProcessFactory: newExecutor(nil),
 		AccessPolicy:   access,
 	}
 
-	return server.New(ctx, config)
+	return server.New(config)
 }
 
-func newHandler(ctx context.Context) http.Handler {
+func newHandler() http.Handler {
 	config := &webserver.Config{
-		Server:        newServer(ctx),
+		Server:        newServer(),
 		Authority:     "test",
 		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
 	}
 
-	h := webserver.NewHandler(ctx, "/", config)
+	h := webserver.NewHandler("/", config)
 	// h = handlers.LoggingHandler(os.Stdout, h)
 
 	return h
@@ -279,9 +277,8 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect webapi.Status) 
 }
 
 func TestVersions(t *testing.T) {
-	ctx := context.Background()
 	req := httptest.NewRequest(http.MethodGet, webapi.PathVersions, nil)
-	resp, content := checkResponse(t, newHandler(ctx), req, http.StatusOK)
+	resp, content := checkResponse(t, newHandler(), req, http.StatusOK)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
@@ -301,9 +298,8 @@ func TestVersions(t *testing.T) {
 }
 
 func TestVersion404(t *testing.T) {
-	ctx := context.Background()
 	req := httptest.NewRequest(http.MethodGet, webapi.PathVersions+"foo", nil)
-	resp, content := checkResponse(t, newHandler(ctx), req, http.StatusNotFound)
+	resp, content := checkResponse(t, newHandler(), req, http.StatusNotFound)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "text/plain; charset=utf-8" {
 		t.Error(x)
@@ -315,9 +311,8 @@ func TestVersion404(t *testing.T) {
 }
 
 func TestAPI(t *testing.T) {
-	ctx := context.Background()
 	req := httptest.NewRequest(http.MethodGet, webapi.Path, nil)
-	resp, content := checkResponse(t, newHandler(ctx), req, http.StatusOK)
+	resp, content := checkResponse(t, newHandler(), req, http.StatusOK)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
@@ -340,9 +335,8 @@ func TestAPI(t *testing.T) {
 }
 
 func TestModuleSourceList(t *testing.T) {
-	ctx := context.Background()
 	req := httptest.NewRequest(http.MethodGet, webapi.PathModules, nil)
-	resp, content := checkResponse(t, newHandler(ctx), req, http.StatusOK)
+	resp, content := checkResponse(t, newHandler(), req, http.StatusOK)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
@@ -384,8 +378,7 @@ func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expec
 }
 
 func TestModuleRef(t *testing.T) {
-	ctx := context.Background()
-	handler := newHandler(ctx)
+	handler := newHandler()
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
@@ -727,8 +720,7 @@ func TestModuleRef(t *testing.T) {
 }
 
 func TestModuleSource(t *testing.T) {
-	ctx := context.Background()
-	handler := newHandler(ctx)
+	handler := newHandler()
 	pri := newPrincipalKey()
 
 	t.Run("Post", func(t *testing.T) {
@@ -959,8 +951,7 @@ func TestModuleSource(t *testing.T) {
 }
 
 func TestInstanceDebug(t *testing.T) {
-	ctx := context.Background()
-	handler := newHandler(ctx)
+	handler := newHandler()
 
 	t.Run("Output", func(t *testing.T) {
 		debugOutput.Reset()
@@ -1037,8 +1028,7 @@ func TestInstance(t *testing.T) {
 		debugLog.logf = nil
 	}()
 
-	ctx := context.Background()
-	handler := newHandler(ctx)
+	handler := newHandler()
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
@@ -1276,7 +1266,7 @@ func TestInstance(t *testing.T) {
 			})
 		})
 
-		handler2 := newHandler(ctx)
+		handler2 := newHandler()
 
 		t.Run("Restore", func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)

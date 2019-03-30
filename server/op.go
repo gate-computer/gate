@@ -8,7 +8,7 @@ import (
 	"github.com/tsavola/gate/server/detail"
 )
 
-// Server operation types.  Returned by Op(context.Context) function.
+// Server operation types.  Returned by ContextOp(context.Context) function.
 const (
 	OpModuleList       = detail.Op_ModuleList
 	OpModuleDownload   = detail.Op_ModuleDownload

@@ -19,6 +19,7 @@ import (
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -177,35 +178,35 @@ func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserv
 	reportProtocolError(r.Context(), s, nil, fmt.Errorf("bad action query: %s", r.URL.RawQuery))
 }
 
-func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey) {
+func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
 	ew.WriteError(http.StatusUnauthorized, "missing authentication credentials")
 	reportRequestFailure(ctx, s, pri, event.FailRequest_AuthMissing)
 }
 
-func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, errorCode string) {
+func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, errorCode string) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode))
 	ew.WriteError(http.StatusUnauthorized, errorCode)
 	reportRequestFailure(ctx, s, pri, event.FailRequest_AuthInvalid)
 }
 
-func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
+func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q error_description=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode, errorDesc))
 	ew.WriteError(http.StatusUnauthorized, errorDesc)
 	reportRequestError(ctx, s, pri, failType, "", "", "", "", err)
 }
 
-func respondContentDecodeError(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, err error) {
+func respondContentDecodeError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, err error) {
 	ew.WriteError(http.StatusBadRequest, errContentDecode.Error())
 	reportPayloadError(ctx, s, pri, errContentDecode)
 }
 
-func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey) {
+func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key) {
 	ew.WriteError(http.StatusBadRequest, errEncodingNotSupported.Error())
 	reportPayloadError(ctx, s, pri, errEncodingNotSupported)
 }
 
-func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, sourceURI, progHash, function, instID string, err error) {
+func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, sourceURI, progHash, function, instID string, err error) {
 	var (
 		status   = http.StatusInternalServerError
 		text     = "internal server error"

@@ -169,7 +169,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 			switch {
 			case read.err == nil:
-				msg, ev, opErr := handlePacket(read.buf, discoverer)
+				msg, ev, opErr := handlePacket(ctx, read.buf, discoverer)
 				if opErr != nil {
 					err = opErr
 					return
@@ -327,7 +327,7 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 	return p
 }
 
-func handlePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg, reply packet.Buf, err error) {
+func handlePacket(ctx context.Context, p packet.Buf, discoverer ServiceDiscoverer) (msg, reply packet.Buf, err error) {
 	switch code := p.Code(); {
 	case code >= 0:
 		msg, err = checkServicePacket(p, discoverer)
@@ -336,7 +336,7 @@ func handlePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg, reply packet
 		}
 
 	case code == packet.CodeServices:
-		reply, err = handleServicesPacket(p, discoverer)
+		reply, err = handleServicesPacket(ctx, p, discoverer)
 		if err != nil {
 			return
 		}

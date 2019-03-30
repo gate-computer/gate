@@ -18,29 +18,29 @@ import (
 	"github.com/tsavola/gate/webapi"
 )
 
-func newBenchServer(ctx context.Context, factory runtime.ProcessFactory) *server.Server {
+func newBenchServer(factory runtime.ProcessFactory) *server.Server {
 	config := &server.Config{
 		ProcessFactory: factory,
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 	}
 
-	return server.New(ctx, config)
+	return server.New(config)
 }
 
-func newBenchHandler(ctx context.Context, s *server.Server) http.Handler {
+func newBenchHandler(s *server.Server) http.Handler {
 	config := &webserver.Config{
 		Server:    s,
 		Authority: "bench",
 	}
 
-	return webserver.NewHandler(ctx, "/", config)
+	return webserver.NewHandler("/", config)
 }
 
 func BenchmarkCall(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	executor := newExecutor(ctx, nil)
+	executor := newExecutor(nil)
 	defer executor.Close()
 
 	benchCall(ctx, b, executor)
@@ -61,7 +61,7 @@ func benchCallExecutors(b *testing.B, count int) {
 	var executors []runtime.ProcessFactory
 
 	for i := 0; i < count; i++ {
-		e := newExecutor(ctx, nil)
+		e := newExecutor(nil)
 		defer e.Close()
 
 		executors = append(executors, e)
@@ -71,10 +71,10 @@ func benchCallExecutors(b *testing.B, count int) {
 }
 
 func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory) {
-	server := newBenchServer(ctx, factory)
+	server := newBenchServer(factory)
 	defer server.Shutdown(ctx)
 
-	handler := newBenchHandler(ctx, server)
+	handler := newBenchHandler(server)
 	uri := webapi.PathModuleRefs + hashNop + "?action=call"
 
 	procs := goruntime.GOMAXPROCS(0)

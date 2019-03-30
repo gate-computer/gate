@@ -10,6 +10,7 @@ import (
 	goruntime "runtime"
 	"time"
 
+	"github.com/tsavola/gate/internal/serverapi"
 	"github.com/tsavola/gate/runtime"
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
@@ -32,18 +33,18 @@ func (connector) Close() error {
 }
 
 func NewServer(ctx context.Context, libdir string) *server.Server {
-	e, err := gateruntime.NewExecutor(ctx, &gateruntime.Config{
+	e, err := gateruntime.NewExecutor(&gateruntime.Config{
 		LibDir: libdir,
 	})
 	if err != nil {
 		panic(err)
 	}
 
-	services := server.NewInstanceServices(new(service.Registry), connector{})
+	services := server.NewInstanceServices(connector{}, new(service.Registry))
 
-	return server.New(ctx, &server.Config{
+	return server.New(&server.Config{
 		ProcessFactory: runtime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
-		AccessPolicy:   server.NewPublicAccess(func() server.InstanceServices { return services }),
+		AccessPolicy:   server.NewPublicAccess(func(context.Context) server.InstanceServices { return services }),
 	})
 }
 
@@ -59,4 +60,33 @@ func IsFine(err error) bool {
 	}
 
 	return false
+}
+
+func IsGood(s serverapi.Status) bool {
+	switch s.State {
+	case serverapi.Status_running, serverapi.Status_suspended, serverapi.Status_terminated, serverapi.Status_killed:
+	default:
+		return false
+	}
+
+	switch {
+	case s.Cause >= 0 && s.Cause <= 9:
+	case s.Cause == 65:
+	default:
+		return false
+	}
+
+	if s.Result != 0 && s.Result != 1 {
+		return false
+	}
+
+	if s.Error != "" {
+		return false
+	}
+
+	if s.Debug != "" {
+		return false
+	}
+
+	return true
 }

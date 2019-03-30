@@ -48,7 +48,7 @@ func (test *executor) Close() error {
 	return test.Executor.Close()
 }
 
-func newExecutor(ctx context.Context, config *runtime.Config) (tester *executor) {
+func newExecutor(config *runtime.Config) (tester *executor) {
 	if config == nil {
 		config = new(runtime.Config)
 	}
@@ -56,7 +56,7 @@ func newExecutor(ctx context.Context, config *runtime.Config) (tester *executor)
 		config.LibDir = "lib/gate/runtime"
 	}
 
-	actual, err := runtime.NewExecutor(ctx, config)
+	actual, err := runtime.NewExecutor(config)
 	if err != nil {
 		panic(err)
 	}
@@ -115,7 +115,7 @@ type serviceDiscoverer struct {
 	names    []string
 }
 
-func (d *serviceDiscoverer) Discover(names []string) ([]runtime.ServiceState, error) {
+func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]runtime.ServiceState, error) {
 	for _, name := range names {
 		var s runtime.ServiceState
 
@@ -249,7 +249,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 ) (*executor, *image.Program, *image.Instance, *runtime.Process, debug.InsnMap, compile.Module) {
 	var err error
 
-	executor := newExecutor(ctx, nil)
+	executor := newExecutor(nil)
 	defer func() {
 		if err != nil {
 			executor.Close()

@@ -15,7 +15,7 @@ import (
 // Function names exported by service plugins.
 const (
 	ServiceConfigSymbol = "ServiceConfig" // Optional func() interface{}
-	InitServicesSymbol  = "InitServices"  // Required func(service.Config) error
+	InitServicesSymbol  = "InitServices"  // Required func(*service.Registry) error
 )
 
 type ServicePlugins struct {
@@ -62,11 +62,11 @@ func getServiceConfig(p plugin.Plugin) (interface{}, error) {
 	return f(), nil
 }
 
-func (ps ServicePlugins) InitServices(config service.Config) (err error) {
+func (ps ServicePlugins) InitServices(r *service.Registry) (err error) {
 	for _, p := range ps.Plugins.Plugins {
 		_, hasConfig := ps.ServiceConfig[p.Name]
 
-		err = initServices(config, p, hasConfig)
+		err = initServices(r, p, hasConfig)
 		if err != nil {
 			return
 		}
@@ -75,7 +75,7 @@ func (ps ServicePlugins) InitServices(config service.Config) (err error) {
 	return
 }
 
-func initServices(config service.Config, p plugin.Plugin, require bool) error {
+func initServices(r *service.Registry, p plugin.Plugin, require bool) error {
 	x, err := p.Lookup(InitServicesSymbol)
 	if err != nil {
 		if require {
@@ -85,10 +85,10 @@ func initServices(config service.Config, p plugin.Plugin, require bool) error {
 		}
 	}
 
-	f, ok := x.(func(service.Config) error)
+	f, ok := x.(func(*service.Registry) error)
 	if !ok {
 		return fmt.Errorf("%s: %s is a %s; expected a %s", p, InitServicesSymbol, reflect.TypeOf(x), reflect.TypeOf(f))
 	}
 
-	return f(config)
+	return f(r)
 }

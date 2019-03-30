@@ -9,7 +9,12 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/tsavola/gate/internal/principal"
+	"github.com/tsavola/gate/internal/system"
+	"github.com/tsavola/gate/packet"
+	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/snapshot"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 )
@@ -25,7 +30,6 @@ var errForbidden = server.AccessForbidden("key not authorized")
 type AuthorizedKeys struct {
 	server.NoAccess
 	server.AccessConfig
-	Services func(uid string) server.InstanceServices
 
 	publicKeys map[[ed25519.PublicKeySize]byte]string
 }
@@ -75,34 +79,36 @@ func (ak *AuthorizedKeys) Parse(uid string, text []byte) error {
 	return nil
 }
 
-func (ak *AuthorizedKeys) Authenticate(pri *server.PrincipalKey) (uid string, err error) {
+func (ak *AuthorizedKeys) Authenticate(pri *principal.Key) (uid string, err error) {
 	if pri == nil {
 		err = errUnauthorized
 		return
 	}
 
-	if key, ok := pri.KeyPtr(ed25519.PublicKeySize).(*[ed25519.PublicKeySize]byte); ok {
-		if x, found := ak.publicKeys[*key]; found {
-			uid = x
-			return
-		}
+	uid, found := ak.publicKeys[principal.RawKey(pri)]
+	if !found {
+		err = errForbidden
+		return
 	}
 
-	err = errForbidden
 	return
 }
 
 func (ak *AuthorizedKeys) ConfigureInstance(policy *server.InstancePolicy, uid string) {
 	ak.AccessConfig.ConfigureInstance(policy)
 
-	if ak.Services != nil {
-		policy.Services = func() server.InstanceServices {
-			return ak.Services(uid)
-		}
+	nestedS := policy.Services
+	policy.Services = func(ctx context.Context) server.InstanceServices {
+		nestedIS := nestedS(ctx)
+		return server.WrapInstanceServices(nestedIS, func(ctx context.Context, config runtime.ServiceConfig, state []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
+		) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
+			ctx = system.ContextWithUserID(ctx, uid)
+			return nestedIS.StartServing(ctx, config, state, send, recv)
+		})
 	}
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramContent(_ context.Context, pri *server.PrincipalKey, resPolicy *server.ResourcePolicy, progPolicy *server.ProgramPolicy) error {
+func (ak *AuthorizedKeys) AuthorizeProgramContent(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, progPolicy *server.ProgramPolicy) error {
 	_, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -111,7 +117,7 @@ func (ak *AuthorizedKeys) AuthorizeProgramContent(_ context.Context, pri *server
 	return err
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstanceProgramContent(_ context.Context, pri *server.PrincipalKey, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy) error {
+func (ak *AuthorizedKeys) AuthorizeInstanceProgramContent(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy) error {
 	uid, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -121,7 +127,7 @@ func (ak *AuthorizedKeys) AuthorizeInstanceProgramContent(_ context.Context, pri
 	return err
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstanceProgramSource(_ context.Context, pri *server.PrincipalKey, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy, _ server.Source) error {
+func (ak *AuthorizedKeys) AuthorizeInstanceProgramSource(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy, _ server.Source) error {
 	uid, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -131,7 +137,7 @@ func (ak *AuthorizedKeys) AuthorizeInstanceProgramSource(_ context.Context, pri 
 	return err
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstance(_ context.Context, pri *server.PrincipalKey, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy) error {
+func (ak *AuthorizedKeys) AuthorizeInstance(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy) error {
 	uid, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -140,7 +146,7 @@ func (ak *AuthorizedKeys) AuthorizeInstance(_ context.Context, pri *server.Princ
 	return err
 }
 
-func (ak *AuthorizedKeys) Authorize(_ context.Context, pri *server.PrincipalKey) error {
+func (ak *AuthorizedKeys) Authorize(_ context.Context, pri *principal.Key) error {
 	_, err := ak.Authenticate(pri)
 	return err
 }

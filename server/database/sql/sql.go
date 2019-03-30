@@ -14,7 +14,6 @@ import (
 	"database/sql/driver"
 	"time"
 
-	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/database"
 )
 
@@ -37,11 +36,11 @@ func init() {
 
 const NonceSchema = `
 CREATE TABLE IF NOT EXISTS nonce (
-	principal BYTEA NOT NULL,
+	scope BYTEA NOT NULL,
 	nonce TEXT NOT NULL,
 	expire BIGINT NOT NULL,
 
-	PRIMARY KEY (principal, nonce)
+	PRIMARY KEY (scope, nonce)
 );
 
 CREATE INDEX IF NOT EXISTS nonce_expire ON nonce (expire);
@@ -88,7 +87,7 @@ func (nr *NonceChecker) Close() error {
 	return nr.db.Close()
 }
 
-func (nr *NonceChecker) CheckNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expire time.Time,
+func (nr *NonceChecker) CheckNonce(ctx context.Context, scope []byte, nonce string, expire time.Time,
 ) (err error) {
 	conn, err := nr.db.Conn(ctx)
 	if err != nil {
@@ -101,7 +100,7 @@ func (nr *NonceChecker) CheckNonce(ctx context.Context, pri *server.PrincipalKey
 		return
 	}
 
-	result, err := conn.ExecContext(ctx, "INSERT INTO nonce (principal, nonce, expire) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", pri.KeyBytes(), nonce, expire.Unix())
+	result, err := conn.ExecContext(ctx, "INSERT INTO nonce (scope, nonce, expire) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", scope, nonce, expire.Unix())
 	if err != nil {
 		return
 	}

@@ -16,11 +16,6 @@ import (
 
 const maxServiceNameLen = 127
 
-// Config for service initialization.
-type Config struct {
-	Registry *Registry
-}
-
 // InstanceConfig for a service instance.
 type InstanceConfig struct {
 	runtime.ServiceConfig
@@ -41,14 +36,13 @@ type Instance interface {
 // naming conventions.
 type Factory interface {
 	ServiceName() string
-	CreateInstance(config InstanceConfig) Instance
-	RecreateInstance(config InstanceConfig, initialState []byte) (Instance, error)
+	Discoverable(ctx context.Context) bool
+	CreateInstance(ctx context.Context, config InstanceConfig) Instance
+	RecreateInstance(ctx context.Context, config InstanceConfig, initialState []byte) (Instance, error)
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
-// packets to service implementations.  If each program instance requires
-// distinct configuration for a given service, a cloned registry with distinct
-// Factory must be used.
+// packets to service implementations.
 type Registry struct {
 	factories map[string]Factory
 	parent    *Registry
@@ -130,7 +124,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 		var err error
 
 		if s.factory != nil {
-			inst, err = s.factory.RecreateInstance(InstanceConfig{serviceConfig, code}, s.Buffer)
+			inst, err = s.factory.RecreateInstance(ctx, InstanceConfig{serviceConfig, code}, s.Buffer)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -164,7 +158,7 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 		inst, found := instances[code]
 		if !found {
 			if s := d.getServices()[code]; s.factory != nil {
-				inst = s.factory.CreateInstance(InstanceConfig{serviceConfig, code})
+				inst = s.factory.CreateInstance(ctx, InstanceConfig{serviceConfig, code})
 			}
 			instances[code] = inst
 		}
@@ -204,7 +198,7 @@ func (d *discoverer) setServices(services []discoveredService) {
 	d.services = services
 }
 
-func (d *discoverer) Discover(newNames []string) (states []runtime.ServiceState, err error) {
+func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []runtime.ServiceState, err error) {
 	oldCount := len(d.services)
 	newCount := oldCount + len(newNames)
 
@@ -218,7 +212,7 @@ func (d *discoverer) Discover(newNames []string) (states []runtime.ServiceState,
 			},
 		}
 
-		if f := d.registry.lookup(name); f != nil {
+		if f := d.registry.lookup(name); f != nil && f.Discoverable(ctx) {
 			if _, dupe := d.discovered[f]; dupe {
 				err = runtime.ErrDuplicateService
 				return

@@ -11,8 +11,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/detail"
+	"github.com/tsavola/gate/snapshot"
 )
 
 type InstanceConnector interface {
@@ -27,17 +29,28 @@ type InstanceConnector interface {
 }
 
 type InstanceServices interface {
-	runtime.ServiceRegistry
 	InstanceConnector
+	runtime.ServiceRegistry
 }
+
+type ServiceStarter func(context.Context, runtime.ServiceConfig, []snapshot.Service, chan<- packet.Buf, <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, error)
 
 type instanceServices struct {
-	runtime.ServiceRegistry
 	InstanceConnector
+	startServing ServiceStarter
 }
 
-func NewInstanceServices(r runtime.ServiceRegistry, c InstanceConnector) InstanceServices {
-	return &instanceServices{r, c}
+func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) InstanceServices {
+	return &instanceServices{c, r.StartServing}
+}
+
+func WrapInstanceServices(c InstanceConnector, f ServiceStarter) InstanceServices {
+	return &instanceServices{c, f}
+}
+
+func (is *instanceServices) StartServing(ctx context.Context, config runtime.ServiceConfig, state []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
+) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
+	return is.startServing(ctx, config, state, send, recv)
 }
 
 type Event interface {

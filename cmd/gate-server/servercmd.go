@@ -246,18 +246,16 @@ func main() {
 	}
 	c.Monitor.HTTP.ErrorLog = errLog
 
-	serviceConfig := service.Config{
-		Registry: new(service.Registry),
-	}
-	if err := plugins.InitServices(serviceConfig); err != nil {
+	serviceRegistry := new(service.Registry)
+	if err := plugins.InitServices(serviceRegistry); err != nil {
 		critLog.Fatal(err)
 	}
 
-	c.Principal.AccessConfig.Services = func() server.InstanceServices {
+	c.Principal.AccessConfig.Services = func(ctx context.Context) server.InstanceServices {
 		o := origin.New(&originConfig)
-		r := serviceConfig.Registry.Clone()
+		r := serviceRegistry.Clone()
 		r.Register(o)
-		return server.NewInstanceServices(r, o)
+		return server.NewInstanceServices(o, r)
 	}
 
 	critLog.Fatal(main2(critLog))
@@ -288,7 +286,7 @@ func main2(critLog *log.Logger) (err error) {
 	var executors []*runtime.Executor
 
 	for i := 0; i < c.Runtime.ExecutorCount; i++ {
-		e, err := runtime.NewExecutor(ctx, &c.Runtime.Config)
+		e, err := runtime.NewExecutor(&c.Runtime.Config)
 		if err != nil {
 			return err
 		}
@@ -369,9 +367,6 @@ func main2(critLog *log.Logger) (err error) {
 	case "ssh":
 		accessKeys := &sshkeys.AuthorizedKeys{
 			AccessConfig: c.Principal.AccessConfig,
-			Services: func(uid string) server.InstanceServices {
-				return c.Principal.AccessConfig.Services()
-			},
 		}
 
 		uid := strconv.Itoa(os.Getuid())
@@ -420,8 +415,8 @@ func main2(critLog *log.Logger) (err error) {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server = server.New(ctx, &c.Server.Config)
-	handler := newHTTPSHandler(webserver.NewHandler(ctx, "/", &c.HTTP.Config))
+	c.HTTP.Server = server.New(&c.Server.Config)
+	handler := newHTTPSHandler(webserver.NewHandler("/", &c.HTTP.Config))
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)

@@ -7,32 +7,33 @@ package server
 import (
 	"context"
 
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 )
 
 func accountContext(ctx context.Context, acc *account) detail.Context {
-	var pri *PrincipalKey
+	var pri *principal.Key
 	if acc != nil {
-		pri = acc.PrincipalKey
+		pri = acc.Key
 	}
 	return Context(ctx, pri)
 }
 
 type account struct {
-	*PrincipalKey
+	*principal.Key
 
 	// Protected by Server.lock:
 	programRefs map[*program]struct{}
 	instances   map[string]*Instance
 }
 
-func newAccount(pri *PrincipalKey) *account {
+func newAccount(pri *principal.Key) *account {
 	return &account{
-		PrincipalKey: pri,
-		programRefs:  make(map[*program]struct{}),
-		instances:    make(map[string]*Instance),
+		Key:         pri,
+		programRefs: make(map[*program]struct{}),
+		instances:   make(map[string]*Instance),
 	}
 }
 

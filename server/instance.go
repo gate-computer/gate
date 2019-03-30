@@ -16,6 +16,7 @@ import (
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/subsystem"
+	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/internal/serverapi"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
@@ -39,8 +40,7 @@ func validateInstanceID(s string) error {
 }
 
 func instanceStorageKey(acc *account, instID string) string {
-	// The delimiter must be suitable for URL-safe base64 and UUID.
-	return fmt.Sprintf("%s.%s", acc.PrincipalID, instID)
+	return fmt.Sprintf("%s.%s", principal.KeyPrincipalID(acc.Key).String(), instID)
 }
 
 type Status = serverapi.Status
@@ -106,15 +106,29 @@ func (inst *Instance) ID() string {
 	return inst.id
 }
 
-func (inst *Instance) PrincipalID() string {
-	return inst.acc.PrincipalID
-}
-
 func (inst *Instance) Status() Status {
 	inst.lock.Lock()
 	defer inst.lock.Unlock()
 
 	return inst.status
+}
+
+func (inst *Instance) Wait(ctx context.Context) Status {
+	inst.lock.Lock()
+	status := inst.status
+	stopped := inst.stopped
+	inst.lock.Unlock()
+
+	if status.State != serverapi.Status_running {
+		return status
+	}
+
+	select {
+	case <-stopped:
+	case <-ctx.Done():
+	}
+
+	return inst.Status()
 }
 
 func (inst *Instance) killProcess() {
@@ -146,10 +160,7 @@ func (inst *Instance) Kill(s *Server) {
 
 // Connect to a running instance.  Disconnection happens when context is
 // canceled, the process terminates, or the program closes the connection.
-func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (disconnected <-chan error) {
-	c := make(chan error)
-	disconnected = c
-
+func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (err error) {
 	services := func() InstanceServices {
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
@@ -161,30 +172,23 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (di
 		}
 	}()
 	if services == nil {
-		close(c)
 		return
 	}
 
 	conn := services.Connect(ctx)
 	if conn == nil {
-		close(c)
 		return
 	}
 
-	go func() {
-		defer close(c)
-		c <- conn(ctx, r, w)
-	}()
+	err = conn(ctx, r, w)
 	return
 }
 
-// Run the program.
-//
-// The returned error has already been reported, and its message has been
-// copied to result.Error.
-func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err error) {
-	result.Error = "internal server error"
-	result.Debug = inst.status.Debug
+func (inst *Instance) Run(ctx context.Context, s *Server) {
+	result := serverapi.Status{
+		Error: "internal server error",
+		Debug: inst.status.Debug,
+	}
 
 	defer func() {
 		inst.lock.Lock()
@@ -200,8 +204,9 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 		Debug:          inst.debug,
 	}
 
-	err = inst.process.Start(inst.prog.image, inst.image, policy)
+	err := inst.process.Start(inst.prog.image, inst.image, policy)
 	if err != nil {
+		// TODO: report error
 		return
 	}
 
@@ -255,7 +260,6 @@ func (inst *Instance) Run(ctx context.Context, s *Server) (result Status, err er
 	}
 
 	result.Error = ""
-	return
 }
 
 func reportProgramError(ctx context.Context, s *Server, acc *account, progHash, function string, instID string, err error) {

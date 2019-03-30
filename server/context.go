@@ -7,6 +7,7 @@ package server
 import (
 	"context"
 
+	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/server/detail"
 )
 
@@ -31,20 +32,26 @@ func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
 	return context.WithValue(ctx, contextKey{}, c)
 }
 
-func Context(ctx context.Context, pri *PrincipalKey) (c detail.Context) {
+func DetachedContext(ctx context.Context, pri *principal.Key) context.Context {
+	c := Context(ctx, pri)
+	c.Addr = ""
+	return context.WithValue(context.Background(), contextKey{}, c)
+}
+
+func Context(ctx context.Context, pri *principal.Key) (c detail.Context) {
 	if x := ctx.Value(contextKey{}); x != nil {
 		c = x.(detail.Context)
 	}
 
 	if pri != nil {
-		c.Principal = pri.PrincipalID
+		c.Principal = principal.KeyPrincipalID(pri).String()
 	}
 
 	return
 }
 
-// Op returns the server operation type.
-func Op(ctx context.Context) (op detail.Op) {
+// ContextOp returns the server operation type.
+func ContextOp(ctx context.Context) (op detail.Op) {
 	if x := ctx.Value(contextKey{}); x != nil {
 		op = x.(detail.Context).Op
 	}

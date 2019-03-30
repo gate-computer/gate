@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/internal/serverapi"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/detail"
@@ -35,26 +36,18 @@ type errorWriter interface {
 	WriteError(status int, text string)
 }
 
-type instanceMethod func(s *server.Server, ctx context.Context, pri *server.PrincipalKey, instance string) (server.Status, error)
+type instanceMethod func(s *server.Server, ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
 
 type webserver struct {
 	Config
 
 	identity       string // JWT audience.
 	pathModuleRefs string
-
-	runBackgroundInstance func(*server.Instance)
 }
 
-// NewHandler should be called with the same context that was passed to
-// server.New(), or its subcontext.
-func NewHandler(ctx context.Context, pattern string, config *Config) http.Handler {
+func NewHandler(pattern string, config *Config) http.Handler {
 	s := &webserver{
 		Config: *config,
-	}
-
-	s.runBackgroundInstance = func(inst *server.Instance) {
-		inst.Run(ctx, s.Server)
 	}
 
 	if s.Authority == "" {
@@ -99,7 +92,7 @@ func NewHandler(ctx context.Context, pattern string, config *Config) http.Handle
 	mux.HandleFunc(patternInstance, newOpaqueHandler(s, pathInstance))
 	mux.HandleFunc(patternInstances, newInstanceHandler(s, pathInstances))
 	mux.HandleFunc(patternModuleRef, newOpaqueHandler(s, pathModuleRef))
-	mux.HandleFunc(patternModuleRefs, newModuleRefHandler(ctx, s))
+	mux.HandleFunc(patternModuleRefs, newModuleRefHandler(s))
 
 	moduleSources := []string{webapi.ModuleRefSource}
 
@@ -111,7 +104,7 @@ func NewHandler(ctx context.Context, pattern string, config *Config) http.Handle
 		pathSourceDir := pathSource + "/" // /path/api/module/source/
 
 		mux.HandleFunc(patternSource, newOpaqueHandler(s, pathSource))
-		mux.HandleFunc(patternSourceDir, newModuleSourceHandler(ctx, s, pathModule, pathSourceDir, source))
+		mux.HandleFunc(patternSourceDir, newModuleSourceHandler(s, pathModule, pathSourceDir, source))
 
 		moduleSources = append(moduleSources, strings.TrimLeft(relURI, "/"))
 	}
@@ -120,7 +113,7 @@ func NewHandler(ctx context.Context, pattern string, config *Config) http.Handle
 	mux.HandleFunc(patternModules, newStaticHandler(s, pathModules, moduleSources))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := server.ContextWithRequestAddr(ctx, s.NewRequestID(r), r.RemoteAddr)
+		ctx := server.ContextWithRequestAddr(r.Context(), s.NewRequestID(r), r.RemoteAddr)
 
 		s.Server.Monitor(&event.IfaceAccess{
 			Ctx: server.Context(ctx, nil),
@@ -215,7 +208,7 @@ func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerF
 	}
 }
 
-func newModuleRefHandler(ctx context.Context, s *webserver) http.HandlerFunc {
+func newModuleRefHandler(s *webserver) http.HandlerFunc {
 	var (
 		headersList = join(webapi.HeaderAuthorization)
 		headersRef  = join(webapi.HeaderAuthorization, webapi.HeaderContentType)
@@ -266,7 +259,7 @@ func newModuleRefHandler(ctx context.Context, s *webserver) http.HandlerFunc {
 	}
 }
 
-func newModuleSourceHandler(ctx context.Context, s *webserver, sourceURIBase, sourcePath string, source server.Source) http.HandlerFunc {
+func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, source server.Source) http.HandlerFunc {
 	var (
 		headers = join(webapi.HeaderAuthorization)
 		exposed = join(webapi.HeaderLocation, webapi.HeaderInstance, webapi.HeaderStatus)
@@ -577,6 +570,7 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleList)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	refs, err := s.Server.ModuleRefs(ctx, pri)
 	if err != nil {
@@ -599,6 +593,7 @@ func handleModuleDownload(w http.ResponseWriter, r *http.Request, s *webserver, 
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleDownload)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	content, length, err := s.Server.ModuleContent(ctx, pri, key)
 	if err != nil {
@@ -620,6 +615,7 @@ func handleModuleUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleUpload)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	err := s.Server.UploadModule(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength)
 	if err != nil {
@@ -638,6 +634,7 @@ func handleModuleUnref(w http.ResponseWriter, r *http.Request, s *webserver, key
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleUnref)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	err := s.Server.UnrefModule(ctx, pri, key)
 	if err != nil {
@@ -652,6 +649,7 @@ func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, re
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleSource)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	progHash, err := s.Server.SourceModule(ctx, pri, ref, source, key)
 	if err != nil {
@@ -672,7 +670,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	wr := &requestResponseWriter{w, r}
 
 	var (
-		pri      *server.PrincipalKey
+		pri      *principal.Key
 		progHash string
 		inst     *server.Instance
 		err      error
@@ -681,6 +679,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	switch {
 	case content:
 		pri = mustParseAuthorizationHeader(ctx, wr, s, ref)
+		ctx = principal.ContextWithIDFrom(ctx, pri)
 		progHash = key
 
 		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, false, function, "", debug)
@@ -691,6 +690,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	case source == nil:
 		pri = mustParseAuthorizationHeader(ctx, wr, s, true)
+		ctx = principal.ContextWithIDFrom(ctx, pri)
 		progHash = key
 
 		inst, err = s.Server.CreateInstance(ctx, pri, key, false, function, "", debug)
@@ -701,6 +701,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	default:
 		pri = mustParseAuthorizationHeader(ctx, wr, s, ref)
+		ctx = principal.ContextWithIDFrom(ctx, pri)
 
 		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, false, function, "", debug)
 		if err != nil {
@@ -730,9 +731,9 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		w.WriteHeader(http.StatusOK)
 	}
 
-	disconnected := inst.Connect(ctx, r.Body, w)
-	status, _ := inst.Run(ctx, s.Server)
-	<-disconnected
+	go inst.Run(ctx, s.Server)
+	inst.Connect(ctx, r.Body, w)
+	status := inst.Wait(ctx)
 
 	statusJSON := statusInternalServerErrorJSON
 	if data, err := serverapi.MarshalJSON(&status); err == nil {
@@ -806,7 +807,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	w := newWebsocketWriter(conn)
 
 	var (
-		pri      *server.PrincipalKey
+		pri      *principal.Key
 		progHash string
 		inst     *server.Instance
 	)
@@ -814,6 +815,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	switch {
 	case content:
 		pri = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
+		ctx = principal.ContextWithIDFrom(ctx, pri)
 		progHash = key
 
 		frameType, frame, err := conn.NextReader()
@@ -835,6 +837,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	case source == nil:
 		pri = mustParseAuthorization(ctx, w, s, r.Authorization, false)
+		ctx = principal.ContextWithIDFrom(ctx, pri)
 		progHash = key
 
 		inst, err = s.Server.CreateInstance(ctx, pri, key, false, function, "", debug)
@@ -845,6 +848,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	default:
 		pri = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
+		ctx = principal.ContextWithIDFrom(ctx, pri)
 
 		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, false, function, "", debug)
 		if err != nil {
@@ -874,9 +878,9 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		return
 	}
 
-	disconnected := inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
-	status, _ := inst.Run(ctx, s.Server)
-	<-disconnected
+	go inst.Run(ctx, s.Server)
+	inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
+	status := inst.Wait(ctx)
 
 	// TODO: send ConnectionStatus
 	statusJSON, err := serverapi.MarshalJSON(&status)
@@ -894,6 +898,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	var (
 		progHash string
@@ -917,7 +922,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 		}
 	}
 
-	go s.runBackgroundInstance(inst)
+	go runDetachedInstance(ctx, pri, inst, s)
 
 	if debug != "" {
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
@@ -937,6 +942,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	inst, err := s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, true, function, instID, debug)
 	if err != nil {
@@ -944,7 +950,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 		return
 	}
 
-	go s.runBackgroundInstance(inst)
+	go runDetachedInstance(ctx, pri, inst, s)
 
 	if debug != "" {
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
@@ -964,6 +970,7 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceList)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	instances, err := s.Server.Instances(ctx, pri)
 	if err != nil {
@@ -988,6 +995,7 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	status, err := method(s.Server, ctx, pri, instID)
 	if err != nil {
@@ -1010,6 +1018,7 @@ func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, 
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceResume)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	inst, err := s.Server.ResumeInstance(ctx, pri, instID, debug)
 	if err != nil {
@@ -1017,7 +1026,7 @@ func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	go s.runBackgroundInstance(inst)
+	go runDetachedInstance(ctx, pri, inst, s)
 
 	if debug != "" {
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
@@ -1030,6 +1039,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceConnect) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	content := mustDecodeContent(ctx, wr, s, pri)
 	defer content.Close()
@@ -1091,6 +1101,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 
 	w := newWebsocketWriter(conn)
 	pri := mustParseAuthorization(ctx, w, s, r.Authorization, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
 	if err != nil {
@@ -1142,6 +1153,7 @@ func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceSnapshot)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
 
 	moduleKey, err := s.Server.InstanceModule(ctx, pri, instID)
 	if err != nil {
@@ -1151,4 +1163,8 @@ func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver
 
 	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+moduleKey)
 	w.WriteHeader(http.StatusCreated)
+}
+
+func runDetachedInstance(ctx context.Context, pri *principal.Key, inst *server.Instance, s *webserver) {
+	inst.Run(server.DetachedContext(ctx, pri), s.Server)
 }

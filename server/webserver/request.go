@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/webapi"
 )
@@ -190,7 +190,7 @@ func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	}
 }
 
-func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) *server.PrincipalKey {
+func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) *principal.Key {
 	switch values := wr.request.Header[webapi.HeaderAuthorization]; len(values) {
 	case 1:
 		return mustParseAuthorization(ctx, wr, s, values[0], true)

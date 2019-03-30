@@ -12,12 +12,12 @@ import (
 	"strings"
 
 	"github.com/tsavola/gate/internal/error/public"
-	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/webapi"
 )
 
-func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) *server.PrincipalKey {
+func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) *principal.Key {
 	if str == "" && !require {
 		return nil
 	}
@@ -40,7 +40,7 @@ func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str
 	panic(nil)
 }
 
-func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) *server.PrincipalKey {
+func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) *principal.Key {
 	parts := mustSplitJWS(ctx, ew, s, token)
 	signedData := token[:len(parts[0])+1+len(parts[1])]
 
@@ -118,7 +118,7 @@ func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, s
 	panic(nil)
 }
 
-func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, serialized []byte,
+func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, serialized []byte,
 ) (claims webapi.Claims) {
 	err := json.Unmarshal(serialized, &claims)
 	if err == nil {
@@ -130,11 +130,11 @@ func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, 
 }
 
 func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *webapi.PublicKey,
-) (pri *server.PrincipalKey) {
+) (pri *principal.Key) {
 	var err error
 
 	if jwk.Kty == webapi.KeyTypeOctetKeyPair && jwk.Crv == webapi.KeyCurveEd25519 {
-		pri, err = server.ParsePrincipalKey(jwk.X, jwk.X)
+		pri, err = principal.ParseEd25519Key(jwk.X)
 		if err == nil {
 			return pri
 		}

@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/webapi"
 	"golang.org/x/crypto/ed25519"
@@ -16,7 +16,7 @@ import (
 
 const maxExpireMargin = 15 * 60 // Seconds
 
-func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, expires int64) {
+func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, expires int64) {
 	switch margin := expires - time.Now().Unix(); {
 	case margin < 0:
 		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has expired", event.FailRequest_AuthExpired, nil)
@@ -28,7 +28,7 @@ func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri
 	}
 }
 
-func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, audience []string) {
+func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, audience []string) {
 	if len(audience) == 0 {
 		return
 	}
@@ -43,9 +43,10 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *
 	panic(nil)
 }
 
-func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, algorithm string, signedData, signature []byte) {
+func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, algorithm string, signedData, signature []byte) {
 	if algorithm == webapi.SignAlgEdDSA {
-		if ed25519.Verify(ed25519.PublicKey(pri.KeyBytes()), signedData, signature) {
+		key := principal.RawKey(pri)
+		if ed25519.Verify(ed25519.PublicKey(key[:]), signedData, signature) {
 			return
 		}
 	}
@@ -54,7 +55,7 @@ func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri 
 	panic(nil)
 }
 
-func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *server.PrincipalKey, nonce string, expires int64) {
+func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, nonce string, expires int64) {
 	if nonce == "" {
 		return
 	}
@@ -64,7 +65,8 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *ser
 		panic(nil)
 	}
 
-	if err := s.NonceStorage.CheckNonce(ctx, pri, nonce, time.Unix(expires, 0)); err != nil {
+	key := principal.RawKey(pri)
+	if err := s.NonceStorage.CheckNonce(ctx, key[:], nonce, time.Unix(expires, 0)); err != nil {
 		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has already been used", event.FailRequest_AuthReused, err)
 		panic(nil)
 	}

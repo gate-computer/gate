@@ -60,13 +60,13 @@ type ServiceRegistry interface {
 // a program's service discovery packet.  It modifies the internal state of the
 // ServiceRegistry server.
 type ServiceDiscoverer interface {
-	Discover(newNames []string) (all []ServiceState, err error)
+	Discover(ctx context.Context, newNames []string) (all []ServiceState, err error)
 	NumServices() int
 	ExtractState() (finalState []snapshot.Service)
 	Close() error
 }
 
-func handleServicesPacket(req packet.Buf, discoverer ServiceDiscoverer) (resp packet.Buf, err error) {
+func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer ServiceDiscoverer) (resp packet.Buf, err error) {
 	if d := req.Domain(); d != packet.DomainCall {
 		err = badprogram.Errorf("service discovery packet has wrong domain: %d", d)
 		return
@@ -99,7 +99,7 @@ func handleServicesPacket(req packet.Buf, discoverer ServiceDiscoverer) (resp pa
 		nameBuf = nameBuf[nameLen+1:]
 	}
 
-	services, err := discoverer.Discover(names)
+	services, err := discoverer.Discover(ctx, names)
 	if err != nil {
 		return
 	}

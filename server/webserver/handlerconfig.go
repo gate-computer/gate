@@ -13,7 +13,7 @@ import (
 )
 
 type NonceChecker interface {
-	CheckNonce(ctx context.Context, pri *server.PrincipalKey, nonce string, expires time.Time) error
+	CheckNonce(ctx context.Context, scope []byte, nonce string, expires time.Time) error
 }
 
 // Config for a web server.

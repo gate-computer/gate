@@ -28,7 +28,7 @@ type nopInstance struct{ *image.Instance }
 
 func (nopInstance) InitRoutine() uint32 { return abi.TextAddrNoFunction }
 
-var benchExecutor = newExecutor(context.Background(), nil)
+var benchExecutor = newExecutor(nil)
 var benchRegistry = serviceRegistry{new(bytes.Buffer)}
 
 type benchDatum struct {
