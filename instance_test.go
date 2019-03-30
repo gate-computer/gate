@@ -16,6 +16,7 @@ import (
 
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/tsavola/gate/packet"
+	"github.com/tsavola/gate/service"
 	"savo.la/gate/localhost/flat"
 )
 
@@ -43,7 +44,7 @@ func TestHTTPRequest(t *testing.T) {
 		panic(err)
 	}
 
-	i := instance{&localhost{u.Scheme, u.Host, s.Client()}, testCode, nil}
+	i := newInstance(&localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{Code: testCode})
 
 	b := flatbuffers.NewBuilder(0)
 	method := b.CreateString(http.MethodGet)

@@ -10,8 +10,8 @@ github.com/gorilla/websocket v1.3.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoA
 github.com/mattn/go-sqlite3 v1.8.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
 github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/tsavola/confi v1.0.0/go.mod h1:G7+PsaQpny3mHb0Rde1f4c4fCWyhu4Y0+4XoXgeG62o=
-github.com/tsavola/gate v0.0.0-20190325220326-99b1d5867d95 h1:XV+eR29/DOTFhUwqeK/pwq4h1V3eHIXg6+g7kEq/3co=
-github.com/tsavola/gate v0.0.0-20190325220326-99b1d5867d95/go.mod h1:D5Fri5P/dBD6FTxaX4lqH6K64aJV7kVbr3D7y41IZVA=
+github.com/tsavola/gate v0.0.0-20190330110857-5b089fe1b046 h1:G010UqMS62oBEiwf2G+OB2Ba+pvDjxp1o9QVmATaBRk=
+github.com/tsavola/gate v0.0.0-20190330110857-5b089fe1b046/go.mod h1:D5Fri5P/dBD6FTxaX4lqH6K64aJV7kVbr3D7y41IZVA=
 github.com/tsavola/wag v0.18.1 h1:QjHcS1HSDkKjSe3QFCV2k3fxTSinuIv20p/DRmgzRM0=
 github.com/tsavola/wag v0.18.1/go.mod h1:nqKbzIfMoKNa2jgG01uJthSZ7Lc9VFMAjeI85y6Z6mI=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
