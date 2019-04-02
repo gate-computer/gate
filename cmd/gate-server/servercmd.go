@@ -38,6 +38,7 @@ import (
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/gate/source/ipfs"
 	"github.com/tsavola/gate/webapi"
+	"github.com/tsavola/listen"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/netutil"
@@ -391,7 +392,10 @@ func main2(critLog *log.Logger) (err error) {
 	}
 
 	if c.HTTP.Authority == "" {
-		c.HTTP.Authority = strings.Split(c.HTTP.Addr, ":")[0]
+		c.HTTP.Authority, _, err = net.SplitHostPort(c.HTTP.Addr)
+		if err != nil {
+			return
+		}
 	}
 
 	nonceChecker, err := database.OpenNonceChecker(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
@@ -428,7 +432,7 @@ func main2(critLog *log.Logger) (err error) {
 		handler = handlers.LoggingHandler(f, handler)
 	}
 
-	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
+	l, err := listen.Net(ctx, c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
 		return err
 	}
