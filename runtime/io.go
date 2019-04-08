@@ -322,7 +322,11 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 	}
 
 	// Service implementations only need to initialize code and domain fields.
-	binary.LittleEndian.PutUint32(p[packet.OffsetSize:], uint32(len(p)))
+	// But if the size field has been initialized correctly, treat the buffer
+	// as read-only.
+	if binary.LittleEndian.Uint32(p[packet.OffsetSize:]) != uint32(len(p)) {
+		binary.LittleEndian.PutUint32(p[packet.OffsetSize:], uint32(len(p)))
+	}
 
 	return p
 }
