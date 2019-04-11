@@ -10,18 +10,8 @@ https://github.com/tsavola/gate for information about the Gate project.
 
 Errors
 
-Some errors returned by the entry, image, runtime and server packages are
-wrappers for an underlying error.  If direct access to the underlying error
-object is needed, the wrapper can be opened using this interface definition:
-
-	interface {
-		Cause() error
-	}
-
-Use a type assertion to check if the error is a wrapper, and extract the cause.
-
-Error strings may contain sensitive details.  Some errors implement this
-interface:
+Error strings may contain sensitive details.  Some errors returned by Gate
+implement this interface:
 
 	interface {
 		PublicError() string

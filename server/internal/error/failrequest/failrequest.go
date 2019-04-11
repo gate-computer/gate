@@ -52,7 +52,7 @@ type wrap struct {
 }
 
 func (w *wrap) Error() string { return w.cause.Error() }
-func (w *wrap) Cause() error  { return w.cause }
+func (w *wrap) Unwrap() error { return w.cause }
 
 // Tag an error as public information.
 func Tag(t event.FailRequest_Type, cause error) Error {
@@ -66,6 +66,6 @@ type tag struct {
 
 func (t *tag) Error() string                           { return t.cause.Error() }
 func (t *tag) PublicError() string                     { return t.cause.Error() }
-func (t *tag) Cause() error                            { return t.cause }
+func (t *tag) Unwrap() error                           { return t.cause }
 func (t *tag) BadRequest()                             {}
 func (t *tag) FailRequestType() event.FailRequest_Type { return t.t }

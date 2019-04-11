@@ -15,6 +15,8 @@ import (
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/service"
+	wagerrors "github.com/tsavola/wag/errors"
+	errors "golang.org/x/xerrors"
 )
 
 const (
@@ -49,13 +51,18 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 }
 
 func IsFine(err error) bool {
-	switch err {
-	case io.EOF, io.ErrUnexpectedEOF, context.DeadlineExceeded:
-		return true
+	for _, sentinel := range []error{
+		io.EOF,
+		io.ErrUnexpectedEOF,
+		context.DeadlineExceeded,
+	} {
+		if errors.Is(err, sentinel) {
+			return true
+		}
 	}
 
-	switch err.(type) {
-	case interface{ ModuleError() string }:
+	var moduleError *wagerrors.ModuleError
+	if errors.As(err, &moduleError) {
 		return true
 	}
 
