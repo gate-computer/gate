@@ -46,7 +46,7 @@ type Config struct {
 
 var c = new(Config)
 
-const mainUsage = `Usage: %s [options] <address> <command> [arguments]
+const mainUsage = `Usage: %s [options] address command [arguments]
 
 Commands:
   call      execute a wasm module with I/O
@@ -122,7 +122,7 @@ func main() {
 
 		usageFmt += "%s\n"
 
-		if strings.Contains(command.usage, "<module>") {
+		if strings.Contains(command.usage, "module") {
 			usageFmt += "\nThe module can be a local wasm file, a reference which exists on the server,\nor a source supported by the server.\n"
 		}
 
@@ -142,7 +142,7 @@ var commands = map[string]struct {
 	do    func()
 }{
 	"call": {
-		usage: " <module> [function]",
+		usage: " module [function]",
 		do: func() {
 			flag.Parse()
 			switch flag.NArg() {
@@ -195,7 +195,7 @@ var commands = map[string]struct {
 	},
 
 	"download": {
-		usage: " <module>",
+		usage: " module",
 		do: func() {
 			// TODO: output file option
 
@@ -248,7 +248,7 @@ var commands = map[string]struct {
 	},
 
 	"io": {
-		usage: " <instance>",
+		usage: " instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -276,7 +276,7 @@ var commands = map[string]struct {
 	},
 
 	"launch": {
-		usage: " <module> [function]",
+		usage: " module [function]",
 		do: func() {
 			flag.Parse()
 			switch flag.NArg() {
@@ -381,7 +381,7 @@ var commands = map[string]struct {
 	},
 
 	"resume": {
-		usage: " <instance>",
+		usage: " instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -406,7 +406,7 @@ var commands = map[string]struct {
 	},
 
 	"snapshot": {
-		usage: " <instance>",
+		usage: " instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -432,21 +432,21 @@ var commands = map[string]struct {
 	},
 
 	"status": {
-		usage: " <instance>",
+		usage: " instance",
 		do: func() {
 			commandInstance(webapi.ActionStatus)
 		},
 	},
 
 	"suspend": {
-		usage: " <instance>",
+		usage: " instance",
 		do: func() {
 			commandInstance(webapi.ActionSuspend)
 		},
 	},
 
 	"unref": {
-		usage: " <module>",
+		usage: " module",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -465,7 +465,7 @@ var commands = map[string]struct {
 	},
 
 	"upload": {
-		usage: " <module>",
+		usage: " module",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -502,7 +502,7 @@ var commands = map[string]struct {
 	},
 
 	"wait": {
-		usage: " <instance>",
+		usage: " instance",
 		do: func() {
 			commandInstance(webapi.ActionWait)
 		},
@@ -582,7 +582,7 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 
 		switch msgType {
 		case websocket.BinaryMessage:
-			os.Stdout.Write(data) // TODO: handle error?
+			os.Stdout.Write(data)
 
 		case websocket.TextMessage:
 			// TODO: receive ConnectionStatus
