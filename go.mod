@@ -1,6 +1,7 @@
 module github.com/tsavola/gate
 
 require (
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/coreos/go-systemd v0.0.0-20180507124335-65cc0ad82617
 	github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf
 	github.com/google/uuid v1.0.0

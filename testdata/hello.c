@@ -87,7 +87,7 @@ static int discover(int16_t *origin_code, int16_t *test_code)
 	return 0;
 }
 
-static int accept_stream(int16_t origin_code, int32_t id)
+static int accept_stream(int16_t origin_code, int32_t id, int32_t accept_flow)
 {
 	struct {
 		struct gate_flow_packet header;
@@ -103,7 +103,7 @@ static int accept_stream(int16_t origin_code, int32_t id)
 		.flows = {
 			{
 				.id = id,
-				.increment = 0,
+				.increment = accept_flow,
 			},
 		},
 	};
@@ -177,6 +177,28 @@ static int send_hello(int16_t origin_code, int32_t id, int *flow)
 	return 0;
 }
 
+static int read_command(int16_t origin_code, int32_t id)
+{
+	while (1) {
+		struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
+
+		if (packet->code != origin_code)
+			continue;
+
+		if (packet->domain != GATE_PACKET_DOMAIN_DATA)
+			continue;
+
+		struct gate_data_packet *datapacket = (struct gate_data_packet *) packet;
+		if (datapacket->id != id)
+			continue;
+
+		if (packet->size == sizeof(struct gate_data_packet))
+			return 0;
+
+		return 1;
+	}
+}
+
 int greet(void)
 {
 	int16_t origin_code;
@@ -190,7 +212,7 @@ int greet(void)
 		return 1;
 	}
 
-	int flow = accept_stream(origin_code, 0);
+	int flow = accept_stream(origin_code, 0, 0);
 	if (flow < 0)
 		return 1;
 
@@ -213,7 +235,7 @@ int twice(void)
 		return 1;
 	}
 
-	int flow = accept_stream(origin_code, 0);
+	int flow = accept_stream(origin_code, 0, 0);
 	if (flow < 0)
 		return 1;
 
@@ -240,7 +262,7 @@ void multi(void)
 	for (int32_t id = 0;; id++) {
 		gate_debug("multi: accepting stream\n");
 
-		int flow = accept_stream(origin_code, id);
+		int flow = accept_stream(origin_code, id, 0);
 		if (flow < 0)
 			gate_exit(1);
 
@@ -251,6 +273,40 @@ void multi(void)
 
 		close_stream(origin_code, id);
 	}
+}
+
+int repl(void)
+{
+	int16_t origin_code;
+	int16_t test_code;
+
+	if (discover(&origin_code, &test_code) < 0)
+		return 1;
+
+	if (origin_code < 0) {
+		gate_debug("origin service is unavailable\n");
+		return 1;
+	}
+
+	int flow = accept_stream(origin_code, 0, 4096);
+	if (flow < 0)
+		return 1;
+
+	gate_debug("repl: connection accepted\n");
+
+	while (1)
+		switch (read_command(origin_code, 0)) {
+		case -1:
+			return 1;
+
+		case 0:
+			return 0;
+
+		default:
+			gate_debug("repl: command\n");
+			if (send_hello(origin_code, 0, &flow) < 0)
+				return 1;
+		}
 }
 
 int fail(void)

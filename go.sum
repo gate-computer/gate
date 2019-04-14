@@ -2,6 +2,8 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/bnagy/gapstone v0.0.0-20180903222833-a85919f1441b h1:O4CVbgOA/EptWddt/B0WPYP81BIxmftaXPWr9d/0EF8=
 github.com/bnagy/gapstone v0.0.0-20180903222833-a85919f1441b/go.mod h1:d1o1fFyYsZmHPaDFsSrWMD1fwRqU/KMZiY0//gtBIdc=
+github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e h1:fY5BOSpyZCqRo5OhCuC+XN+r/bBCmeuuJtjz+bCNIf8=
+github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/coreos/go-systemd v0.0.0-20180507124335-65cc0ad82617 h1:3P5T/P2O3Ugf1aPrrOi+NHZ6P8Q6iyyYuapUesYHqfA=
 github.com/coreos/go-systemd v0.0.0-20180507124335-65cc0ad82617/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf h1:ZGHfh0rx+KTmeUmoxP49g0SUAwIXOMlgDoQcrezPiAQ=

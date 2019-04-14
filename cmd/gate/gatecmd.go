@@ -41,7 +41,9 @@ type Config struct {
 	Instance     string
 	Debug        string
 	TLS          bool
-	address      string
+	REPL         REPLConfig
+
+	address string
 }
 
 var c = new(Config)
@@ -55,6 +57,7 @@ Commands:
   io        connect to a running instance
   launch    create an instance from a wasm module
   modules   list wasm module references
+  repl      connect to a running instance in interactive mode
   resume    resume a suspended instance
   snapshot  create a wasm snapshot of an instance
   status    query current status of an instance
@@ -380,6 +383,19 @@ var commands = map[string]struct {
 		},
 	},
 
+	"repl": {
+		usage: " instance",
+		do: func() {
+			flag.Parse()
+			if flag.NArg() != 1 {
+				flag.Usage()
+				os.Exit(2)
+			}
+
+			repl(flag.Arg(0))
+		},
+	},
+
 	"resume": {
 		usage: " instance",
 		do: func() {
@@ -585,14 +601,13 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 			os.Stdout.Write(data)
 
 		case websocket.TextMessage:
-			// TODO: receive ConnectionStatus
-			var status webapi.Status
+			var status webapi.ConnectionStatus
 
 			if err := json.Unmarshal(data, &status); err != nil {
 				log.Fatal(err)
 			}
 
-			return status
+			return status.Status
 		}
 	}
 }
