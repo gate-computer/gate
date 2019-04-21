@@ -18,8 +18,7 @@ const maxServiceNameLen = 127
 
 // InstanceConfig for a service instance.
 type InstanceConfig struct {
-	runtime.ServiceConfig
-	Code packet.Code
+	packet.Service
 }
 
 // Instance of a service.  Corresponds to a program instance.
@@ -124,7 +123,11 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 		var err error
 
 		if s.factory != nil {
-			inst, err = s.factory.RecreateInstance(ctx, InstanceConfig{serviceConfig, code}, s.Buffer)
+			instConfig := InstanceConfig{packet.Service{
+				MaxPacketSize: serviceConfig.MaxPacketSize,
+				Code:          code,
+			}}
+			inst, err = s.factory.RecreateInstance(ctx, instConfig, s.Buffer)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -158,7 +161,11 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 		inst, found := instances[code]
 		if !found {
 			if s := d.getServices()[code]; s.factory != nil {
-				inst = s.factory.CreateInstance(ctx, InstanceConfig{serviceConfig, code})
+				instConfig := InstanceConfig{packet.Service{
+					MaxPacketSize: serviceConfig.MaxPacketSize,
+					Code:          code,
+				}}
+				inst = s.factory.CreateInstance(ctx, instConfig)
 			}
 			instances[code] = inst
 		}
