@@ -1,5 +1,6 @@
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/bnagy/gapstone v0.0.0-20180903222833-a85919f1441b/go.mod h1:d1o1fFyYsZmHPaDFsSrWMD1fwRqU/KMZiY0//gtBIdc=
+github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/coreos/go-systemd v0.0.0-20180507124335-65cc0ad82617/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/google/flatbuffers v1.10.0 h1:wHCM5N1xsJ3VwePcIpVqnmjAqRXlR44gv4hpGi+/LIw=
@@ -8,13 +9,15 @@ github.com/google/uuid v1.0.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/gorilla/handlers v1.2.1/go.mod h1:Qkdc/uu4tH4g6mTK6auzZ766c4CA0Ng8+o/OAirnOIQ=
 github.com/gorilla/websocket v1.3.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/mattn/go-sqlite3 v1.8.0/go.mod h1:FPy6KqzDD04eiIsT53CuJW3U88zkxoIYsOqkbpncsNc=
-github.com/pkg/errors v0.8.0/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/tsavola/confi v1.0.0/go.mod h1:G7+PsaQpny3mHb0Rde1f4c4fCWyhu4Y0+4XoXgeG62o=
-github.com/tsavola/gate v0.0.0-20190330110857-5b089fe1b046 h1:G010UqMS62oBEiwf2G+OB2Ba+pvDjxp1o9QVmATaBRk=
-github.com/tsavola/gate v0.0.0-20190330110857-5b089fe1b046/go.mod h1:D5Fri5P/dBD6FTxaX4lqH6K64aJV7kVbr3D7y41IZVA=
-github.com/tsavola/wag v0.18.1 h1:QjHcS1HSDkKjSe3QFCV2k3fxTSinuIv20p/DRmgzRM0=
-github.com/tsavola/wag v0.18.1/go.mod h1:nqKbzIfMoKNa2jgG01uJthSZ7Lc9VFMAjeI85y6Z6mI=
+github.com/tsavola/gate v0.0.0-20190421223426-f0bf61dff2ff h1:UIbu8RmeX2Nd0860+nveuXUvgRapEIt8x9P7SwncZPs=
+github.com/tsavola/gate v0.0.0-20190421223426-f0bf61dff2ff/go.mod h1:hU9LqhDxgmsvOceIf0H/A2AbyjybEddhbGK3OlMjfwU=
+github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c/go.mod h1:mvjKRkLD4rvc91gFN0bwazjw9lMm0JvJHnohO+OaXcU=
+github.com/tsavola/reach v0.1.2/go.mod h1:XlhrVDiiRoT+75vmT+PzM4MCBNvec/5g+6JvIKSazlM=
+github.com/tsavola/wag v0.19.0 h1:3BnT5WR5hOZOOqSd+B/2lVlCwtNQ6NjlODnwAqpUMgM=
+github.com/tsavola/wag v0.19.0/go.mod h1:KLeJ79CIt/58LVGLcMPZFfyhM8uTyV52BFzZB0LFd/Q=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/net v0.0.0-20180320044506-b3c676e531a6/go.mod h1:mL1N/T3taQHkDXs73rZJwtUhF3w3ftmwwsq0BUmARs4=
 golang.org/x/sys v0.0.0-20180606194553-9527bec2660b/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20180919143220-1061eb656ba1/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+golang.org/x/xerrors v0.0.0-20190410155217-1f06c39b4373/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=

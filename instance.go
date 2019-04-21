@@ -28,22 +28,23 @@ const (
 )
 
 type instance struct {
-	local     *localhost
-	code      packet.Code
+	local *localhost
+	packet.Service
 	suspended packet.Buf
 }
 
 func newInstance(local *localhost, config service.InstanceConfig) *instance {
-	return &instance{local, config.Code, nil}
+	return &instance{local, config.Service, nil}
 }
 
-func renewInstance(local *localhost, config service.InstanceConfig, state []byte) (inst *instance, err error) {
+func renewInstance(local *localhost, config service.InstanceConfig, state []byte,
+) (inst *instance, err error) {
 	if len(state) > 0 && len(state) < packet.HeaderSize {
 		err = errors.New("state buffer is too short")
 		return
 	}
 
-	inst = &instance{local, config.Code, state}
+	inst = &instance{local, config.Service, state}
 	return
 }
 
@@ -94,7 +95,7 @@ func (inst *instance) Handle(ctx context.Context, replies chan<- packet.Buf, p p
 			return
 		}
 
-		p = packet.Make(inst.code, packet.DomainCall, packet.HeaderSize+len(build.FinishedBytes()))
+		p = packet.Make(inst.Code, packet.DomainCall, packet.HeaderSize+len(build.FinishedBytes()))
 		copy(p.Content(), build.FinishedBytes())
 
 		select {

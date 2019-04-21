@@ -20,6 +20,8 @@ import (
 	"savo.la/gate/localhost/flat"
 )
 
+const testMaxPacketSize = 65536
+
 var testCode = packet.Code(time.Now().UnixNano() & 0x7fff)
 
 func TestHTTPRequest(t *testing.T) {
@@ -44,7 +46,12 @@ func TestHTTPRequest(t *testing.T) {
 		panic(err)
 	}
 
-	i := newInstance(&localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{Code: testCode})
+	i := newInstance(&localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
+		Service: packet.Service{
+			MaxPacketSize: testMaxPacketSize,
+			Code:          testCode,
+		},
+	})
 
 	b := flatbuffers.NewBuilder(0)
 	method := b.CreateString(http.MethodGet)
