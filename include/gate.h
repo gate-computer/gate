@@ -249,7 +249,7 @@ struct gate_service_state_packet {
 
 struct gate_flow {
 	int32_t id;
-	uint32_t increment;
+	int32_t increment;
 } GATE_PACKED;
 
 struct gate_flow_packet {

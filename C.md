@@ -250,11 +250,13 @@ struct gate_flow_packet {
 ```c
 struct gate_flow {
 	int32_t id;
-	uint32_t increment;
+	int32_t increment;
 };
 ```
 > Indicates that the reception capacity of the stream identified by *id* has
 > increased by *increment* bytes.
+>
+> The reception capacity must not exceed (2^31)-1 at any given time.
 
 
 ```c

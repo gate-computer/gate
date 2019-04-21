@@ -100,7 +100,7 @@ func MakeNoCall(code Code) Buf {
 	return Make(code, DomainCall, HeaderSize)
 }
 
-func MakeFlow(code Code, id int32, increment uint32) Buf {
+func MakeFlow(code Code, id int32, increment int32) Buf {
 	b := MakeFlows(code, 1)
 	b.Set(0, id, increment)
 	return Buf(b)
@@ -178,17 +178,17 @@ func (b FlowBuf) Num() int {
 	return (len(b) - FlowHeaderSize) / flowSize
 }
 
-func (b FlowBuf) Get(i int) (id int32, increment uint32) {
+func (b FlowBuf) Get(i int) (id int32, increment int32) {
 	flow := b[FlowHeaderSize+i*flowSize:]
 	id = int32(binary.LittleEndian.Uint32(flow[flowOffsetID:]))
-	increment = binary.LittleEndian.Uint32(flow[flowOffsetIncrement:])
+	increment = int32(binary.LittleEndian.Uint32(flow[flowOffsetIncrement:]))
 	return
 }
 
-func (b FlowBuf) Set(i int, id int32, increment uint32) {
+func (b FlowBuf) Set(i int, id int32, increment int32) {
 	flow := b[FlowHeaderSize+i*flowSize:]
 	binary.LittleEndian.PutUint32(flow[flowOffsetID:], uint32(id))
-	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], increment)
+	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], uint32(increment))
 }
 
 func (b FlowBuf) String() string {

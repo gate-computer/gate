@@ -28,7 +28,7 @@ func IsValidFlow(b Buf, c Code) bool {
 
 	p := FlowBuf(b)
 	for i := 0; i < p.Num(); i++ {
-		if id, _ := p.Get(i); id < 0 {
+		if id, increment := p.Get(i); id < 0 || increment < 0 {
 			return false
 		}
 	}

@@ -255,13 +255,13 @@ func (ih *instanceHandler) handling(ctx context.Context, code packet.Code, repli
 
 					switch conn, connected := streams[id]; {
 					case connected:
-						if !conn.increaseIngressFlow(increment) {
+						if !conn.increaseIngressFlow(uint32(increment)) {
 							delete(streams, conn.id)
 						}
 
 					case id == nextId:
 						nextAccept = true
-						nextFlow += increment
+						nextFlow += uint32(increment)
 
 					case id > nextId:
 						panic(fmt.Sprintf("TODO: received data packet for distant stream: %d", id))
@@ -438,7 +438,7 @@ func (conn *ioConn) egress(ctx context.Context, w io.Writer) (err error) {
 			flowChan   chan<- packet.Buf
 		)
 		if increment > 0 {
-			flowPacket = packet.MakeFlow(conn.code, conn.id, increment)
+			flowPacket = packet.MakeFlow(conn.code, conn.id, int32(increment))
 			flowChan = conn.replies
 		}
 
