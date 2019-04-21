@@ -95,6 +95,11 @@ func Make(code Code, domain Domain, packetSize int) Buf {
 	return b
 }
 
+// MakeNoCall makes an empty call packet.
+func MakeNoCall(code Code) Buf {
+	return Make(code, DomainCall, HeaderSize)
+}
+
 func MakeFlow(code Code, id int32, increment uint32) Buf {
 	b := MakeFlows(code, 1)
 	b.Set(0, id, increment)

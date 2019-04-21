@@ -173,6 +173,11 @@ struct gate_packet {
 > services.  Each request is matched with one response.  The responses are
 > received in the same order as requests are sent (per service).
 >
+> Each call should be answered in order to not leave the caller hanging.  Even
+> services which don't implement any calls should answer them.  A convention
+> for handling unsupported calls is to reply with an empty call packet (nothing
+> but the header).
+>
 > The `GATE_PACKET_DOMAIN_STATE` domain is for receiving state change
 > notifications from services.  A service won't start sending notifications
 > before at least one call is made to that service.
