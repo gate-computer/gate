@@ -29,7 +29,7 @@ type Config struct {
 	ErrorLog  Logger
 }
 
-func (config *Config) checkOrigin(r *http.Request) bool {
+func (config Config) checkOrigin(r *http.Request) bool {
 	if config.Origins == nil {
 		return true
 	}
@@ -48,17 +48,12 @@ func (config *Config) checkOrigin(r *http.Request) bool {
 	return false
 }
 
-func New(ctx context.Context, monitorConfig *monitor.Config, handlerConfig *Config) (func(server.Event, error), http.Handler) {
+func New(ctx context.Context, monitorConfig monitor.Config, handlerConfig Config) (func(server.Event, error), http.Handler) {
 	m, s := monitor.New(ctx, monitorConfig)
 	return m, Handler(ctx, s, handlerConfig)
 }
 
-func Handler(ctx context.Context, s *monitor.MonitorState, handlerConfig *Config) http.Handler {
-	var config Config
-	if handlerConfig != nil {
-		config = *handlerConfig
-	}
-
+func Handler(ctx context.Context, s *monitor.MonitorState, config Config) http.Handler {
 	if config.ErrorLog == nil {
 		config.ErrorLog = defaultlog.StandardLogger{}
 	}

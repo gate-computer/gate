@@ -45,11 +45,10 @@ type webserver struct {
 	pathModuleRefs string
 }
 
-func NewHandler(pattern string, config *Config) http.Handler {
+func NewHandler(pattern string, config Config) http.Handler {
 	s := &webserver{
-		Config: *config,
+		Config: config,
 	}
-
 	if s.Authority == "" {
 		s.Authority = strings.SplitN(pattern, "/", 2)[0]
 	}
@@ -86,7 +85,7 @@ func NewHandler(pattern string, config *Config) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(patternVersions, newVersionHandler(s, pathVersions))
-	mux.HandleFunc(patternAPI, newStaticHandler(s, pathAPI, s.Server.Info))
+	mux.HandleFunc(patternAPI, newStaticHandler(s, pathAPI, &s.Server.Info))
 	mux.HandleFunc(patternAPIDir, newOpaqueHandler(s, pathAPIDir))
 	mux.HandleFunc(patternModule, newOpaqueHandler(s, pathModule))
 	mux.HandleFunc(patternInstance, newOpaqueHandler(s, pathInstance))

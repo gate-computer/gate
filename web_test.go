@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/database"
@@ -112,7 +113,7 @@ func newServices() func(context.Context) server.InstanceServices {
 	}
 
 	return func(ctx context.Context) server.InstanceServices {
-		connector := origin.New(nil)
+		connector := origin.New(origin.Config{})
 		r := registry.Clone()
 		r.Register(connector)
 		return server.NewInstanceServices(connector, r)
@@ -190,8 +191,8 @@ func newServer() *server.Server {
 	access := server.NewPublicAccess(newServices())
 	access.Debug = debugPolicy
 
-	config := &server.Config{
-		ProcessFactory: newExecutor(nil),
+	config := server.Config{
+		ProcessFactory: newExecutor(runtime.Config{}),
 		AccessPolicy:   access,
 	}
 
@@ -199,7 +200,7 @@ func newServer() *server.Server {
 }
 
 func newHandler() http.Handler {
-	config := &webserver.Config{
+	config := webserver.Config{
 		Server:        newServer(),
 		Authority:     "test",
 		NonceStorage:  nonceChecker,

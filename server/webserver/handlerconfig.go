@@ -25,6 +25,6 @@ type Config struct {
 	NewRequestID  func(*http.Request) uint64
 }
 
-func (c *Config) Configured() bool {
+func (c Config) Configured() bool {
 	return c.Authority != ""
 }

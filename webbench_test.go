@@ -19,7 +19,7 @@ import (
 )
 
 func newBenchServer(factory runtime.ProcessFactory) *server.Server {
-	config := &server.Config{
+	config := server.Config{
 		ProcessFactory: factory,
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 	}
@@ -28,7 +28,7 @@ func newBenchServer(factory runtime.ProcessFactory) *server.Server {
 }
 
 func newBenchHandler(s *server.Server) http.Handler {
-	config := &webserver.Config{
+	config := webserver.Config{
 		Server:    s,
 		Authority: "bench",
 	}
@@ -40,7 +40,7 @@ func BenchmarkCall(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	executor := newExecutor(nil)
+	executor := newExecutor(runtime.Config{})
 	defer executor.Close()
 
 	benchCall(ctx, b, executor)
@@ -61,7 +61,7 @@ func benchCallExecutors(b *testing.B, count int) {
 	var executors []runtime.ProcessFactory
 
 	for i := 0; i < count; i++ {
-		e := newExecutor(nil)
+		e := newExecutor(runtime.Config{})
 		defer e.Close()
 
 		executors = append(executors, e)

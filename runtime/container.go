@@ -18,7 +18,7 @@ import (
 	"github.com/tsavola/gate/internal/runtimeapi"
 )
 
-func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
+func startContainer(config Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
 	containerPath, err := filepath.Abs(path.Join(config.LibDir, runtimeapi.ContainerFilename))
 	if err != nil {
 		return
@@ -108,7 +108,7 @@ func containerWaiter(cmd *exec.Cmd, done <-chan struct{}, errorLog Logger) {
 	}
 }
 
-func dialContainerDaemon(config *Config) (conn *net.UnixConn, err error) {
+func dialContainerDaemon(config Config) (conn *net.UnixConn, err error) {
 	addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
 	if err != nil {
 		return

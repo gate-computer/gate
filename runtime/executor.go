@@ -40,7 +40,7 @@ type Executor struct {
 	waiters map[int16]chan<- syscall.WaitStatus
 }
 
-func NewExecutor(config *Config) (e *Executor, err error) {
+func NewExecutor(config Config) (e *Executor, err error) {
 	maxProcs := config.maxProcesses()
 	if maxProcs > MaxProcesses {
 		err = errors.New("executor process limit is too high")

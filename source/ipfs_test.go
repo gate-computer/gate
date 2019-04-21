@@ -25,7 +25,7 @@ const (
 func newIPFSAPI(t *testing.T) (source *ipfs.Client) {
 	t.Helper()
 
-	source = ipfs.New(&ipfs.Config{
+	source = ipfs.New(ipfs.Config{
 		Addr: os.Getenv("GATE_TEST_IPFS_API"),
 	})
 	if source.Addr == "" {
@@ -37,7 +37,7 @@ func newIPFSAPI(t *testing.T) (source *ipfs.Client) {
 func newIPFSGateway(t *testing.T) (source *http.Client) {
 	t.Helper()
 
-	source = http.New(&http.Config{
+	source = http.New(http.Config{
 		Addr: os.Getenv("GATE_TEST_IPFS_GW"),
 	})
 	if source.Addr == "" {

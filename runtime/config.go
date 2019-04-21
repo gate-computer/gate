@@ -26,7 +26,7 @@ type Config struct {
 	Cgroup    CgroupConfig
 }
 
-func (c *Config) maxProcesses() int {
+func (c Config) maxProcesses() int {
 	if c.MaxProcesses == 0 {
 		return MaxProcesses
 	}
@@ -41,7 +41,7 @@ type CgroupConfig struct {
 	Title  string
 }
 
-func (c *CgroupConfig) title() (s string) {
+func (c CgroupConfig) title() (s string) {
 	s = c.Title
 	if s == "" {
 		s = DefaultCgroupTitle

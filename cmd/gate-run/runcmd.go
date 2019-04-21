@@ -163,7 +163,7 @@ func main() {
 
 	var execClosed bool
 
-	executor, err := runtime.NewExecutor(&c.Runtime)
+	executor, err := runtime.NewExecutor(c.Runtime)
 	if err != nil {
 		log.Fatalf("runtime: %v", err)
 	}
@@ -192,7 +192,7 @@ func main() {
 			i := i
 			filename := filename
 
-			connector := origin.New(&originConfig)
+			connector := origin.New(originConfig)
 			conn := connector.Connect(ctx)
 
 			var input io.Reader = os.Stdin

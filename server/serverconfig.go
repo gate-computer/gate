@@ -66,7 +66,7 @@ type Config struct {
 	Monitor        func(Event, error)
 }
 
-func (c *Config) Configured() bool {
+func (c Config) Configured() bool {
 	return c.ProcessFactory != nil && c.AccessPolicy != nil
 }
 

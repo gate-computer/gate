@@ -52,33 +52,31 @@ type RuntimeInfo struct {
 
 type Server struct {
 	Config
-	Info *Info
+	Info Info
 
 	lock     sync.Mutex
 	accounts map[principalKeyArray]*account
 	programs map[string]*program
 }
 
-func New(config *Config) *Server {
-	s := new(Server)
-
-	if config != nil {
-		s.Config = *config
+func New(config Config) *Server {
+	if config.ImageStorage == nil {
+		config.ImageStorage = image.Memory
 	}
-	if s.ImageStorage == nil {
-		s.ImageStorage = image.Memory
+	if config.Monitor == nil {
+		config.Monitor = defaultMonitor
 	}
-	if s.Monitor == nil {
-		s.Monitor = defaultMonitor
-	}
-	if !s.Configured() {
+	if !config.Configured() {
 		panic("incomplete server configuration")
 	}
 
-	s.Info = &Info{
-		Runtime: RuntimeInfo{
-			MaxABIVersion: runtimeabi.MaxVersion,
-			MinABIVersion: runtimeabi.MinVersion,
+	s := &Server{
+		Config: config,
+		Info: Info{
+			Runtime: RuntimeInfo{
+				MaxABIVersion: runtimeabi.MaxVersion,
+				MinABIVersion: runtimeabi.MinVersion,
+			},
 		},
 	}
 

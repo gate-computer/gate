@@ -31,8 +31,7 @@ type Config struct {
 var DefaultConfig = Config{DefaultMaxConns}
 
 type Connector struct {
-	Config
-
+	config   Config
 	closed   chan struct{}
 	lock     sync.Mutex
 	newConns chan *ioConn
@@ -40,19 +39,17 @@ type Connector struct {
 	connects int
 }
 
-func New(config *Config) (cr *Connector) {
+func New(config Config) (cr *Connector) {
+	if config.MaxConns <= 0 {
+		config.MaxConns = DefaultMaxConns
+	}
+
 	cr = &Connector{
+		config:   config,
 		closed:   make(chan struct{}),
 		newConns: make(chan *ioConn, 1),
 	}
 	cr.cond.L = &cr.lock
-
-	if config != nil {
-		cr.Config = *config
-	}
-	if cr.MaxConns <= 0 {
-		cr.MaxConns = DefaultMaxConns
-	}
 	return
 }
 
@@ -124,7 +121,7 @@ func (cr *Connector) CreateInstance(ctx context.Context, config service.Instance
 	return &instanceService{
 		handler: instanceHandler{
 			newConns:    cr.newConns,
-			maxConns:    cr.MaxConns,
+			maxConns:    cr.config.MaxConns,
 			maxDataSize: config.MaxPacketSize - packet.DataHeaderSize,
 		},
 	}

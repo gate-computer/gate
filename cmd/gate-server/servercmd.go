@@ -253,7 +253,7 @@ func main() {
 	}
 
 	c.Principal.AccessConfig.Services = func(ctx context.Context) server.InstanceServices {
-		o := origin.New(&originConfig)
+		o := origin.New(originConfig)
 		r := serviceRegistry.Clone()
 		r.Register(o)
 		return server.NewInstanceServices(o, r)
@@ -270,7 +270,7 @@ func main2(critLog *log.Logger) (err error) {
 			c.Monitor.HTTP.Origins = []string{"http://" + c.Monitor.HTTP.Addr}
 		}
 
-		monitor, handler := webmonitor.New(ctx, &c.Monitor.Config, &c.Monitor.HTTP.Config)
+		monitor, handler := webmonitor.New(ctx, c.Monitor.Config, c.Monitor.HTTP.Config)
 		c.Server.Monitor = server.MultiMonitor(c.Server.Monitor, monitor)
 
 		listener, err := net.Listen(c.Monitor.HTTP.Net, c.Monitor.HTTP.Addr)
@@ -287,7 +287,7 @@ func main2(critLog *log.Logger) (err error) {
 	var executors []*runtime.Executor
 
 	for i := 0; i < c.Runtime.ExecutorCount; i++ {
-		e, err := runtime.NewExecutor(&c.Runtime.Config)
+		e, err := runtime.NewExecutor(c.Runtime.Config)
 		if err != nil {
 			return err
 		}
@@ -407,7 +407,7 @@ func main2(critLog *log.Logger) (err error) {
 
 	c.HTTP.ModuleSources = make(map[string]server.Source)
 	if c.Source.IPFS.Configured() {
-		c.HTTP.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
+		c.HTTP.ModuleSources[ipfs.Source] = ipfs.New(c.Source.IPFS.Config)
 	}
 
 	var (
@@ -419,8 +419,8 @@ func main2(critLog *log.Logger) (err error) {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server = server.New(&c.Server.Config)
-	handler := newHTTPSHandler(webserver.NewHandler("/", &c.HTTP.Config))
+	c.HTTP.Server = server.New(c.Server.Config)
+	handler := newHTTPSHandler(webserver.NewHandler("/", c.HTTP.Config))
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)

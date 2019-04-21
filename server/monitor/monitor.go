@@ -39,7 +39,7 @@ type MonitorState struct {
 	done    <-chan struct{}
 }
 
-func New(ctx context.Context, config *Config) (func(server.Event, error), *MonitorState) {
+func New(ctx context.Context, config Config) (func(server.Event, error), *MonitorState) {
 	bufsize := config.BufSize
 	if bufsize == 0 {
 		bufsize = DefaultBufSize

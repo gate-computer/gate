@@ -26,9 +26,9 @@ type Client struct {
 	HTTP http.Client
 }
 
-func New(config *Config) *Client {
+func New(config Config) *Client {
 	return &Client{
-		Config: *config,
+		Config: config,
 	}
 }
 

@@ -35,7 +35,7 @@ func (connector) Close() error {
 }
 
 func NewServer(ctx context.Context, libdir string) *server.Server {
-	e, err := gateruntime.NewExecutor(&gateruntime.Config{
+	e, err := gateruntime.NewExecutor(gateruntime.Config{
 		LibDir: libdir,
 	})
 	if err != nil {
@@ -44,7 +44,7 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 
 	services := server.NewInstanceServices(connector{}, new(service.Registry))
 
-	return server.New(&server.Config{
+	return server.New(server.Config{
 		ProcessFactory: runtime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
 		AccessPolicy:   server.NewPublicAccess(func(context.Context) server.InstanceServices { return services }),
 	})
