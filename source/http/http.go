@@ -14,7 +14,8 @@ import (
 )
 
 type Config struct {
-	Addr string
+	Addr   string
+	Client *http.Client
 }
 
 func (c Config) Configured() bool {
@@ -22,26 +23,29 @@ func (c Config) Configured() bool {
 }
 
 type Client struct {
-	Config
-	HTTP http.Client
+	config Config
 }
 
 func New(config Config) *Client {
+	if config.Client == nil {
+		config.Client = http.DefaultClient
+	}
+
 	return &Client{
-		Config: config,
+		config: config,
 	}
 }
 
 func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int,
 ) (length int64, content io.ReadCloser, err error) {
-	req, err := http.NewRequest(http.MethodGet, c.Addr+uri, nil)
+	req, err := http.NewRequest(http.MethodGet, c.config.Addr+uri, nil)
 	if err != nil {
 		return
 	}
 
 	req.Header.Set("Range", fmt.Sprintf("bytes=0-%d", maxSize-1))
 
-	resp, err := c.HTTP.Do(req.WithContext(ctx))
+	resp, err := c.config.Client.Do(req.WithContext(ctx))
 	if err != nil {
 		return
 	}

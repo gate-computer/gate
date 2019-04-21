@@ -17,7 +17,8 @@ import (
 const Source = "/ipfs"
 
 type Config struct {
-	Addr string
+	Addr   string
+	Client *http.Client
 }
 
 func (c Config) Configured() bool {
@@ -25,13 +26,16 @@ func (c Config) Configured() bool {
 }
 
 type Client struct {
-	Config
-	HTTP http.Client
+	config Config
 }
 
 func New(config Config) *Client {
+	if config.Client == nil {
+		config.Client = http.DefaultClient
+	}
+
 	return &Client{
-		Config: config,
+		config: config,
 	}
 }
 
@@ -42,12 +46,12 @@ func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int,
 		"length": []string{strconv.Itoa(maxSize + 1)},
 	}.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, c.Addr+"/api/v0/cat?"+query, nil)
+	req, err := http.NewRequest(http.MethodGet, c.config.Addr+"/api/v0/cat?"+query, nil)
 	if err != nil {
 		return
 	}
 
-	resp, err := c.HTTP.Do(req.WithContext(ctx))
+	resp, err := c.config.Client.Do(req.WithContext(ctx))
 	if err != nil {
 		return
 	}

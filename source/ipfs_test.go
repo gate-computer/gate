@@ -22,28 +22,26 @@ const (
 	testPath = "/ipfs/QmTDMoVqvyBkNMRhzvukTDznntByUNDwyNdSfV8dZ3VKRC/readme.md"
 )
 
-func newIPFSAPI(t *testing.T) (source *ipfs.Client) {
+func newIPFSAPI(t *testing.T) *ipfs.Client {
 	t.Helper()
 
-	source = ipfs.New(ipfs.Config{
-		Addr: os.Getenv("GATE_TEST_IPFS_API"),
-	})
-	if source.Addr == "" {
+	addr := os.Getenv("GATE_TEST_IPFS_API")
+	if addr == "" {
 		t.Skip("GATE_TEST_IPFS_API not set")
 	}
-	return
+
+	return ipfs.New(ipfs.Config{Addr: addr})
 }
 
-func newIPFSGateway(t *testing.T) (source *http.Client) {
+func newIPFSGateway(t *testing.T) *http.Client {
 	t.Helper()
 
-	source = http.New(http.Config{
-		Addr: os.Getenv("GATE_TEST_IPFS_GW"),
-	})
-	if source.Addr == "" {
+	addr := os.Getenv("GATE_TEST_IPFS_GW")
+	if addr == "" {
 		t.Skip("GATE_TEST_IPFS_GW not set")
 	}
-	return
+
+	return http.New(http.Config{Addr: addr})
 }
 
 func TestIPFSAPIKey(t *testing.T)     { testIPFSKey(t, newIPFSAPI(t)) }
