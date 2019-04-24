@@ -1019,6 +1019,127 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 }
 
 func TestInstance(t *testing.T) {
+	handler := newHandler()
+	pri := newPrincipalKey()
+
+	t.Run("ListEmpty", func(t *testing.T) {
+		checkInstanceList(t, handler, pri, map[string]interface{}{
+			"instances": []interface{}{},
+		})
+	})
+
+	var instID string
+
+	{
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=greet", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+
+		instID = resp.Header.Get(webapi.HeaderInstance)
+	}
+
+	t.Run("StatusRunning", func(t *testing.T) {
+		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+			State: "running",
+		})
+	})
+
+	t.Run("ListOne", func(t *testing.T) {
+		checkInstanceList(t, handler, pri, map[string]interface{}{
+			"instances": []interface{}{
+				map[string]interface{}{
+					"instance": instID,
+					"status": map[string]interface{}{
+						"state": "running",
+					},
+				},
+			},
+		})
+	})
+
+	t.Run("IO", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
+		resp, content := checkResponse(t, handler, req, http.StatusOK)
+
+		if s, found := resp.Header[webapi.HeaderContentType]; found {
+			t.Errorf("%q", s)
+		}
+
+		if string(content) != "hello, world\n" {
+			t.Errorf("%q", content)
+		}
+
+		if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"running"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"terminated"}`) || len(resp.Trailer) != 1 {
+			t.Errorf("trailer: %v", resp.Trailer)
+		}
+	})
+
+	t.Run("Wait", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+			State: "terminated",
+		})
+	})
+
+	for i := 0; i < 3; i++ {
+		t.Run(fmt.Sprintf("StatusTerminated%d", i), func(t *testing.T) {
+			t.Parallel()
+			checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+				State: "terminated",
+			})
+		})
+	}
+}
+
+func TestInstanceMultiIO(t *testing.T) {
+	handler := newHandler()
+	pri := newPrincipalKey()
+
+	var instID string
+
+	{
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=multi", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+
+		instID = resp.Header.Get(webapi.HeaderInstance)
+	}
+
+	done := make(chan struct{}, 10)
+
+	for i := 0; i < cap(done); i++ {
+		go func() {
+			defer func() { done <- struct{}{} }()
+
+			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
+			resp, content := checkResponse(t, handler, req, http.StatusOK)
+
+			if s, found := resp.Header[webapi.HeaderContentType]; found {
+				t.Errorf("%q", s)
+			}
+
+			if string(content) != "hello, world\n" {
+				t.Errorf("%q", content)
+			}
+
+			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
+				State: "running",
+			})
+
+			if len(resp.Trailer) != 1 {
+				t.Errorf("trailer: %v", resp.Trailer)
+			}
+		}()
+	}
+
+	for i := 0; i < cap(done); i++ {
+		<-done
+	}
+}
+
+func TestInstanceSuspend(t *testing.T) {
 	debugLog.logf = t.Logf
 	defer func() {
 		debugLog.Lock()
@@ -1032,264 +1153,146 @@ func TestInstance(t *testing.T) {
 	handler := newHandler()
 	pri := newPrincipalKey()
 
-	t.Run("ListEmpty", func(t *testing.T) {
-		checkInstanceList(t, handler, pri, map[string]interface{}{
-			"instances": []interface{}{},
+	var instID string
+
+	{
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=log", wasmSuspend)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		instID = resp.Header.Get(webapi.HeaderInstance)
+	}
+
+	if testing.Verbose() {
+		time.Sleep(time.Second / 3)
+	}
+
+	t.Run("Suspend", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+			State: "suspended",
 		})
 	})
 
-	{
-		var instID string
+	t.Run("StatusSuspended", func(t *testing.T) {
+		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+			State: "suspended",
+		})
+	})
 
-		{
-			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=greet", wasmHello)
-			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
-			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+	var snapshotKey string
+	var snapshot []byte
 
-			instID = resp.Header.Get(webapi.HeaderInstance)
+	t.Run("Snapshot", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+
+		location := resp.Header.Get(webapi.HeaderLocation)
+		if location == "" {
+			t.Fatal("no module location")
 		}
 
-		t.Run("StatusRunning", func(t *testing.T) {
-			checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-				State: "running",
-			})
-		})
+		snapshotKey = path.Base(location)
 
-		t.Run("ListOne", func(t *testing.T) {
-			checkInstanceList(t, handler, pri, map[string]interface{}{
-				"instances": []interface{}{
-					map[string]interface{}{
-						"instance": instID,
-						"status": map[string]interface{}{
-							"state": "running",
-						},
-					},
-				},
-			})
-		})
+		req = newSignedRequest(pri, http.MethodGet, location, nil)
+		resp, snapshot = checkResponse(t, handler, req, http.StatusOK)
 
-		t.Run("IO", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
-			resp, content := checkResponse(t, handler, req, http.StatusOK)
-
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
-				t.Errorf("%q", s)
+		if false {
+			f, err := os.Create("/tmp/snapshot.wasm")
+			if err != nil {
+				t.Error(err)
+			} else {
+				defer f.Close()
+				if _, err := f.Write(snapshot); err != nil {
+					t.Error(err)
+				}
 			}
-
-			if string(content) != "hello, world\n" {
-				t.Errorf("%q", content)
-			}
-
-			if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"running"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"terminated"}`) || len(resp.Trailer) != 1 {
-				t.Errorf("trailer: %v", resp.Trailer)
-			}
-		})
-
-		t.Run("Wait", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
-			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
-
-			checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-				State: "terminated",
-			})
-		})
-
-		for i := 0; i < 3; i++ {
-			t.Run(fmt.Sprintf("StatusTerminated%d", i), func(t *testing.T) {
-				t.Parallel()
-				checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-					State: "terminated",
-				})
-			})
-		}
-	}
-
-	{
-		var instID string
-
-		{
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=launch&function=multi", nil)
-			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
-
-			instID = resp.Header.Get(webapi.HeaderInstance)
 		}
 
-		t.Run("MultiIO", func(t *testing.T) {
-			done := make(chan struct{}, 10)
-
-			for i := 0; i < cap(done); i++ {
-				go func() {
-					defer func() { done <- struct{}{} }()
-
-					req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
-					resp, content := checkResponse(t, handler, req, http.StatusOK)
-
-					if s, found := resp.Header[webapi.HeaderContentType]; found {
-						t.Errorf("%q", s)
-					}
-
-					if string(content) != "hello, world\n" {
-						t.Errorf("%q", content)
-					}
-
-					checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-						State: "running",
-					})
-
-					if len(resp.Trailer) != 1 {
-						t.Errorf("trailer: %v", resp.Trailer)
-					}
-				}()
-			}
-
-			for i := 0; i < cap(done); i++ {
-				<-done
-			}
-		})
-	}
-
-	{
-		var instID string
-
-		{
-			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=log", wasmSuspend)
-			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
-			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
-
-			instID = resp.Header.Get(webapi.HeaderInstance)
+		if _, err := wag.Compile(nil, bytes.NewReader(snapshot), new(abi.ImportResolver)); err != nil {
+			t.Error(err)
 		}
+	})
+
+	t.Run("ListSuspendedModule", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs, nil)
+		_, content := checkResponse(t, handler, req, http.StatusOK)
+
+		var refs interface{}
+
+		if err := json.Unmarshal(content, &refs); err != nil {
+			t.Fatal(err)
+		}
+
+		var found bool
+
+		for _, x := range refs.(map[string]interface{})["modules"].([]interface{}) {
+			ref := x.(map[string]interface{})
+			if ref["key"].(string) == snapshotKey {
+				if !ref["suspended"].(bool) {
+					t.Error("snapshot module is not suspended")
+				}
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			t.Error("snapshot module key not found")
+		}
+	})
+
+	t.Run("Resume", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=log", nil)
+		checkResponse(t, handler, req, http.StatusNoContent)
 
 		if testing.Verbose() {
 			time.Sleep(time.Second / 3)
 		}
 
-		t.Run("Suspend", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
-			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
-
-			checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-				State: "suspended",
-			})
+		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+			State: "running",
 		})
 
-		t.Run("StatusSuspended", func(t *testing.T) {
-			checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-				State: "suspended",
-			})
+		if testing.Verbose() {
+			time.Sleep(time.Second / 3)
+		}
+
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+		checkResponse(t, handler, req, http.StatusNoContent)
+
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+			State: "suspended",
 		})
+	})
 
-		var snapshotKey string
-		var snapshot []byte
+	handler2 := newHandler()
 
-		t.Run("Snapshot", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
-			resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+	t.Run("Restore", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
+		restoredID := resp.Header.Get(webapi.HeaderInstance)
 
-			location := resp.Header.Get(webapi.HeaderLocation)
-			if location == "" {
-				t.Fatal("no module location")
-			}
+		if testing.Verbose() {
+			time.Sleep(time.Second / 3)
+		}
 
-			snapshotKey = path.Base(location)
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=suspend", nil)
+		checkResponse(t, handler2, req, http.StatusNoContent)
 
-			req = newSignedRequest(pri, http.MethodGet, location, nil)
-			resp, snapshot = checkResponse(t, handler, req, http.StatusOK)
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=wait", nil)
+		resp, _ = checkResponse(t, handler2, req, http.StatusNoContent)
 
-			if false {
-				f, err := os.Create("/tmp/snapshot.wasm")
-				if err != nil {
-					t.Error(err)
-				} else {
-					defer f.Close()
-					if _, err := f.Write(snapshot); err != nil {
-						t.Error(err)
-					}
-				}
-			}
-
-			if _, err := wag.Compile(nil, bytes.NewReader(snapshot), new(abi.ImportResolver)); err != nil {
-				t.Error(err)
-			}
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+			State: "suspended",
 		})
-
-		t.Run("ListSuspendedModule", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs, nil)
-			_, content := checkResponse(t, handler, req, http.StatusOK)
-
-			var refs interface{}
-
-			if err := json.Unmarshal(content, &refs); err != nil {
-				t.Fatal(err)
-			}
-
-			var found bool
-
-			for _, x := range refs.(map[string]interface{})["modules"].([]interface{}) {
-				ref := x.(map[string]interface{})
-				if ref["key"].(string) == snapshotKey {
-					if !ref["suspended"].(bool) {
-						t.Error("snapshot module is not suspended")
-					}
-					found = true
-					break
-				}
-			}
-
-			if !found {
-				t.Error("snapshot module key not found")
-			}
-		})
-
-		t.Run("Resume", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=log", nil)
-			checkResponse(t, handler, req, http.StatusNoContent)
-
-			if testing.Verbose() {
-				time.Sleep(time.Second / 3)
-			}
-
-			checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-				State: "running",
-			})
-
-			if testing.Verbose() {
-				time.Sleep(time.Second / 3)
-			}
-
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
-			checkResponse(t, handler, req, http.StatusNoContent)
-
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
-			resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
-
-			checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-				State: "suspended",
-			})
-		})
-
-		handler2 := newHandler()
-
-		t.Run("Restore", func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
-			req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
-			resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
-			restoredID := resp.Header.Get(webapi.HeaderInstance)
-
-			if testing.Verbose() {
-				time.Sleep(time.Second / 3)
-			}
-
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=suspend", nil)
-			checkResponse(t, handler2, req, http.StatusNoContent)
-
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=wait", nil)
-			resp, _ = checkResponse(t, handler2, req, http.StatusNoContent)
-
-			checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-				State: "suspended",
-			})
-		})
-	}
+	})
 }
 
 // TODO: WebSocket tests
