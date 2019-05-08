@@ -374,11 +374,7 @@ var commands = map[string]struct {
 			}
 
 			for _, m := range refs.Modules {
-				if m.Suspended {
-					fmt.Println(m.Key, "suspended")
-				} else {
-					fmt.Println(m.Key)
-				}
+				fmt.Println(m.Key)
 			}
 		},
 	},

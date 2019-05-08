@@ -20,7 +20,6 @@ import (
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
-	objectabi "github.com/tsavola/wag/object/abi"
 )
 
 type principalKeyArray [32]byte
@@ -633,8 +632,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *principal.Key) (refs Modul
 		refs := make(ModuleRefs, 0, len(acc.programRefs))
 		for prog := range acc.programRefs {
 			refs = append(refs, ModuleRef{
-				Key:       prog.key,
-				Suspended: prog.image.Manifest().InitRoutine == objectabi.TextAddrResume,
+				Key: prog.key,
 			})
 		}
 
