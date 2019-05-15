@@ -6,9 +6,9 @@
 package entry
 
 import (
+	internal "github.com/tsavola/gate/internal/entry"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/wa"
 )
 
 // ModuleFuncIndex returns an error if name is not exported by module or has
@@ -16,7 +16,7 @@ import (
 func ModuleFuncIndex(mod compile.Module, name string) (index uint32, err error) {
 	index, sig, ok := mod.ExportFunc(name)
 	if ok {
-		ok = checkType(sig)
+		ok = internal.CheckType(sig)
 	}
 	if !ok {
 		err = notfound.ErrFunction
@@ -37,7 +37,7 @@ func Maps(mod compile.Module, funcAddrs []uint32,
 		sigIndex := sigIndexes[funcIndex]
 		sig := sigs[sigIndex]
 
-		if checkType(sig) {
+		if internal.CheckType(sig) {
 			entryIndexes[name] = funcIndex
 			entryAddrs[funcIndex] = funcAddrs[funcIndex]
 		}
@@ -62,8 +62,4 @@ func MapFuncAddr(entryAddrs map[uint32]uint32, index uint32) (addr uint32) {
 		panic(index)
 	}
 	return
-}
-
-func checkType(sig wa.FuncType) bool {
-	return len(sig.Params) == 0 && (sig.Result == wa.Void || sig.Result == wa.I32)
 }

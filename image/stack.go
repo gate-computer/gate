@@ -12,6 +12,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/tsavola/gate/internal/entry"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/wa"
 )
@@ -196,7 +197,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 		sigIndex := funcTypeIndexes[funcIndex]
 		sig := types[sigIndex]
-		if len(sig.Params) != 0 || sig.Result != wa.Void {
+		if !entry.CheckType(sig) {
 			err = fmt.Errorf("entry function %d has invalid signature: %s", funcIndex, sig)
 			return
 		}
