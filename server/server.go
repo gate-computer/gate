@@ -838,7 +838,7 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 		return
 	}
 
-	inst.process.Suspend()
+	inst.suspend(s)
 
 	s.Monitor(&event.InstanceSuspend{
 		Ctx:      Context(ctx, pri),

@@ -131,6 +131,15 @@ func (inst *Instance) Wait(ctx context.Context) Status {
 	return inst.Status()
 }
 
+func (inst *Instance) suspend(s *Server) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	if inst.process != nil {
+		inst.process.Suspend()
+	}
+}
+
 func (inst *Instance) killProcess() {
 	if inst.process != nil {
 		inst.services.Close()
