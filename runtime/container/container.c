@@ -521,8 +521,6 @@ static int parent_main(pid_t child_pid)
 
 static int child_main(void *dummy_arg)
 {
-	xset_pdeathsig(SIGKILL);
-
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
 		xerror("prctl: PR_SET_NO_NEW_PRIVS");
 
@@ -536,6 +534,8 @@ static int child_main(void *dummy_arg)
 
 	if (GATE_SANDBOX)
 		sandbox_by_child();
+
+	xset_pdeathsig(SIGKILL);
 
 	xclear_caps();
 
