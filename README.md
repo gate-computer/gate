@@ -132,7 +132,12 @@ The non-Go components can be built with `make`.  They require:
 `make bin` builds the programs using the Go 1.11 module mechanism.
 (Individual packages may be buildable with older Go versions.)
 
-Other make targets: `check` `benchmark` `install` `install-lib` `install-bin`
+Additional requirements for `make check`:
+
+  - libgtest-dev
+  - python
+
+Other make targets: `benchmark` `install` `install-lib` `install-bin`
 `install-capabilities` `install-lib-capabilities`
 
 The capabilities targets grant [capabilities](Capabilities.md) for the
