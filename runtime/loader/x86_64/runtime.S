@@ -24,9 +24,10 @@
 // Out: rcx = start of stack buffer
 // Clobbers rax.
 .macro	stack_buffer
-	mov	%rbx, %rcx			// Atomic copy of stack limit.
 	mov	$0x7ffffffffffffffe, %rax
+	mov	%rbx, %rcx
 	and	%rax, %rcx			// Clear suspend bits.
+	sub	$GATE_STACK_LIMIT_OFFSET, %rcx
 .endm
 
 // Out: rcx = start of stack buffer
@@ -34,7 +35,7 @@
 // Clobbers rax and rcx.
 .macro	current_memory out
 	stack_buffer
-	mov	-GATE_STACK_LIMIT_OFFSET(%rcx), \out
+	mov	(%rcx), \out
 .endm
 
 // In:  r12 = relative length address (zero-extended 32-bit value)
@@ -158,7 +159,7 @@ runtime_init_no_sandbox:
 	// or ABI call and execute .Lruntime_exit to avoid inconsistent state.)
 
 	stack_buffer
-	movl	$-1, -GATE_STACK_LIMIT_OFFSET+4(%rcx)
+	movl	$-1, 4(%rcx)
 
 	// Execute wag object ABI init routine.
 
@@ -290,7 +291,7 @@ grow_memory:
 
 .Lgrow_done:
 	current_memory %eax
-	mov	%r12d, -GATE_STACK_LIMIT_OFFSET(%rcx)
+	mov	%r12d, (%rcx)
 	jmp	.Lresume
 
 .Loom:
@@ -513,7 +514,6 @@ gate_exit:
 // In:  edi = status code
 .Lruntime_exit:
 	stack_buffer
-	sub	$GATE_STACK_LIMIT_OFFSET, %rcx	// Stack buffer.
 	mov	%rsp, %rax
 	sub	%rcx, %rax			// Stack offset.
 	mov	%eax, 4(%rcx)			// After current memory size.
