@@ -8,6 +8,7 @@
 
 #include <ucontext.h>
 
+#ifdef __amd64__
 int main()
 {
 	printf("ucontext: rbx offset: %ld\n", (void *) &((ucontext_t *) 0)->uc_mcontext.gregs[REG_RBX] - (void *) 0);
@@ -18,3 +19,4 @@ int main()
 
 	return 0;
 }
+#endif

@@ -32,6 +32,8 @@
 #define SYS_SA_RESTORER 0x04000000
 #define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER | SA_SIGINFO)
 
+#include "loader.h"
+
 // Avoiding function prototypes avoids GOT section.
 typedef const struct {
 	char dummy;
@@ -183,23 +185,6 @@ static int receive_info(struct image_info *buf, int *text_fd, int *state_fd)
 	return debug_flag;
 }
 
-static bool strcmp__vdso_clock_gettime(const char *name)
-{
-	if (strlen(name) != 20)
-		return false;
-
-	if (((const uint64_t *) name)[0] != 0x635f6f7364765f5fULL) // Little-endian "__vdso_c"
-		return false;
-
-	if (((const uint64_t *) name)[1] != 0x7465675f6b636f6cULL) // Little-endian "lock_get"
-		return false;
-
-	if (((const uint32_t *) name)[4] != 0x656d6974UL) // Little-endian "time"
-		return false;
-
-	return true;
-}
-
 static const Elf64_Shdr *elf_section(const Elf64_Ehdr *elf, unsigned index)
 {
 	return (const void *) elf + elf->e_shoff + elf->e_shentsize * index;
@@ -211,7 +196,7 @@ static const char *elf_string(const Elf64_Ehdr *elf, unsigned strtab_index, unsi
 	return (void *) elf + strtab->sh_offset + str_index;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char **argv, char **envp)
 {
 	// _start routine smuggles vDSO ELF address as argv pointer.
 	// Use it to lookup clock_gettime function.
@@ -228,7 +213,7 @@ int main(int argc, char **argv)
 			const Elf64_Sym *sym = (const void *) vdso + shdr->sh_offset + off;
 
 			const char *name = elf_string(vdso, shdr->sh_link, sym->st_name);
-			if (!strcmp__vdso_clock_gettime(name))
+			if (!strcmp_clock_gettime(name))
 				continue;
 
 			clock_gettime_addr = (uintptr_t) vdso + sym->st_value;
@@ -240,9 +225,10 @@ int main(int argc, char **argv)
 clock_gettime_found:
 	// Miscellaneous preparations.
 
-	if (GATE_SANDBOX)
+	if (GATE_SANDBOX) {
 		if (sys_prctl(PR_SET_DUMPABLE, 0) != 0)
 			return ERR_LOAD_PRCTL_NOT_DUMPABLE;
+	}
 
 	if (sys_setrlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE) != 0)
 		return ERR_LOAD_SETRLIMIT_NOFILE;
@@ -353,88 +339,20 @@ clock_gettime_found:
 
 	code *init_routine = GATE_SANDBOX ? &runtime_init : &runtime_init_no_sandbox;
 
-	register void *rax asm("rax") = stack_ptr;
-	register void *rbx asm("rbx") = stack_limit;
-	register uint64_t rbp asm("rbp") = runtime_func_addr(runtime_ptr, init_routine);
-	register uint64_t rsi asm("rsi") = align_size(GATE_LOADER_STACK_SIZE, info.page_size);
-	register uint64_t r9 asm("r9") = runtime_func_addr(runtime_ptr, &signal_handler);
-	register uint64_t r10 asm("r10") = runtime_func_addr(runtime_ptr, &signal_restorer);
-	register uint64_t r11 asm("r11") = info.page_size - 1;
-	register void *r14 asm("r14") = memory_ptr;
-	register void *r15 asm("r15") = text_ptr + (uintptr_t) info.init_routine;
+	// _start routine smuggles loader stack address as envp pointer.
 
-	// clang-format off
+	uintptr_t pagemask = info.page_size - 1;
+	uintptr_t loader_stack_end = (uintptr_t) envp;
+	uintptr_t loader_stack_size = align_size(GATE_LOADER_STACK_SIZE, info.page_size);
+	uintptr_t loader_stack = ((loader_stack_end + pagemask) & ~pagemask) - loader_stack_size;
 
-	asm volatile(
-		// Replace stack.
-
-		"mov  %%rax, %%rsp                          \n"
-
-		// Load the stack ptr saved in _start, and unmap old stack
-		// (ASLR breaks this).
-
-		"movq %%mm7, %%rdi                          \n" // addr = stack top
-		"add  %%r11, %%rdi                          \n" // addr += pagemask
-		"not  %%r11                                 \n" // ~pagemask
-		"and  %%r11, %%rdi                          \n" // addr &= ~pagemask
-		"sub  %%rsi, %%rdi                          \n" // addr -= stack size
-		"mov  $"xstr(SYS_munmap)", %%eax            \n"
-		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_MUNMAP_STACK)", %%edi \n"
-		"test %%rax, %%rax                          \n"
-		"jne  sys_exit                              \n"
-
-		// Build sigaction structure on stack.  Using 32 bytes of red
-		// zone.
-
-		"sub  $32, %%rsp                            \n" // sizeof (struct sigaction)
-
-		"mov  %%rsp, %%rsi                          \n" // sigaction act
-		"mov  %%r9, 0(%%rsi)                        \n" // sa_handler
-		"movq $"xstr(SIGACTION_FLAGS)", 8(%%rsi)    \n" // sa_flags
-		"mov  %%r10, 16(%%rsi)                      \n" // sa_restorer
-		"movq $0, 24(%%rsi)                         \n" // sa_mask
-
-		"xor  %%edx, %%edx                          \n" // sigaction oldact
-		"mov  $8, %%r10d                            \n" // sigaction mask size
-
-		// Async I/O signal handler.
-
-		"mov  $"xstr(SIGIO)", %%edi                 \n" // sigaction signum
-		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
-		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%rax, %%rax                          \n"
-		"jne  sys_exit                              \n"
-
-		// Segmentation fault signal handler.
-
-		"mov  $"xstr(SIGSEGV)", %%edi               \n" // sigaction signum
-		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
-		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%rax, %%rax                          \n"
-		"jne  sys_exit                              \n"
-
-		// Suspend signal handler.
-
-		"mov  $"xstr(SIGXCPU)", %%edi               \n" // siaction signum
-		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
-		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%rax, %%rax                          \n"
-		"jne  sys_exit                              \n"
-
-		"add  $32, %%rsp                            \n" // sizeof (struct sigaction)
-
-		// Execute runtime_init.
-
-		"mov  %%rbp, %%rcx                          \n"
-		"jmp  retpoline                             \n"
-		:
-		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(r9), "r"(r10), "r"(r11), "r"(r14), "r"(r15));
-
-	// clang-format on
-
-	__builtin_unreachable();
+	enter(stack_ptr,
+	      stack_limit,
+	      runtime_func_addr(runtime_ptr, init_routine),
+	      loader_stack,
+	      loader_stack_size,
+	      runtime_func_addr(runtime_ptr, &signal_handler),
+	      runtime_func_addr(runtime_ptr, &signal_restorer),
+	      memory_ptr,
+	      text_ptr + (uintptr_t) info.init_routine);
 }

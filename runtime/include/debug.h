@@ -2,10 +2,15 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+#ifndef GATE_RUNTIME_DEBUG_H
+#define GATE_RUNTIME_DEBUG_H
+
 #include <stddef.h>
 #include <stdint.h>
 
 #include <sys/syscall.h>
+
+#include "syscall.h"
 
 #define debug_generic_func(x) _Generic((x), /* clang-format off */ \
 		_Bool:                  debug_uint, \
@@ -77,11 +82,7 @@ void debug_type_not_supported(void); // No implementation.
 
 static inline void debug_data(const void *data, size_t size)
 {
-	asm volatile(
-		"syscall"
-		:
-		: "a"(SYS_write), "D"(2), "S"(data), "d"(size)
-		: "cc", "rcx", "r11", "memory");
+	syscall3(SYS_write, 2, (uintptr_t) data, size);
 }
 
 static inline void debug_uint(uint64_t n)
@@ -147,3 +148,5 @@ static inline void debug_str(const char *s)
 
 	debug_data(s, size);
 }
+
+#endif

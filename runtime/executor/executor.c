@@ -298,9 +298,10 @@ int main(void)
 	set_cloexec(GATE_CONTROL_FD);
 	set_cloexec(GATE_LOADER_FD);
 
-	if (GATE_SANDBOX)
+	if (GATE_SANDBOX) {
 		if (prctl(PR_SET_DUMPABLE, 0) != 0)
 			_exit(ERR_EXEC_PRCTL_NOT_DUMPABLE);
+	}
 
 	// Block all signals during thread creation to avoid race conditions.
 	sigset_t sigmask;

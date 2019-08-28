@@ -16,24 +16,23 @@
 .type	_start,@function
 
 _start:
-	mov	%rsp, %rax		// Stack iterator.
+	mov	%rsp, %rdx		// Stack iterator.
 
-	mov	(%rax), %rdi		// argc
+	mov	(%rdx), %rdi		// argc
 	test	%rdi, %rdi
 	jne	.Lvector_not_empty
-	add	$8, %rax
+	add	$8, %rdx
 
-	add	$8, %rax		// Skip argv null terminator.
+	add	$8, %rdx		// Skip argv null terminator.
 
-	mov	%rax, %rdx		// envp
-	cmp	$0, (%rdx)
+	cmp	$0, (%rdx)		// env null terminator.
 	jne	.Lvector_not_empty
 
 .Lvdso_loop:
-	add	$8, %rax		// Skip previous item (envp null terminator or auxv value).
+	add	$8, %rdx		// Skip previous item (envp null terminator or auxv value).
 
-	mov	(%rax), %rbx		// Type of auxv entry.
-	add	$8, %rax
+	mov	(%rdx), %rbx		// Type of auxv entry.
+	add	$8, %rdx
 	cmp	$AT_SYSINFO_EHDR, %rbx
 	je	.Lvdso_found
 	test	%rbx, %rbx
@@ -43,12 +42,12 @@ _start:
 	jmp	.Lexit
 
 .Lvdso_found:
-	mov	(%rax), %rsi		// vDSO ELF address as argv pointer.
+	mov	(%rdx), %rsi		// vDSO ELF address as argv pointer.
+	add	$8, %rdx
 
-	// Store stack iterator for unmapping stack in the enter function.
+	// Stack iterator is passed to main as envp pointer.
 	// At this point it should be well within the highest stack page
 	// (determined experimentally using runtime/loader/test/stack.c).
-	movq	%rax, %mm7
 
 	call	main
 	mov	%eax, %edi		// Exit status.

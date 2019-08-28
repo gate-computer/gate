@@ -1,4 +1,6 @@
-CPPFLAGS	+= -pthread -I../include -DNDEBUG
+ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
+
+CPPFLAGS	+= -pthread -I../include/$(ARCH) -I../include -DNDEBUG
 CFLAGS		+= -std=gnu99 -O2 -fomit-frame-pointer -g -Wall -Wextra -Wno-unused-parameter
 LDFLAGS		+= -pthread -static
 
@@ -11,7 +13,7 @@ $(binary): $(objects)
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(objects)
 
-%.o: %.c $(wildcard *.h ../include/*.h) Makefile ../include/runtime.mk
+%.o: %.c $(wildcard *.h ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
 
 install:

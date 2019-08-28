@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+#ifndef GATE_RUNTIME_RUNTIME_H
+#define GATE_RUNTIME_RUNTIME_H
+
+#include <limits.h>
+
 #define xstr(s) str(s)
 #define str(s) #s
 
@@ -26,8 +31,8 @@
 
 #define GATE_MIN_HEAP_HIGH32 0x2aa9
 
-#define GATE_EXECUTOR_STACK_SIZE 16384LL // PTHREAD_STACK_MIN
-#define GATE_LOADER_STACK_SIZE 12288LL   // 3 pages
+#define GATE_EXECUTOR_STACK_SIZE PTHREAD_STACK_MIN // Depends on target architecture.
+#define GATE_LOADER_STACK_SIZE 12288LL             // 3 pages
 
 #define GATE_SIGNAL_STACK_RESERVE 8192
 #define GATE_STACK_LIMIT_OFFSET (16 + GATE_SIGNAL_STACK_RESERVE + 128 + 16) // See wag/Stack.md
@@ -46,3 +51,5 @@
 
 #define GATE_MAGIC_NUMBER_1 0x19328f3a
 #define GATE_MAGIC_NUMBER_2 0x7e1c5d67
+
+#endif

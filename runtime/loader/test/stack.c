@@ -10,6 +10,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "syscall.h"
+
 #define NORETURN __attribute__((noreturn))
 
 #define SYS_SA_RESTORER 0x04000000
@@ -21,26 +23,23 @@ struct sys_sigaction {
 	sigset_t mask;
 };
 
+void *memset(void *s, int c, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		((uint8_t *) s)[i] = c;
+	return s;
+}
+
 NORETURN
 static void sys_exit(int status)
 {
-	asm(
-		"syscall"
-		:
-		: "a"(SYS_exit), "D"(status));
+	syscall1(SYS_exit, status);
 	__builtin_unreachable();
 }
 
 static int sys_fork()
 {
-	int retval;
-
-	asm(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_fork));
-
-	return retval;
+	return syscall6(SYS_clone, SIGCHLD, 0, 0, 0, 0, 0);
 }
 
 static int sys_sigaction(
@@ -48,52 +47,19 @@ static int sys_sigaction(
 	const struct sys_sigaction *act,
 	struct sys_sigaction *oldact)
 {
-	int retval;
-
-	register int rdi asm("rdi") = signum;
-	register const struct sys_sigaction *rsi asm("rsi") = act;
-	register struct sys_sigaction *rdx asm("rdx") = oldact;
-	register long r10 asm("r10") = 8; // mask size
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_rt_sigaction), "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	size_t masksize = 8;
+	return syscall4(SYS_rt_sigaction, signum, (uintptr_t) act, (uintptr_t) oldact, masksize);
 }
 
 static pid_t sys_wait4(
 	pid_t pid, int *wstatus, int options, struct rusage *rusage)
 {
-	pid_t retval;
-
-	register pid_t rdi asm("rdi") = pid;
-	register int *rsi asm("rsi") = wstatus;
-	register int rdx asm("rdx") = options;
-	register struct rusage *r10 asm("r10") = rusage;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_wait4), "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	return syscall4(SYS_wait4, pid, (uintptr_t) wstatus, options, (uintptr_t) rusage);
 }
 
 static ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-	ssize_t retval;
-
-	asm volatile(
-		"syscall"
-		: "=a"(retval)
-		: "a"(SYS_write), "D"(fd), "S"(buf), "d"(count)
-		: "cc", "rcx", "r11", "memory");
-
-	return retval;
+	return syscall3(SYS_write, fd, (uintptr_t) buf, count);
 }
 
 static void output(uint64_t i)
@@ -122,11 +88,7 @@ static void scan(uint64_t addr, uint64_t step)
 
 int main(int argc, char **argv, char **envp)
 {
-	uint64_t init_addr;
-
-	asm(
-		"movq %%mm7, %%rax"
-		: "=a"(init_addr));
+	uint64_t init_addr = (uintptr_t) envp;
 
 	output(init_addr);
 

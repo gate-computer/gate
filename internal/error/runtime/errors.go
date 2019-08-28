@@ -85,7 +85,7 @@ var ProcessErrors = [48]Error{
 	42: {"ERR_LOAD_SETPRIORITY", "process loader", "TODO: ERR_LOAD_SETPRIORITY"},
 	44: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "dummy process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
 	45: {"ERR_SENTINEL_SIGMASK", "sentinel process", "TODO: ERR_SENTINEL_SIGMASK"},
-	47: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "__vdso_clock_gettime symbol not found in vDSO ELF"},
+	47: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "clock_gettime not found in vDSO ELF"},
 }
 
 var ErrorsInitialized struct{}
