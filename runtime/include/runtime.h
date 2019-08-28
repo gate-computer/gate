@@ -44,8 +44,16 @@
 		       0x80000000LL +           /* stack */   \
 		       0x1000LL +               /* globals */ \
 		       0x80000000LL)            /* memory */
-#define GATE_LIMIT_DATA 0x1000                  // Anonymous runtime mapping.
-#define GATE_LIMIT_NOFILE 5                     // Input, output, debug, text, image.
+
+#ifdef __aarch64__
+#define GATE_LIMIT_FSIZE 44
+#define GATE_LIMIT_DATA 0x2000 // Anonymous runtime mapping and something else?
+#else
+#define GATE_LIMIT_FSIZE 0
+#define GATE_LIMIT_DATA 0x1000 // Anonymous runtime mapping.
+#endif
+
+#define GATE_LIMIT_NOFILE 5 // Input, output, debug, text, image.
 
 #define GATE_TEXT_ADDR_RESUME 0x10 // Per wag object ABI.
 

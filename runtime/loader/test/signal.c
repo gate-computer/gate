@@ -20,3 +20,16 @@ int main()
 	return 0;
 }
 #endif
+
+#ifdef __aarch64__
+int main()
+{
+	printf("ucontext: r28 offset: %ld\n", (void *) &((ucontext_t *) 0)->uc_mcontext.regs[28] - (void *) 0);
+
+	printf("ucontext: r29 offset: %ld\n", (void *) &((ucontext_t *) 0)->uc_mcontext.regs[29] - (void *) 0);
+
+	printf("ucontext: pc  offset: %ld\n", (void *) &((ucontext_t *) 0)->uc_mcontext.pc - (void *) 0);
+
+	return 0;
+}
+#endif

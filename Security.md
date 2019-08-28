@@ -118,10 +118,10 @@ Possible operations:
 
 The process is configured in various ways:
 
-  - CORE, FSIZE, MEMLOCK, MSGQUEUE, NOFILE, NPROC, RTPRIO, RTTIME and
-    SIGPENDING resource limits are set to zero.
+  - CORE, MEMLOCK, MSGQUEUE, NOFILE, NPROC, RTPRIO, RTTIME and SIGPENDING
+    resource limits are set to zero.
 
-  - AS, DATA and STACK resources are limited.
+  - AS, DATA, FSIZE and STACK resources are limited.
 
   - The process is not dumpable.
 

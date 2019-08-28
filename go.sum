@@ -22,8 +22,8 @@ github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c h1:COmD00ZkQXghtpt+
 github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c/go.mod h1:mvjKRkLD4rvc91gFN0bwazjw9lMm0JvJHnohO+OaXcU=
 github.com/tsavola/reach v0.1.2 h1:XtxIm2A2cvRvXpgiEfjZG5DjeIwFctabefbIEVsesTA=
 github.com/tsavola/reach v0.1.2/go.mod h1:XlhrVDiiRoT+75vmT+PzM4MCBNvec/5g+6JvIKSazlM=
-github.com/tsavola/wag v0.19.0 h1:3BnT5WR5hOZOOqSd+B/2lVlCwtNQ6NjlODnwAqpUMgM=
-github.com/tsavola/wag v0.19.0/go.mod h1:KLeJ79CIt/58LVGLcMPZFfyhM8uTyV52BFzZB0LFd/Q=
+github.com/tsavola/wag v0.20.0 h1:Iv6MONHHZplUfk/QtjV9rTy3DE0oisjCB6xM9wZJgTU=
+github.com/tsavola/wag v0.20.0/go.mod h1:KLeJ79CIt/58LVGLcMPZFfyhM8uTyV52BFzZB0LFd/Q=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524 h1:2SngqDMNxTKQXjBcDQPh2S9chQJt6tZ+N7aMiVVhHts=
 golang.org/x/crypto v0.0.0-20180313191002-c4a91bd4f524/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/net v0.0.0-20180320044506-b3c676e531a6 h1:5WuRavH9vWKHPeU48aGt+e0Q4viiMDU4BUVC+Mf0V3s=

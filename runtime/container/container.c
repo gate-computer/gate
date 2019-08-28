@@ -371,7 +371,7 @@ static void sandbox_common(void)
 {
 	umask(0777);
 
-	xsetrlimit(RLIMIT_FSIZE, 0);
+	xsetrlimit(RLIMIT_FSIZE, GATE_LIMIT_FSIZE);
 	xsetrlimit(RLIMIT_MEMLOCK, 0);
 	xsetrlimit(RLIMIT_MSGQUEUE, 0);
 	xsetrlimit(RLIMIT_RTPRIO, 0);

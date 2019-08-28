@@ -71,6 +71,8 @@ static void xdup2(int oldfd, int newfd)
 		_exit(ERR_EXECHILD_DUP2);
 }
 
+// Not inlining this function avoids register clobber warning on aarch64.
+NOINLINE
 NORETURN
 static void execute_child(int input_fd, int output_fd)
 {

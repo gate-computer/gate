@@ -29,8 +29,7 @@ can be added easily, and available services are discovered at run time.  See
 
 Gate appears as [Go](https://golang.org) packages and programs.  The execution
 mechanism is implemented in C and assembly, and needs to be built separately
-(see below).  It's highly Linux-dependent.  Currently only x86-64 is supported,
-but ARM64 support is in development.
+(see below).  It's highly Linux-dependent.  x86-64 and ARM64 are supported.
 
 Important Go packages:
 
@@ -103,7 +102,7 @@ of continually running programs.
   - [ ] Mechanism for implementing services in a programmer-friendly way
   - [ ] Useful resource control policies need more thought (cgroup configuration etc.)
   - [ ] Stable APIs
-  - [ ] ARM64 host support
+  - [ ] Full ARM64 host support
   - [ ] Additional security measures (such as AppArmor/SELinux profiles)
   - [ ] Android host support
   - [ ] Non-Linux host support
