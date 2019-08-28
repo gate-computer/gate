@@ -48,7 +48,7 @@ static inline void enter(
 		"mov  $"xstr(SYS_munmap)", %%eax            \n"
 		"syscall                                    \n"
 		"mov  $"xstr(ERR_LOAD_MUNMAP_STACK)", %%edi \n"
-		"test %%rax, %%rax                          \n"
+		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
 		// Build sigaction structure on stack.  Using 32 bytes of red
@@ -70,7 +70,7 @@ static inline void enter(
 		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
 		"syscall                                    \n"
 		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%rax, %%rax                          \n"
+		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
 		// Segmentation fault signal handler.
@@ -79,7 +79,7 @@ static inline void enter(
 		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
 		"syscall                                    \n"
 		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%rax, %%rax                          \n"
+		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
 		// Suspend signal handler.
@@ -88,7 +88,7 @@ static inline void enter(
 		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
 		"syscall                                    \n"
 		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%rax, %%rax                          \n"
+		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
 		// Execute runtime_init.

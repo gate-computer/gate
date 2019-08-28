@@ -32,7 +32,7 @@
 
 // Out: rcx = start of stack buffer
 //      out = current memory size in wasm pages
-// Clobbers rax and rcx.
+// Clobbers rax.
 .macro	current_memory out
 	stack_buffer
 	mov	(%rcx), \out
@@ -42,6 +42,7 @@
 //      r13 = current memory end address
 // Out: r12 = absolute length address
 //      r13 = current memory end address
+// Clobbers r11.
 .macro	io_len_check nop_label
 	test	%r12d, %r12d
 	je	\nop_label
@@ -62,6 +63,7 @@
 //      rsi = absolute buffer address
 //      r12 = absolute length address
 //      r13 = current memory end address
+// Clobbers r11.
 .macro	io_setup nop_label
 	mov	(%r12), %edx			// Length (zero-extended).
 	test	%edx, %edx			//
@@ -108,7 +110,7 @@ runtime_init:
 	mov	$SYS_munmap, %eax
 	syscall
 	mov	$ERR_LOAD_MUNMAP_LOADER, %edi
-	test	%rax, %rax
+	test	%eax, %eax
 	jne	sys_exit
 
 	// Build sock_fprog structure on stack.  Using 16 bytes of red zone.
@@ -126,7 +128,7 @@ runtime_init:
 	mov	$SYS_seccomp, %eax
 	syscall
 	mov	$ERR_LOAD_SECCOMP, %edi
-	test	%rax, %rax
+	test	%eax, %eax
 	jne	sys_exit
 
 	// Fall through to runtime_init_no_sandbox.
@@ -202,7 +204,7 @@ signal_handler:
 	ret
 
 .Lsigsegv_exit:
-	mov	$105, %edi			// MemoryAccessOutOfBounds
+	mov	$100+5, %edi			// MemoryAccessOutOfBounds
 	jmp	.Lruntime_exit
 
 .align	16,INT3
@@ -218,7 +220,7 @@ signal_restorer:
 .globl	trap_handler
 .type	trap_handler,@function
 
-// In:  eax = trap id
+// In:  rax = (result << 32) | trap_id
 trap_handler:
 	test	%eax, %eax
 	je	.Ltrap_exit
@@ -283,11 +285,11 @@ grow_memory:
 	mov	$PROT_READ|PROT_WRITE, %edx
 	mov	$SYS_mprotect, %eax
 	syscall
-	test	%rax, %rax
+	test	%eax, %eax
 	je	.Lgrow_done
 
 	mov	$ERR_RT_MPROTECT, %eax
-	jmp	trap_handler
+	jmp	.Lruntime_exit
 
 .Lgrow_done:
 	current_memory %eax
