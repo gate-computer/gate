@@ -25,7 +25,7 @@ _start:
 
 	add	$8, %rdx		// Skip argv null terminator.
 
-	cmp	$0, (%rdx)		// env null terminator.
+	cmpq	$0, (%rdx)		// env null terminator.
 	jne	.Lvector_not_empty
 
 .Lvdso_loop:
