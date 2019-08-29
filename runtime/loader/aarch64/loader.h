@@ -13,6 +13,15 @@ size_t strlen(const char *s)
 	return n;
 }
 
+struct cmsghdr *__cmsg_nxthdr(struct msghdr *msg, struct cmsghdr *cmsg)
+{
+	struct cmsghdr *ptr = (void *) cmsg + CMSG_ALIGN(cmsg->cmsg_len);
+	size_t len = (void *) ptr + 1 - (void *) msg->msg_control;
+	if (len > msg->msg_controllen)
+		return NULL;
+	return ptr;
+}
+
 static bool strcmp_clock_gettime(const char *name)
 {
 	if (strlen(name) != 22)
