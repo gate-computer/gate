@@ -85,6 +85,9 @@ runtime_code_begin:
 
 #include "../seccomp.S"
 
+.Lseccomp_filter_len:
+	.word	seccomp_filter_len
+
 	brk	#0
 
 .globl	runtime_init
@@ -110,7 +113,8 @@ runtime_init:
 	// Build sock_fprog structure on stack.  Using 16 bytes of red zone.
 
 	mov	x2, sp				// seccomp args
-	movz	x0, #seccomp_filter_len
+	adr	x0, .Lseccomp_filter_len	// clang doesn't understand #seccomp_filter_len
+	ldr	w0, [x0]			//
 	str	x0, [x2, #0]
 	adr	x0, .Lseccomp_filter
 	str	x0, [x2, #8]
