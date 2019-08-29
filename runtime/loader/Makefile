@@ -2,6 +2,8 @@ NM		?= nm
 OBJCOPY		?= objcopy
 STRIP		?= strip
 
+CC_S		:= $(CC)
+
 ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
 
 CPPFLAGS	+= -I$(ARCH) -I../include/$(ARCH) -I../include -DNDEBUG -DPIE -DGATE_LOADER_ADDR=0x200000000 -DGATE_LOADER_SIZE=0x1000
@@ -28,7 +30,7 @@ $(ARCH)/start.o: $(ARCH)/start.S Makefile ../include/runtime.mk
 $(ARCH)/runtime.o: $(ARCH)/runtime.S msg.S seccomp.S $(wildcard ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
 
 %.o: %.S
-	$(CC) $(CPPFLAGS) -c -o $@ $*.S
+	$(CC_S) $(CPPFLAGS) -c -o $@ $*.S
 
 install:
 	install -m 755 $(binary) $(LIBDIR)/runtime
