@@ -320,11 +320,12 @@ static int xopen_executor_and_loader(void)
 // Close excess file descriptors or die.
 static void close_excess_fds(void)
 {
-	int max_count = getdtablesize();
-	if (max_count <= 0)
-		xerror("getdtablesize");
+	struct rlimit buf;
 
-	for (int fd = GATE_CONTROL_FD + 1; fd < max_count; fd++)
+	if (getrlimit(RLIMIT_NOFILE, &buf) != 0)
+		xerror("getrlimit: RLIMIT_NOFILE");
+
+	for (int fd = GATE_CONTROL_FD + 1; fd < (int) buf.rlim_cur; fd++)
 		close(fd);
 }
 
