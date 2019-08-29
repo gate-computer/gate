@@ -21,7 +21,7 @@
 .int	\k
 .endm
 
-.Lseccomp_filters:
+.Lseccomp_filter:
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, 0				// Syscall number
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      10,  0	// Third block
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         16,  0	// Allow
@@ -46,4 +46,5 @@
 
 	bpf_stmt BPF_RET | BPF_K,             SECCOMP_RET_ALLOW
 	bpf_stmt BPF_RET | BPF_K,             SECCOMP_RET_KILL_PROCESS
-.Lseccomp_filters_end:
+
+.equ	seccomp_filter_len, (. - .Lseccomp_filter) / 8

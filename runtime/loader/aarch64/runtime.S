@@ -110,9 +110,9 @@ runtime_init:
 	// Build sock_fprog structure on stack.  Using 16 bytes of red zone.
 
 	mov	x2, sp				// seccomp args
-	mov	x0, #(.Lseccomp_filters_end - .Lseccomp_filters) / 8
+	movz	x0, #seccomp_filter_len
 	str	x0, [x2, #0]
-	adr	x0, .Lseccomp_filters
+	adr	x0, .Lseccomp_filter
 	str	x0, [x2, #8]
 
 	// Enable seccomp.
