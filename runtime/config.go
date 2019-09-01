@@ -4,22 +4,26 @@
 
 package runtime
 
+import (
+	"os"
+
+	"github.com/tsavola/gate/internal/runtimeapi"
+)
+
 const (
 	MaxProcesses       = 16384 // Per Executor.
 	DefaultCgroupTitle = "gate-runtime"
 )
 
-type Cred struct {
-	UID uint
-	GID uint
-}
+type Cred = runtimeapi.Cred
 
 type Config struct {
 	MaxProcesses int
-	DaemonSocket string
+	ConnFile     *os.File
+	DaemonSocket string // Applicable if ConnFile is not set.
 	ErrorLog     Logger
 
-	// These are applicable if DaemonSocket is not set:
+	// These are applicable if ConnFile and DaemonSocket are not set:
 	Container struct{ Cred }
 	Executor  struct{ Cred }
 	LibDir    string

@@ -17,6 +17,7 @@ import (
 
 	"github.com/tsavola/gate/internal/defaultlog"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/internal/runtimeapi"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -57,9 +58,18 @@ func NewExecutor(config Config) (e *Executor, err error) {
 		cmd  *exec.Cmd
 	)
 
-	if config.DaemonSocket != "" {
+	switch {
+	case config.ConnFile != nil:
+		var c net.Conn
+		c, err = net.FileConn(config.ConnFile)
+		if err == nil {
+			conn = c.(*net.UnixConn)
+		}
+
+	case config.DaemonSocket != "":
 		conn, err = dialContainerDaemon(config)
-	} else {
+
+	default:
 		cmd, conn, err = startContainer(config)
 	}
 	if err != nil {
@@ -84,7 +94,11 @@ func NewExecutor(config Config) (e *Executor, err error) {
 	go e.receiver(errorLog)
 
 	if cmd != nil {
-		go containerWaiter(cmd, e.doneSending, errorLog)
+		go func() {
+			if err := runtimeapi.WaitForContainer(cmd, e.doneSending); err != nil {
+				errorLog.Printf("%v", err)
+			}
+		}()
 	}
 
 	return

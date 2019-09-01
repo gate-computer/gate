@@ -10,14 +10,10 @@ import (
 	"log/syslog"
 	"net"
 	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
-	"syscall"
 
 	"github.com/coreos/go-systemd/activation"
 	"github.com/tsavola/confi"
-	"github.com/tsavola/gate/internal/cred"
 	"github.com/tsavola/gate/internal/runtimeapi"
 	"github.com/tsavola/gate/runtime"
 )
@@ -71,24 +67,14 @@ func main() {
 		infoLog = critLog
 	}
 
-	containerPath, err := filepath.Abs(path.Join(c.Runtime.LibDir, runtimeapi.ContainerFilename))
+	binary, err := runtimeapi.ContainerBinary(c.Runtime.LibDir)
 	if err != nil {
-		return
+		critLog.Fatal(err)
 	}
 
-	creds, err := cred.Parse(c.Runtime.Container.UID, c.Runtime.Container.GID, c.Runtime.Executor.UID, c.Runtime.Executor.GID)
+	containerArgs, err := runtimeapi.ContainerArgs(binary, c.Runtime.Container.Cred, c.Runtime.Executor.Cred, c.Runtime.Cgroup.Title, c.Runtime.Cgroup.Parent)
 	if err != nil {
-		return
-	}
-
-	containerArgs := []string{
-		containerPath,
-		creds[0],
-		creds[1],
-		creds[2],
-		creds[3],
-		c.Runtime.Cgroup.Title,
-		c.Runtime.Cgroup.Parent,
+		critLog.Fatal(err)
 	}
 
 	listeners, err := activation.Listeners()
@@ -150,29 +136,15 @@ func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, i
 		return
 	}
 
-	cmd := exec.Cmd{
-		Path:   containerArgs[0],
-		Args:   containerArgs,
-		Dir:    "/",
-		Stderr: os.Stderr,
-		ExtraFiles: []*os.File{
-			connFile, // GATE_CONTROL_FD
-		},
-		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig: syscall.SIGKILL,
-		},
-	}
-
-	err = cmd.Start()
+	cmd, err := runtimeapi.StartContainer(containerArgs, connFile)
 	connFile.Close()
 	if err != nil {
 		errLog.Printf("%d: %v", client, err)
 		return
 	}
 
-	err = cmd.Wait()
-	if exit, ok := err.(*exec.ExitError); ok && exit.Success() {
-		infoLog.Printf("%d: %v", client, err)
+	if err := runtimeapi.WaitForContainer(cmd, nil); err == nil {
+		infoLog.Printf("%d: container terminated", client)
 	} else {
 		errLog.Printf("%d: %v", client, err)
 	}

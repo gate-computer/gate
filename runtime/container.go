@@ -5,31 +5,20 @@
 package runtime
 
 import (
-	"errors"
 	"net"
-	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
-	"syscall"
 
-	"github.com/tsavola/gate/internal/cred"
-	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/runtimeapi"
+	"github.com/tsavola/gate/internal/sys"
 )
 
 func startContainer(config Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
-	containerPath, err := filepath.Abs(path.Join(config.LibDir, runtimeapi.ContainerFilename))
+	binary, err := runtimeapi.ContainerBinary(config.LibDir)
 	if err != nil {
 		return
 	}
 
-	creds, err := cred.Parse(config.Container.UID, config.Container.GID, config.Executor.UID, config.Executor.GID)
-	if err != nil {
-		return
-	}
-
-	controlFile, connFile, err := socketFilePair(0)
+	controlFile, connFile, err := sys.SocketFilePair(0)
 	if err != nil {
 		return
 	}
@@ -46,66 +35,18 @@ func startContainer(config Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err e
 		}
 	}()
 
-	cmd = &exec.Cmd{
-		Path: containerPath,
-		Args: []string{
-			containerPath,
-			creds[0],
-			creds[1],
-			creds[2],
-			creds[3],
-			config.Cgroup.title(),
-			config.Cgroup.Parent,
-		},
-		Dir:    "/",
-		Stderr: os.Stderr,
-		ExtraFiles: []*os.File{
-			controlFile, // GATE_CONTROL_FD
-		},
-		SysProcAttr: &syscall.SysProcAttr{
-			Pdeathsig: syscall.SIGKILL,
-		},
+	args, err := runtimeapi.ContainerArgs(binary, config.Container.Cred, config.Executor.Cred, config.Cgroup.title(), config.Cgroup.Parent)
+	if err != nil {
+		return
 	}
 
-	err = cmd.Start()
+	cmd, err = runtimeapi.StartContainer(args, controlFile)
 	if err != nil {
 		return
 	}
 
 	unixConn = netConn.(*net.UnixConn)
 	return
-}
-
-// Wait for the container process to exit.  It is requested to exit via the
-// executor API; the done channel just tells us if it was expected or not.
-func containerWaiter(cmd *exec.Cmd, done <-chan struct{}, errorLog Logger) {
-	err := cmd.Wait()
-
-	if status, ok := err.(*exec.ExitError); ok && status.Exited() {
-		switch code := status.Sys().(syscall.WaitStatus).ExitStatus(); code {
-		case 0:
-			err = nil
-
-		case 1:
-			err = errors.New("(message should have been written to stderr)")
-
-		default:
-			err = internal.ExecutorError(code)
-		}
-	}
-
-	select {
-	case <-done:
-		if err != nil {
-			errorLog.Printf("%v", err)
-		}
-
-	default:
-		if err == nil {
-			err = errors.New("(no error code)")
-		}
-		errorLog.Printf("container terminated unexpectedly: %v", err)
-	}
 }
 
 func dialContainerDaemon(config Config) (conn *net.UnixConn, err error) {
