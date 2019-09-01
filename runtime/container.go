@@ -35,7 +35,7 @@ func startContainer(config Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err e
 		}
 	}()
 
-	args, err := runtimeapi.ContainerArgs(binary, config.Container.Cred, config.Executor.Cred, config.Cgroup.title(), config.Cgroup.Parent)
+	args, err := runtimeapi.ContainerArgs(binary, config.NoNamespaces, config.Container.Cred, config.Executor.Cred, config.Cgroup.title(), config.Cgroup.Parent)
 	if err != nil {
 		return
 	}

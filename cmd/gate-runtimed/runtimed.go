@@ -72,7 +72,7 @@ func main() {
 		critLog.Fatal(err)
 	}
 
-	containerArgs, err := runtimeapi.ContainerArgs(binary, c.Runtime.Container.Cred, c.Runtime.Executor.Cred, c.Runtime.Cgroup.Title, c.Runtime.Cgroup.Parent)
+	containerArgs, err := runtimeapi.ContainerArgs(binary, c.Runtime.NoNamespaces, c.Runtime.Container.Cred, c.Runtime.Executor.Cred, c.Runtime.Cgroup.Title, c.Runtime.Cgroup.Parent)
 	if err != nil {
 		critLog.Fatal(err)
 	}

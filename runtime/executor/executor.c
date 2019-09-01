@@ -35,6 +35,8 @@
 
 #define RECEIVE_BUFLEN 128
 
+bool no_namespaces;
+
 union control_buffer {
 	char buf[CMSG_SPACE(2 * sizeof(int))]; // Space for 2 file descriptors.
 	struct cmsghdr alignment;
@@ -292,8 +294,13 @@ static void xsetrlimit(int resource, rlim_t limit, int exitcode)
 		_exit(exitcode);
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
+	if (argc > 1) {
+		const char *flags_arg = argv[1];
+		no_namespaces = (atoi(flags_arg) & 1) != 0;
+	}
+
 	set_cloexec(STDIN_FILENO);
 	set_cloexec(STDOUT_FILENO);
 	set_cloexec(STDERR_FILENO);

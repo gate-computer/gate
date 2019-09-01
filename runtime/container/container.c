@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -368,18 +369,7 @@ static int wait_for_child(pid_t child_pid)
 	}
 }
 
-static void sandbox_common(void)
-{
-	umask(0777);
-
-	xsetrlimit(RLIMIT_FSIZE, GATE_LIMIT_FSIZE);
-	xsetrlimit(RLIMIT_MEMLOCK, 0);
-	xsetrlimit(RLIMIT_MSGQUEUE, 0);
-	xsetrlimit(RLIMIT_RTPRIO, 0);
-	xsetrlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
-}
-
-static void sandbox_by_child(void)
+static void furnish_namespaces(void)
 {
 	if (setgroups(0, NULL) != 0)
 		xerror("setgroups to empty list");
@@ -437,6 +427,30 @@ static void sandbox_by_child(void)
 
 	if (setregid(3, 3) != 0)
 		xerror("setgid for executor");
+}
+
+static const char *flags_arg;
+static bool no_namespaces;
+static struct cred container_cred;
+static struct cred executor_cred;
+static struct cgroup_config cgroup_config;
+static int sync_pipe[2];
+
+static void sandbox_common(void)
+{
+	umask(0777);
+
+	xsetrlimit(RLIMIT_FSIZE, GATE_LIMIT_FSIZE);
+	xsetrlimit(RLIMIT_MEMLOCK, 0);
+	xsetrlimit(RLIMIT_MSGQUEUE, 0);
+	xsetrlimit(RLIMIT_RTPRIO, 0);
+	xsetrlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
+}
+
+static void sandbox_by_child(void)
+{
+	if (!no_namespaces)
+		furnish_namespaces();
 
 	long pagesize = sysconf(_SC_PAGESIZE);
 	if (pagesize <= 0)
@@ -447,10 +461,15 @@ static void sandbox_by_child(void)
 	xsetrlimit(RLIMIT_STACK, align_size(GATE_EXECUTOR_STACK_SIZE, pagesize));
 }
 
-static struct cred container_cred;
-static struct cred executor_cred;
-static struct cgroup_config cgroup_config;
-static int sync_pipe[2];
+static void sandbox_by_parent(pid_t child_pid)
+{
+	xoom_score_adj(child_pid);
+
+	if (!no_namespaces) {
+		xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
+		xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
+	}
+}
 
 int main(int argc, char **argv)
 {
@@ -459,17 +478,19 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	if (argc != 7) {
-		fprintf(stderr, "%s: argc != 7\n", argv[0]);
+	if (argc < 8) {
+		fprintf(stderr, "%s: argc < 8\n", argv[0]);
 		return 1;
 	}
 
-	container_cred.uid = xatoui(argv[1]);
-	container_cred.gid = xatoui(argv[2]);
-	executor_cred.uid = xatoui(argv[3]);
-	executor_cred.gid = xatoui(argv[4]);
-	cgroup_config.title = argv[5];
-	cgroup_config.parent = argv[6];
+	flags_arg = argv[1];
+	no_namespaces = (atoi(flags_arg) & 1) != 0;
+	container_cred.uid = xatoui(argv[2]);
+	container_cred.gid = xatoui(argv[3]);
+	executor_cred.uid = xatoui(argv[4]);
+	executor_cred.gid = xatoui(argv[5]);
+	cgroup_config.title = argv[6];
+	cgroup_config.parent = argv[7];
 
 	close_excess_fds();
 
@@ -478,7 +499,8 @@ int main(int argc, char **argv)
 	if (GATE_SANDBOX) {
 		sandbox_common();
 
-		clone_flags |= CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWUSER | CLONE_NEWUTS;
+		if (!no_namespaces)
+			clone_flags |= CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWUSER | CLONE_NEWUTS;
 	} else {
 		fprintf(stderr, "container is a lie\n");
 	}
@@ -489,14 +511,6 @@ int main(int argc, char **argv)
 	pid_t child_pid = xclone(child_main, clone_flags);
 
 	return parent_main(child_pid);
-}
-
-static void sandbox_by_parent(pid_t child_pid)
-{
-	xoom_score_adj(child_pid);
-
-	xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
-	xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
 }
 
 static int parent_main(pid_t child_pid)
@@ -550,7 +564,7 @@ static int child_main(void *dummy_arg)
 	if (GATE_SANDBOX)
 		xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
-	char *argv[] = {EXECUTOR_FILENAME, NULL};
+	char *argv[] = {EXECUTOR_FILENAME, (char *) flags_arg, NULL};
 	char *envp[] = {NULL};
 
 	sys_execveat(executor_fd, "", argv, envp, AT_EMPTY_PATH);

@@ -69,7 +69,7 @@ static int kill_all(void)
 	pid_t gid;
 	int sig;
 
-	if (GATE_SANDBOX) {
+	if (GATE_SANDBOX && !no_namespaces) {
 		// This process is pid 1 so it won't be killed.
 		gid = 1;
 		sig = SIGKILL;

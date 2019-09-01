@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"github.com/tsavola/gate/internal/cred"
@@ -31,15 +32,21 @@ func ContainerBinary(libdir string) (binary string, err error) {
 	return filepath.Abs(path.Join(libdir, containerFilename))
 }
 
-func ContainerArgs(binary string, containerCred, executorCred Cred, cgroupTitle, cgroupParent string,
+func ContainerArgs(binary string, noNamespaces bool, containerCred, executorCred Cred, cgroupTitle, cgroupParent string,
 ) (args []string, err error) {
 	creds, err := cred.Parse(containerCred.UID, containerCred.GID, executorCred.UID, executorCred.GID)
 	if err != nil {
 		return
 	}
 
+	flags := 0
+	if noNamespaces {
+		flags |= 1
+	}
+
 	args = []string{
 		binary,
+		strconv.Itoa(flags),
 		creds[0],
 		creds[1],
 		creds[2],

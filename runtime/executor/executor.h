@@ -31,4 +31,6 @@ struct exec_status {
 	int32_t status;
 } PACKED;
 
+extern bool no_namespaces;
+
 #endif

@@ -24,10 +24,11 @@ type Config struct {
 	ErrorLog     Logger
 
 	// These are applicable if ConnFile and DaemonSocket are not set:
-	Container struct{ Cred }
-	Executor  struct{ Cred }
-	LibDir    string
-	Cgroup    CgroupConfig
+	NoNamespaces bool
+	Container    struct{ Cred }
+	Executor     struct{ Cred }
+	LibDir       string
+	Cgroup       CgroupConfig
 }
 
 func (c Config) maxProcesses() int {
