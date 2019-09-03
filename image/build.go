@@ -171,6 +171,10 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 	return
 }
 
+func (b *Build) ObjectMap() *object.CallMap {
+	return b.prog.objectMap
+}
+
 // ModuleWriter is valid after NewBuild.  The module must be written before
 // FinishProgram is called.
 func (b *Build) ModuleWriter() io.Writer {
