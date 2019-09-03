@@ -32,6 +32,11 @@ func (mem) newProgramFile() (f *file.File, err error) {
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			f.Close()
+		}
+	}()
 
 	err = ftruncate(f.Fd(), progMaxOffset)
 	if err != nil {
@@ -50,6 +55,11 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 	if err != nil {
 		return
 	}
+	defer func() {
+		if err != nil {
+			f.Close()
+		}
+	}()
 
 	err = ftruncate(f.Fd(), instMaxOffset)
 	if err != nil {
