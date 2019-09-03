@@ -277,7 +277,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 			return
 		}
 
-		err = fmt.Errorf("process termination signal: %d", status.Signal())
+		err = fmt.Errorf("process termination signal: %v", status.Signal())
 		return
 
 	default:
