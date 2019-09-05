@@ -5,7 +5,9 @@
 package facile
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"os"
 
 	"github.com/tsavola/gate/internal/defaultlog"
@@ -13,6 +15,7 @@ import (
 	"github.com/tsavola/gate/internal/sys"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/service"
+	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/snapshot"
 	"golang.org/x/sys/unix"
 )
@@ -148,7 +151,18 @@ func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) e
 }
 
 func (process *RuntimeProcess) Serve() (err error) {
+	connector := origin.New(origin.Config{MaxConns: 1})
+	conn := connector.Connect(context.Background())
+
+	go func() {
+		if err := conn(context.Background(), bytes.NewReader(nil), os.Stdout); err != nil {
+			log.Print(err)
+		}
+	}()
+
 	var services service.Registry
+	services.Register(connector)
+
 	var buffers snapshot.Buffers
 
 	_, _, err = process.p.Serve(context.Background(), &services, &buffers)
