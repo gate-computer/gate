@@ -90,32 +90,36 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 		off2 = int64(instStackSize - stackMapSize)
 	)
 
-	switch {
-	case !prog.storage.instanceFileWriteSupported():
-		var dest []byte
+	if copyLen > 0 {
+		switch {
+		case !prog.storage.instanceFileWriteSupported():
+			var dest []byte
 
-		// Copy stack, globals and memory from program mapping to temporary
-		// instance mapping.
-		dest, err = mmap(instFile.Fd(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-		if err != nil {
-			return
-		}
-		copy(dest, prog.mem[:copyLen])
-		mustMunmap(dest)
+			// Copy stack, globals and memory from program mapping to temporary
+			// instance mapping.
+			dest, err = mmap(instFile.Fd(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+			if err != nil {
+				return
+			}
+			copy(dest, prog.mem[:copyLen])
+			mustMunmap(dest)
 
-	case prog.storage.singleBackend():
-		// Copy stack, globals and memory from program file to instance file.
-		err = copyFileRange(prog.file.Fd(), &off1, instFile.Fd(), &off2, copyLen)
-		if err != nil {
-			return
-		}
+		case prog.storage.singleBackend():
+			// Copy stack, globals and memory from program file to instance
+			// file.
+			err = copyFileRange(prog.file.Fd(), &off1, instFile.Fd(), &off2, copyLen)
+			if err != nil {
+				return
+			}
 
-	default:
-		// Write stack, globals and memory from program mapping to instance file.
-		// TODO: trim range from beginning and end
-		_, err = instFile.WriteAt(prog.mem[:copyLen], off2)
-		if err != nil {
-			return
+		default:
+			// Write stack, globals and memory from program mapping to instance
+			// file.
+			// TODO: trim range from beginning and end
+			_, err = instFile.WriteAt(prog.mem[:copyLen], off2)
+			if err != nil {
+				return
+			}
 		}
 	}
 

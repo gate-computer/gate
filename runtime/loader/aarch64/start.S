@@ -5,9 +5,10 @@
 #define __ASSEMBLY__
 
 #include <bits/auxv.h>
-#include <sys/syscall.h>
 
 #include "errors.h"
+
+#define SYS_exit_group 94
 
 .section .text
 

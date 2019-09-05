@@ -45,7 +45,10 @@
 		       0x1000LL +               /* globals */ \
 		       0x80000000LL)            /* memory */
 
-#ifdef __aarch64__
+#if defined(__ANDROID__)
+#define GATE_LIMIT_FSIZE 0
+#define GATE_LIMIT_DATA 0xa64000 // Anonymous runtime mapping and something else?
+#elif defined(__aarch64__)
 #define GATE_LIMIT_FSIZE 44
 #define GATE_LIMIT_DATA 0x2000 // Anonymous runtime mapping and something else?
 #else

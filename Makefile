@@ -70,7 +70,7 @@ install-bin:
 install: install-lib install-bin
 install-capabilities: install-lib-capabilities install-bin
 
-internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*.S)
+internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
 	mkdir -p tmp
 	$(GO) run internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*.S) | $(GOFMT) > tmp/errors.go
 	test -s tmp/errors.go

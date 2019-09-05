@@ -32,6 +32,14 @@
 #define SYS_SA_RESTORER 0x04000000
 #define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER | SA_SIGINFO)
 
+#ifdef __ANDROID__
+#define ANDROID 1
+#define MAYBE_MAP_FIXED 0
+#else
+#define ANDROID 0
+#define MAYBE_MAP_FIXED MAP_FIXED
+#endif
+
 #include "loader.h"
 
 // Avoiding function prototypes avoids GOT section.
@@ -74,7 +82,10 @@ static int sys_fcntl(int fd, int cmd, int arg)
 
 static void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	return (void *) syscall6(SYS_mmap, (uintptr_t) addr, length, prot, flags, fd, offset);
+	intptr_t ret = syscall6(SYS_mmap, (uintptr_t) addr, length, prot, flags, fd, offset);
+	if (ret < 0 && ret > -4096)
+		return MAP_FAILED;
+	return (void *) ret;
 }
 
 static int sys_mprotect(void *addr, size_t len, int prot)
@@ -82,9 +93,27 @@ static int sys_mprotect(void *addr, size_t len, int prot)
 	return syscall3(SYS_mprotect, (uintptr_t) addr, len, prot);
 }
 
+static void *sys_mremap(void *old_addr, size_t old_size, size_t new_size, int flags)
+{
+	intptr_t ret = syscall4(SYS_mremap, (uintptr_t) old_addr, old_size, new_size, flags);
+	if (ret < 0 && ret > -4096)
+		return MAP_FAILED;
+	return (void *) ret;
+}
+
+static int sys_personality(unsigned long persona)
+{
+	return syscall1(SYS_personality, persona);
+}
+
 static int sys_prctl(int option, unsigned long arg2)
 {
 	return syscall2(SYS_prctl, option, arg2);
+}
+
+static ssize_t sys_read(int fd, void *buf, size_t count)
+{
+	return syscall3(SYS_read, fd, (uintptr_t) buf, count);
 }
 
 static ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
@@ -230,6 +259,13 @@ clock_gettime_found:
 			return ERR_LOAD_PRCTL_NOT_DUMPABLE;
 	}
 
+	if (MAYBE_MAP_FIXED == 0) {
+		// Undo the ADDR_NO_RANDOMIZE setting as manually randomized
+		// addresses might not be used.
+		if (sys_personality(0) < 0)
+			return ERR_LOAD_PERSONALITY_DEFAULT;
+	}
+
 	if (sys_setrlimit(RLIMIT_NOFILE, GATE_LIMIT_NOFILE) != 0)
 		return ERR_LOAD_SETRLIMIT_NOFILE;
 
@@ -251,12 +287,13 @@ clock_gettime_found:
 	if (info.magic_number_2 != GATE_MAGIC_NUMBER_2)
 		return ERR_LOAD_MAGIC_2;
 
-	// Runtime: code at start, import vector at end
+	// Runtime: code at start, import vector at end (and maybe space for text)
 
 	uint64_t runtime_addr = info.text_addr - (uint64_t) info.page_size;
+	size_t runtime_map_size = info.page_size + (ANDROID ? info.text_size : 0);
 
-	void *runtime_ptr = sys_mmap((void *) runtime_addr, info.page_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-	if (runtime_ptr != (void *) runtime_addr)
+	void *runtime_ptr = sys_mmap((void *) runtime_addr, runtime_map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAYBE_MAP_FIXED, -1, 0);
+	if (runtime_ptr == MAP_FAILED)
 		return ERR_LOAD_MMAP_VECTOR;
 
 	uintptr_t runtime_size = (uintptr_t) &runtime_code_end - (uintptr_t) &runtime_code_begin;
@@ -279,22 +316,31 @@ clock_gettime_found:
 	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
 	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
 
-	if (sys_mprotect(runtime_ptr, info.page_size, PROT_READ | PROT_EXEC) != 0)
-		return ERR_LOAD_MPROTECT_VECTOR;
-
 	// Text
 
-	void *text_ptr = sys_mmap((void *) info.text_addr, info.text_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE, text_fd, 0);
-	if (text_ptr != (void *) info.text_addr)
-		return ERR_LOAD_MMAP_TEXT;
+	void *text_ptr = vector_end;
+
+	if (ANDROID) {
+		if (sys_read(text_fd, text_ptr, info.text_size) != info.text_size)
+			return ERR_LOAD_READ_TEXT;
+	} else {
+		void *p = sys_mmap(text_ptr, info.text_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, text_fd, 0);
+		if (p == MAP_FAILED)
+			return ERR_LOAD_MMAP_TEXT;
+	}
 
 	if (sys_close(text_fd) != 0)
 		return ERR_LOAD_CLOSE_TEXT;
 
+	// Runtime (and maybe text)
+
+	if (sys_mprotect(runtime_ptr, runtime_map_size, PROT_READ | PROT_EXEC) != 0)
+		return ERR_LOAD_MPROTECT_VECTOR;
+
 	// Stack
 
-	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, state_fd, 0);
-	if (stack_buf != (void *) info.stack_addr)
+	void *stack_buf = sys_mmap((void *) info.stack_addr, info.stack_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAYBE_MAP_FIXED, state_fd, 0);
+	if (stack_buf == MAP_FAILED)
 		return ERR_LOAD_MMAP_STACK;
 
 	*(uint32_t *) stack_buf = info.init_memory_size >> 16; // WebAssembly pages.
@@ -310,26 +356,39 @@ clock_gettime_found:
 
 	// Globals and memory
 
+	size_t heap_offset = (size_t) info.stack_size;
+	size_t heap_allocated = (size_t) info.globals_size + (size_t) info.init_memory_size;
 	size_t heap_size = (size_t) info.globals_size + (size_t) info.grow_memory_size;
-	void *memory_ptr;
+	void *heap_ptr;
 
-	if (heap_size > 0) {
-		size_t offset = (size_t) info.stack_size;
+	if (ANDROID) {
+		size_t space = (size_t) info.globals_size + MEMORY_ADDRESS_RANGE;
 
-		void *p = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, state_fd, offset);
-		if (p != (void *) info.heap_addr)
+		heap_ptr = sys_mmap((void *) info.heap_addr, space, PROT_READ | PROT_WRITE, MAP_SHARED, state_fd, heap_offset);
+		if (heap_ptr == MAP_FAILED)
 			return ERR_LOAD_MMAP_HEAP;
 
-		size_t allocated = info.globals_size + info.init_memory_size;
-		if (allocated > 0 && sys_mprotect(p, allocated, PROT_READ | PROT_WRITE) != 0)
-			return ERR_LOAD_MPROTECT_HEAP;
-
-		memory_ptr = p + info.globals_size;
+		void *ret = sys_mremap(heap_ptr, space, heap_allocated, 0);
+		if (ret == MAP_FAILED || ret != heap_ptr)
+			return ERR_LOAD_MREMAP_HEAP;
 	} else {
-		// Memory address cannot be arbitrary (such as NULL), otherwise
-		// it could be followed by other memory mappings.
-		memory_ptr = (void *) info.heap_addr;
+		if (heap_size > 0) {
+			heap_ptr = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED, state_fd, heap_offset);
+			if (heap_ptr == MAP_FAILED)
+				return ERR_LOAD_MMAP_HEAP;
+
+			if (heap_allocated > 0) {
+				if (sys_mprotect(heap_ptr, heap_allocated, PROT_READ | PROT_WRITE) != 0)
+					return ERR_LOAD_MPROTECT_HEAP;
+			}
+		} else {
+			// Memory address cannot be arbitrary (such as NULL), otherwise
+			// it could be followed by other memory mappings.
+			heap_ptr = (void *) info.heap_addr;
+		}
 	}
+
+	void *memory_ptr = heap_ptr + info.globals_size;
 
 	if (sys_close(state_fd) != 0)
 		return ERR_LOAD_CLOSE_STATE;

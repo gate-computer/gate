@@ -7,6 +7,12 @@
 #define SECCOMP_RET_KILL_PROCESS 0x80000000
 #define SECCOMP_RET_ALLOW        0x7fff0000
 
+#ifdef __ANDROID__
+#define GROW_SYSCALL SYS_mremap
+#else
+#define GROW_SYSCALL SYS_mprotect
+#endif
+
 .macro	bpf_stmt code, k
 .short	\code
 .byte	0
@@ -25,16 +31,25 @@
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, 0				// Syscall number
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_recvfrom,      10,  0	// Third block
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         16,  0	// Allow
-	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_mprotect,       2,  0	// Second block
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   GROW_SYSCALL,       2,  0	// Second block
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_rt_sigreturn,  14,  0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_exit_group,    13, 12	// Allow, kill
 
+#ifdef __ANDROID__
+	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 1 + 4)		// mremap old_size high half
+	bpf_jump BPF_JMP | BPF_JGE | BPF_K,   0,                  0, 12	// Kill
+	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 2 + 4)		// mremap new_size high half
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  0, 10	// Kill
+	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 3)		// mremap flags
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  7,  8	// Allow, kill
+#else
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 0 + 4)		// mprotect addr high half
 	bpf_jump BPF_JMP | BPF_JGE | BPF_K, GATE_MIN_HEAP_HIGH32, 0, 12	// Kill
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 1 + 4)		// mprotect len high half
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   0,                  0, 10	// Kill
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 2)		// mprotect prot
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K, PROT_READ|PROT_WRITE, 7,  8	// Allow, kill
+#endif
 
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, (16 + 8 * 3)		// recvfrom flags
 	bpf_stmt BPF_ALU | BPF_AND | BPF_K,   ~MSG_DONTWAIT		// Unsupported flags mask

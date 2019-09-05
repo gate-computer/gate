@@ -8,12 +8,20 @@
 #include <asm/mman.h>
 #include <asm/signal.h>
 #include <linux/bpf_common.h>
-#include <sys/syscall.h>
 
 #include "errors.h"
 #include "runtime.h"
 
 #include "../msg.S"
+
+#define SYS_write        64
+#define SYS_exit_group   94
+#define SYS_rt_sigreturn 139
+#define SYS_recvfrom     207
+#define SYS_munmap       215
+#define SYS_mremap       216
+#define SYS_mprotect     226
+#define SYS_seccomp      277
 
 #define UCONTEXT_SUSPEND_REG_OFFSET  408 // x28
 #define UCONTEXT_STACKPTR_REG_OFFSET 416 // x29
@@ -284,6 +292,22 @@ grow_memory:
 	cmp	x1, x13
 	b.lt	.Loom
 
+#ifdef __ANDROID__
+
+	mov	x3, #0				// mremap flags
+	lsl	x2, x13, #16			// mremap new_size
+	lsl	x1, x0, #16			// mremap old_size
+	mov	x0, x26				// mremap old_addr
+
+	mov	w8, #SYS_mremap
+	svc	#0
+
+	mov	w9, #ERR_RT_MREMAP
+	and	w0, w0, #0xfff
+	cbnz	w0, .Lruntime_exit
+
+#else // !__ANDROID__
+
 	add	x0, x26, x0, lsl #16		// mprotect addr
 
 	cbz	x12, .Lgrow_done
@@ -295,6 +319,8 @@ grow_memory:
 
 	mov	w9, #ERR_RT_MPROTECT
 	cbnz	w0, .Lruntime_exit
+
+#endif // __ANDROID__
 
 .Lgrow_done:
 	current_memory w0

@@ -50,12 +50,13 @@ var ExecutorErrors = [65]Error{
 	64: {"ERR_EXEC_RAISE", "runtime repaer", "TODO: ERR_EXEC_RAISE"},
 }
 
-var ProcessErrors = [48]Error{
+var ProcessErrors = [51]Error{
 	2:  {"ERR_RT_RECVFROM", "process runtime", "recvfrom call failed"},
 	3:  {"ERR_RT_WRITE", "process runtime", "write call failed"},
 	4:  {"ERR_RT_DEBUG", "process runtime", "debug write call failed"},
 	5:  {"ERR_RT_MPROTECT", "process runtime", "mprotect call failed"},
-	6:  {"ERR_RT_CLOCK_GETTIME", "process runtime", "clock_gettime call failed"},
+	6:  {"ERR_RT_MREMAP", "process runtime", "mremap call failed"},
+	7:  {"ERR_RT_CLOCK_GETTIME", "process runtime", "clock_gettime call failed"},
 	9:  {"ERR_SENTINEL_SIGNAL_HANDLER", "sentinel process", "signal handler registration failed"},
 	10: {"ERR_SENTINEL_CLOSE", "dummy process", "TODO: ERR_SENTINEL_CLOSE"},
 	11: {"ERR_SENTINEL_PAUSE", "dummy process", "TODO: ERR_SENTINEL_PAUSE"},
@@ -64,6 +65,7 @@ var ProcessErrors = [48]Error{
 	19: {"ERR_LOAD_SETRLIMIT_NOFILE", "process loader", "child: setrlimit: failed to set NOFILE limit"},
 	20: {"ERR_LOAD_SETRLIMIT_NPROC", "process loader", "child: setrlimit: failed to set NPROC limit"},
 	21: {"ERR_LOAD_PRCTL_NOT_DUMPABLE", "process loader", "prctl: failed to set not dumpable"},
+	22: {"ERR_LOAD_PERSONALITY_DEFAULT", "process loader", "failed to set default personality"},
 	23: {"ERR_LOAD_READ_INFO", "process loader", "failed to read image info from input fd"},
 	24: {"ERR_LOAD_MAGIC_1", "process loader", "magic number #1 mismatch"},
 	25: {"ERR_LOAD_MAGIC_2", "process loader", "magic number #2 mismatch"},
@@ -86,6 +88,8 @@ var ProcessErrors = [48]Error{
 	44: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "dummy process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
 	45: {"ERR_SENTINEL_SIGMASK", "sentinel process", "TODO: ERR_SENTINEL_SIGMASK"},
 	47: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "clock_gettime not found in vDSO ELF"},
+	48: {"ERR_LOAD_READ_TEXT", "process loader", "failed to read text section of image"},
+	49: {"ERR_LOAD_MREMAP_HEAP", "process loader", "failed to mremap globals/memory section of image"},
 }
 
 var ErrorsInitialized struct{}
