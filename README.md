@@ -104,7 +104,7 @@ of continually running programs.
   - [ ] Stable APIs
   - [ ] Full ARM64 host support
   - [ ] Additional security measures (such as AppArmor/SELinux profiles)
-  - [ ] Android host support
+  - [x] Android host support
   - [ ] Non-Linux host support
 
 User program support:
