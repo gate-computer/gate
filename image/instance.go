@@ -94,7 +94,7 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 	} else {
 		// Write stack, globals and memory from program mapping to instance file.
 		// TODO: trim range from beginning and end
-		_, err = prog.file.WriteAt(prog.mem[:copyLen], off2)
+		_, err = instFile.WriteAt(prog.mem[:copyLen], off2)
 	}
 	if err != nil {
 		return
