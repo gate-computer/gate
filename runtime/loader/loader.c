@@ -310,21 +310,25 @@ clock_gettime_found:
 
 	// Globals and memory
 
-	size_t heap_offset = (size_t) info.stack_size;
 	size_t heap_size = (size_t) info.globals_size + (size_t) info.grow_memory_size;
-
-	void *memory_ptr = NULL;
+	void *memory_ptr;
 
 	if (heap_size > 0) {
-		void *heap_ptr = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, state_fd, heap_offset);
-		if (heap_ptr != (void *) info.heap_addr)
+		size_t offset = (size_t) info.stack_size;
+
+		void *p = sys_mmap((void *) info.heap_addr, heap_size, PROT_NONE, MAP_SHARED | MAP_FIXED | MAP_NORESERVE, state_fd, offset);
+		if (p != (void *) info.heap_addr)
 			return ERR_LOAD_MMAP_HEAP;
 
 		size_t allocated = info.globals_size + info.init_memory_size;
-		if (allocated > 0 && sys_mprotect(heap_ptr, allocated, PROT_READ | PROT_WRITE) != 0)
+		if (allocated > 0 && sys_mprotect(p, allocated, PROT_READ | PROT_WRITE) != 0)
 			return ERR_LOAD_MPROTECT_HEAP;
 
-		memory_ptr = heap_ptr + info.globals_size;
+		memory_ptr = p + info.globals_size;
+	} else {
+		// Memory address cannot be arbitrary (such as NULL), otherwise
+		// it could be followed by other memory mappings.
+		memory_ptr = (void *) info.heap_addr;
 	}
 
 	if (sys_close(state_fd) != 0)
