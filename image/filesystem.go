@@ -91,6 +91,8 @@ func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 	return
 }
 
+func (*Filesystem) protectProgramFile(*file.File) (_ error) { return }
+
 func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
 	err = func() (err error) {
 		b, err := mmap(prog.file.Fd(), progManifestOffset, manifestHeaderSize+manifest.MaxSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
@@ -204,9 +206,8 @@ func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
 	return
 }
 
-func (*Filesystem) storeInstanceSupported() bool {
-	return true
-}
+func (*Filesystem) instanceFileWriteSupported() bool { return true }
+func (*Filesystem) storeInstanceSupported() bool     { return true }
 
 func (fs *Filesystem) storeInstance(inst *Instance, name string) (man manifest.Instance, err error) {
 	if inst.name != "" {

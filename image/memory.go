@@ -7,6 +7,7 @@ package image
 import (
 	"io"
 	"os"
+	"syscall"
 
 	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
@@ -27,23 +28,12 @@ func (mem) programBackend() interface{}  { return Memory }
 func (mem) instanceBackend() interface{} { return Memory }
 func (mem) singleBackend() bool          { return true }
 
-func (mem) newProgramFile() (f *file.File, err error) {
-	f, err = memfdCreate(memProgramName)
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			f.Close()
-		}
-	}()
+func (mem) newProgramFile() (*file.File, error) {
+	return newMemoryFile(memProgramName, progMaxOffset)
+}
 
-	err = ftruncate(f.Fd(), progMaxOffset)
-	if err != nil {
-		return
-	}
-
-	return
+func (mem) protectProgramFile(f *file.File) error {
+	return protectFileMemory(f, syscall.PROT_READ|syscall.PROT_EXEC)
 }
 
 func (mem) storeProgram(*Program, string) (_ error)           { return }
@@ -51,7 +41,7 @@ func (mem) loadProgram(Storage, string) (_ *Program, _ error) { return }
 func (mem) LoadProgram(string) (_ *Program, _ error)          { return }
 
 func (mem) newInstanceFile() (f *file.File, err error) {
-	f, err = memfdCreate(memInstanceName)
+	f, err = newMemoryFile(memInstanceName, instMaxOffset)
 	if err != nil {
 		return
 	}
@@ -61,7 +51,7 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 		}
 	}()
 
-	err = ftruncate(f.Fd(), instMaxOffset)
+	err = protectFileMemory(f, syscall.PROT_READ|syscall.PROT_WRITE)
 	if err != nil {
 		return
 	}
@@ -69,6 +59,7 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 	return
 }
 
+func (mem) instanceFileWriteSupported() bool                               { return memoryFileWriteSupported }
 func (mem) storeInstanceSupported() bool                                   { return false }
 func (mem) storeInstance(*Instance, string) (_ manifest.Instance, _ error) { return }
 func (mem) LoadInstance(string, manifest.Instance) (*Instance, error)      { return nil, os.ErrNotExist }
@@ -82,6 +73,7 @@ type persistMem struct {
 func PersistentMemory(storage *Filesystem) InstanceStorage { return persistMem{storage} }
 func (pmem persistMem) instanceBackend() interface{}       { return pmem }
 func (persistMem) newInstanceFile() (*file.File, error)    { return Memory.newInstanceFile() }
+func (persistMem) instanceFileWriteSupported() bool        { return Memory.instanceFileWriteSupported() }
 func (persistMem) storeInstanceSupported() bool            { return true }
 
 func (pmem persistMem) storeInstance(inst *Instance, name string) (man manifest.Instance, err error) {

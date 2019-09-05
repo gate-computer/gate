@@ -338,6 +338,11 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		}
 	}
 
+	err = b.storage.protectProgramFile(b.prog.file)
+	if err != nil {
+		return
+	}
+
 	man := manifest.Program{
 		TextAddr:        b.textAddr,
 		TextSize:        uint32(b.prog.textSize),

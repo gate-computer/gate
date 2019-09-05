@@ -53,6 +53,7 @@ func (prog *Program) Close() (err error) {
 
 type ProgramStorage interface {
 	newProgramFile() (*file.File, error)
+	protectProgramFile(*file.File) error
 	storeProgram(prog *Program, name string) error
 	loadProgram(combined Storage, name string) (*Program, error)
 	programBackend() interface{}
