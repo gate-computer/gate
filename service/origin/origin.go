@@ -178,7 +178,7 @@ func (ih *instanceHandler) handling(ctx context.Context, code packet.Code, repli
 	}()
 
 	var (
-		nextId     int32
+		nextID     int32
 		nextAccept bool
 		nextFlow   uint32
 	)
@@ -208,27 +208,27 @@ func (ih *instanceHandler) handling(ctx context.Context, code packet.Code, repli
 				// BUG: If stream ids wrap around, it's not the oldest stream
 				// that will be closed.  Also, this assumes that maxConns is
 				// not terribly large as it uses linear search.
-				var minId int32 = math.MaxInt32
+				var minID int32 = math.MaxInt32
 				for id := range streams {
-					if id < minId {
-						minId = id
+					if id < minID {
+						minID = id
 					}
 				}
 
-				conn := streams[minId]
-				delete(streams, minId)
+				conn := streams[minID]
+				delete(streams, minID)
 				conn.disconnect()
 			}
 
 			conn := &ioConn.conn
-			conn.connected(code, replies, nextId, nextFlow, ih.maxDataSize)
-			streams[nextId] = conn
+			conn.connected(code, replies, nextID, nextFlow, ih.maxDataSize)
+			streams[nextID] = conn
 
-			// log.Printf("origin handler: accepted connection for stream #%d", nextId)
+			// log.Printf("origin handler: accepted connection for stream #%d", nextID)
 
 			for {
-				nextId = (nextId + 1) & 0x7fffffff
-				if _, taken := streams[nextId]; !taken {
+				nextID = (nextID + 1) & 0x7fffffff
+				if _, taken := streams[nextID]; !taken {
 					break
 				}
 			}
@@ -256,11 +256,11 @@ func (ih *instanceHandler) handling(ctx context.Context, code packet.Code, repli
 							delete(streams, conn.id)
 						}
 
-					case id == nextId:
+					case id == nextID:
 						nextAccept = true
 						nextFlow += uint32(increment)
 
-					case id > nextId:
+					case id > nextID:
 						panic(fmt.Sprintf("TODO: received data packet for distant stream: %d", id))
 					}
 				}
@@ -275,7 +275,7 @@ func (ih *instanceHandler) handling(ctx context.Context, code packet.Code, repli
 						delete(streams, conn.id)
 					}
 
-				case id >= nextId:
+				case id >= nextID:
 					panic(fmt.Sprintf("TODO: received data packet for unconnected stream: %d", id))
 				}
 
