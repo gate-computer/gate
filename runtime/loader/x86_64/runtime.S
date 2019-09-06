@@ -276,6 +276,25 @@ grow_memory:
 	cmp	%r12, -32(%r15)			// Grow memory limit pages
 	jl	.Loom
 
+#ifdef __ANDROID__
+
+	xor	%r10d, %r10d			// mremap flags
+	mov	%r12d, %edx
+	shl	$16, %rdx			// mremap new_size
+	mov	%edi, %esi
+	shl	$16, %rsi			// mremap old_size
+	mov	%r14, %rdi			// mremap old_addr
+
+	mov	$SYS_mremap, %eax
+	syscall
+	test	$0xfff, %eax
+	je	.Lgrow_done
+
+	mov	$ERR_RT_MREMAP, %eax
+	jmp	.Lruntime_exit
+
+#else // !__ANDROID__
+
 	shl	$16, %rdi			// Current memory bytes
 	add	%r14, %rdi			// mprotect addr
 
@@ -290,6 +309,8 @@ grow_memory:
 
 	mov	$ERR_RT_MPROTECT, %eax
 	jmp	.Lruntime_exit
+
+#endif // __ANDROID__
 
 .Lgrow_done:
 	current_memory %eax
