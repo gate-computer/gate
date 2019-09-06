@@ -42,6 +42,32 @@
 
 #include "loader.h"
 
+#ifdef __clang__
+void *memcpy(void *dest, const void *src, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		((uint8_t *) dest)[i] = ((const uint8_t *) src)[i];
+	return dest;
+}
+
+size_t strlen(const char *s)
+{
+	size_t n = 0;
+	while (*s++)
+		n++;
+	return n;
+}
+
+struct cmsghdr *__cmsg_nxthdr(struct msghdr *msg, struct cmsghdr *cmsg)
+{
+	struct cmsghdr *ptr = (void *) cmsg + CMSG_ALIGN(cmsg->cmsg_len);
+	size_t len = (void *) ptr + 1 - (void *) msg->msg_control;
+	if (len > msg->msg_controllen)
+		return NULL;
+	return ptr;
+}
+#endif // __clang__
+
 // Avoiding function prototypes avoids GOT section.
 typedef const struct {
 	char dummy;

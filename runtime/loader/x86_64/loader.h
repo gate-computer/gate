@@ -41,6 +41,7 @@ static inline void enter(
 	register uintptr_t rdi asm("rdi") = loader_stack;   // munmap addr
 	register uint64_t r9 asm("r9") = signal_handler;
 	register uint64_t r10 asm("r10") = signal_restorer;
+	register long r13 asm("r13") = SIGACTION_FLAGS;
 	register void *r14 asm("r14") = memory_ptr;
 	register void *r15 asm("r15") = init_routine;
 
@@ -65,7 +66,7 @@ static inline void enter(
 		"mov  %%rsp, %%rsi                          \n"
 		"sub  $32, %%rsi                            \n" // sigaction act
 		"mov  %%r9, 0(%%rsi)                        \n" // sa_handler
-		"movq $"xstr(SIGACTION_FLAGS)", 8(%%rsi)    \n" // sa_flags
+		"mov  %%r13, 8(%%rsi)                       \n" // sa_flags
 		"mov  %%r10, 16(%%rsi)                      \n" // sa_restorer
 		"movq $0, 24(%%rsi)                         \n" // sa_mask
 
@@ -104,7 +105,7 @@ static inline void enter(
 		"mov  %%rbp, %%rcx                          \n"
 		"jmp  retpoline                             \n"
 		:
-		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r14), "r"(r15));
+		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r13), "r"(r14), "r"(r15));
 
 	// clang-format on
 
