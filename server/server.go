@@ -20,6 +20,7 @@ import (
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
+	"github.com/tsavola/gate/snapshot"
 )
 
 type principalKeyArray [32]byte
@@ -920,7 +921,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 	}
 	defer s.unrefProgram(oldProg)
 
-	newImage, err := func() (*image.Program, error) {
+	newImage, buffers, err := func() (newImage *image.Program, buffers snapshot.Buffers, err error) {
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
 
@@ -934,10 +935,13 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 			suspended = false
 
 		default:
-			return nil, failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+			err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+			return
 		}
 
-		return image.Snapshot(oldProg.image, inst.image, inst.buffers, suspended)
+		buffers = inst.buffers
+		newImage, err = image.Snapshot(oldProg.image, inst.image, buffers, suspended)
+		return
 	}()
 	if err != nil {
 		return
@@ -960,7 +964,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 		return
 	}
 
-	_, err = s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage))
+	_, err = s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage, buffers))
 	if err != nil {
 		return
 	}
@@ -1054,8 +1058,19 @@ func (s *Server) refProgram(ctx context.Context, hash string, length int64) (pro
 	if progImage == nil {
 		return
 	}
+	defer func() {
+		if progImage != nil {
+			progImage.Close()
+		}
+	}()
 
-	prog = newProgram(hash, progImage)
+	buffers, err := progImage.LoadBuffers()
+	if err != nil {
+		return
+	}
+
+	prog = newProgram(hash, progImage, buffers)
+	progImage = nil
 
 	s.lock.Lock()
 	defer s.lock.Unlock()

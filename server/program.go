@@ -21,6 +21,7 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
 )
@@ -59,8 +60,9 @@ func validateHashContent(hash1 string, r io.Reader) (err error) {
 }
 
 type program struct {
-	key   string
-	image *image.Program
+	key     string
+	image   *image.Program
+	buffers snapshot.Buffers
 
 	storeLock sync.Mutex
 	stored    bool
@@ -180,14 +182,15 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		}
 	}
 
-	prog = newProgram(hashEncoding.EncodeToString(actualHash), progImage)
+	prog = newProgram(hashEncoding.EncodeToString(actualHash), progImage, b.Buffers)
 	return
 }
 
-func newProgram(key string, image *image.Program) *program {
+func newProgram(key string, image *image.Program, buffers snapshot.Buffers) *program {
 	prog := &program{
 		key:      key,
 		image:    image,
+		buffers:  buffers,
 		refCount: 1,
 	}
 	goruntime.SetFinalizer(prog, finalizeProgram)

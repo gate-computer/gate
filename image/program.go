@@ -5,11 +5,15 @@
 package image
 
 import (
+	"bytes"
+	"errors"
 	"io"
 
 	"github.com/tsavola/gate/image/manifest"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/object"
 )
 
@@ -36,6 +40,60 @@ func (prog *Program) Text() (file interface{ Fd() uintptr }, err error) {
 
 func (prog *Program) NewModuleReader() io.Reader {
 	return io.NewSectionReader(prog.file, progModuleOffset, prog.man.ModuleSize)
+}
+
+func (prog *Program) LoadBuffers() (bs snapshot.Buffers, err error) {
+	var serviceBuf []byte
+
+	if n := prog.man.ServiceSection.Size(); n > 0 {
+		b := make([]byte, n)
+
+		_, err = prog.file.ReadAt(b, progModuleOffset+prog.man.ServiceSection.Offset)
+		if err != nil {
+			return
+		}
+
+		bs.Services, serviceBuf, err = wasm.ReadServiceSection(bytes.NewReader(b), uint32(n), errors.New)
+		if err != nil {
+			return
+		}
+	}
+
+	if n := prog.man.IoSection.Size(); n > 0 {
+		b := make([]byte, n)
+
+		_, err = prog.file.ReadAt(b, progModuleOffset+prog.man.IoSection.Offset)
+		if err != nil {
+			return
+		}
+
+		bs.Input, bs.Output, err = wasm.ReadIOSection(bytes.NewReader(b), uint32(n), errors.New)
+		if err != nil {
+			return
+		}
+	}
+
+	off := progModuleOffset + prog.man.BufferSection.Offset
+
+	n, err := prog.file.ReadAt(serviceBuf, off)
+	if err != nil {
+		return
+	}
+	off += int64(n)
+
+	n, err = prog.file.ReadAt(bs.Input, off)
+	if err != nil {
+		return
+	}
+	off += int64(n)
+
+	n, err = prog.file.ReadAt(bs.Output, off)
+	if err != nil {
+		return
+	}
+	off += int64(n)
+
+	return
 }
 
 // Store the program.  The name must not contain path separators.

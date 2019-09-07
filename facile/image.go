@@ -11,6 +11,7 @@ import (
 	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/wa"
@@ -35,7 +36,8 @@ func (filesystem *Filesystem) Close() error {
 }
 
 type ProgramImage struct {
-	image *image.Program
+	image   *image.Program
+	buffers snapshot.Buffers
 }
 
 func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImage, err error) {
@@ -100,7 +102,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	prog = &ProgramImage{progImage}
+	prog = &ProgramImage{progImage, b.Buffers}
 	return
 }
 
@@ -109,7 +111,8 @@ func (prog *ProgramImage) Close() error {
 }
 
 type InstanceImage struct {
-	image *image.Instance
+	image   *image.Instance
+	buffers snapshot.Buffers
 }
 
 func NewInstanceImage(prog *ProgramImage, entryFunction string) (inst *InstanceImage, err error) {
@@ -132,7 +135,7 @@ func NewInstanceImage(prog *ProgramImage, entryFunction string) (inst *InstanceI
 		return
 	}
 
-	inst = &InstanceImage{instImage}
+	inst = &InstanceImage{instImage, prog.buffers}
 	return
 }
 

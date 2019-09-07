@@ -16,7 +16,6 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
-	"github.com/tsavola/gate/snapshot"
 	"golang.org/x/sys/unix"
 )
 
@@ -150,7 +149,7 @@ func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) e
 	})
 }
 
-func (process *RuntimeProcess) Serve() (err error) {
+func (process *RuntimeProcess) Serve(state *InstanceImage) (err error) {
 	connector := origin.New(origin.Config{MaxConns: 1})
 	conn := connector.Connect(context.Background())
 
@@ -163,9 +162,7 @@ func (process *RuntimeProcess) Serve() (err error) {
 	var services service.Registry
 	services.Register(connector)
 
-	var buffers snapshot.Buffers
-
-	_, _, err = process.p.Serve(context.Background(), &services, &buffers)
+	_, _, err = process.p.Serve(context.Background(), &services, &state.buffers)
 	return
 }
 

@@ -81,6 +81,7 @@ func newInstance(acc *account, id string, prog *program, persist bool, function 
 			Debug: debugStatus,
 		},
 		image:    image,
+		buffers:  prog.buffers,
 		process:  proc,
 		timeReso: timeReso,
 		services: services,
