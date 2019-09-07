@@ -192,7 +192,13 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 				if frozen != nil {
 					if suspended == nil { // Suspended.
-						frozen.Output = append(pendingMsg, read.buf...)
+						if len(read.buf) == 0 {
+							frozen.Output = pendingMsg
+						} else {
+							// pendingMsg might be part of the original
+							// Buffers.Output, so don't mutate it.
+							frozen.Output = append(append([]byte{}, pendingMsg...), read.buf...)
+						}
 						pendingMsg = nil
 
 						frozen.Input, err = ioutil.ReadAll(subject.writerOut)
