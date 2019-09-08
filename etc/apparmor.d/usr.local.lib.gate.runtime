@@ -1,0 +1,64 @@
+# Copyright (c) 2019 Timo Savola. All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+#include <tunables/global>
+
+/usr/local/lib/gate/runtime/gate-runtime-container.0 flags=(attach_disconnected) {
+  #include <abstractions/base>
+
+  capability dac_override,
+  capability dac_read_search,
+  capability setgid,
+  capability setuid,
+  capability sys_admin,
+  /usr/local/lib/gate/runtime/gate-runtime-container.0 r,
+  /usr/bin/newuidmap cx,
+  /usr/bin/newgidmap cx,
+  @{PROC}/@{pid}/oom_score_adj w,
+
+  # Mount namespace setup
+  mount options=(rw, make-rprivate) -> /,
+  mount fstype=tmpfs options=(rw, nosuid, nodev, noexec) -> /tmp/,
+  /tmp/dir/ w,
+  pivot_root oldroot=/tmp/dir/ /tmp/,
+
+  # Mount namespace setup after pivot_root
+  umount /dir/,
+  mount options=(ro, nosuid, nodev, noexec, remount) -> /,
+  /usr/local/lib/gate/runtime/gate-runtime-executor.0.0 Cx,
+
+  profile /usr/bin/newuidmap {
+    #include <abstractions/base>
+    #include <abstractions/nameservice>
+
+    capability dac_override,
+    capability setuid,
+    capability sys_admin,
+    /usr/bin/newuidmap rm,
+    /etc/subuid r,
+    @{PROC}/@{pid}/ r,
+    @{PROC}/@{pid}/loginuid r,
+    @{PROC}/@{pid}/uid_map w,
+  }
+
+  profile /usr/bin/newgidmap {
+    #include <abstractions/base>
+    #include <abstractions/nameservice>
+
+    capability dac_override,
+    capability setgid,
+    capability sys_admin,
+    /usr/bin/newgidmap rm,
+    /etc/subgid r,
+    @{PROC}/@{pid}/ r,
+    @{PROC}/@{pid}/loginuid r,
+    @{PROC}/@{pid}/gid_map w,
+  }
+
+  profile /usr/local/lib/gate/runtime/gate-runtime-executor.0.0 flags=(attach_disconnected) {
+    signal peer=@{profile_name},
+    /usr/local/lib/gate/runtime/gate-runtime-executor.0.0 rm,
+    /usr/local/lib/gate/runtime/gate-runtime-loader.0.0 ix,  # Must inherit due to no-new-privs.
+  }
+}

@@ -8,6 +8,7 @@ DESTDIR		:=
 PREFIX		:= /usr/local
 BINDIR		:= $(PREFIX)/bin
 LIBDIR		:= $(PREFIX)/lib/gate
+libprefix	= $(shell echo /$(LIBDIR)/ | tr -s /)
 
 GEN_LIB_SOURCES := \
 	runtime/include/errors.h
@@ -60,6 +61,9 @@ install-lib:
 	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/executor install
 	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/loader install
 
+install-lib-apparmor:
+	sed "s,/usr/local/lib/gate/,$(libprefix),g" etc/apparmor.d/usr.local.lib.gate.runtime > "$(DESTDIR)/etc/apparmor.d/$(shell echo $(libprefix) | cut -c 2- | tr / .)runtime"
+
 install-lib-capabilities: install-lib
 	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/container capabilities
 
@@ -68,6 +72,7 @@ install-bin:
 	install -m 755 bin/gate bin/gate-runtimed bin/gate-run bin/gate-server $(DESTDIR)$(BINDIR)
 
 install: install-lib install-bin
+install-apparmor: install-lib-apparmor
 install-capabilities: install-lib-capabilities install-bin
 
 internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
@@ -100,4 +105,4 @@ clean:
 	$(MAKE) -C runtime/loader clean
 	$(MAKE) -C runtime/loader/test clean
 
-.PHONY: lib bin generate all check benchmark install-lib install-lib-capabilities install-bin install install-capabilities clean
+.PHONY: lib bin generate all check benchmark install-lib install-lib-apparmor install-lib-capabilities install-bin install install-apparmor install-capabilities clean
