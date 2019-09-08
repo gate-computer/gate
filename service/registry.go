@@ -5,9 +5,9 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"sync"
+	"unicode"
 
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
@@ -50,11 +50,16 @@ type Registry struct {
 // Register a service implementation.
 func (r *Registry) Register(f Factory) {
 	name := f.ServiceName()
+	if len(name) == 0 {
+		panic("service name is empty")
+	}
 	if len(name) > maxServiceNameLen {
 		panic("service name is too long")
 	}
-	if bytes.Contains([]byte(name), []byte{0}) {
-		panic("service name contains nul byte")
+	for _, r := range name {
+		if !(unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsPunct(r)) {
+			panic("service name contains invalid characters")
+		}
 	}
 
 	if r.factories == nil {

@@ -8,13 +8,12 @@ documentation.
 
 ## Naming
 
-Service name can technically be any byte string which doesn't contain zero
-bytes, but should be an UTF-8 string, preferrably using only the ASCII subset.
-Maximum name length is 127 bytes.
+Service names are valid UTF-8 strings consisting of letter, number and
+punctuation characters.  Encoded length must be between 1 and 127 bytes
+(inclusive).
 
-Built-in service names never contain dots before the first slash, if any.
-(Current built-in services contain neither dots nor slashes.)  That naming
-convention avoids conflicts with other common conventions:
+Built-in service names never contain dots before the first slash, if any.  That
+naming convention avoids conflicts with other common conventions:
 
   1. `example.net/service` (Go package)
   2. `net.example.service` (Java package)
