@@ -26,7 +26,7 @@
   # Mount namespace setup after pivot_root
   umount /dir/,
   mount options=(ro, nosuid, nodev, noexec, remount) -> /,
-  /usr/local/lib/gate/runtime/gate-runtime-executor.0.0 Cx,
+  /usr/local/lib/gate/runtime/gate-runtime-executor.0 Cx,
 
   profile /usr/bin/newuidmap {
     #include <abstractions/base>
@@ -56,9 +56,9 @@
     @{PROC}/@{pid}/gid_map w,
   }
 
-  profile /usr/local/lib/gate/runtime/gate-runtime-executor.0.0 flags=(attach_disconnected) {
+  profile /usr/local/lib/gate/runtime/gate-runtime-executor.0 flags=(attach_disconnected) {
     signal peer=@{profile_name},
-    /usr/local/lib/gate/runtime/gate-runtime-executor.0.0 rm,
-    /usr/local/lib/gate/runtime/gate-runtime-loader.0.0 ix,  # Must inherit due to no-new-privs.
+    /usr/local/lib/gate/runtime/gate-runtime-executor.0 rm,
+    /usr/local/lib/gate/runtime/gate-runtime-loader.0 ix,  # Must inherit due to no-new-privs.
   }
 }

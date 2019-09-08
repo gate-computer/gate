@@ -40,8 +40,8 @@
 #define NEWUIDMAP_PATH "/usr/bin/newuidmap"
 #define NEWGIDMAP_PATH "/usr/bin/newgidmap"
 
-#define EXECUTOR_FILENAME ("gate-runtime-executor." xstr(GATE_INTERNAL_API_VERSION))
-#define LOADER_FILENAME ("gate-runtime-loader." xstr(GATE_INTERNAL_API_VERSION))
+#define EXECUTOR_FILENAME ("gate-runtime-executor." xstr(GATE_RUNTIME_BINARY_SUFFIX))
+#define LOADER_FILENAME ("gate-runtime-loader." xstr(GATE_RUNTIME_BINARY_SUFFIX))
 
 extern char **environ;
 

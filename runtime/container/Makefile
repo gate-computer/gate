@@ -17,7 +17,7 @@ LIBS		+= $(shell $(PKGCONFIG) --libs $(pkgs))
 
 include ../include/runtime.mk
 
-binary		:= ../../lib/gate/runtime/gate-runtime-container.$(GATE_RUNTIME_API_VERSION)
+binary		:= ../../lib/gate/runtime/gate-runtime-container.$(GATE_RUNTIME_BINARY_SUFFIX)
 variant		:= ../../lib/runtime-container-cgroup-$(CGROUP_BACKEND)
 
 all: $(variant)

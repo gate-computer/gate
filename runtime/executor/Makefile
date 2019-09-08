@@ -6,7 +6,7 @@ LDFLAGS		+= -pthread -static
 
 include ../include/runtime.mk
 
-binary		:= ../../lib/gate/runtime/gate-runtime-executor.$(GATE_INTERNAL_API_VERSION)
+binary		:= ../../lib/gate/runtime/gate-runtime-executor.$(GATE_RUNTIME_BINARY_SUFFIX)
 objects		:= executor.o reaper.o
 
 $(binary): $(objects)
