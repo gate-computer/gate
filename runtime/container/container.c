@@ -31,6 +31,7 @@
 #include <unistd.h>
 
 #include "align.h"
+#include "caps.h"
 #include "cgroup.h"
 #include "errors.h"
 #include "execveat.h"
@@ -117,19 +118,7 @@ static void xset_pdeathsig(int signum)
 // Clear all process capabilities or die.
 static void xclear_caps(void)
 {
-	struct {
-		uint32_t version;
-		int pid;
-	} header = {
-		.version = 0x20080522, // ABI version 3.
-		.pid = 0,
-	};
-
-	const struct {
-		uint32_t effective, permitted, inheritable;
-	} data[2] = {{0}, {0}};
-
-	if (syscall(SYS_capset, &header, data) != 0)
+	if (clear_caps() != 0)
 		xerror("clear capabilities");
 }
 
@@ -529,6 +518,9 @@ static int parent_main(pid_t child_pid)
 
 	// User namespace configured.
 
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
+		xerror("prctl: PR_SET_NO_NEW_PRIVS");
+
 	xclose(sync_pipe[1]); // Wake child up.
 
 	return wait_for_child(child_pid);
@@ -536,9 +528,6 @@ static int parent_main(pid_t child_pid)
 
 static int child_main(void *dummy_arg)
 {
-	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
-		xerror("prctl: PR_SET_NO_NEW_PRIVS");
-
 	xclose(sync_pipe[1]);
 	xread_until_eof(sync_pipe[0]); // Wait for parent to wake us up.
 	xclose(sync_pipe[0]);

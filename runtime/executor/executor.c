@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "align.h"
+#include "caps.h"
 #include "errors.h"
 #include "executor.h"
 #include "execveat.h"
@@ -296,6 +297,12 @@ static void xsetrlimit(int resource, rlim_t limit, int exitcode)
 
 int main(int argc, char **argv)
 {
+	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
+		_exit(ERR_EXEC_NO_NEW_PRIVS);
+
+	if (clear_caps() != 0)
+		_exit(ERR_EXEC_CLEAR_CAPS);
+
 	if (argc > 1) {
 		const char *flags_arg = argv[1];
 		no_namespaces = (atoi(flags_arg) & 1) != 0;
