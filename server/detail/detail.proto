@@ -32,6 +32,7 @@ enum Op {
 	InstanceSuspend = 16;
 	InstanceResume = 17;
 	InstanceSnapshot = 18;
+	InstanceDelete = 19;
 }
 
 message Context {

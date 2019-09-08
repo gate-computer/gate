@@ -62,6 +62,7 @@ const (
 	ActionSuspend  = "suspend"  // Post.
 	ActionResume   = "resume"   // Post.
 	ActionSnapshot = "snapshot" // Post.
+	ActionDelete   = "delete"   // Post.
 )
 
 // HTTP request headers.

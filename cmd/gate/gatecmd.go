@@ -52,6 +52,7 @@ const mainUsage = `Usage: %s [options] address command [arguments]
 
 Commands:
   call      execute a wasm module with I/O
+  delete    delete an instance
   download  download a wasm module
   instances list instances
   io        connect to a running instance
@@ -194,6 +195,13 @@ var commands = map[string]struct {
 				log.Fatal(status)
 			}
 			os.Exit(status.Result)
+		},
+	},
+
+	"delete": {
+		usage: " instance",
+		do: func() {
+			commandInstance(webapi.ActionDelete)
 		},
 	},
 

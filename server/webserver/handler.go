@@ -551,6 +551,10 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceSnapshot(w, r, s, instance)
 
+	case webapi.ActionDelete:
+		mustNotHaveParams(w, r, s, query)
+		handleInstance(w, r, s, server.OpInstanceDelete, (*server.Server).DeleteInstance, instance)
+
 	default:
 		respondUnsupportedAction(w, r, s)
 	}

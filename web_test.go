@@ -1056,6 +1056,11 @@ func TestInstance(t *testing.T) {
 		})
 	})
 
+	t.Run("DeleteFail", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=delete", nil)
+		checkResponse(t, handler, req, http.StatusBadRequest)
+	})
+
 	t.Run("IO", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
@@ -1082,14 +1087,24 @@ func TestInstance(t *testing.T) {
 		})
 	})
 
-	for i := 0; i < 3; i++ {
-		t.Run(fmt.Sprintf("StatusTerminated%d", i), func(t *testing.T) {
-			t.Parallel()
-			checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-				State: "terminated",
-			})
+	t.Run("StatusTerminated", func(t *testing.T) {
+		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+			State: "terminated",
 		})
-	}
+	})
+
+	t.Run("Delete", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=delete", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{})
+	})
+
+	t.Run("ListEmptyAgain", func(t *testing.T) {
+		checkInstanceList(t, handler, pri, map[string]interface{}{
+			"instances": []interface{}{},
+		})
+	})
 }
 
 func TestInstanceMultiIO(t *testing.T) {

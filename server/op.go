@@ -28,4 +28,5 @@ const (
 	OpInstanceSuspend  = detail.Op_InstanceSuspend
 	OpInstanceResume   = detail.Op_InstanceResume
 	OpInstanceSnapshot = detail.Op_InstanceSnapshot
+	OpInstanceDelete   = detail.Op_InstanceDelete
 )

@@ -905,6 +905,51 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID,
 	return
 }
 
+func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID string,
+) (status Status, err error) {
+	err = s.AccessPolicy.Authorize(ctx, pri)
+	if err != nil {
+		return
+	}
+
+	inst := s.getInstance(pri, instID)
+	if inst == nil {
+		err = resourcenotfound.ErrInstance
+		return
+	}
+
+	switch inst.Status().State {
+	case serverapi.Status_suspended, serverapi.Status_terminated:
+		// ok
+
+	default:
+		err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+		return
+	}
+
+	func() {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+
+		acc := s.accounts[inprincipal.RawKey(pri)]
+		if acc == nil {
+			return
+		}
+
+		if acc.instances[instID] == inst {
+			delete(acc.instances, instID)
+		}
+	}()
+
+	inst.Kill(s)
+
+	s.Monitor(&event.InstanceDelete{
+		Ctx:      Context(ctx, pri),
+		Instance: inst.id,
+	}, nil)
+	return
+}
+
 func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID string,
 ) (moduleKey string, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
