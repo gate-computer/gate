@@ -191,7 +191,7 @@ var commands = map[string]struct {
 				status = callWebsocket(arg, params)
 			}
 
-			if status.State != "terminated" || status.Cause != "" {
+			if status.State != webapi.StateTerminated || status.Cause != "" {
 				log.Fatal(status)
 			}
 			os.Exit(status.Result)

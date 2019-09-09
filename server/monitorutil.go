@@ -12,7 +12,7 @@ import (
 
 // defaultMonitor prints internal errors to default log.
 func defaultMonitor(ev Event, err error) {
-	if ev.EventType() <= int32(event.Event_FailInternal) {
+	if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
 		if err == nil {
 			log.Printf("%vevent:%s", ev, ev.EventName())
 		} else {
@@ -34,7 +34,7 @@ func MultiMonitor(monitors ...func(Event, error)) func(Event, error) {
 // Internal errors are printed to errorLog and other events to eventLog.
 func ErrorEventLogger(errorLog, eventLog Logger) func(Event, error) {
 	return func(ev Event, err error) {
-		if ev.EventType() <= int32(event.Event_FailInternal) {
+		if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
 			printToLogger(errorLog, ev, err)
 		} else {
 			printToLogger(eventLog, ev, err)
@@ -46,7 +46,7 @@ func ErrorEventLogger(errorLog, eventLog Logger) func(Event, error) {
 // errors are printed to errorLog and other events are ignored.
 func ErrorLogger(errorLog Logger) func(Event, error) {
 	return func(ev Event, err error) {
-		if ev.EventType() <= int32(event.Event_FailInternal) {
+		if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
 			printToLogger(errorLog, ev, err)
 		}
 	}

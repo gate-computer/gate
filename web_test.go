@@ -496,7 +496,7 @@ func TestModuleRef(t *testing.T) {
 			}
 
 			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: "terminated",
+				State: webapi.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -562,7 +562,7 @@ func TestModuleRef(t *testing.T) {
 		}
 
 		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-			State: "terminated",
+			State: webapi.StateTerminated,
 		})
 
 		if len(resp.Trailer) != 1 {
@@ -595,7 +595,7 @@ func TestModuleRef(t *testing.T) {
 		}
 
 		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-			State: "terminated",
+			State: webapi.StateTerminated,
 		})
 
 		if len(resp.Trailer) != 1 {
@@ -802,7 +802,7 @@ func TestModuleSource(t *testing.T) {
 			}
 
 			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: "terminated",
+				State: webapi.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -839,7 +839,7 @@ func TestModuleSource(t *testing.T) {
 			}
 
 			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: "terminated",
+				State: webapi.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -871,7 +871,7 @@ func TestModuleSource(t *testing.T) {
 			}
 
 			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: "terminated",
+				State: webapi.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -968,7 +968,7 @@ func TestInstanceDebug(t *testing.T) {
 		}
 
 		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-			State: "terminated",
+			State: webapi.StateTerminated,
 			Debug: "out-putting",
 		})
 	})
@@ -1039,7 +1039,7 @@ func TestInstance(t *testing.T) {
 
 	t.Run("StatusRunning", func(t *testing.T) {
 		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: "running",
+			State: webapi.StateRunning,
 		})
 	})
 
@@ -1049,7 +1049,7 @@ func TestInstance(t *testing.T) {
 				map[string]interface{}{
 					"instance": instID,
 					"status": map[string]interface{}{
-						"state": "running",
+						"state": webapi.StateRunning,
 					},
 				},
 			},
@@ -1073,7 +1073,7 @@ func TestInstance(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"running"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"terminated"}`) || len(resp.Trailer) != 1 {
+		if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"RUNNING"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"TERMINATED"}`) || len(resp.Trailer) != 1 {
 			t.Errorf("trailer: %v", resp.Trailer)
 		}
 	})
@@ -1083,13 +1083,13 @@ func TestInstance(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: "terminated",
+			State: webapi.StateTerminated,
 		})
 	})
 
 	t.Run("StatusTerminated", func(t *testing.T) {
 		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: "terminated",
+			State: webapi.StateTerminated,
 		})
 	})
 
@@ -1139,7 +1139,7 @@ func TestInstanceMultiIO(t *testing.T) {
 			}
 
 			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: "running",
+				State: webapi.StateRunning,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -1186,13 +1186,13 @@ func TestInstanceSuspend(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: "suspended",
+			State: webapi.StateSuspended,
 		})
 	})
 
 	t.Run("StatusSuspended", func(t *testing.T) {
 		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: "suspended",
+			State: webapi.StateSuspended,
 		})
 	})
 
@@ -1236,7 +1236,7 @@ func TestInstanceSuspend(t *testing.T) {
 		}
 
 		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: "running",
+			State: webapi.StateRunning,
 		})
 
 		if testing.Verbose() {
@@ -1250,7 +1250,7 @@ func TestInstanceSuspend(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: "suspended",
+			State: webapi.StateSuspended,
 		})
 	})
 
@@ -1273,7 +1273,7 @@ func TestInstanceSuspend(t *testing.T) {
 		resp, _ = checkResponse(t, handler2, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: "suspended",
+			State: webapi.StateSuspended,
 		})
 	})
 }

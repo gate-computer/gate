@@ -17,7 +17,6 @@ import (
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/subsystem"
 	"github.com/tsavola/gate/internal/principal"
-	"github.com/tsavola/gate/internal/serverapi"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -36,20 +35,12 @@ func validateInstanceID(s string) error {
 		}
 	}
 
-	return failrequest.New(event.FailRequest_InstanceIdInvalid, "instance id must be an RFC 4122 UUID version 4")
+	return failrequest.New(event.FailInstanceIdInvalid, "instance id must be an RFC 4122 UUID version 4")
 }
 
 func instanceStorageKey(acc *account, instID string) string {
 	return fmt.Sprintf("%s.%s", principal.KeyPrincipalID(acc.Key).String(), instID)
 }
-
-type Status = serverapi.Status
-type InstanceStatus = serverapi.InstanceStatus
-type Instances []InstanceStatus
-
-func (a Instances) Len() int           { return len(a) }
-func (a Instances) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a Instances) Less(i, j int) bool { return a[i].Instance < a[j].Instance }
 
 type Instance struct {
 	acc      *account
@@ -77,7 +68,7 @@ func newInstance(acc *account, id string, prog *program, persist bool, function 
 		persist:  persist,
 		function: function,
 		status: Status{
-			State: serverapi.Status_running,
+			State: StateRunning,
 			Debug: debugStatus,
 		},
 		image:    image,
@@ -92,8 +83,8 @@ func newInstance(acc *account, id string, prog *program, persist bool, function 
 
 // renew must be called with Instance.lock held.
 func (inst *Instance) renew(proc *runtime.Process, timeReso time.Duration, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) {
-	inst.status = serverapi.Status{
-		State: serverapi.Status_running,
+	inst.status = Status{
+		State: StateRunning,
 		Debug: debugStatus,
 	}
 	inst.process = proc
@@ -120,7 +111,7 @@ func (inst *Instance) Wait(ctx context.Context) Status {
 	stopped := inst.stopped
 	inst.lock.Unlock()
 
-	if status.State != serverapi.Status_running {
+	if status.State != StateRunning {
 		return status
 	}
 
@@ -175,7 +166,7 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (er
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
 
-		if inst.status.State == serverapi.Status_running {
+		if inst.status.State == StateRunning {
 			return inst.services
 		} else {
 			return nil
@@ -195,7 +186,7 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) (er
 }
 
 func (inst *Instance) Run(ctx context.Context, s *Server) {
-	result := serverapi.Status{
+	result := Status{
 		Error: "internal server error",
 		Debug: inst.status.Debug,
 	}
@@ -228,8 +219,8 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 
 		switch err.(type) {
 		case badprogram.Error:
-			result.State = serverapi.Status_killed
-			result.Cause = serverapi.Status_abi_violation
+			result.State = StateKilled
+			result.Cause = CauseABIViolation
 
 			reportProgramError(ctx, s, inst.acc, inst.prog.key, inst.function, inst.id, err)
 
@@ -257,15 +248,15 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 
 	switch trapID {
 	case trap.Suspended:
-		result.State = serverapi.Status_suspended
+		result.State = StateSuspended
 
 	case trap.CallStackExhausted:
-		result.State = serverapi.Status_suspended
-		result.Cause = serverapi.Status_Cause(trapID)
+		result.State = StateSuspended
+		result.Cause = Cause(trapID)
 
 	default:
-		result.State = serverapi.Status_terminated
-		result.Cause = serverapi.Status_Cause(trapID)
+		result.State = StateTerminated
+		result.Cause = Cause(trapID)
 		result.Result = int32(exit)
 	}
 
@@ -275,7 +266,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 func reportProgramError(ctx context.Context, s *Server, acc *account, progHash, function string, instID string, err error) {
 	s.Monitor(&event.FailRequest{
 		Ctx:      accountContext(ctx, acc),
-		Failure:  event.FailRequest_ProgramError,
+		Failure:  event.FailProgramError,
 		Module:   progHash,
 		Function: function,
 		Instance: instID,

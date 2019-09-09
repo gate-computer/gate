@@ -143,7 +143,7 @@ func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *webapi
 		if x, ok := err.(public.Error); ok {
 			errorDesc = x.PublicError()
 		}
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", errorDesc, event.FailRequest_PrincipalKeyError, err)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
 		panic(nil)
 	}
 

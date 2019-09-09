@@ -181,13 +181,13 @@ func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserv
 func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
 	ew.WriteError(http.StatusUnauthorized, "missing authentication credentials")
-	reportRequestFailure(ctx, s, pri, event.FailRequest_AuthMissing)
+	reportRequestFailure(ctx, s, pri, event.FailAuthMissing)
 }
 
 func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, errorCode string) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode))
 	ew.WriteError(http.StatusUnauthorized, errorCode)
-	reportRequestFailure(ctx, s, pri, event.FailRequest_AuthInvalid)
+	reportRequestFailure(ctx, s, pri, event.FailAuthInvalid)
 }
 
 func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
@@ -211,7 +211,7 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 		status   = http.StatusInternalServerError
 		text     = "internal server error"
 		internal = true
-		request  = event.FailRequest_Unspecified
+		request  = event.FailUnspecified
 	)
 
 	switch x := err.(type) {
@@ -219,7 +219,7 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 		status = http.StatusUnauthorized
 		text = "unauthorized"
 		internal = false
-		request = event.FailRequest_AuthDenied
+		request = event.FailAuthDenied
 
 		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
 
@@ -227,18 +227,18 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 		status = http.StatusForbidden
 		text = "forbidden"
 		internal = false
-		request = event.FailRequest_ResourceDenied
+		request = event.FailResourceDenied
 
 		switch err.(type) {
 		case resourcelimit.Error:
-			request = event.FailRequest_ResourceLimit
+			request = event.FailResourceLimit
 		}
 
 	case server.TooManyRequests:
 		status = http.StatusTooManyRequests
 		text = "too many requests"
 		internal = false
-		request = event.FailRequest_RateLimit
+		request = event.FailRateLimit
 
 		if d := x.RetryAfter(); d != 0 {
 			s := x.RetryAfter() / time.Second
@@ -256,15 +256,15 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 		switch err.(type) {
 		case resourcenotfound.ModuleError:
 			text = "module not found"
-			request = event.FailRequest_ModuleNotFound
+			request = event.FailModuleNotFound
 
 		case notfound.FunctionError:
 			text = "function not found"
-			request = event.FailRequest_FunctionNotFound
+			request = event.FailFunctionNotFound
 
 		case resourcenotfound.InstanceError:
 			text = "instance not found"
-			request = event.FailRequest_InstanceNotFound
+			request = event.FailInstanceNotFound
 		}
 
 	case badrequest.Error:
@@ -275,7 +275,7 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 		switch x := err.(type) {
 		case badprogram.Error:
 			text = "bad module"
-			request = event.FailRequest_ModuleError
+			request = event.FailModuleError
 
 		case failrequest.Error:
 			request = x.FailRequestType()

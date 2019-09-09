@@ -113,7 +113,7 @@ func handle(ctx context.Context, w http.ResponseWriter, r *http.Request, s *moni
 	frame := map[string]interface{}{
 		"server_init": initTime.Unix(),
 		"iface_types": detail.Iface_value,
-		"event_types": event.Event_Type_value,
+		"event_types": event.Type_value,
 		"state":       snapshot,
 	}
 

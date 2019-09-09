@@ -2,24 +2,25 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package serverapi_test
+package server_test
 
 import (
 	"testing"
 
 	"github.com/tsavola/gate/internal/serverapi"
+	"github.com/tsavola/gate/server"
 	"github.com/tsavola/wag/trap"
 )
 
 func TestStatusJSON(t *testing.T) {
-	status := &serverapi.Status{
-		State: serverapi.Status_terminated,
-		Cause: serverapi.Status_Cause(trap.MemoryAccessOutOfBounds),
+	status := &server.Status{
+		State: server.StateTerminated,
+		Cause: server.Cause(trap.MemoryAccessOutOfBounds),
 	}
 
 	data := serverapi.MustMarshalJSON(status)
 
-	if s := string(data); s != `{"state":"terminated","cause":"memory_access_out_of_bounds"}` {
+	if s := string(data); s != `{"state":"TERMINATED","cause":"MEMORY_ACCESS_OUT_OF_BOUNDS"}` {
 		t.Error(s)
 	}
 }

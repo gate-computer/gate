@@ -205,7 +205,7 @@ func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter
 
 	default:
 		// TODO: RFC 6750 says that this should be Bad Request
-		respondUnauthorizedErrorDesc(ctx, wr, s, nil, "invalid_request", "multiple Authorization headers", event.FailRequest_AuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, wr, s, nil, "invalid_request", "multiple Authorization headers", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 }

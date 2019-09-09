@@ -16,30 +16,31 @@ message ModuleRefs {
 	repeated ModuleRef modules = 1;
 }
 
+enum State {
+	NONEXISTENT = 0;
+
+	RUNNING = 1;
+	SUSPENDED = 2;
+	TERMINATED = 3;
+	KILLED = 4;
+}
+
+enum Cause {
+	NORMAL = 0;
+
+	NO_FUNCTION = 1;
+	UNREACHABLE = 3;
+	CALL_STACK_EXHAUSTED = 4;
+	MEMORY_ACCESS_OUT_OF_BOUNDS = 5;
+	INDIRECT_CALL_INDEX_OUT_OF_BOUNDS = 6;
+	INDIRECT_CALL_SIGNATURE_MISMATCH = 7;
+	INTEGER_DIVIDE_BY_ZERO = 8;
+	INTEGER_OVERFLOW = 9;
+
+	ABI_VIOLATION = 65;
+}
+
 message Status {
-	enum State {
-		nonexistent = 0;
-		running = 1;
-		suspended = 2;
-		terminated = 3;
-		killed = 4;
-	}
-
-	enum Cause {
-		DEFAULT = 0; // Suspended, terminated (exit trap), or killed.
-
-		no_function = 1;
-		unreachable = 3;
-		call_stack_exhausted = 4;
-		memory_access_out_of_bounds = 5;
-		indirect_call_index_out_of_bounds = 6;
-		indirect_call_signature_mismatch = 7;
-		integer_divide_by_zero = 8;
-		integer_overflow = 9;
-
-		abi_violation = 65;
-	}
-
 	State state = 1;
 	Cause cause = 2;
 	int32 result = 3;

@@ -148,11 +148,34 @@ type Claims struct {
 	Nonce string   `json:"nonce,omitempty"` // Unique during expiration period.
 }
 
-// Status response header.
+// Instance state enumeration.
+const (
+	StateRunning    = "RUNNING"
+	StateSuspended  = "SUSPENDED"
+	StateTerminated = "TERMINATED"
+	StateKilled     = "KILLED"
+)
+
+// Instance state cause enumeration.  Empty value means that the cause is a
+// normal one (e.g. client action, successful completion).
+//
+// The cause enumeration is open-ended: new values may appear in the future.
+const (
+	CauseUnreachable                   = "UNREACHABLE"
+	CauseCallStackExhausted            = "CALL_STACK_EXHAUSTED"
+	CauseMemoryAccessOutOfBounds       = "MEMORY_ACCESS_OUT_OF_BOUNDS"
+	CauseIndirectCallIndexOutOfBounds  = "INDIRECT_CALL_INDEX_OUT_OF_BOUNDS"
+	CauseIndirectCallSignatureMismatch = "INDIRECT_CALL_SIGNATURE_MISMATCH"
+	CauseIntegerDivideByZero           = "INTEGER_DIVIDE_BY_ZERO"
+	CauseIntegerOverflow               = "INTEGER_OVERFLOW"
+	CauseABIViolation                  = "ABI_VIOLATION"
+)
+
+// Status response header.  If Error is set, other fields are not meaningful.
 type Status struct {
 	State  string `json:"state,omitempty"`
 	Cause  string `json:"cause,omitempty"`
-	Result int    `json:"result,omitempty"`
+	Result int    `json:"result,omitempty"` // Meaningful if StateTerminated.
 	Error  string `json:"error,omitempty"`
 	Debug  string `json:"debug,omitempty"`
 }
@@ -170,7 +193,7 @@ func (status Status) String() (s string) {
 
 	if status.Cause != "" {
 		s = fmt.Sprintf("%s abnormally: %s", s, status.Cause)
-	} else if status.State == "terminated" {
+	} else if status.State == StateTerminated {
 		s = fmt.Sprintf("%s with result %d", s, status.Result)
 	}
 

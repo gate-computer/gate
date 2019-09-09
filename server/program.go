@@ -31,7 +31,7 @@ var (
 	hashEncoding = base64.RawURLEncoding
 )
 
-var errModuleSizeMismatch = failrequest.Wrap(event.FailRequest_ModuleError, errors.New("content length does not match existing module size"), "invalid module content")
+var errModuleSizeMismatch = failrequest.Wrap(event.FailModuleError, errors.New("content length does not match existing module size"), "invalid module content")
 
 func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 	digest1, err := hashEncoding.DecodeString(hash1)
@@ -40,7 +40,7 @@ func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 	}
 
 	if subtle.ConstantTimeCompare(digest1, digest2) != 1 {
-		err = failrequest.New(event.FailRequest_ModuleHashMismatch, "module hash does not match content")
+		err = failrequest.New(event.FailModuleHashMismatch, "module hash does not match content")
 		return
 	}
 
@@ -96,7 +96,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
-		err = failrequest.Tag(event.FailRequest_ModuleError, err)
+		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -118,7 +118,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	err = compile.LoadCodeSection(b.CodeConfig(), reader, b.Module)
 	if err != nil {
-		err = failrequest.Tag(event.FailRequest_ModuleError, err)
+		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -126,7 +126,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
-		err = failrequest.Tag(event.FailRequest_ModuleError, err)
+		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -139,13 +139,13 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {
-		err = failrequest.Tag(event.FailRequest_ModuleError, err)
+		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
-		err = failrequest.Tag(event.FailRequest_ModuleError, err)
+		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -266,5 +266,5 @@ func (prog *program) resolveEntry(name string) (index, addr uint32, err error) {
 }
 
 func newModuleError(msg string) error {
-	return failrequest.New(event.FailRequest_ModuleError, msg)
+	return failrequest.New(event.FailModuleError, msg)
 }

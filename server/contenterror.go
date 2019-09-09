@@ -10,5 +10,5 @@ import (
 )
 
 func wrapContentError(err error) error {
-	return failrequest.Wrap(event.FailRequest_PayloadError, err, "content decode error")
+	return failrequest.Wrap(event.FailPayloadError, err, "content decode error")
 }

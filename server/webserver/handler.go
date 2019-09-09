@@ -1113,7 +1113,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	reply := &serverapi.IOConnection{
+	reply := &server.IOConnection{
 		Connected: connIO != nil,
 	}
 
@@ -1128,7 +1128,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	goodbye := &serverapi.ConnectionStatus{}
+	goodbye := &server.ConnectionStatus{}
 
 	goodbye.Status, err = connIO(ctx, newWebsocketReader(conn), newWebsocketWriter(conn))
 	if err != nil {

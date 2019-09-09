@@ -21,209 +21,171 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
-type Event_Type int32
+type Type int32
 
 const (
-	Event_FailInternal         Event_Type = 0
-	Event_FailNetwork          Event_Type = 1
-	Event_FailProtocol         Event_Type = 2
-	Event_FailRequest          Event_Type = 3
-	Event_IfaceAccess          Event_Type = 4
-	Event_ModuleList           Event_Type = 5
-	Event_ModuleUploadNew      Event_Type = 6
-	Event_ModuleUploadExist    Event_Type = 7
-	Event_ModuleSourceNew      Event_Type = 8
-	Event_ModuleSourceExist    Event_Type = 9
-	Event_ModuleDownload       Event_Type = 10
-	Event_ModuleUnref          Event_Type = 11
-	Event_InstanceList         Event_Type = 12
-	Event_InstanceCreateStream Event_Type = 13
-	Event_InstanceCreateLocal  Event_Type = 14
-	Event_InstanceDelete       Event_Type = 15
-	Event_InstanceConnect      Event_Type = 16
-	Event_InstanceDisconnect   Event_Type = 17
-	Event_InstanceStatus       Event_Type = 18
-	Event_InstanceWait         Event_Type = 19
-	Event_InstanceSuspend      Event_Type = 20
-	Event_InstanceResume       Event_Type = 21
-	Event_InstanceSnapshot     Event_Type = 22
+	Type_FAIL_INTERNAL          Type = 0
+	Type_FAIL_NETWORK           Type = 1
+	Type_FAIL_PROTOCOL          Type = 2
+	Type_FAIL_REQUEST           Type = 3
+	Type_IFACE_ACCESS           Type = 4
+	Type_MODULE_LIST            Type = 5
+	Type_MODULE_UPLOAD_NEW      Type = 6
+	Type_MODULE_UPLOAD_EXIST    Type = 7
+	Type_MODULE_SOURCE_NEW      Type = 8
+	Type_MODULE_SOURCE_EXIST    Type = 9
+	Type_MODULE_DOWNLOAD        Type = 10
+	Type_MODULE_UNREF           Type = 11
+	Type_INSTANCE_LIST          Type = 12
+	Type_INSTANCE_CREATE_STREAM Type = 13
+	Type_INSTANCE_CREATE_LOCAL  Type = 14
+	Type_INSTANCE_DELETE        Type = 15
+	Type_INSTANCE_CONNECT       Type = 16
+	Type_INSTANCE_DISCONNECT    Type = 17
+	Type_INSTANCE_STATUS        Type = 18
+	Type_INSTANCE_WAIT          Type = 19
+	Type_INSTANCE_SUSPEND       Type = 20
+	Type_INSTANCE_RESUME        Type = 21
+	Type_INSTANCE_SNAPSHOT      Type = 22
 )
 
-var Event_Type_name = map[int32]string{
-	0:  "FailInternal",
-	1:  "FailNetwork",
-	2:  "FailProtocol",
-	3:  "FailRequest",
-	4:  "IfaceAccess",
-	5:  "ModuleList",
-	6:  "ModuleUploadNew",
-	7:  "ModuleUploadExist",
-	8:  "ModuleSourceNew",
-	9:  "ModuleSourceExist",
-	10: "ModuleDownload",
-	11: "ModuleUnref",
-	12: "InstanceList",
-	13: "InstanceCreateStream",
-	14: "InstanceCreateLocal",
-	15: "InstanceDelete",
-	16: "InstanceConnect",
-	17: "InstanceDisconnect",
-	18: "InstanceStatus",
-	19: "InstanceWait",
-	20: "InstanceSuspend",
-	21: "InstanceResume",
-	22: "InstanceSnapshot",
+var Type_name = map[int32]string{
+	0:  "FAIL_INTERNAL",
+	1:  "FAIL_NETWORK",
+	2:  "FAIL_PROTOCOL",
+	3:  "FAIL_REQUEST",
+	4:  "IFACE_ACCESS",
+	5:  "MODULE_LIST",
+	6:  "MODULE_UPLOAD_NEW",
+	7:  "MODULE_UPLOAD_EXIST",
+	8:  "MODULE_SOURCE_NEW",
+	9:  "MODULE_SOURCE_EXIST",
+	10: "MODULE_DOWNLOAD",
+	11: "MODULE_UNREF",
+	12: "INSTANCE_LIST",
+	13: "INSTANCE_CREATE_STREAM",
+	14: "INSTANCE_CREATE_LOCAL",
+	15: "INSTANCE_DELETE",
+	16: "INSTANCE_CONNECT",
+	17: "INSTANCE_DISCONNECT",
+	18: "INSTANCE_STATUS",
+	19: "INSTANCE_WAIT",
+	20: "INSTANCE_SUSPEND",
+	21: "INSTANCE_RESUME",
+	22: "INSTANCE_SNAPSHOT",
 }
-var Event_Type_value = map[string]int32{
-	"FailInternal":         0,
-	"FailNetwork":          1,
-	"FailProtocol":         2,
-	"FailRequest":          3,
-	"IfaceAccess":          4,
-	"ModuleList":           5,
-	"ModuleUploadNew":      6,
-	"ModuleUploadExist":    7,
-	"ModuleSourceNew":      8,
-	"ModuleSourceExist":    9,
-	"ModuleDownload":       10,
-	"ModuleUnref":          11,
-	"InstanceList":         12,
-	"InstanceCreateStream": 13,
-	"InstanceCreateLocal":  14,
-	"InstanceDelete":       15,
-	"InstanceConnect":      16,
-	"InstanceDisconnect":   17,
-	"InstanceStatus":       18,
-	"InstanceWait":         19,
-	"InstanceSuspend":      20,
-	"InstanceResume":       21,
-	"InstanceSnapshot":     22,
+var Type_value = map[string]int32{
+	"FAIL_INTERNAL":          0,
+	"FAIL_NETWORK":           1,
+	"FAIL_PROTOCOL":          2,
+	"FAIL_REQUEST":           3,
+	"IFACE_ACCESS":           4,
+	"MODULE_LIST":            5,
+	"MODULE_UPLOAD_NEW":      6,
+	"MODULE_UPLOAD_EXIST":    7,
+	"MODULE_SOURCE_NEW":      8,
+	"MODULE_SOURCE_EXIST":    9,
+	"MODULE_DOWNLOAD":        10,
+	"MODULE_UNREF":           11,
+	"INSTANCE_LIST":          12,
+	"INSTANCE_CREATE_STREAM": 13,
+	"INSTANCE_CREATE_LOCAL":  14,
+	"INSTANCE_DELETE":        15,
+	"INSTANCE_CONNECT":       16,
+	"INSTANCE_DISCONNECT":    17,
+	"INSTANCE_STATUS":        18,
+	"INSTANCE_WAIT":          19,
+	"INSTANCE_SUSPEND":       20,
+	"INSTANCE_RESUME":        21,
+	"INSTANCE_SNAPSHOT":      22,
 }
 
-func (x Event_Type) String() string {
-	return proto.EnumName(Event_Type_name, int32(x))
+func (x Type) String() string {
+	return proto.EnumName(Type_name, int32(x))
 }
-func (Event_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{0, 0}
+func (Type) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_event_2d7f8236f314966b, []int{0}
 }
 
 type FailRequest_Type int32
 
 const (
-	FailRequest_Unspecified        FailRequest_Type = 0
-	FailRequest_PayloadError       FailRequest_Type = 1
-	FailRequest_PrincipalKeyError  FailRequest_Type = 2
-	FailRequest_AuthMissing        FailRequest_Type = 3
-	FailRequest_AuthInvalid        FailRequest_Type = 4
-	FailRequest_AuthExpired        FailRequest_Type = 5
-	FailRequest_AuthReused         FailRequest_Type = 6
-	FailRequest_AuthDenied         FailRequest_Type = 7
-	FailRequest_ResourceDenied     FailRequest_Type = 8
-	FailRequest_ResourceLimit      FailRequest_Type = 9
-	FailRequest_RateLimit          FailRequest_Type = 10
-	FailRequest_ModuleNotFound     FailRequest_Type = 11
-	FailRequest_ModuleHashMismatch FailRequest_Type = 12
-	FailRequest_ModuleError        FailRequest_Type = 13
-	FailRequest_FunctionNotFound   FailRequest_Type = 14
-	FailRequest_ProgramError       FailRequest_Type = 15
-	FailRequest_InstanceNotFound   FailRequest_Type = 16
-	FailRequest_InstanceIdInvalid  FailRequest_Type = 17
-	FailRequest_InstanceIdExists   FailRequest_Type = 18
-	FailRequest_InstanceStatus     FailRequest_Type = 19
-	FailRequest_InstanceNoConnect  FailRequest_Type = 20
+	FailRequest_UNSPECIFIED          FailRequest_Type = 0
+	FailRequest_PAYLOAD_ERROR        FailRequest_Type = 1
+	FailRequest_PRINCIPAL_KEY_ERROR  FailRequest_Type = 2
+	FailRequest_AUTH_MISSING         FailRequest_Type = 3
+	FailRequest_AUTH_INVALID         FailRequest_Type = 4
+	FailRequest_AUTH_EXPIRED         FailRequest_Type = 5
+	FailRequest_AUTH_REUSED          FailRequest_Type = 6
+	FailRequest_AUTH_DENIED          FailRequest_Type = 7
+	FailRequest_RESOURCE_DENIED      FailRequest_Type = 8
+	FailRequest_RESOURCE_LIMIT       FailRequest_Type = 9
+	FailRequest_RATE_LIMIT           FailRequest_Type = 10
+	FailRequest_MODULE_NOT_FOUND     FailRequest_Type = 11
+	FailRequest_MODULE_HASH_MISMATCH FailRequest_Type = 12
+	FailRequest_MODULE_ERROR         FailRequest_Type = 13
+	FailRequest_FUNCTION_NOT_FOUND   FailRequest_Type = 14
+	FailRequest_PROGRAM_ERROR        FailRequest_Type = 15
+	FailRequest_INSTANCE_NOT_FOUND   FailRequest_Type = 16
+	FailRequest_INSTANCE_ID_INVALID  FailRequest_Type = 17
+	FailRequest_INSTANCE_ID_EXISTS   FailRequest_Type = 18
+	FailRequest_INSTANCE_STATUS      FailRequest_Type = 19
+	FailRequest_INSTANCE_NO_CONNECT  FailRequest_Type = 20
 )
 
 var FailRequest_Type_name = map[int32]string{
-	0:  "Unspecified",
-	1:  "PayloadError",
-	2:  "PrincipalKeyError",
-	3:  "AuthMissing",
-	4:  "AuthInvalid",
-	5:  "AuthExpired",
-	6:  "AuthReused",
-	7:  "AuthDenied",
-	8:  "ResourceDenied",
-	9:  "ResourceLimit",
-	10: "RateLimit",
-	11: "ModuleNotFound",
-	12: "ModuleHashMismatch",
-	13: "ModuleError",
-	14: "FunctionNotFound",
-	15: "ProgramError",
-	16: "InstanceNotFound",
-	17: "InstanceIdInvalid",
-	18: "InstanceIdExists",
-	19: "InstanceStatus",
-	20: "InstanceNoConnect",
+	0:  "UNSPECIFIED",
+	1:  "PAYLOAD_ERROR",
+	2:  "PRINCIPAL_KEY_ERROR",
+	3:  "AUTH_MISSING",
+	4:  "AUTH_INVALID",
+	5:  "AUTH_EXPIRED",
+	6:  "AUTH_REUSED",
+	7:  "AUTH_DENIED",
+	8:  "RESOURCE_DENIED",
+	9:  "RESOURCE_LIMIT",
+	10: "RATE_LIMIT",
+	11: "MODULE_NOT_FOUND",
+	12: "MODULE_HASH_MISMATCH",
+	13: "MODULE_ERROR",
+	14: "FUNCTION_NOT_FOUND",
+	15: "PROGRAM_ERROR",
+	16: "INSTANCE_NOT_FOUND",
+	17: "INSTANCE_ID_INVALID",
+	18: "INSTANCE_ID_EXISTS",
+	19: "INSTANCE_STATUS",
+	20: "INSTANCE_NO_CONNECT",
 }
 var FailRequest_Type_value = map[string]int32{
-	"Unspecified":        0,
-	"PayloadError":       1,
-	"PrincipalKeyError":  2,
-	"AuthMissing":        3,
-	"AuthInvalid":        4,
-	"AuthExpired":        5,
-	"AuthReused":         6,
-	"AuthDenied":         7,
-	"ResourceDenied":     8,
-	"ResourceLimit":      9,
-	"RateLimit":          10,
-	"ModuleNotFound":     11,
-	"ModuleHashMismatch": 12,
-	"ModuleError":        13,
-	"FunctionNotFound":   14,
-	"ProgramError":       15,
-	"InstanceNotFound":   16,
-	"InstanceIdInvalid":  17,
-	"InstanceIdExists":   18,
-	"InstanceStatus":     19,
-	"InstanceNoConnect":  20,
+	"UNSPECIFIED":          0,
+	"PAYLOAD_ERROR":        1,
+	"PRINCIPAL_KEY_ERROR":  2,
+	"AUTH_MISSING":         3,
+	"AUTH_INVALID":         4,
+	"AUTH_EXPIRED":         5,
+	"AUTH_REUSED":          6,
+	"AUTH_DENIED":          7,
+	"RESOURCE_DENIED":      8,
+	"RESOURCE_LIMIT":       9,
+	"RATE_LIMIT":           10,
+	"MODULE_NOT_FOUND":     11,
+	"MODULE_HASH_MISMATCH": 12,
+	"MODULE_ERROR":         13,
+	"FUNCTION_NOT_FOUND":   14,
+	"PROGRAM_ERROR":        15,
+	"INSTANCE_NOT_FOUND":   16,
+	"INSTANCE_ID_INVALID":  17,
+	"INSTANCE_ID_EXISTS":   18,
+	"INSTANCE_STATUS":      19,
+	"INSTANCE_NO_CONNECT":  20,
 }
 
 func (x FailRequest_Type) String() string {
 	return proto.EnumName(FailRequest_Type_name, int32(x))
 }
 func (FailRequest_Type) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{4, 0}
+	return fileDescriptor_event_2d7f8236f314966b, []int{3, 0}
 }
-
-type Event struct {
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *Event) Reset()         { *m = Event{} }
-func (m *Event) String() string { return proto.CompactTextString(m) }
-func (*Event) ProtoMessage()    {}
-func (*Event) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{0}
-}
-func (m *Event) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *Event) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_Event.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (dst *Event) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Event.Merge(dst, src)
-}
-func (m *Event) XXX_Size() int {
-	return m.Size()
-}
-func (m *Event) XXX_DiscardUnknown() {
-	xxx_messageInfo_Event.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_Event proto.InternalMessageInfo
 
 type FailInternal struct {
 	Ctx                  detail.Context `protobuf:"bytes,1,opt,name=ctx" json:"ctx"`
@@ -240,7 +202,7 @@ func (m *FailInternal) Reset()         { *m = FailInternal{} }
 func (m *FailInternal) String() string { return proto.CompactTextString(m) }
 func (*FailInternal) ProtoMessage()    {}
 func (*FailInternal) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{1}
+	return fileDescriptor_event_2d7f8236f314966b, []int{0}
 }
 func (m *FailInternal) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -279,7 +241,7 @@ func (m *FailNetwork) Reset()         { *m = FailNetwork{} }
 func (m *FailNetwork) String() string { return proto.CompactTextString(m) }
 func (*FailNetwork) ProtoMessage()    {}
 func (*FailNetwork) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{2}
+	return fileDescriptor_event_2d7f8236f314966b, []int{1}
 }
 func (m *FailNetwork) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -318,7 +280,7 @@ func (m *FailProtocol) Reset()         { *m = FailProtocol{} }
 func (m *FailProtocol) String() string { return proto.CompactTextString(m) }
 func (*FailProtocol) ProtoMessage()    {}
 func (*FailProtocol) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{3}
+	return fileDescriptor_event_2d7f8236f314966b, []int{2}
 }
 func (m *FailProtocol) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -349,7 +311,7 @@ var xxx_messageInfo_FailProtocol proto.InternalMessageInfo
 
 type FailRequest struct {
 	Ctx                  detail.Context   `protobuf:"bytes,1,opt,name=ctx" json:"ctx"`
-	Failure              FailRequest_Type `protobuf:"varint,2,opt,name=failure,proto3,enum=event.FailRequest_Type" json:"failure,omitempty"`
+	Failure              FailRequest_Type `protobuf:"varint,2,opt,name=failure,proto3,enum=server.event.FailRequest_Type" json:"failure,omitempty"`
 	Source               string           `protobuf:"bytes,3,opt,name=source,proto3" json:"source,omitempty"`
 	Module               string           `protobuf:"bytes,4,opt,name=module,proto3" json:"module,omitempty"`
 	Function             string           `protobuf:"bytes,5,opt,name=function,proto3" json:"function,omitempty"`
@@ -362,7 +324,7 @@ func (m *FailRequest) Reset()         { *m = FailRequest{} }
 func (m *FailRequest) String() string { return proto.CompactTextString(m) }
 func (*FailRequest) ProtoMessage()    {}
 func (*FailRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{4}
+	return fileDescriptor_event_2d7f8236f314966b, []int{3}
 }
 func (m *FailRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -401,7 +363,7 @@ func (m *IfaceAccess) Reset()         { *m = IfaceAccess{} }
 func (m *IfaceAccess) String() string { return proto.CompactTextString(m) }
 func (*IfaceAccess) ProtoMessage()    {}
 func (*IfaceAccess) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{5}
+	return fileDescriptor_event_2d7f8236f314966b, []int{4}
 }
 func (m *IfaceAccess) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -440,7 +402,7 @@ func (m *OpUnsupported) Reset()         { *m = OpUnsupported{} }
 func (m *OpUnsupported) String() string { return proto.CompactTextString(m) }
 func (*OpUnsupported) ProtoMessage()    {}
 func (*OpUnsupported) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{6}
+	return fileDescriptor_event_2d7f8236f314966b, []int{5}
 }
 func (m *OpUnsupported) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -479,7 +441,7 @@ func (m *ModuleList) Reset()         { *m = ModuleList{} }
 func (m *ModuleList) String() string { return proto.CompactTextString(m) }
 func (*ModuleList) ProtoMessage()    {}
 func (*ModuleList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{7}
+	return fileDescriptor_event_2d7f8236f314966b, []int{6}
 }
 func (m *ModuleList) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -519,7 +481,7 @@ func (m *ModuleUploadNew) Reset()         { *m = ModuleUploadNew{} }
 func (m *ModuleUploadNew) String() string { return proto.CompactTextString(m) }
 func (*ModuleUploadNew) ProtoMessage()    {}
 func (*ModuleUploadNew) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{8}
+	return fileDescriptor_event_2d7f8236f314966b, []int{7}
 }
 func (m *ModuleUploadNew) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -560,7 +522,7 @@ func (m *ModuleUploadExist) Reset()         { *m = ModuleUploadExist{} }
 func (m *ModuleUploadExist) String() string { return proto.CompactTextString(m) }
 func (*ModuleUploadExist) ProtoMessage()    {}
 func (*ModuleUploadExist) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{9}
+	return fileDescriptor_event_2d7f8236f314966b, []int{8}
 }
 func (m *ModuleUploadExist) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -601,7 +563,7 @@ func (m *ModuleSourceNew) Reset()         { *m = ModuleSourceNew{} }
 func (m *ModuleSourceNew) String() string { return proto.CompactTextString(m) }
 func (*ModuleSourceNew) ProtoMessage()    {}
 func (*ModuleSourceNew) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{10}
+	return fileDescriptor_event_2d7f8236f314966b, []int{9}
 }
 func (m *ModuleSourceNew) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -643,7 +605,7 @@ func (m *ModuleSourceExist) Reset()         { *m = ModuleSourceExist{} }
 func (m *ModuleSourceExist) String() string { return proto.CompactTextString(m) }
 func (*ModuleSourceExist) ProtoMessage()    {}
 func (*ModuleSourceExist) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{11}
+	return fileDescriptor_event_2d7f8236f314966b, []int{10}
 }
 func (m *ModuleSourceExist) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -683,7 +645,7 @@ func (m *ModuleDownload) Reset()         { *m = ModuleDownload{} }
 func (m *ModuleDownload) String() string { return proto.CompactTextString(m) }
 func (*ModuleDownload) ProtoMessage()    {}
 func (*ModuleDownload) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{12}
+	return fileDescriptor_event_2d7f8236f314966b, []int{11}
 }
 func (m *ModuleDownload) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -723,7 +685,7 @@ func (m *ModuleUnref) Reset()         { *m = ModuleUnref{} }
 func (m *ModuleUnref) String() string { return proto.CompactTextString(m) }
 func (*ModuleUnref) ProtoMessage()    {}
 func (*ModuleUnref) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{13}
+	return fileDescriptor_event_2d7f8236f314966b, []int{12}
 }
 func (m *ModuleUnref) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -762,7 +724,7 @@ func (m *InstanceList) Reset()         { *m = InstanceList{} }
 func (m *InstanceList) String() string { return proto.CompactTextString(m) }
 func (*InstanceList) ProtoMessage()    {}
 func (*InstanceList) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{14}
+	return fileDescriptor_event_2d7f8236f314966b, []int{13}
 }
 func (m *InstanceList) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -803,7 +765,7 @@ func (m *InstanceCreateStream) Reset()         { *m = InstanceCreateStream{} }
 func (m *InstanceCreateStream) String() string { return proto.CompactTextString(m) }
 func (*InstanceCreateStream) ProtoMessage()    {}
 func (*InstanceCreateStream) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{15}
+	return fileDescriptor_event_2d7f8236f314966b, []int{14}
 }
 func (m *InstanceCreateStream) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -844,7 +806,7 @@ func (m *InstanceCreateLocal) Reset()         { *m = InstanceCreateLocal{} }
 func (m *InstanceCreateLocal) String() string { return proto.CompactTextString(m) }
 func (*InstanceCreateLocal) ProtoMessage()    {}
 func (*InstanceCreateLocal) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{16}
+	return fileDescriptor_event_2d7f8236f314966b, []int{15}
 }
 func (m *InstanceCreateLocal) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -884,7 +846,7 @@ func (m *InstanceDelete) Reset()         { *m = InstanceDelete{} }
 func (m *InstanceDelete) String() string { return proto.CompactTextString(m) }
 func (*InstanceDelete) ProtoMessage()    {}
 func (*InstanceDelete) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{17}
+	return fileDescriptor_event_2d7f8236f314966b, []int{16}
 }
 func (m *InstanceDelete) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -924,7 +886,7 @@ func (m *InstanceConnect) Reset()         { *m = InstanceConnect{} }
 func (m *InstanceConnect) String() string { return proto.CompactTextString(m) }
 func (*InstanceConnect) ProtoMessage()    {}
 func (*InstanceConnect) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{18}
+	return fileDescriptor_event_2d7f8236f314966b, []int{17}
 }
 func (m *InstanceConnect) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -964,7 +926,7 @@ func (m *InstanceDisconnect) Reset()         { *m = InstanceDisconnect{} }
 func (m *InstanceDisconnect) String() string { return proto.CompactTextString(m) }
 func (*InstanceDisconnect) ProtoMessage()    {}
 func (*InstanceDisconnect) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{19}
+	return fileDescriptor_event_2d7f8236f314966b, []int{18}
 }
 func (m *InstanceDisconnect) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1004,7 +966,7 @@ func (m *InstanceStatus) Reset()         { *m = InstanceStatus{} }
 func (m *InstanceStatus) String() string { return proto.CompactTextString(m) }
 func (*InstanceStatus) ProtoMessage()    {}
 func (*InstanceStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{20}
+	return fileDescriptor_event_2d7f8236f314966b, []int{19}
 }
 func (m *InstanceStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1044,7 +1006,7 @@ func (m *InstanceWait) Reset()         { *m = InstanceWait{} }
 func (m *InstanceWait) String() string { return proto.CompactTextString(m) }
 func (*InstanceWait) ProtoMessage()    {}
 func (*InstanceWait) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{21}
+	return fileDescriptor_event_2d7f8236f314966b, []int{20}
 }
 func (m *InstanceWait) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1084,7 +1046,7 @@ func (m *InstanceSuspend) Reset()         { *m = InstanceSuspend{} }
 func (m *InstanceSuspend) String() string { return proto.CompactTextString(m) }
 func (*InstanceSuspend) ProtoMessage()    {}
 func (*InstanceSuspend) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{22}
+	return fileDescriptor_event_2d7f8236f314966b, []int{21}
 }
 func (m *InstanceSuspend) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1124,7 +1086,7 @@ func (m *InstanceResume) Reset()         { *m = InstanceResume{} }
 func (m *InstanceResume) String() string { return proto.CompactTextString(m) }
 func (*InstanceResume) ProtoMessage()    {}
 func (*InstanceResume) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{23}
+	return fileDescriptor_event_2d7f8236f314966b, []int{22}
 }
 func (m *InstanceResume) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1165,7 +1127,7 @@ func (m *InstanceSnapshot) Reset()         { *m = InstanceSnapshot{} }
 func (m *InstanceSnapshot) String() string { return proto.CompactTextString(m) }
 func (*InstanceSnapshot) ProtoMessage()    {}
 func (*InstanceSnapshot) Descriptor() ([]byte, []int) {
-	return fileDescriptor_event_c2b721691ff27c83, []int{24}
+	return fileDescriptor_event_2d7f8236f314966b, []int{23}
 }
 func (m *InstanceSnapshot) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1195,52 +1157,33 @@ func (m *InstanceSnapshot) XXX_DiscardUnknown() {
 var xxx_messageInfo_InstanceSnapshot proto.InternalMessageInfo
 
 func init() {
-	proto.RegisterType((*Event)(nil), "event.Event")
-	proto.RegisterType((*FailInternal)(nil), "event.FailInternal")
-	proto.RegisterType((*FailNetwork)(nil), "event.FailNetwork")
-	proto.RegisterType((*FailProtocol)(nil), "event.FailProtocol")
-	proto.RegisterType((*FailRequest)(nil), "event.FailRequest")
-	proto.RegisterType((*IfaceAccess)(nil), "event.IfaceAccess")
-	proto.RegisterType((*OpUnsupported)(nil), "event.OpUnsupported")
-	proto.RegisterType((*ModuleList)(nil), "event.ModuleList")
-	proto.RegisterType((*ModuleUploadNew)(nil), "event.ModuleUploadNew")
-	proto.RegisterType((*ModuleUploadExist)(nil), "event.ModuleUploadExist")
-	proto.RegisterType((*ModuleSourceNew)(nil), "event.ModuleSourceNew")
-	proto.RegisterType((*ModuleSourceExist)(nil), "event.ModuleSourceExist")
-	proto.RegisterType((*ModuleDownload)(nil), "event.ModuleDownload")
-	proto.RegisterType((*ModuleUnref)(nil), "event.ModuleUnref")
-	proto.RegisterType((*InstanceList)(nil), "event.InstanceList")
-	proto.RegisterType((*InstanceCreateStream)(nil), "event.InstanceCreateStream")
-	proto.RegisterType((*InstanceCreateLocal)(nil), "event.InstanceCreateLocal")
-	proto.RegisterType((*InstanceDelete)(nil), "event.InstanceDelete")
-	proto.RegisterType((*InstanceConnect)(nil), "event.InstanceConnect")
-	proto.RegisterType((*InstanceDisconnect)(nil), "event.InstanceDisconnect")
-	proto.RegisterType((*InstanceStatus)(nil), "event.InstanceStatus")
-	proto.RegisterType((*InstanceWait)(nil), "event.InstanceWait")
-	proto.RegisterType((*InstanceSuspend)(nil), "event.InstanceSuspend")
-	proto.RegisterType((*InstanceResume)(nil), "event.InstanceResume")
-	proto.RegisterType((*InstanceSnapshot)(nil), "event.InstanceSnapshot")
-	proto.RegisterEnum("event.Event_Type", Event_Type_name, Event_Type_value)
-	proto.RegisterEnum("event.FailRequest_Type", FailRequest_Type_name, FailRequest_Type_value)
+	proto.RegisterType((*FailInternal)(nil), "server.event.FailInternal")
+	proto.RegisterType((*FailNetwork)(nil), "server.event.FailNetwork")
+	proto.RegisterType((*FailProtocol)(nil), "server.event.FailProtocol")
+	proto.RegisterType((*FailRequest)(nil), "server.event.FailRequest")
+	proto.RegisterType((*IfaceAccess)(nil), "server.event.IfaceAccess")
+	proto.RegisterType((*OpUnsupported)(nil), "server.event.OpUnsupported")
+	proto.RegisterType((*ModuleList)(nil), "server.event.ModuleList")
+	proto.RegisterType((*ModuleUploadNew)(nil), "server.event.ModuleUploadNew")
+	proto.RegisterType((*ModuleUploadExist)(nil), "server.event.ModuleUploadExist")
+	proto.RegisterType((*ModuleSourceNew)(nil), "server.event.ModuleSourceNew")
+	proto.RegisterType((*ModuleSourceExist)(nil), "server.event.ModuleSourceExist")
+	proto.RegisterType((*ModuleDownload)(nil), "server.event.ModuleDownload")
+	proto.RegisterType((*ModuleUnref)(nil), "server.event.ModuleUnref")
+	proto.RegisterType((*InstanceList)(nil), "server.event.InstanceList")
+	proto.RegisterType((*InstanceCreateStream)(nil), "server.event.InstanceCreateStream")
+	proto.RegisterType((*InstanceCreateLocal)(nil), "server.event.InstanceCreateLocal")
+	proto.RegisterType((*InstanceDelete)(nil), "server.event.InstanceDelete")
+	proto.RegisterType((*InstanceConnect)(nil), "server.event.InstanceConnect")
+	proto.RegisterType((*InstanceDisconnect)(nil), "server.event.InstanceDisconnect")
+	proto.RegisterType((*InstanceStatus)(nil), "server.event.InstanceStatus")
+	proto.RegisterType((*InstanceWait)(nil), "server.event.InstanceWait")
+	proto.RegisterType((*InstanceSuspend)(nil), "server.event.InstanceSuspend")
+	proto.RegisterType((*InstanceResume)(nil), "server.event.InstanceResume")
+	proto.RegisterType((*InstanceSnapshot)(nil), "server.event.InstanceSnapshot")
+	proto.RegisterEnum("server.event.Type", Type_name, Type_value)
+	proto.RegisterEnum("server.event.FailRequest_Type", FailRequest_Type_name, FailRequest_Type_value)
 }
-func (m *Event) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Event) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	return i, nil
-}
-
 func (m *FailInternal) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2079,12 +2022,6 @@ func encodeVarintEvent(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *Event) Size() (n int) {
-	var l int
-	_ = l
-	return n
-}
-
 func (m *FailInternal) Size() (n int) {
 	var l int
 	_ = l
@@ -2418,56 +2355,6 @@ func sovEvent(x uint64) (n int) {
 }
 func sozEvent(x uint64) (n int) {
 	return sovEvent(uint64((x << 1) ^ uint64((int64(x) >> 63))))
-}
-func (m *Event) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowEvent
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Event: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Event: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		default:
-			iNdEx = preIndex
-			skippy, err := skipEvent(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthEvent
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
 }
 func (m *FailInternal) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -5423,68 +5310,78 @@ var (
 	ErrIntOverflowEvent   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("server/event/event.proto", fileDescriptor_event_c2b721691ff27c83) }
+func init() { proto.RegisterFile("server/event/event.proto", fileDescriptor_event_2d7f8236f314966b) }
 
-var fileDescriptor_event_c2b721691ff27c83 = []byte{
-	// 945 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x57, 0xdd, 0x6e, 0x23, 0x35,
-	0x14, 0xce, 0x34, 0x3f, 0x6d, 0x9d, 0x26, 0x71, 0xdd, 0x6e, 0x37, 0xaa, 0x50, 0x58, 0x8d, 0x90,
-	0xd8, 0xab, 0x54, 0x2c, 0x82, 0x45, 0xdc, 0xed, 0x6e, 0x5b, 0x11, 0xd1, 0x0d, 0x65, 0x42, 0x40,
-	0x70, 0xe7, 0xce, 0x9c, 0xb4, 0x16, 0x13, 0x7b, 0xb0, 0x3d, 0xfd, 0xb9, 0xe5, 0x09, 0x78, 0x00,
-	0x5e, 0x85, 0xfb, 0x5e, 0x72, 0xc3, 0x2d, 0x3f, 0xe5, 0x05, 0x78, 0x04, 0xe4, 0xf1, 0x4c, 0x32,
-	0x93, 0xa4, 0x28, 0xa8, 0xe9, 0x4d, 0x9b, 0xf3, 0xf9, 0xf3, 0xb1, 0x7d, 0x72, 0xbe, 0x73, 0x4e,
-	0x50, 0x5b, 0x81, 0xbc, 0x04, 0x79, 0x00, 0x97, 0xc0, 0xb5, 0xfd, 0xdb, 0x8d, 0xa4, 0xd0, 0x82,
-	0x54, 0x13, 0x63, 0x7f, 0x3f, 0x25, 0x04, 0xa0, 0x29, 0x0b, 0xd3, 0x7f, 0x96, 0xe2, 0xfe, 0x51,
-	0x46, 0xd5, 0x23, 0xc3, 0x72, 0x7f, 0x2b, 0xa3, 0xca, 0x57, 0x37, 0x11, 0x10, 0x8c, 0xb6, 0x8e,
-	0x29, 0x0b, 0x7b, 0x5c, 0x83, 0xe4, 0x34, 0xc4, 0x25, 0xd2, 0x42, 0x75, 0x83, 0xf4, 0x41, 0x5f,
-	0x09, 0xf9, 0x3d, 0x76, 0x32, 0xca, 0xa9, 0x71, 0xe1, 0x8b, 0x10, 0xaf, 0x65, 0x14, 0x0f, 0x7e,
-	0x88, 0x41, 0x69, 0x5c, 0x36, 0x40, 0x6f, 0x44, 0x7d, 0x78, 0xe5, 0xfb, 0xa0, 0x14, 0xae, 0x90,
-	0x26, 0x42, 0x6f, 0x45, 0x10, 0x87, 0x70, 0xc2, 0x94, 0xc6, 0x55, 0xb2, 0x83, 0x5a, 0xd6, 0x1e,
-	0x46, 0xa1, 0xa0, 0x41, 0x1f, 0xae, 0x70, 0x8d, 0x3c, 0x41, 0xdb, 0x79, 0xf0, 0xe8, 0xda, 0x70,
-	0xd7, 0xa7, 0xdc, 0x81, 0x88, 0xa5, 0x0f, 0x86, 0xbb, 0x31, 0xe5, 0x5a, 0xd0, 0x72, 0x37, 0x09,
-	0x41, 0x4d, 0x0b, 0x1f, 0x8a, 0x2b, 0x6e, 0x9c, 0x60, 0x64, 0x2e, 0x93, 0xba, 0xe5, 0x12, 0x46,
-	0xb8, 0x6e, 0x1e, 0xd0, 0xe3, 0x4a, 0x53, 0xee, 0xdb, 0xeb, 0x6c, 0x91, 0x36, 0xda, 0xcd, 0x90,
-	0x37, 0x12, 0xa8, 0x86, 0x81, 0x96, 0x40, 0xc7, 0xb8, 0x41, 0x9e, 0xa2, 0x9d, 0xe2, 0xca, 0x89,
-	0xf0, 0x69, 0x88, 0x9b, 0xe6, 0xa4, 0x6c, 0xe1, 0x10, 0x42, 0xd0, 0x80, 0x5b, 0xe6, 0xa6, 0x13,
-	0xb2, 0xe0, 0x1c, 0x7c, 0x8d, 0x31, 0xd9, 0x43, 0x64, 0x42, 0x64, 0xca, 0x4f, 0xf1, 0xed, 0xbc,
-	0x83, 0x81, 0xa6, 0x3a, 0x56, 0x98, 0xe4, 0x6f, 0xf6, 0x0d, 0x65, 0x1a, 0xef, 0xe4, 0x5d, 0x0e,
-	0x62, 0x15, 0x01, 0x0f, 0xf0, 0x6e, 0x7e, 0xab, 0x07, 0x2a, 0x1e, 0x03, 0x7e, 0x42, 0x76, 0x11,
-	0x9e, 0x10, 0x39, 0x8d, 0xd4, 0x85, 0xd0, 0x78, 0xcf, 0xfd, 0xc5, 0x29, 0x7e, 0x9f, 0xe4, 0x7d,
-	0x54, 0xf6, 0xf5, 0x75, 0xdb, 0x79, 0xe6, 0x3c, 0xaf, 0xbf, 0x68, 0x75, 0xd3, 0x74, 0x78, 0x23,
-	0xb8, 0x86, 0x6b, 0xfd, 0xba, 0x72, 0xfb, 0xfb, 0xbb, 0x25, 0xcf, 0x30, 0xc8, 0x1e, 0xaa, 0xa9,
-	0x24, 0xb4, 0xed, 0xb5, 0x67, 0xce, 0xf3, 0x4d, 0x2f, 0xb5, 0x0c, 0x3e, 0x4e, 0xa2, 0xd9, 0x2e,
-	0x5b, 0xdc, 0x5a, 0x64, 0x1f, 0x6d, 0x8c, 0x62, 0xee, 0x6b, 0x26, 0x78, 0xbb, 0x92, 0xac, 0x4c,
-	0x6c, 0xb3, 0xc6, 0xd2, 0xbb, 0xb5, 0xab, 0x76, 0x2d, 0xb3, 0xc9, 0x3b, 0x68, 0x53, 0xc5, 0x67,
-	0xea, 0x46, 0x69, 0x18, 0xb7, 0x6b, 0xc9, 0xe2, 0x14, 0x70, 0x3f, 0x2e, 0x24, 0xdf, 0xd2, 0xb7,
-	0x77, 0x5f, 0x16, 0x73, 0x74, 0xf9, 0x8d, 0xff, 0x54, 0x0a, 0xb9, 0xbc, 0x7c, 0xbc, 0x3e, 0x40,
-	0xeb, 0x23, 0xca, 0xc2, 0x58, 0xda, 0x80, 0x35, 0x5f, 0x3c, 0xed, 0x5a, 0x35, 0xe6, 0xbc, 0x75,
-	0x8d, 0xc4, 0xbc, 0x8c, 0x97, 0x0b, 0x71, 0xf9, 0x9e, 0x10, 0x57, 0xee, 0x0d, 0x71, 0xf5, 0x3f,
-	0x42, 0x5c, 0x2b, 0x86, 0xd8, 0xfd, 0x39, 0x13, 0x77, 0x0b, 0xd5, 0x87, 0x5c, 0x45, 0xe0, 0xb3,
-	0x11, 0x83, 0x00, 0x97, 0x4c, 0xbe, 0x9d, 0xd2, 0x9b, 0x44, 0x6c, 0x52, 0x0a, 0x89, 0x1d, 0xa3,
-	0xab, 0x53, 0xc9, 0xb8, 0xcf, 0x22, 0x1a, 0x7e, 0x0e, 0x37, 0x16, 0x4e, 0x14, 0xfe, 0x2a, 0xd6,
-	0x17, 0x6f, 0x99, 0x52, 0x8c, 0x9f, 0x5b, 0x85, 0x1b, 0xa0, 0xc7, 0x2f, 0x69, 0xc8, 0x02, 0x5c,
-	0xc9, 0x80, 0xa3, 0xeb, 0x88, 0x49, 0x08, 0x70, 0xd5, 0x48, 0xde, 0x00, 0x1e, 0xc4, 0x0a, 0x02,
-	0x5c, 0xcb, 0xec, 0x43, 0xe0, 0xe6, 0xec, 0x75, 0x93, 0xc4, 0x1e, 0xd8, 0x17, 0xa7, 0xd8, 0x06,
-	0xd9, 0x46, 0x8d, 0x0c, 0x3b, 0x61, 0x63, 0x66, 0x14, 0xdd, 0x40, 0x9b, 0x9e, 0x91, 0x5d, 0x62,
-	0xa2, 0xa9, 0xc0, 0xfb, 0x42, 0x1f, 0x8b, 0x98, 0x07, 0xb8, 0x6e, 0x14, 0x66, 0xb1, 0xcf, 0xa8,
-	0x32, 0x57, 0x1c, 0x53, 0xed, 0x5f, 0xe0, 0xad, 0xa9, 0xf0, 0xed, 0x2b, 0x1a, 0x46, 0x23, 0xc7,
-	0x69, 0xc0, 0x26, 0xdb, 0x9b, 0x49, 0x10, 0xa4, 0x38, 0x97, 0x74, 0x6c, 0x79, 0xad, 0xbc, 0x96,
-	0x26, 0x3c, 0x6c, 0x42, 0x93, 0xa1, 0xbd, 0x20, 0x7b, 0xf8, 0x76, 0x9e, 0xdc, 0xb3, 0x35, 0xcb,
-	0x28, 0x79, 0x5e, 0xdd, 0x3b, 0x79, 0x07, 0x7d, 0x91, 0x15, 0x88, 0x5d, 0x93, 0xe3, 0xb9, 0x62,
-	0xb9, 0x7c, 0xaa, 0x7e, 0x82, 0x1a, 0x5f, 0x44, 0x43, 0xae, 0xe2, 0x28, 0x12, 0x52, 0x43, 0xb0,
-	0xfc, 0xce, 0x8f, 0xf2, 0xd5, 0x78, 0xf9, 0x6d, 0xde, 0x5c, 0xd1, 0xfe, 0x5f, 0xe5, 0x24, 0xcd,
-	0xe9, 0xb5, 0x7c, 0x4e, 0xbb, 0xd1, 0x82, 0x9a, 0xff, 0x60, 0xaf, 0x46, 0x0d, 0xbe, 0x18, 0x47,
-	0x2c, 0x84, 0x20, 0xd1, 0xd6, 0x86, 0x37, 0xb1, 0xdd, 0x60, 0xae, 0x9d, 0x3c, 0xfc, 0x3c, 0x8c,
-	0xca, 0xb1, 0x64, 0xa9, 0x8c, 0xcd, 0x47, 0xf7, 0x47, 0x67, 0x41, 0x83, 0x7a, 0x84, 0x83, 0x0a,
-	0x4f, 0xad, 0xcc, 0x3c, 0xf5, 0xcb, 0xd9, 0x6e, 0xf8, 0xf0, 0xef, 0xab, 0x5f, 0x68, 0xa6, 0x0f,
-	0xf7, 0xf7, 0xb2, 0xd8, 0x8b, 0x97, 0x4f, 0x46, 0xb5, 0xb8, 0x65, 0x2f, 0x7f, 0xa3, 0x7c, 0xc5,
-	0x5c, 0x9b, 0x69, 0x4a, 0xf7, 0x34, 0x39, 0x57, 0x2e, 0x9c, 0x06, 0x1e, 0xf7, 0xcc, 0xe1, 0xec,
-	0xa0, 0xb1, 0x92, 0xe3, 0xdc, 0xaf, 0xe7, 0x66, 0x95, 0xd5, 0xf8, 0xfd, 0x76, 0xd1, 0xb8, 0xb3,
-	0x1a, 0xd7, 0xc3, 0xd9, 0x9a, 0xba, 0x1a, 0xb7, 0x83, 0xe2, 0xd0, 0xb5, 0xf2, 0xf0, 0xa6, 0x73,
-	0xdb, 0xca, 0x63, 0x60, 0x47, 0xbf, 0xd5, 0xb8, 0x15, 0xf3, 0xd3, 0xe3, 0xa3, 0x66, 0xf5, 0xeb,
-	0x4f, 0x6f, 0xff, 0xea, 0x94, 0x6e, 0xef, 0x3a, 0xce, 0xaf, 0x77, 0x1d, 0xe7, 0xcf, 0xbb, 0x8e,
-	0xf3, 0xd3, 0xdf, 0x9d, 0xd2, 0x77, 0xef, 0x9d, 0x33, 0x7d, 0x11, 0x9f, 0x75, 0x7d, 0x31, 0x3e,
-	0xd0, 0x8a, 0x5e, 0x8a, 0x90, 0x1e, 0x9c, 0x53, 0x0d, 0x07, 0xf9, 0x5f, 0x39, 0x67, 0xb5, 0xe4,
-	0xd7, 0xcb, 0x87, 0xff, 0x06, 0x00, 0x00, 0xff, 0xff, 0x90, 0xe4, 0xaf, 0x5f, 0xfc, 0x0c, 0x00,
-	0x00,
+var fileDescriptor_event_2d7f8236f314966b = []byte{
+	// 1113 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x57, 0xdf, 0x6e, 0xdb, 0xb6,
+	0x17, 0x8e, 0x63, 0xc7, 0x4d, 0x68, 0xc7, 0xa6, 0x99, 0x34, 0x3f, 0xff, 0x82, 0xc1, 0x2b, 0x8c,
+	0x5d, 0x14, 0xbb, 0x70, 0x80, 0xee, 0x66, 0x18, 0xb6, 0x0e, 0xaa, 0x44, 0x37, 0x44, 0x65, 0xca,
+	0x23, 0xa5, 0xa5, 0x2d, 0x36, 0x78, 0xaa, 0xcc, 0xb4, 0x46, 0x6d, 0xc9, 0x93, 0xa8, 0xa4, 0xdd,
+	0x1b, 0xec, 0x6e, 0xd7, 0x7b, 0x92, 0x3d, 0xc0, 0x2e, 0x7a, 0xb9, 0x27, 0x18, 0xb6, 0xec, 0x0d,
+	0xf6, 0x04, 0x03, 0x25, 0x59, 0x91, 0xb3, 0x65, 0x80, 0x03, 0x67, 0x37, 0x89, 0xf9, 0x9d, 0xc3,
+	0xf3, 0xe7, 0x13, 0x0f, 0xf5, 0x09, 0xb4, 0x23, 0x11, 0x9e, 0x89, 0xf0, 0x48, 0x9c, 0x09, 0x5f,
+	0xa6, 0x7f, 0x7b, 0xf3, 0x30, 0x90, 0x01, 0xaa, 0xa7, 0x96, 0x5e, 0x82, 0x1d, 0x1e, 0x66, 0x7e,
+	0x63, 0x21, 0xdd, 0xc9, 0x34, 0xfb, 0x97, 0x7a, 0x76, 0x7f, 0x2e, 0x81, 0x7a, 0xdf, 0x9d, 0x4c,
+	0x89, 0x2f, 0x45, 0xe8, 0xbb, 0x53, 0xd4, 0x03, 0x65, 0x4f, 0xbe, 0x69, 0x97, 0xee, 0x95, 0xee,
+	0xd7, 0x1e, 0x1c, 0xf4, 0xb2, 0x40, 0xd9, 0x1e, 0x3d, 0xf0, 0xa5, 0x78, 0x23, 0x1f, 0x55, 0xde,
+	0xfd, 0xfa, 0xfe, 0x06, 0x53, 0x8e, 0xe8, 0x00, 0x54, 0xa3, 0x20, 0x0e, 0x3d, 0xd1, 0xde, 0xbc,
+	0x57, 0xba, 0xbf, 0xc3, 0xb2, 0x95, 0xc2, 0x67, 0xc1, 0x38, 0x9e, 0x8a, 0x76, 0x39, 0xc5, 0xd3,
+	0x15, 0x3a, 0x04, 0xdb, 0xa7, 0xb1, 0xef, 0xc9, 0x49, 0xe0, 0xb7, 0x2b, 0x89, 0x25, 0x5f, 0x2b,
+	0xdb, 0xc4, 0x8f, 0xa4, 0xeb, 0x7b, 0xa2, 0xbd, 0x95, 0xda, 0x16, 0x6b, 0xf4, 0x1e, 0xd8, 0x89,
+	0xe2, 0x17, 0xd1, 0xdb, 0x48, 0x8a, 0x59, 0xbb, 0x9a, 0x18, 0x2f, 0x81, 0xee, 0x67, 0xa0, 0xa6,
+	0xba, 0xa0, 0x42, 0x9e, 0x07, 0xe1, 0xeb, 0x55, 0x9b, 0xe8, 0x3e, 0x4c, 0x49, 0x18, 0x2a, 0x4a,
+	0xbc, 0x60, 0x65, 0x12, 0xba, 0x3f, 0x6e, 0xa5, 0xf9, 0x99, 0xf8, 0x36, 0x16, 0x91, 0x5c, 0x99,
+	0xc4, 0x8f, 0xc1, 0x9d, 0x53, 0x77, 0x32, 0x8d, 0xc3, 0x94, 0xc5, 0xc6, 0x83, 0x4e, 0xaf, 0xf8,
+	0x04, 0x7b, 0x85, 0xd8, 0x3d, 0xfb, 0xed, 0x5c, 0xb0, 0x85, 0x7b, 0x81, 0xfe, 0xf2, 0x35, 0xf4,
+	0x57, 0xae, 0xa5, 0x7f, 0xeb, 0x5f, 0xe8, 0xaf, 0x2e, 0xd3, 0xdf, 0xfd, 0xa9, 0x0c, 0x2a, 0x2a,
+	0x33, 0x6a, 0x82, 0x9a, 0x43, 0xf9, 0x10, 0xeb, 0xa4, 0x4f, 0xb0, 0x01, 0x37, 0x50, 0x0b, 0xec,
+	0x0e, 0xb5, 0x67, 0xa6, 0xa5, 0x19, 0x23, 0xcc, 0x98, 0xc5, 0x60, 0x09, 0xfd, 0x0f, 0xec, 0x0d,
+	0x19, 0xa1, 0x3a, 0x19, 0x6a, 0xe6, 0xe8, 0x09, 0x7e, 0x96, 0x19, 0x36, 0x11, 0x04, 0x75, 0xcd,
+	0xb1, 0x8f, 0x47, 0x03, 0xc2, 0x39, 0xa1, 0x8f, 0x61, 0x39, 0x47, 0x08, 0xfd, 0x52, 0x33, 0x89,
+	0x01, 0x2b, 0x39, 0x82, 0x9f, 0x0e, 0x09, 0xc3, 0x06, 0xdc, 0x52, 0x29, 0x13, 0x84, 0x61, 0x87,
+	0x63, 0x03, 0x56, 0x73, 0xc0, 0xc0, 0x54, 0xd5, 0x70, 0x07, 0xed, 0x81, 0x26, 0xc3, 0xdc, 0x72,
+	0x98, 0x8e, 0x17, 0xe0, 0x36, 0x42, 0xa0, 0x91, 0x83, 0x26, 0x19, 0x10, 0x1b, 0xee, 0xa0, 0x06,
+	0x00, 0x4c, 0xb3, 0x17, 0x6b, 0x80, 0xf6, 0x01, 0x1c, 0x58, 0x86, 0x63, 0xe2, 0x11, 0xb5, 0xec,
+	0x51, 0xdf, 0x72, 0xa8, 0x01, 0x6b, 0xa8, 0x0d, 0xf6, 0x33, 0xf4, 0x58, 0xe3, 0x49, 0xb5, 0x03,
+	0xcd, 0xd6, 0x8f, 0x61, 0x5d, 0x15, 0x97, 0x59, 0xd2, 0x96, 0x76, 0xd1, 0x01, 0x40, 0x7d, 0x87,
+	0xea, 0x36, 0xb1, 0x68, 0x21, 0x46, 0x23, 0xa1, 0x85, 0x59, 0x8f, 0x99, 0x36, 0xc8, 0x5c, 0x9b,
+	0xca, 0x95, 0x50, 0x6e, 0x6b, 0x54, 0x2f, 0xa6, 0x83, 0x8a, 0xae, 0x1c, 0x27, 0x46, 0x4e, 0x45,
+	0x6b, 0x69, 0x03, 0x31, 0x46, 0xf8, 0x29, 0xe1, 0x36, 0x87, 0x48, 0xb5, 0x9b, 0xe3, 0xdc, 0xd6,
+	0x6c, 0x87, 0xc3, 0xbd, 0xa5, 0x28, 0xd4, 0x1a, 0xe9, 0x16, 0xa5, 0x58, 0xb7, 0xe1, 0xbe, 0x9a,
+	0x0d, 0x72, 0xea, 0x7a, 0x42, 0xf3, 0x3c, 0x11, 0x45, 0x2b, 0x9f, 0xed, 0xcf, 0xc1, 0xae, 0x35,
+	0x77, 0xfc, 0x28, 0x9e, 0xcf, 0x83, 0x50, 0x8a, 0xf1, 0xca, 0x01, 0x3e, 0x05, 0x60, 0x90, 0x1c,
+	0x3e, 0x73, 0xb2, 0xfa, 0x68, 0x74, 0x9f, 0x81, 0x66, 0xba, 0xdb, 0x99, 0x4f, 0x03, 0x77, 0x4c,
+	0xc5, 0xf9, 0x4d, 0xae, 0xa8, 0x6c, 0x16, 0x36, 0x8b, 0xb3, 0xd0, 0x3d, 0x07, 0xad, 0x62, 0x68,
+	0xfc, 0xe6, 0x06, 0xf5, 0x5d, 0x17, 0x5c, 0x0d, 0x93, 0x17, 0xcc, 0xe6, 0x93, 0xa9, 0x18, 0x27,
+	0xa3, 0xb9, 0xcd, 0xf2, 0x75, 0xf7, 0xf5, 0xa2, 0x27, 0x9e, 0x0c, 0xeb, 0x1a, 0x7b, 0x42, 0x10,
+	0x94, 0xe3, 0x70, 0x92, 0x5d, 0x06, 0xea, 0x67, 0xf7, 0xfb, 0xd2, 0xa2, 0xcd, 0x34, 0xdb, 0x7a,
+	0xdb, 0xfc, 0x5b, 0xbe, 0xa5, 0xc6, 0x2b, 0x57, 0x1a, 0x7f, 0x0a, 0x1a, 0x69, 0x29, 0x46, 0x70,
+	0xee, 0x2b, 0xce, 0xd7, 0xf6, 0x2c, 0x1d, 0x50, 0xcb, 0x9e, 0xa5, 0x1f, 0x8a, 0xd3, 0xb5, 0x85,
+	0x7d, 0x08, 0xea, 0x24, 0xbb, 0x02, 0x6f, 0x74, 0x7a, 0xbf, 0x03, 0xfb, 0x8b, 0xfd, 0x7a, 0x28,
+	0x5c, 0x29, 0xb8, 0x0c, 0x85, 0x3b, 0x5b, 0xb9, 0xbe, 0xe2, 0xd5, 0xbc, 0x79, 0xe5, 0xcd, 0x78,
+	0xcd, 0x9b, 0xb6, 0xfb, 0x16, 0xec, 0x2d, 0xe7, 0x36, 0x03, 0xef, 0x06, 0x2f, 0xf8, 0x9b, 0xa4,
+	0xfe, 0x0a, 0x34, 0x16, 0xa9, 0x0d, 0x31, 0x15, 0x52, 0xac, 0x33, 0x6b, 0xf7, 0x6b, 0xd0, 0xcc,
+	0x1b, 0x0b, 0x7c, 0x5f, 0x78, 0x72, 0xad, 0xe1, 0xbf, 0x01, 0x28, 0x2f, 0x7e, 0x12, 0x79, 0xb7,
+	0x90, 0xa1, 0x40, 0x0f, 0x97, 0xae, 0x8c, 0xa3, 0xb5, 0x46, 0x7f, 0x7e, 0x79, 0x66, 0x4f, 0xdc,
+	0x89, 0xbc, 0x2d, 0xea, 0x79, 0x1c, 0xcd, 0x85, 0x3f, 0xbe, 0x2d, 0x62, 0x98, 0x88, 0xe2, 0xd9,
+	0x7a, 0xcf, 0xcd, 0x19, 0x80, 0x79, 0xf1, 0xbe, 0x3b, 0x8f, 0x5e, 0x05, 0xf2, 0xbf, 0x98, 0x86,
+	0x0f, 0xff, 0x5c, 0x68, 0xa7, 0x16, 0xd8, 0xed, 0x6b, 0xc4, 0x1c, 0x11, 0x6a, 0x63, 0x46, 0x35,
+	0x13, 0x6e, 0x28, 0x41, 0x91, 0x40, 0x14, 0xdb, 0x27, 0x16, 0x7b, 0x02, 0x4b, 0xb9, 0xd3, 0x90,
+	0x59, 0xb6, 0xa5, 0x5b, 0x66, 0x2a, 0x9b, 0x12, 0x88, 0xe1, 0x2f, 0x1c, 0xcc, 0xed, 0x54, 0x36,
+	0x91, 0xbe, 0xa6, 0xe3, 0x91, 0xa6, 0xeb, 0x98, 0x73, 0x58, 0x51, 0x9a, 0x28, 0x53, 0x26, 0x26,
+	0xe1, 0x36, 0xdc, 0x42, 0x77, 0x41, 0x2b, 0x03, 0x9c, 0x61, 0xa2, 0xce, 0x28, 0x3e, 0x81, 0x55,
+	0x25, 0x13, 0x96, 0xe1, 0x44, 0x55, 0xc0, 0x3b, 0x05, 0xff, 0x4c, 0x33, 0x29, 0xff, 0xed, 0x82,
+	0x7f, 0x06, 0xa7, 0xfe, 0x3b, 0x4a, 0x84, 0x64, 0x06, 0xc3, 0x3a, 0xa1, 0x2a, 0x14, 0x04, 0x05,
+	0x7d, 0xe4, 0x50, 0x86, 0xfb, 0xb0, 0xa6, 0xda, 0xc9, 0x65, 0x49, 0x52, 0x59, 0x1d, 0x1d, 0x82,
+	0x83, 0x1c, 0xd2, 0x19, 0x56, 0x7a, 0x8c, 0xdb, 0x0c, 0x6b, 0x03, 0xb8, 0x8b, 0xfe, 0x0f, 0xee,
+	0x5e, 0xb5, 0x99, 0x96, 0xae, 0x99, 0xb0, 0xb1, 0xa4, 0x7a, 0x0c, 0x6c, 0x62, 0x1b, 0xc3, 0xa6,
+	0x12, 0x70, 0x97, 0xfe, 0x99, 0xe4, 0x59, 0x56, 0x54, 0x06, 0xe1, 0x0b, 0x43, 0xeb, 0x9f, 0x94,
+	0x13, 0x5a, 0x2a, 0xf1, 0x44, 0x23, 0x36, 0xdc, 0x5b, 0x0a, 0xcb, 0x1d, 0x3e, 0xc4, 0xd4, 0x80,
+	0xfb, 0x4b, 0xbb, 0x19, 0xe6, 0xce, 0x00, 0xc3, 0xbb, 0x8a, 0xb7, 0x4b, 0x57, 0xaa, 0x0d, 0xf9,
+	0xb1, 0x65, 0xc3, 0x83, 0x47, 0x9f, 0xbc, 0xfb, 0xbd, 0xb3, 0xf1, 0xee, 0xa2, 0x53, 0xfa, 0xe5,
+	0xa2, 0x53, 0xfa, 0xed, 0xa2, 0x53, 0xfa, 0xe1, 0x8f, 0xce, 0xc6, 0xf3, 0x0f, 0x5e, 0x4e, 0xe4,
+	0xab, 0xf8, 0x45, 0xcf, 0x0b, 0x66, 0x47, 0x32, 0x72, 0xcf, 0x82, 0xa9, 0x7b, 0xf4, 0xd2, 0x95,
+	0xe2, 0xa8, 0xf8, 0x29, 0xf7, 0xa2, 0x9a, 0x7c, 0x9b, 0x7d, 0xf4, 0x57, 0x00, 0x00, 0x00, 0xff,
+	0xff, 0xae, 0x03, 0x4c, 0xe1, 0xe1, 0x0d, 0x00, 0x00,
 }

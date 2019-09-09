@@ -19,11 +19,11 @@ const maxExpireMargin = 15 * 60 // Seconds
 func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, expires int64) {
 	switch margin := expires - time.Now().Unix(); {
 	case margin < 0:
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has expired", event.FailRequest_AuthExpired, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has expired", event.FailAuthExpired, nil)
 		panic(nil)
 
 	case margin > maxExpireMargin:
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token expiration is too far in the future", event.FailRequest_AuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token expiration is too far in the future", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 }
@@ -61,13 +61,13 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 	}
 
 	if s.NonceStorage == nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "nonce not supported", event.FailRequest_AuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "nonce not supported", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 
 	key := principal.RawKey(pri)
 	if err := s.NonceStorage.CheckNonce(ctx, key[:], nonce, time.Unix(expires, 0)); err != nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has already been used", event.FailRequest_AuthReused, err)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has already been used", event.FailAuthReused, err)
 		panic(nil)
 	}
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	inprincipal "github.com/tsavola/gate/internal/principal"
-	"github.com/tsavola/gate/internal/serverapi"
 	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
 	runtimeabi "github.com/tsavola/gate/runtime/abi"
@@ -115,7 +114,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 			inst.lock.Lock()
 			defer inst.lock.Unlock()
 
-			if inst.status.State == serverapi.Status_running {
+			if inst.status.State == StateRunning {
 				return inst.stopped
 			} else {
 				return nil
@@ -742,7 +741,7 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *principal.Key, ins
 	if conn == nil {
 		s.Monitor(&event.FailRequest{
 			Ctx:      Context(ctx, pri),
-			Failure:  event.FailRequest_InstanceNoConnect,
+			Failure:  event.FailInstanceNoConnect,
 			Instance: inst.id,
 		}, nil)
 		return
@@ -875,8 +874,8 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID,
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
 
-		if inst.status.State != serverapi.Status_suspended {
-			err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance is not suspended")
+		if inst.status.State != StateSuspended {
+			err = failrequest.Errorf(event.FailInstanceStatus, "instance is not suspended")
 			return
 		}
 
@@ -919,11 +918,11 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID 
 	}
 
 	switch inst.Status().State {
-	case serverapi.Status_suspended, serverapi.Status_terminated:
+	case StateSuspended, StateTerminated:
 		// ok
 
 	default:
-		err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or terminated")
 		return
 	}
 
@@ -973,14 +972,14 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 		var suspended bool
 
 		switch inst.status.State {
-		case serverapi.Status_suspended:
+		case StateSuspended:
 			suspended = true
 
-		case serverapi.Status_terminated:
+		case StateTerminated:
 			suspended = false
 
 		default:
-			err = failrequest.Errorf(event.FailRequest_InstanceStatus, "instance must be suspended or terminated")
+			err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or terminated")
 			return
 		}
 

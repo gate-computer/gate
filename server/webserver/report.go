@@ -63,6 +63,6 @@ func reportRequestFailure(ctx context.Context, s *webserver, pri *principal.Key,
 func reportPayloadError(ctx context.Context, s *webserver, pri *principal.Key, err error) {
 	s.Server.Monitor(&event.FailRequest{
 		Ctx:     server.Context(ctx, pri),
-		Failure: event.FailRequest_PayloadError,
+		Failure: event.FailPayloadError,
 	}, err)
 }

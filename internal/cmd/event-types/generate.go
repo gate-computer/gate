@@ -7,6 +7,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/tsavola/gate/server/event"
 )
@@ -19,21 +20,21 @@ func main() {
 
 	var names []string
 
-	for _, name := range event.Event_Type_name {
+	for _, name := range event.Type_name {
 		names = append(names, name)
 	}
 
 	sort.Strings(names)
 
 	for _, name := range names {
-		fmt.Printf("func (x *%s) EventName() string {", name)
-		fmt.Printf(" return Event_Type_name[x.EventType()] }\n")
+		fmt.Printf("func (x *%s) EventName() string {", strings.Replace(strings.Title(strings.Replace(strings.ToLower(name), "_", " ", -1)), " ", "", -1))
+		fmt.Printf(" return \"%s\" }\n", name)
 	}
 
 	fmt.Println()
 
 	for _, name := range names {
-		fmt.Printf("func (*%s) EventType() int32 {", name)
-		fmt.Printf(" return int32(Event_%s) }\n", name)
+		fmt.Printf("func (*%s) EventType() int32 {", strings.Replace(strings.Title(strings.Replace(strings.ToLower(name), "_", " ", -1)), " ", "", -1))
+		fmt.Printf(" return int32(Type_%s) }\n", name)
 	}
 }

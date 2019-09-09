@@ -10,7 +10,6 @@ import (
 	goruntime "runtime"
 	"time"
 
-	"github.com/tsavola/gate/internal/serverapi"
 	"github.com/tsavola/gate/runtime"
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
@@ -69,9 +68,9 @@ func IsFine(err error) bool {
 	return false
 }
 
-func IsGood(s serverapi.Status) bool {
+func IsGood(s server.Status) bool {
 	switch s.State {
-	case serverapi.Status_running, serverapi.Status_suspended, serverapi.Status_terminated, serverapi.Status_killed:
+	case server.StateRunning, server.StateSuspended, server.StateTerminated, server.StateKilled:
 	default:
 		return false
 	}

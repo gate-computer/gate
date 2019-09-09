@@ -4,11 +4,11 @@
 
 syntax = "proto3";
 
-package monitor;
-
-option go_package = "github.com/tsavola/gate/server/monitor";
+package server.monitor;
 
 import "server/event/event.proto";
+
+option go_package = "github.com/tsavola/gate/server/monitor";
 
 message State {
 	uint32 programs_loaded = 1;
@@ -17,7 +17,7 @@ message State {
 }
 
 message Event {
-	event.Event.Type type = 1;
+	event.Type type = 1;
 	bytes event = 2;
 	string error = 3;
 }
