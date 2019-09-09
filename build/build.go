@@ -55,6 +55,15 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 }
 
 func (b *Build) InstallPrematureSnapshotSectionLoaders(newError func(string) error) {
+	b.Loaders[wasm.FlagSection] = func(_ string, r section.Reader, length uint32) (err error) {
+		b.installDuplicateFlagSectionLoader(newError)
+
+		b.SectionMap.Flag = b.SectionMap.Sections[section.Custom] // This section.
+
+		b.Buffers.Flags, err = wasm.ReadFlagSection(r, length, newError)
+		return
+	}
+
 	b.Loaders[wasm.ServiceSection] = func(_ string, r section.Reader, length uint32) (err error) {
 		return newError("service section appears too early in wasm module")
 	}
@@ -203,6 +212,12 @@ func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
 		}
 
 		return
+	}
+}
+
+func (b *Build) installDuplicateFlagSectionLoader(newError func(string) error) {
+	b.Loaders[wasm.FlagSection] = func(string, section.Reader, uint32) error {
+		return newError("multiple flag sections in wasm module")
 	}
 }
 

@@ -43,42 +43,46 @@ func instanceStorageKey(acc *account, instID string) string {
 }
 
 type Instance struct {
-	acc      *account
-	id       string
-	prog     *program
-	persist  bool
-	function string
-	lock     sync.Mutex
-	status   Status
-	image    *image.Instance
-	buffers  snapshot.Buffers
-	process  *runtime.Process
-	timeReso time.Duration
-	services InstanceServices
-	debug    io.WriteCloser
-	stopped  chan struct{}
+	acc        *account
+	id         string
+	prog       *program
+	function   string
+	lock       sync.Mutex
+	status     Status
+	image      *image.Instance
+	persistent *snapshot.Buffers
+	process    *runtime.Process
+	timeReso   time.Duration
+	services   InstanceServices
+	debug      io.WriteCloser
+	stopped    chan struct{}
 }
 
 // newInstance steals program reference, instance image, process and services.
 func newInstance(acc *account, id string, prog *program, persist bool, function string, image *image.Instance, proc *runtime.Process, timeReso time.Duration, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) *Instance {
-	return &Instance{
+	inst := &Instance{
 		acc:      acc,
 		id:       id,
 		prog:     prog,
-		persist:  persist,
 		function: function,
 		status: Status{
 			State: StateRunning,
 			Debug: debugStatus,
 		},
 		image:    image,
-		buffers:  prog.buffers,
 		process:  proc,
 		timeReso: timeReso,
 		services: services,
 		debug:    debugOutput,
 		stopped:  make(chan struct{}),
 	}
+
+	if persist {
+		clone := prog.buffers
+		inst.persistent = &clone
+	}
+
+	return inst
 }
 
 // renew must be called with Instance.lock held.
@@ -211,7 +215,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 		return
 	}
 
-	exit, trapID, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
+	exit, trapID, err := inst.process.Serve(ctx, inst.services, inst.persistent)
 	if err != nil {
 		if x, ok := err.(public.Error); ok {
 			result.Error = x.PublicError()
@@ -231,7 +235,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 		return
 	}
 
-	if inst.persist {
+	if inst.persistent != nil {
 		err = inst.prog.ensureStorage()
 		if err == nil {
 			_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.id), inst.prog.image)
@@ -247,6 +251,14 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 	}
 
 	switch trapID {
+	case trap.Exit:
+		if inst.persistent == nil || inst.persistent.Terminated() {
+			result.State = StateTerminated
+		} else {
+			result.State = StateHalted
+		}
+		result.Result = int32(exit)
+
 	case trap.Suspended:
 		result.State = StateSuspended
 
@@ -255,9 +267,8 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 		result.Cause = Cause(trapID)
 
 	default:
-		result.State = StateTerminated
+		result.State = StateKilled
 		result.Cause = Cause(trapID)
-		result.Result = int32(exit)
 	}
 
 	result.Error = ""

@@ -230,13 +230,13 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 	return
 }
 
-// Serve the user program until it terminates.  Canceling the context suspends
-// the program.
+// Serve the user program until the process terminates.  Canceling the context
+// suspends the program.
 //
 // Start must have been called before this.  This must not be called after
 // Kill.
 //
-// Buffers will be mutated.
+// Buffers will be mutated (unless nil).
 func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers,
 ) (exit int, trapID trap.ID, err error) {
 	err = ioLoop(ctx, services, p, buffers)
@@ -257,9 +257,11 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 	case status.Exited():
 		code := status.ExitStatus()
 
-		switch code {
-		case 0, 1:
-			exit = code
+		if code >= 0 && code <= 3 {
+			exit = code & 1
+			if code&2 != 0 && buffers != nil {
+				buffers.SetTerminated()
+			}
 			return
 		}
 

@@ -65,7 +65,7 @@ Commands:
   suspend   suspend a running instance
   unref     remove a wasm module reference
   upload    upload a wasm module
-  wait      wait until an instance is suspended or terminated
+  wait      wait until an instance is suspended, halted or terminated
 
 Options:
 `

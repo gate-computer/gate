@@ -13,11 +13,39 @@ import (
 
 // Custom WebAssembly sections.
 const (
+	FlagSection    = "gate.flag"    // May appear once before service section.
 	ServiceSection = "gate.service" // May appear once after code section.
 	IOSection      = "gate.io"      // May appear once after service section.
 	BufferSection  = "gate.buffer"  // May appear once after io section.
 	StackSection   = "gate.stack"   // May appear once between buffer and data sections.
 )
+
+func ReadFlagSection(r section.Reader, length uint32, newError func(string) error,
+) (flags snapshot.Flags, err error) {
+	i, n, err := readVaruint32(r, newError)
+	if err != nil {
+		return
+	}
+
+	flags = snapshot.Flags(i)
+
+	remain := int64(length)
+	for {
+		remain -= int64(n)
+		if remain == 0 {
+			return
+		}
+		if remain < 0 {
+			err = newError("invalid flag section in wasm module")
+			return
+		}
+
+		_, n, err = readVaruint32(r, newError)
+		if err != nil {
+			return
+		}
+	}
+}
 
 func ReadServiceSection(r section.Reader, length uint32, newError func(string) error,
 ) (services []snapshot.Service, buf []byte, err error) {

@@ -14,13 +14,13 @@ import (
 
 func TestStatusJSON(t *testing.T) {
 	status := &server.Status{
-		State: server.StateTerminated,
+		State: server.StateKilled,
 		Cause: server.Cause(trap.MemoryAccessOutOfBounds),
 	}
 
 	data := serverapi.MustMarshalJSON(status)
 
-	if s := string(data); s != `{"state":"TERMINATED","cause":"MEMORY_ACCESS_OUT_OF_BOUNDS"}` {
+	if s := string(data); s != `{"state":"KILLED","cause":"MEMORY_ACCESS_OUT_OF_BOUNDS"}` {
 		t.Error(s)
 	}
 }

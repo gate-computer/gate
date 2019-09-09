@@ -20,6 +20,7 @@ type State = serverapi.State
 const (
 	StateRunning    = serverapi.State_RUNNING
 	StateSuspended  = serverapi.State_SUSPENDED
+	StateHalted     = serverapi.State_HALTED
 	StateTerminated = serverapi.State_TERMINATED
 	StateKilled     = serverapi.State_KILLED
 )

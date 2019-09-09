@@ -105,6 +105,16 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	off = mapOldSection(off, newRanges, oldRanges, section.Code)
 
 	var (
+		flagSection       []byte
+		flagSectionOffset int64
+	)
+	if buffers.Flags != 0 {
+		flagSection = makeFlagSection(buffers.Flags)
+		flagSectionOffset = off
+		off += int64(len(flagSection))
+	}
+
+	var (
 		serviceSection       []byte
 		serviceSectionOffset int64
 	)
@@ -156,6 +166,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	newModuleSize -= man.Sections[section.Memory].Length
 	newModuleSize -= man.Sections[section.Global].Length
 	newModuleSize -= man.Sections[section.Start].Length
+	newModuleSize -= man.FlagSection.Length
 	newModuleSize -= man.ServiceSection.Length
 	newModuleSize -= man.IoSection.Length
 	newModuleSize -= man.BufferSection.Length
@@ -163,6 +174,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	newModuleSize -= man.Sections[section.Data].Length
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
+	newModuleSize += int64(len(flagSection))
 	newModuleSize += int64(len(serviceSection))
 	newModuleSize += int64(len(ioSection))
 	newModuleSize += bufferSectionSize
@@ -230,6 +242,16 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	if err != nil {
 		return
 	}
+
+	// Write new flag section, and skip old one.
+	if len(flagSection) > 0 {
+		n, err = newFile.WriteAt(flagSection, newOff)
+		if err != nil {
+			return
+		}
+		newOff += int64(n)
+	}
+	oldOff += man.FlagSection.Length
 
 	// Write new service section, and skip old one.
 	if len(serviceSection) > 0 {
@@ -386,6 +408,10 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	man.InitRoutine = newInitRoutine
 	man.ModuleSize = newModuleSize
 	man.Sections = newRanges
+	man.FlagSection = manifest.ByteRange{
+		Offset: flagSectionOffset,
+		Length: int64(len(flagSection)),
+	}
 	man.ServiceSection = manifest.ByteRange{
 		Offset: serviceSectionOffset,
 		Length: int64(len(serviceSection)),
@@ -491,6 +517,32 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 	}
 
 	return
+}
+
+func makeFlagSection(flags snapshot.Flags) []byte {
+	var (
+		maxSectionFrameSize = 1 + binary.MaxVarintLen32 // Section id, payload length.
+		customHeaderSize    = 1 + len(wasm.FlagSection) // Name length, name string.
+
+		maxHeaderSize  = maxSectionFrameSize + customHeaderSize
+		maxSectionSize = maxHeaderSize + binary.MaxVarintLen32
+	)
+
+	buf := make([]byte, maxSectionSize)
+
+	end := maxHeaderSize
+	end += binary.PutUvarint(buf[end:], uint64(flags))
+
+	start := maxHeaderSize
+	start -= len(wasm.FlagSection)
+	copy(buf[start:], wasm.FlagSection)
+	start--
+	buf[start] = byte(len(wasm.FlagSection))
+	start -= putVaruint32Before(buf, start, uint32(end-start))
+	start--
+	buf[start] = byte(section.Custom)
+
+	return buf[start:end]
 }
 
 func makeServiceSection(services []snapshot.Service) []byte {

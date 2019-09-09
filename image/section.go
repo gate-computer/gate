@@ -12,6 +12,7 @@ import (
 type SectionMap struct {
 	section.Map
 
+	Flag    section.ByteRange
 	Service section.ByteRange
 	IO      section.ByteRange
 	Buffer  section.ByteRange

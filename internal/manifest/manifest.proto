@@ -22,16 +22,17 @@ message Program {
 	uint32 init_routine = 8;
 	int64 module_size = 9;
 	repeated ByteRange sections = 10;
-	ByteRange service_section = 11;
-	ByteRange io_section = 12;
-	ByteRange buffer_section = 13;
-	ByteRange stack_section = 14;
-	bytes global_types = 15;                // Limited by wag's maxGlobals check.
-	map<string, uint32> entry_indexes = 16; // Limited by func name len and wag's maxExports check.
-	map<uint32, uint32> entry_addrs = 17;
-	uint32 call_sites_size = 18;
-	uint32 func_addrs_size = 19;
-	bool random_seed = 20;
+	ByteRange flag_section = 11;
+	ByteRange service_section = 12;
+	ByteRange io_section = 13;
+	ByteRange buffer_section = 14;
+	ByteRange stack_section = 15;
+	bytes global_types = 16;                // Limited by wag's maxGlobals check.
+	map<string, uint32> entry_indexes = 17; // Limited by func name len and wag's maxExports check.
+	map<uint32, uint32> entry_addrs = 18;
+	uint32 call_sites_size = 19;
+	uint32 func_addrs_size = 20;
+	bool random_seed = 21;
 }
 
 message Instance {

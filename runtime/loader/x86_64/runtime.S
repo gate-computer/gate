@@ -530,7 +530,8 @@ gate_exit:
 
 	xor	%edi, %edi
 	test	%ecx, %ecx
-	setne	%dil				// exit syscall status bit
+	setne	%dil				// exit syscall status bit #0
+	or	$2, %dil			// exit syscall status bit #1
 
 	// Fall through to .Lruntime_exit.
 

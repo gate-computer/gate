@@ -918,11 +918,11 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID 
 	}
 
 	switch inst.Status().State {
-	case StateSuspended, StateTerminated:
+	case StateSuspended, StateHalted, StateTerminated:
 		// ok
 
 	default:
-		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or terminated")
+		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted or terminated")
 		return
 	}
 
@@ -975,15 +975,20 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 		case StateSuspended:
 			suspended = true
 
-		case StateTerminated:
+		case StateHalted, StateTerminated:
 			suspended = false
 
 		default:
-			err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or terminated")
+			err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted or terminated")
 			return
 		}
 
-		buffers = inst.buffers
+		if inst.persistent == nil {
+			err = resourcenotfound.ErrInstance
+			return
+		}
+
+		buffers = *inst.persistent
 		newImage, err = image.Snapshot(oldProg.image, inst.image, buffers, suspended)
 		return
 	}()

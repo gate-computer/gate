@@ -81,7 +81,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	defer func() {
 		close(messageOutput)
 
-		if frozen != nil && suspended == nil { // Suspended.
+		if frozen != nil {
 			frozen.Services = discoverer.ExtractState()
 		}
 
@@ -191,33 +191,31 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 				}
 
 				if frozen != nil {
-					if suspended == nil { // Suspended.
-						if len(read.buf) == 0 {
-							frozen.Output = pendingMsg
-						} else {
-							// pendingMsg might be part of the original
-							// Buffers.Output, so don't mutate it.
-							frozen.Output = append(append([]byte{}, pendingMsg...), read.buf...)
-						}
-						pendingMsg = nil
+					if len(read.buf) == 0 {
+						frozen.Output = pendingMsg
+					} else {
+						// pendingMsg might be part of the original
+						// Buffers.Output, so don't mutate it.
+						frozen.Output = append(append([]byte{}, pendingMsg...), read.buf...)
+					}
+					pendingMsg = nil
 
-						frozen.Input, err = ioutil.ReadAll(subject.writerOut)
-						if err != nil {
-							return
-						}
+					frozen.Input, err = ioutil.ReadAll(subject.writerOut)
+					if err != nil {
+						return
+					}
 
-						var pendingLen int
-						for _, ev := range pendingEvs {
-							pendingLen += len(ev)
-						}
+					var pendingLen int
+					for _, ev := range pendingEvs {
+						pendingLen += len(ev)
+					}
 
-						if n := len(frozen.Input) + pendingLen; cap(frozen.Input) < n {
-							frozen.Input = append(make([]byte, 0, n), frozen.Input...)
-						}
+					if n := len(frozen.Input) + pendingLen; cap(frozen.Input) < n {
+						frozen.Input = append(make([]byte, 0, n), frozen.Input...)
+					}
 
-						for _, ev := range pendingEvs {
-							frozen.Input = append(frozen.Input, ev...)
-						}
+					for _, ev := range pendingEvs {
+						frozen.Input = append(frozen.Input, ev...)
 					}
 
 					subject.writerOut.Close()

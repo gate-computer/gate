@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -33,9 +34,12 @@ import (
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
+	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/gate/webapi/authorization"
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/compile"
+	"github.com/tsavola/wag/section"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -1073,7 +1077,7 @@ func TestInstance(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"RUNNING"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"TERMINATED"}`) || len(resp.Trailer) != 1 {
+		if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"RUNNING"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"HALTED"}`) || len(resp.Trailer) != 1 {
 			t.Errorf("trailer: %v", resp.Trailer)
 		}
 	})
@@ -1083,13 +1087,13 @@ func TestInstance(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateTerminated,
+			State: webapi.StateHalted,
 		})
 	})
 
-	t.Run("StatusTerminated", func(t *testing.T) {
+	t.Run("StatusHalted", func(t *testing.T) {
 		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: webapi.StateTerminated,
+			State: webapi.StateHalted,
 		})
 	})
 
@@ -1227,6 +1231,11 @@ func TestInstanceSuspend(t *testing.T) {
 		}
 	})
 
+	t.Run("ResumeFunction", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&function=loop", nil)
+		checkResponse(t, handler, req, http.StatusBadRequest)
+	})
+
 	t.Run("Resume", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=log", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
@@ -1275,6 +1284,107 @@ func TestInstanceSuspend(t *testing.T) {
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
 			State: webapi.StateSuspended,
 		})
+	})
+}
+
+func TestInstanceTerminated(t *testing.T) {
+	handler := newHandler()
+	pri := newPrincipalKey()
+
+	var instID string
+
+	{
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&function=fail", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		instID = resp.Header.Get(webapi.HeaderInstance)
+
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
+		checkResponse(t, handler, req, http.StatusOK)
+	}
+
+	t.Run("Wait", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+			State:  webapi.StateTerminated,
+			Result: 1,
+		})
+	})
+
+	t.Run("Snapshot", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
+
+		location := resp.Header.Get(webapi.HeaderLocation)
+		if location == "" {
+			t.Fatal("no module location")
+		}
+
+		req = newSignedRequest(pri, http.MethodGet, location, nil)
+		resp, snapshot := checkResponse(t, handler, req, http.StatusOK)
+
+		if false {
+			f, err := os.Create("/tmp/snapshot.wasm")
+			if err != nil {
+				t.Error(err)
+			} else {
+				defer f.Close()
+				if _, err := f.Write(snapshot); err != nil {
+					t.Error(err)
+				}
+			}
+		}
+
+		var flagsOK bool
+
+		loaders := section.CustomLoaders{
+			wasm.FlagSection: func(_ string, r section.Reader, length uint32) (err error) {
+				if length != 1 {
+					err = errors.New("bad flag section length")
+					return
+				}
+
+				flags, err := wasm.ReadFlagSection(r, length, errors.New)
+				if err != nil {
+					return
+				}
+
+				if !flags.Terminated() {
+					err = errors.New("flag section: not terminated")
+					return
+				}
+
+				flagsOK = true
+				return
+			},
+		}
+
+		c := compile.Config{CustomSectionLoader: loaders.Load}
+		r := bytes.NewReader(snapshot)
+
+		m, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: c}, r)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := compile.LoadCodeSection(&compile.CodeConfig{Config: c}, r, m); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := compile.LoadDataSection(&compile.DataConfig{Config: c}, r, m); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := compile.LoadCustomSections(&c, r); err != nil {
+			t.Error(err)
+		}
+
+		if !flagsOK {
+			t.Error("flags not ok")
+		}
 	})
 }
 

@@ -70,7 +70,7 @@ func IsFine(err error) bool {
 
 func IsGood(s server.Status) bool {
 	switch s.State {
-	case server.StateRunning, server.StateSuspended, server.StateTerminated, server.StateKilled:
+	case server.StateRunning, server.StateSuspended, server.StateHalted, server.StateTerminated, server.StateKilled:
 	default:
 		return false
 	}

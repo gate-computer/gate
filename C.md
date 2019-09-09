@@ -107,8 +107,9 @@ void gate_debug_data(const char *data, size_t size);
 ```c
 void gate_exit(int status);
 ```
-> Terminate the program.  Status 0 indicates success and 1 indicates failure.
-> Other values are interpreted as 1.
+> Terminate the program, indicating that execution must not be resumed later.
+> Status 0 indicates success and 1 indicates failure.  Other values are
+> interpreted as 1.
 
 
 ```c

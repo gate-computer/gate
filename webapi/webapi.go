@@ -152,6 +152,7 @@ type Claims struct {
 const (
 	StateRunning    = "RUNNING"
 	StateSuspended  = "SUSPENDED"
+	StateHalted     = "HALTED"
 	StateTerminated = "TERMINATED"
 	StateKilled     = "KILLED"
 )
@@ -161,8 +162,11 @@ const (
 //
 // The cause enumeration is open-ended: new values may appear in the future.
 const (
+	// Abnormal causes for StateSuspended:
+	CauseCallStackExhausted = "CALL_STACK_EXHAUSTED"
+
+	// Abnormal causes for StateKilled:
 	CauseUnreachable                   = "UNREACHABLE"
-	CauseCallStackExhausted            = "CALL_STACK_EXHAUSTED"
 	CauseMemoryAccessOutOfBounds       = "MEMORY_ACCESS_OUT_OF_BOUNDS"
 	CauseIndirectCallIndexOutOfBounds  = "INDIRECT_CALL_INDEX_OUT_OF_BOUNDS"
 	CauseIndirectCallSignatureMismatch = "INDIRECT_CALL_SIGNATURE_MISMATCH"
@@ -175,26 +179,28 @@ const (
 type Status struct {
 	State  string `json:"state,omitempty"`
 	Cause  string `json:"cause,omitempty"`
-	Result int    `json:"result,omitempty"` // Meaningful if StateTerminated.
+	Result int    `json:"result,omitempty"` // Meaningful if StateHalted or StateTerminated.
 	Error  string `json:"error,omitempty"`
 	Debug  string `json:"debug,omitempty"`
 }
 
 func (status Status) String() (s string) {
-	if status.State == "" {
+	switch {
+	case status.State == "":
 		if status.Error == "" {
 			return "error"
 		} else {
 			return fmt.Sprintf("error: %s", status.Error)
 		}
-	}
 
-	s = status.State
+	case status.Cause != "":
+		s = fmt.Sprintf("%s abnormally: %s", status.State, status.Cause)
 
-	if status.Cause != "" {
-		s = fmt.Sprintf("%s abnormally: %s", s, status.Cause)
-	} else if status.State == StateTerminated {
-		s = fmt.Sprintf("%s with result %d", s, status.Result)
+	case status.State == StateHalted || status.State == StateTerminated:
+		s = fmt.Sprintf("%s with result %d", status.State, status.Result)
+
+	default:
+		s = status.State
 	}
 
 	if status.Error != "" {

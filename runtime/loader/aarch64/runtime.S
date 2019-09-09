@@ -495,7 +495,8 @@ gate_exit:
 	ldr	w0, [x29]			// gate_exit status number
 
 	cmp	w0, #0
-	cset	w9, ne				// exit syscall status bit
+	cset	w9, ne				// exit syscall status bit #0
+	or	w9, #2				// exit syscall status bit #1
 
 	// Fall through to .Lruntime_exit.
 

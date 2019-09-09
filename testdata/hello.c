@@ -312,7 +312,7 @@ int repl(void)
 int fail(void)
 {
 	gate_debug("exiting with return value 1\n");
-	return 1;
+	gate_exit(1);
 }
 
 int test_plugin(void)

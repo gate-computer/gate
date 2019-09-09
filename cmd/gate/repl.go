@@ -122,7 +122,13 @@ func doREPL(instanceID string) (success bool, err error) {
 					return
 				}
 
-				success = (res.Status.State == webapi.StateTerminated && res.Status.Result == 0)
+				switch res.Status.State {
+				case webapi.StateHalted, webapi.StateTerminated:
+					success = (res.Status.Result == 0)
+
+				default:
+					success = false
+				}
 
 				if res.Status.Cause == "" {
 					err = fmt.Errorf("instance %s", res.Status.State)

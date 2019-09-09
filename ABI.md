@@ -18,8 +18,9 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 ```wasm
 (import "gate" "exit" (func (param i32)))
 ```
-> Terminate the program.  Parameter value 0 indicates success and 1 indicates
-> failure.  Other values are interpreted as 1.
+> Terminate the program, indicating that execution must not be resumed later.
+> Parameter value 0 indicates success and 1 indicates failure.  Other values
+> are interpreted as 1.
 
 
 ```wasm
