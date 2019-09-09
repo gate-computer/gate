@@ -855,7 +855,7 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 	return
 }
 
-func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID, debug string,
+func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, function, instID, debug string,
 ) (inst *Instance, err error) {
 	var pol instPolicy
 
@@ -874,8 +874,31 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID,
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
 
-		if inst.status.State != StateSuspended {
-			err = failrequest.Errorf(event.FailInstanceStatus, "instance is not suspended")
+		var (
+			entryIndex uint32
+			entryAddr  uint32
+		)
+
+		switch inst.status.State {
+		case StateSuspended:
+			if function != "" {
+				err = failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance")
+				return
+			}
+
+		case StateHalted:
+			if function == "" {
+				err = failrequest.Errorf(event.FailInstanceStatus, "no function specified for halted instance")
+				return
+			}
+
+			entryIndex, entryAddr, err = inst.prog.resolveEntry(function)
+			if err != nil {
+				return
+			}
+
+		default:
+			err = failrequest.Errorf(event.FailInstanceStatus, fmt.Sprintf("instance is %s", inst.status.State))
 			return
 		}
 
@@ -889,7 +912,11 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID,
 			return
 		}
 
-		inst.renew(proc, pol.inst.TimeResolution, services, debugStatus, debugOutput)
+		if entryAddr != 0 {
+			inst.image.ResetEntry(entryIndex, entryAddr)
+		}
+
+		inst.renew(function, proc, pol.inst.TimeResolution, services, debugStatus, debugOutput)
 		return
 	}()
 	if err != nil {
@@ -900,6 +927,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, instID,
 	s.Monitor(&event.InstanceResume{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
+		Function: function,
 	}, nil)
 	return
 }

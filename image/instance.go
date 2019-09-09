@@ -258,6 +258,14 @@ func (inst *Instance) CheckMutation() (err error) {
 	return
 }
 
+// ResetEntry prepares a halted instance for re-entry.
+func (inst *Instance) ResetEntry(entryIndex, entryAddr uint32) {
+	inst.man.EntryIndex = entryIndex
+	inst.man.EntryAddr = entryAddr
+	inst.man.InitRoutine = abi.TextAddrEnter
+	inst.man.StackUsage = 0
+}
+
 func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
 ) (stacktrace []stack.Frame, err error) {
 	b := make([]byte, inst.man.StackSize)

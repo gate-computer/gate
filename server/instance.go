@@ -86,7 +86,10 @@ func newInstance(acc *account, id string, prog *program, persist bool, function 
 }
 
 // renew must be called with Instance.lock held.
-func (inst *Instance) renew(proc *runtime.Process, timeReso time.Duration, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) {
+func (inst *Instance) renew(function string, proc *runtime.Process, timeReso time.Duration, services InstanceServices, debugStatus string, debugOutput io.WriteCloser) {
+	if function != "" {
+		inst.function = function
+	}
 	inst.status = Status{
 		State: StateRunning,
 		Debug: debugStatus,

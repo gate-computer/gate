@@ -181,6 +181,7 @@ message InstanceSuspend {
 message InstanceResume {
 	detail.Context ctx = 1;
 	string instance = 2;
+	string function = 3;
 }
 
 message InstanceSnapshot {

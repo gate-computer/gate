@@ -40,7 +40,7 @@ const (
 // Query parameters.
 const (
 	ParamAction   = "action"
-	ParamFunction = "function" // For call or launch action.
+	ParamFunction = "function" // For call, launch or resume action.
 	ParamInstance = "instance" // For call or launch action.
 	ParamDebug    = "debug"    // For call, launch or resume action.
 )

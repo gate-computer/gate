@@ -543,9 +543,10 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 		handleInstance(w, r, s, server.OpInstanceSuspend, (*server.Server).SuspendInstance, instance)
 
 	case webapi.ActionResume:
+		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
 		mustNotHaveParams(w, r, s, query)
-		handleInstanceResume(w, r, s, instance, debug)
+		handleInstanceResume(w, r, s, function, instance, debug)
 
 	case webapi.ActionSnapshot:
 		mustNotHaveParams(w, r, s, query)
@@ -1017,25 +1018,25 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, instID, debug string) {
+func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID, debug string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceResume)
 	wr := &requestResponseWriter{w, r}
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
 	ctx = principal.ContextWithIDFrom(ctx, pri)
 
-	inst, err := s.Server.ResumeInstance(ctx, pri, instID, debug)
+	inst, err := s.Server.ResumeInstance(ctx, pri, function, instID, debug)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, wr, s, pri, "", "", function, instID, err)
 		return
 	}
-
-	go runDetachedInstance(ctx, pri, inst, s)
 
 	if debug != "" {
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+
+	go runDetachedInstance(ctx, pri, inst, s)
 }
 
 func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {

@@ -369,7 +369,9 @@ clock_gettime_found:
 	if (stack_buf == MAP_FAILED)
 		return ERR_LOAD_MMAP_STACK;
 
-	*(uint32_t *) stack_buf = info.init_memory_size >> 16; // WebAssembly pages.
+	// Write stack variables atomically.  Clearing the second 32-bit value
+	// invalidates state (in case of re-entry).
+	*(uint64_t *) stack_buf = info.init_memory_size >> 16; // WebAssembly pages.
 
 	void *stack_limit = stack_buf + GATE_STACK_LIMIT_OFFSET;
 	uint64_t *stack_ptr = stack_buf + info.stack_unused;
