@@ -496,7 +496,7 @@ gate_exit:
 
 	cmp	w0, #0
 	cset	w9, ne				// exit syscall status bit #0
-	or	w9, #2				// exit syscall status bit #1
+	orr	w9, w9, #2			// exit syscall status bit #1
 
 	// Fall through to .Lruntime_exit.
 
