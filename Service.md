@@ -12,13 +12,15 @@ Service names are valid UTF-8 strings consisting of letter, number and
 punctuation characters.  Encoded length must be between 1 and 127 bytes
 (inclusive).
 
-Built-in service names never contain dots before the first slash, if any.  That
-naming convention avoids conflicts with other common conventions:
+Built-in service names are guaranteed to never contain dashes, dots or colons
+before the first slash (if any).  That convention avoids conflicts with other
+common naming conventions:
 
   1. `example.net/service` (Go package)
   2. `net.example.service` (Java package)
   3. `net.example.Service` (Java class, D-Bus service)
   4. `123e4567-e89b-12d3-a456-426655440000` (UUID)
+  5. `https://example.net/service` (URL)
 
 Those conventions don't conflict with each other either.  Any one of them may
 be used, as long as the domain name is controlled by the service author or the
