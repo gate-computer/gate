@@ -80,13 +80,10 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	}
 	defer func() {
 		close(messageOutput)
-
 		if frozen != nil {
-			frozen.Services = discoverer.ExtractState()
-		}
-
-		if e := discoverer.Close(); err == nil {
-			err = e
+			frozen.Services = discoverer.Suspend()
+		} else {
+			discoverer.Shutdown()
 		}
 	}()
 

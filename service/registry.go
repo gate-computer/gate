@@ -24,9 +24,9 @@ type InstanceConfig struct {
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
 	Resume(ctx context.Context, send chan<- packet.Buf)
-	Handle(ctx context.Context, send chan<- packet.Buf, in packet.Buf)
-	ExtractState() (portableState []byte)
-	Close() error
+	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf)
+	Suspend() (snapshot []byte)
+	Shutdown()
 }
 
 // Factory creates instances of a particular service implementation.
@@ -37,7 +37,7 @@ type Factory interface {
 	ServiceName() string
 	Discoverable(ctx context.Context) bool
 	CreateInstance(ctx context.Context, config InstanceConfig) Instance
-	RecreateInstance(ctx context.Context, config InstanceConfig, initialState []byte) (Instance, error)
+	RestoreInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
@@ -132,7 +132,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 				MaxPacketSize: serviceConfig.MaxPacketSize,
 				Code:          code,
 			}}
-			inst, err = s.factory.RecreateInstance(ctx, instConfig, s.Buffer)
+			inst, err = s.factory.RestoreInstance(ctx, instConfig, s.Buffer)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -252,8 +252,8 @@ func (d *discoverer) NumServices() int {
 	return len(d.services)
 }
 
-// ExtractState from instances and close them.
-func (d *discoverer) ExtractState() (final []snapshot.Service) {
+// Suspend instances.
+func (d *discoverer) Suspend() (final []snapshot.Service) {
 	final = make([]snapshot.Service, len(d.services))
 
 	for i, s := range d.services {
@@ -264,24 +264,22 @@ func (d *discoverer) ExtractState() (final []snapshot.Service) {
 
 	for code, inst := range instances {
 		if inst != nil {
-			if b := inst.ExtractState(); len(b) > 0 {
+			if b := inst.Suspend(); len(b) > 0 {
 				final[code].Buffer = b
 			}
-
-			inst.Close()
 		}
 	}
 
 	return
 }
 
-// Close instances unless ExtractState already did so.
-func (d *discoverer) Close() (err error) {
+// Shutdown instances.
+func (d *discoverer) Shutdown() {
 	instances := <-d.stopped
 
 	for _, inst := range instances {
 		if inst != nil {
-			inst.Close()
+			inst.Shutdown()
 		}
 	}
 

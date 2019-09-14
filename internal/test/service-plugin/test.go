@@ -46,7 +46,7 @@ func (testService) CreateInstance(context.Context, service.InstanceConfig) servi
 	return testInstance{}
 }
 
-func (testService) RecreateInstance(context.Context, service.InstanceConfig, []byte) (service.Instance, error) {
+func (testService) RestoreInstance(context.Context, service.InstanceConfig, []byte) (service.Instance, error) {
 	log.Print(testConfig.MOTD, "again")
 	return testInstance{}, nil
 }
@@ -63,12 +63,11 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 	}
 }
 
-func (testInstance) ExtractState() []byte {
+func (testInstance) Suspend() []byte {
 	return []byte{0x73, 0x57}
 }
 
-func (testInstance) Close() (err error) {
-	return
+func (testInstance) Shutdown() {
 }
 
 func main() {}

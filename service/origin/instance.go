@@ -275,8 +275,8 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	}
 }
 
-func (inst *instance) ExtractState() (output []byte) {
-	inst.shutdown()
+func (inst *instance) Suspend() (output []byte) {
+	inst.Shutdown()
 
 	var flags int32
 	if inst.inCall {
@@ -309,16 +309,7 @@ func (inst *instance) ExtractState() (output []byte) {
 	return
 }
 
-func (inst *instance) Close() (err error) {
-	inst.shutdown()
-	return
-}
-
-func (inst *instance) shutdown() {
-	if inst.shutting {
-		return
-	}
-
+func (inst *instance) Shutdown() {
 	inst.Lock()
 	inst.shutting = true
 	inst.Unlock()

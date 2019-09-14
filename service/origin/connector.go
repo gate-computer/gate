@@ -71,7 +71,7 @@ func (cr *Connector) CreateInstance(ctx context.Context, config service.Instance
 	return &cr.inst
 }
 
-func (cr *Connector) RecreateInstance(ctx context.Context, config service.InstanceConfig, state []byte,
+func (cr *Connector) RestoreInstance(ctx context.Context, config service.InstanceConfig, state []byte,
 ) (service.Instance, error) {
 	cr.inst.init(config.Service)
 	if err := cr.inst.restore(state); err != nil {
