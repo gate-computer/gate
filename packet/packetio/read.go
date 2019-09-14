@@ -7,10 +7,8 @@ package packetio
 import (
 	"context"
 	"io"
-	"math"
 
 	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/reach/cover"
 )
 
 // ReadTo a service's data stream according to its flow.  A previously buffered
@@ -37,7 +35,7 @@ func ReadTo(ctx context.Context, config packet.Service, streamID int32, output c
 	}
 
 	var err error
-	if cover.Bool(r == nil) {
+	if r == nil {
 		err = io.EOF
 	}
 
@@ -57,7 +55,7 @@ loop:
 			var outC chan<- packet.Buf
 			var outP packet.Buf
 
-			if cover.Bool(sendable) {
+			if sendable {
 				outP = packet.Buf(bufpacket)
 				outC = output
 			}
@@ -67,7 +65,7 @@ loop:
 				bufpacket = nil
 
 			case _, ok := <-wakeup:
-				if cover.Bool(!ok) {
+				if !ok {
 					wakeup = nil
 					break
 				}
@@ -77,17 +75,16 @@ loop:
 			}
 		}
 
-		if cover.Bool(r != nil) {
+		if r != nil {
 			limit = flow.Current()
 
-			if recv := cover.MinMaxUint32(limit-read, 0, math.MaxInt32); recv != 0 {
+			if recv := limit - read; recv != 0 {
 				off := len(bufpacket)
-				cover.Cond(off == 0, off == packet.DataHeaderSize, off > packet.DataHeaderSize)
 				if off == 0 {
 					off = packet.DataHeaderSize
 				}
 
-				if space := config.MaxPacketSize - off; cover.Bool(recv > uint32(space)) {
+				if space := config.MaxPacketSize - off; recv > uint32(space) {
 					recv = uint32(space)
 				}
 
@@ -95,14 +92,12 @@ loop:
 
 				switch {
 				case bufpacket == nil:
-					if cover.Bool(int(recv) > buflimit) {
+					if int(recv) > buflimit {
 						buflimit = int(recv)
 					}
 					bufpacket = packet.MakeData(config.Code, streamID, buflimit)[:packet.DataHeaderSize]
 
-				case cover.Bool(cap(bufpacket) < size):
-					cover.Bool(len(bufpacket) == cap(bufpacket))
-
+				case cap(bufpacket) < size:
 					b := make(packet.DataBuf, off, size)
 					copy(b, bufpacket)
 					bufpacket = b
@@ -111,15 +106,15 @@ loop:
 				var n int
 				n, err = r.Read(bufpacket[off:size])
 				bufpacket = bufpacket[:off+n]
-				read += uint32(cover.MinMax(n, 0, size-off))
-				if cover.Error(err) != nil {
+				read += uint32(n)
+				if err != nil {
 					r = nil
 				}
 			}
 		}
 	}
 
-	if cover.Bool(len(bufpacket) == packet.DataHeaderSize) {
+	if len(bufpacket) == packet.DataHeaderSize {
 		bufpacket = nil
 	}
 
@@ -127,8 +122,6 @@ loop:
 		Buffer:     bufpacket,
 		Subscribed: int32(limit - read),
 	}
-	cover.Min(len(suspended.Buffer), 0)
-	cover.MinMaxInt32(suspended.Subscribed, 0, math.MaxInt32)
 
-	return suspended, cover.Error(err)
+	return suspended, err
 }

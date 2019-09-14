@@ -17,12 +17,13 @@ type Error interface {
 
 // Errorf formats public information.
 func Errorf(format string, args ...interface{}) badrequest.Error {
-	return simple(fmt.Sprintf(format, args...))
+	return Err(fmt.Sprintf(format, args...))
 }
 
-type simple string
+// Err is a constant-compatible type.
+type Err string
 
-func (s simple) Error() string       { return string(s) }
-func (s simple) PublicError() string { return string(s) }
-func (s simple) BadRequest()         {}
-func (s simple) BadProgram()         {}
+func (s Err) Error() string       { return string(s) }
+func (s Err) PublicError() string { return string(s) }
+func (s Err) BadRequest()         {}
+func (s Err) BadProgram()         {}

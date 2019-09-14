@@ -10,26 +10,43 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/tsavola/gate/internal/varint"
 	"github.com/tsavola/gate/packet"
 )
 
+var put16 = binary.LittleEndian.PutUint16
+
+func canonicalReadState(s ReadState) ReadState {
+	s.Buffer = append([]byte{}, s.Buffer...)
+	return s
+}
+
+func readStateEqual(s1, s2 ReadState) bool {
+	return reflect.DeepEqual(canonicalReadState(s1), canonicalReadState(s2))
+}
+
 func TestReadStateZero(t *testing.T) {
-	s1 := ReadState{}
-	if s1.IsMeaningful() {
+	var s1 ReadState
+	if s1.isMeaningful() {
 		t.Error("zero read state is meaningful")
 	}
+	if s1.Size() == 0 {
+		t.Error("zero read state has no size")
+	}
 	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	if n := len(s1.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
 
 	var s2 ReadState
-	n, err := s2.Unmarshal(b, testService)
+	tail, err := s2.Unmarshal(b, testService)
 	if err != nil {
 		t.Error(err)
 	}
-	if n != s1.Size() {
-		t.Error(n)
+	if n := len(b) - len(tail); n != 3 {
+		t.Error(s1.Size(), n)
 	}
-	if s2.IsMeaningful() {
+	if s2.isMeaningful() {
 		t.Error("unmarshaled zero read state is meaningful")
 	}
 
@@ -38,14 +55,24 @@ func TestReadStateZero(t *testing.T) {
 	}
 }
 
-func TestReadStateUnmarshalError(t *testing.T) {
+func TestReadStateUnmarshal(t *testing.T) {
 	p := packet.MakeData(testService.Code, testStreamID, testService.MaxPacketSize-packet.DataHeaderSize)
 	s1 := ReadState{
 		Buffer:     p,
 		Subscribed: math.MaxInt32,
 	}
 	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	if n := len(s1.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
+
+	var s2 ReadState
+	if tail, err := s2.Unmarshal(b, testService); err != nil || len(tail) != 0 {
+		t.Error(err, len(tail))
+	}
+	if !reflect.DeepEqual(s1, s2) {
+		t.Error(s1, s2)
+	}
 
 	if _, err := new(ReadState).Unmarshal(nil, testService); err == nil {
 		t.Error("no buffer")
@@ -54,70 +81,101 @@ func TestReadStateUnmarshalError(t *testing.T) {
 		t.Error("partial state")
 	}
 
+	headerLen := 1 + varint.Len(math.MaxInt32) + varint.Len(int32(len(p)))
+
 	bad := append([]byte{}, b...)
-	binary.LittleEndian.PutUint32(bad[1+4+packet.OffsetSize:], 0)
-	if _, err := new(ReadState).Unmarshal(bad, testService); err == nil {
-		t.Error("zero packet size")
-	}
-
-	bad = append([]byte{}, b...)
-	binary.LittleEndian.PutUint32(bad[1+4+packet.OffsetSize:], 0x7fffffff)
-	if _, err := new(ReadState).Unmarshal(bad, testService); err == nil {
-		t.Error("packet size out of bounds")
-	}
-
-	bad = append([]byte{}, b...)
-	binary.LittleEndian.PutUint16(bad[1+4+packet.OffsetCode:], uint16(testService.Code)-1)
+	put16(bad[headerLen+packet.OffsetCode:], uint16(testService.Code)-1)
 	if _, err := new(ReadState).Unmarshal(bad, testService); err == nil {
 		t.Error("wrong code")
 	}
 
 	bad = append([]byte{}, b...)
-	bad[1+4+packet.OffsetDomain] = byte(packet.DomainFlow)
+	bad[headerLen+packet.OffsetDomain] = byte(packet.DomainFlow)
 	if _, err := new(ReadState).Unmarshal(bad, testService); err == nil {
 		t.Error("wrong domain")
 	}
 
 	bad = append([]byte{}, b...)
-	bad[1+4+7] = 0xff // Reserved byte must be passed through.
+	bad[headerLen+7] = 0xff // Reserved byte must be ignored.
 	if _, err := new(ReadState).Unmarshal(bad, testService); err != nil {
 		t.Error(err)
 	}
 }
 
+func canonicalWriteState(s WriteState) WriteState {
+	s.Buffers[0] = append(s.Buffers[0], s.Buffers[1]...)
+	s.Buffers[1] = nil
+	return s
+}
+
+func writeStateEqual(s1, s2 WriteState) bool {
+	return reflect.DeepEqual(canonicalWriteState(s1), canonicalWriteState(s2))
+}
+
 func TestWriteStateZero(t *testing.T) {
-	s1 := WriteState{}
-	if s1.IsMeaningful() {
+	var s1 WriteState
+	if s1.isMeaningful() {
 		t.Error("zero write state is meaningful")
 	}
+	if s1.Size() == 0 {
+		t.Error("zero write state has no size")
+	}
 	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	if n := len(s1.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
 
 	var s2 WriteState
-	n, err := s2.Unmarshal(b, 512)
+	b, err := s2.Unmarshal(b, 512)
 	if err != nil {
 		t.Error(err)
 	}
-	if n != s1.Size() {
-		t.Error(n)
+	if len(b) != 0 {
+		t.Error(s1.Size(), len(b))
 	}
-	if s2.IsMeaningful() {
+	if s2.isMeaningful() {
 		t.Error("unmarshaled zero write state is meaningful")
 	}
 
-	if !reflect.DeepEqual(s1, s2) {
+	if !writeStateEqual(s1, s2) {
 		t.Error(s1, s2)
 	}
 }
 
-func TestWriteStateUnmarshalError(t *testing.T) {
+func TestWriteStateUnmarshal(t *testing.T) {
+	t.Run("SingleBuffer", func(t *testing.T) {
+		testWriteStateUnmarshal(t, [2][]byte{
+			make([]byte, 512),
+			nil,
+		})
+	})
+
+	t.Run("SplitBuffer", func(t *testing.T) {
+		testWriteStateUnmarshal(t, [2][]byte{
+			make([]byte, 303),
+			make([]byte, 209),
+		})
+	})
+}
+
+func testWriteStateUnmarshal(t *testing.T, buffers [2][]byte) {
 	s1 := WriteState{
-		Buffers:    [][]byte{make([]byte, 511)},
+		Buffers:    buffers,
 		Subscribed: math.MaxInt32,
 		Receiving:  true,
 	}
 	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	if n := len(s1.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
+
+	var s2 WriteState
+	if tail, err := s2.Unmarshal(b, 512); err != nil || len(tail) != 0 {
+		t.Error(err, len(tail))
+	}
+	if !writeStateEqual(s1, s2) {
+		t.Error(s1, s2)
+	}
 
 	if _, err := new(WriteState).Unmarshal(nil, 512); err == nil {
 		t.Error("no buffer")
@@ -127,27 +185,42 @@ func TestWriteStateUnmarshalError(t *testing.T) {
 	}
 }
 
+func canonicalStreamState(s StreamState) StreamState {
+	s.Read = canonicalReadState(s.Read)
+	s.Write = canonicalWriteState(s.Write)
+	return s
+}
+
+func streamStateEqual(s1, s2 StreamState) bool {
+	return reflect.DeepEqual(canonicalStreamState(s1), canonicalStreamState(s2))
+}
+
 func TestStreamStateZero(t *testing.T) {
-	s1 := StreamState{}
+	var s1 StreamState
 	if s1.IsMeaningful() {
 		t.Error("zero stream state is meaningful")
 	}
+	if s1.Size() == 0 {
+		t.Error("zero stream state has no size")
+	}
 	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	if n := len(s1.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
 
 	var s2 StreamState
-	n, err := s2.Unmarshal(b, testService, 512)
+	b, err := s2.Unmarshal(b, testService, 512)
 	if err != nil {
 		t.Error(err)
 	}
-	if n != s1.Size() {
-		t.Error(n)
+	if len(b) != 0 {
+		t.Error(s1.Size(), len(b))
 	}
 	if s2.IsMeaningful() {
 		t.Error("unmarshaled zero stream state is meaningful")
 	}
 
-	if !reflect.DeepEqual(s1, s2) {
+	if !streamStateEqual(s1, s2) {
 		t.Error(s1, s2)
 	}
 }
@@ -156,7 +229,10 @@ func TestStreamStateBusy(t *testing.T) {
 	p := packet.MakeData(testService.Code, testStreamID, testService.MaxPacketSize-packet.DataHeaderSize)
 	s1 := StreamState{
 		Write: WriteState{
-			Buffers:    [][]byte{make([]byte, 511)},
+			Buffers: [2][]byte{
+				make([]byte, 511),
+				nil,
+			},
 			Subscribed: math.MaxInt32,
 			Receiving:  true,
 		},
@@ -170,31 +246,35 @@ func TestStreamStateBusy(t *testing.T) {
 		t.Error("busy stream state is not meaningful")
 	}
 	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	if n := len(s1.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
 
 	var s2 StreamState
-	n, err := s2.Unmarshal(b, testService, 512)
+	b, err := s2.Unmarshal(b, testService, 512)
 	if err != nil {
 		t.Error(err)
 	}
-	if n != s1.Size() {
-		t.Error(n)
+	if len(b) != 0 {
+		t.Error(s1.Size(), len(b))
 	}
 	if !s2.IsMeaningful() {
 		t.Error("unmarshaled busy stream state is not meaningful")
 	}
 
-	binary.LittleEndian.PutUint32(p[packet.OffsetSize:], uint32(len(p))) // For comparison.
-	if !reflect.DeepEqual(s1, s2) {
+	if !streamStateEqual(s1, s2) {
 		t.Error(s1, s2)
 	}
 }
 
 func TestStreamStateUnmarshalError(t *testing.T) {
 	p := packet.MakeData(testService.Code, testStreamID, testService.MaxPacketSize-packet.DataHeaderSize)
-	s1 := StreamState{
+	s := StreamState{
 		Write: WriteState{
-			Buffers:    [][]byte{make([]byte, 511)},
+			Buffers: [2][]byte{
+				make([]byte, 511),
+				nil,
+			},
 			Subscribed: math.MaxInt32,
 			Receiving:  true,
 		},
@@ -204,8 +284,10 @@ func TestStreamStateUnmarshalError(t *testing.T) {
 		},
 		Sending: true,
 	}
-	b := make([]byte, s1.Size())
-	s1.Marshal(b)
+	b := make([]byte, s.Size())
+	if n := len(s.Marshal(b)); n != 0 {
+		t.Error(n)
+	}
 
 	if _, err := new(StreamState).Unmarshal(nil, testService, 512); err == nil {
 		t.Error("no buffer")
@@ -213,22 +295,17 @@ func TestStreamStateUnmarshalError(t *testing.T) {
 	if _, err := new(StreamState).Unmarshal(b[:15], testService, 512); err == nil {
 		t.Error("partial read state")
 	}
-	if _, err := new(StreamState).Unmarshal(b[:1+4+s1.Read.Size()], testService, 512); err == nil {
-		t.Error("no write state size")
+	if _, err := new(StreamState).Unmarshal(b[:1+s.Read.Size()], testService, 512); err == nil {
+		t.Error("no write state")
 	}
-	if _, err := new(StreamState).Unmarshal(b[:1+4+s1.Read.Size()+10], testService, 512); err == nil {
+	if _, err := new(StreamState).Unmarshal(b[:1+s.Read.Size()+10], testService, 512); err == nil {
 		t.Error("partial write state")
 	}
+}
 
-	bad := append([]byte{}, b...)
-	binary.LittleEndian.PutUint32(bad[1+4+1+4+packet.OffsetSize:], packet.HeaderSize)
-	if _, err := new(StreamState).Unmarshal(bad, testService, 512); err == nil {
-		t.Error("read packet size out of bounds")
-	}
-
-	bad = append([]byte{}, b...)
-	binary.LittleEndian.PutUint32(bad[1+4+s1.Read.Size()+4+1+4:], 513)
-	if _, err := new(StreamState).Unmarshal(bad, testService, 512); err == nil {
-		t.Error("write buffer size out of bounds")
+func TestStreamStateMarshalToLongerBuffer(t *testing.T) {
+	var s StreamState
+	if n := len(s.Marshal(make([]byte, s.Size()+123))); n != 123 {
+		t.Error(n)
 	}
 }

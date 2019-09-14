@@ -5,17 +5,10 @@
 package packetio
 
 import (
-	"testing"
-
 	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/reach"
 )
 
 var (
 	testService        = packet.Service{MaxPacketSize: 65536, Code: 1234}
 	testStreamID int32 = 56789
 )
-
-func TestMain(m *testing.M) {
-	reach.TestMain(m)
-}

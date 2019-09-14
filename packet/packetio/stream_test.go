@@ -16,10 +16,6 @@ import (
 	"github.com/tsavola/gate/packet"
 )
 
-type streamer interface {
-	Stream(context.Context, packet.Service, int32, io.Reader, io.Writer, chan<- packet.Buf) (StreamState, error)
-}
-
 func writeByteSequence(w io.Writer, flow <-chan packet.FlowBuf, base, length, blockSize int) <-chan error {
 	done := make(chan error, 1)
 	go func() {
@@ -148,25 +144,25 @@ func receiveByteSequence(flow *Threshold, output <-chan packet.DataBuf, base, le
 	return done
 }
 
-func TestStreamer(t *testing.T) {
-	s := NewStreamer(10000)
-	testStreamer(t, &s.ReadFlow, &s.Buffer, s)
+func TestStream(t *testing.T) {
+	s := NewStream(10000)
+	testStream(t, &s.readFlow, &s.writeBuf, s)
 }
 
-func TestReStreamer(t *testing.T) {
-	s, err := ReNewStreamer(&StreamState{
+func TestRestoreStream(t *testing.T) {
+	s := NewStream(12345)
+	err := s.Restore(StreamState{
 		Write:   WriteState{Receiving: true},
 		Sending: true,
-	}, 12345)
+	})
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
-	testStreamer(t, &s.ReadFlow, &s.Buffer, s)
+	testStream(t, &s.readFlow, &s.writeBuf, s)
 }
 
-func testStreamer(t *testing.T, readflow *Threshold, writebuf *Buffer, s streamer) {
+func testStream(t *testing.T, readflow *Threshold, writebuf *Buffer, s *Stream) {
 	output := make(chan packet.Buf)
-	var suspended StreamState
 
 	ir, iw := io.Pipe()
 	or, ow := io.Pipe()
@@ -188,6 +184,8 @@ func testStreamer(t *testing.T, readflow *Threshold, writebuf *Buffer, s streame
 		}
 	}()
 
+	var suspended StreamState
+
 	irdone := receiveByteSequence(readflow, received, 123, 10000)
 	iwdone := writeByteSequence(iw, nil, 123, 10000, 550)
 	ordone := readByteSequence(or, 456, 20000)
@@ -195,7 +193,7 @@ func testStreamer(t *testing.T, readflow *Threshold, writebuf *Buffer, s streame
 	sxdone := make(chan error, 1)
 	go func() {
 		var err error
-		suspended, err = s.Stream(context.Background(), testService, testStreamID, ir, ow, output)
+		suspended, err = s.Transfer(context.Background(), testService, testStreamID, ir, ow, output)
 		sxdone <- err
 	}()
 
@@ -246,16 +244,18 @@ func testStreamer(t *testing.T, readflow *Threshold, writebuf *Buffer, s streame
 	}
 }
 
-func TestStreamerFinish(t *testing.T) {
+func TestStreamFinish(t *testing.T) {
+	ctx := context.Background()
+
 	output := make(chan packet.Buf)
 
 	r, _ := io.Pipe()
 	_, w := io.Pipe()
 
-	s := NewStreamer(512)
+	s := NewStream(512)
 	s.Finish()
 
-	_, err := s.Stream(context.Background(), testService, testStreamID, r, w, output)
+	_, err := s.Transfer(ctx, testService, testStreamID, r, w, output)
 	if err != nil {
 		t.Error(err)
 	}
@@ -265,7 +265,7 @@ func TestStreamerFinish(t *testing.T) {
 	}
 }
 
-func TestStreamerCancel(t *testing.T) {
+func TestStreamCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // No defer.
 
@@ -274,9 +274,9 @@ func TestStreamerCancel(t *testing.T) {
 	r, _ := io.Pipe()
 	_, w := io.Pipe()
 
-	s := NewStreamer(512)
+	s := NewStream(512)
 
-	suspended, err := s.Stream(ctx, testService, testStreamID, r, w, output)
+	suspended, err := s.Transfer(ctx, testService, testStreamID, r, w, output)
 	if err != nil {
 		t.Error(err)
 	}
@@ -296,18 +296,17 @@ func TestStreamerCancel(t *testing.T) {
 	}
 }
 
-func TestReStreamerState(t *testing.T) {
-	if _, err := ReNewStreamer(&StreamState{
-		Write: WriteState{
-			Buffers: [][]byte{make([]byte, 20)},
-		},
-	}, 10); err == nil {
-		t.Error("no error on write buffer overflow")
+func TestRestoreStreamState(t *testing.T) {
+	ctx := context.Background()
+
+	s := NewStream(10)
+	err := s.Restore(StreamState{Write: WriteState{Buffers: [2][]byte{make([]byte, 20), nil}}})
+	if err != errBufferOverflow {
+		t.Error(err)
 	}
 
-	s, err := ReNewStreamer(&StreamState{
-		Write: WriteState{Subscribed: math.MaxInt32},
-	}, 512)
+	s = NewStream(512)
+	err = s.Restore(StreamState{Write: WriteState{Subscribed: math.MaxInt32}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -315,7 +314,12 @@ func TestReStreamerState(t *testing.T) {
 		t.Error("no EOF when not receiving")
 	}
 
-	suspended, err := s.Stream(context.Background(), testService, testStreamID, nil, nil, nil)
+	s = NewStream(512)
+	err = s.Restore(StreamState{Write: WriteState{Subscribed: math.MaxInt32}})
+	if err != nil {
+		t.Error(err)
+	}
+	suspended, err := s.Transfer(ctx, testService, testStreamID, nil, nil, nil)
 	if !isFailure(err) {
 		t.Error(err)
 	}
@@ -324,7 +328,7 @@ func TestReStreamerState(t *testing.T) {
 	}
 }
 
-func TestReStreamerCancel(t *testing.T) {
+func TestRestoreStreamCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // No defer.
 
@@ -333,16 +337,18 @@ func TestReStreamerCancel(t *testing.T) {
 	r, _ := io.Pipe()
 	_, w := io.Pipe()
 
-	s, err := ReNewStreamer(&StreamState{
-		Write:   WriteState{Buffers: [][]byte{make([]byte, 1)}},
+	s := NewStream(512)
+
+	err := s.Restore(StreamState{
+		Write:   WriteState{Buffers: [2][]byte{make([]byte, 1), nil}},
 		Read:    ReadState{Buffer: packet.MakeData(testService.Code, testStreamID, 0)},
 		Sending: true,
-	}, 512)
+	})
 	if err != nil {
 		t.Error(err)
 	}
 
-	suspended, err := s.Stream(ctx, testService, testStreamID, r, w, output)
+	suspended, err := s.Transfer(ctx, testService, testStreamID, r, w, output)
 	if err != nil {
 		t.Error(err)
 	}
@@ -353,7 +359,7 @@ func TestReStreamerCancel(t *testing.T) {
 	if suspended.Write.Receiving {
 		t.Error(suspended)
 	}
-	if suspended.Read.IsMeaningful() {
+	if suspended.Read.isMeaningful() {
 		t.Error(suspended)
 	}
 	if !suspended.Sending {
@@ -366,20 +372,24 @@ func TestReStreamerCancel(t *testing.T) {
 }
 
 func TestStreamReadError(t *testing.T) {
+	ctx := context.Background()
+
 	output := make(chan packet.Buf, 2) // Write flow and EOF.
 
 	r, rw := io.Pipe()
 	rw.CloseWithError(io.ErrClosedPipe)
 
-	s, err := ReNewStreamer(&StreamState{
+	s := NewStream(512)
+
+	err := s.Restore(StreamState{
 		Read:    ReadState{Subscribed: math.MaxInt32},
 		Sending: true,
-	}, 512)
+	})
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = s.Stream(context.Background(), testService, testStreamID, r, nil, output)
+	_, err = s.Transfer(ctx, testService, testStreamID, r, nil, output)
 	if err != io.ErrClosedPipe {
 		t.Error(err)
 	}
@@ -391,37 +401,38 @@ func TestStreamWriteEOF(t *testing.T) {
 
 	r, _ := io.Pipe()
 
-	s, err := ReNewStreamer(&StreamState{}, 512)
-	if err != nil {
-		t.Error(err)
-	}
+	s := NewStream(512)
 
-	_, err = s.Stream(ctx, testService, testStreamID, r, nil, nil)
+	_, err := s.Transfer(ctx, testService, testStreamID, r, nil, nil)
 	if err != io.EOF {
 		t.Error(err)
 	}
 }
 
 func TestStreamWriteError(t *testing.T) {
+	ctx := context.Background()
+
 	r, rw := io.Pipe()
 	rw.Close()
 
 	wr, w := io.Pipe()
 	wr.Close()
 
-	s, err := ReNewStreamer(&StreamState{
+	s := NewStream(512)
+
+	err := s.Restore(StreamState{
 		Write: WriteState{
-			Buffers:   [][]byte{make([]byte, 1)},
+			Buffers:   [2][]byte{make([]byte, 1), nil},
 			Receiving: true,
 		},
-	}, 512)
+	})
 	if err != nil {
 		t.Error(err)
 	}
 
-	s.ReadFlow.Increase(1)
+	s.Subscribe(1)
 
-	_, err = s.Stream(context.Background(), testService, testStreamID, r, w, nil)
+	_, err = s.Transfer(ctx, testService, testStreamID, r, w, nil)
 	if err != io.ErrClosedPipe {
 		t.Error(err)
 	}

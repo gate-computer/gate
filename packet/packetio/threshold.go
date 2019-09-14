@@ -5,17 +5,15 @@
 package packetio
 
 import (
-	"math"
 	"sync/atomic"
 
 	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/reach/cover"
 )
 
-var errNegativeIncrement = badprogram.Errorf("stream flow increment is negative")
+const errNegativeIncrement = badprogram.Err("stream flow increment is negative")
 
 // Threshold is an observable scalar value (uint32) which gets incremented.
-// The producer calls Add and Finish, and the consumer calls Changed and
+// The producer calls Increase and Finish, and the consumer calls Changed and
 // Current.
 type Threshold struct {
 	c chan struct{}
@@ -41,20 +39,18 @@ func (t *Threshold) Increase(increment int32) (err error) {
 		return
 	}
 
-	atomic.AddUint32(&t.n, uint32(cover.MinMaxInt32(increment, 0, math.MaxInt32)))
+	atomic.AddUint32(&t.n, uint32(increment))
 
 	select {
 	case t.c <- struct{}{}:
-		cover.Location()
+		return
 
 	default:
-		cover.Location()
+		return
 	}
-
-	return
 }
 
-// Finish closes the Changed channel.  Add must not be called after this.
+// Finish closes the Changed channel.  Increase must not be called after this.
 func (t *Threshold) Finish() {
 	close(t.c)
 }
@@ -72,5 +68,5 @@ func (t Threshold) Changed() <-chan struct{} {
 
 // Current value.  The value may have wrapped around.
 func (t *Threshold) Current() uint32 {
-	return cover.MinMaxUint32(atomic.LoadUint32(&t.n), 0, math.MaxUint32)
+	return atomic.LoadUint32(&t.n)
 }

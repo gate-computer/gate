@@ -8,10 +8,8 @@ import (
 	"context"
 	"errors"
 	"io"
-	"math"
 
 	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/reach/cover"
 )
 
 // WriteFrom a service's data stream buffer while managing its flow.  The
@@ -37,16 +35,13 @@ func WriteFrom(ctx context.Context, config packet.Service, streamID int32, w io.
 		defer close(flowDone)
 		suspended.Subscribed = subscribeMoreData(config, streamID, flow, &databuf.consumed, bufsize-1, uint32(subscribed))
 	}()
-	err = cover.Error(writeFromBuffer(ctx, w, databuf))
+	err = writeFromBuffer(ctx, w, databuf)
 	<-flowDone
 
 	suspended.Buffers, suspended.Receiving = databuf.extract(databuf.consumed.nonatomic(), databuf.unwrappedEnd())
-	if cover.Bool(!suspended.Receiving) {
+	if !suspended.Receiving {
 		suspended.Subscribed = 0
 	}
-	cover.MinMax(len(suspended.Buffers), 0, 2)
-	cover.MinMaxInt32(suspended.Subscribed, 0, math.MaxInt32)
-	cover.Bool(suspended.Receiving)
 	return
 }
 
@@ -73,7 +68,7 @@ func writeFromBuffer(ctx context.Context, w io.Writer, databuf *Buffer) (err err
 			select {
 			case _, ok := <-wakeup:
 				limit = databuf.unwrappedEnd()
-				if cover.Bool(!ok) {
+				if !ok {
 					wakeup = nil
 				}
 
@@ -86,7 +81,7 @@ func writeFromBuffer(ctx context.Context, w io.Writer, databuf *Buffer) (err err
 				return
 
 			default:
-				cover.Location()
+				break
 			}
 		}
 
@@ -99,11 +94,8 @@ func writeFromBuffer(ctx context.Context, w io.Writer, databuf *Buffer) (err err
 			return
 		}
 
-		if cover.Bool(databuf.consumed.nonatomic() != limit) {
-			max := limit - databuf.consumed.nonatomic()
-			var n int
-			n, err = databuf.writeTo(w, databuf.consumed.nonatomic(), limit)
-			cover.MinMaxUint32(uint32(n), 0, max)
+		if databuf.consumed.nonatomic() != limit {
+			_, err = databuf.writeTo(w, databuf.consumed.nonatomic(), limit)
 			if err != nil {
 				return
 			}
@@ -123,8 +115,8 @@ func subscribeMoreData(config packet.Service, streamID int32, packets chan<- pac
 		var flowP packet.Buf
 		var flowN int32
 
-		if cover.Bool(subscribed != target) {
-			flowN = cover.MinMaxInt32(int32(target-subscribed), 1, int32(window))
+		if subscribed != target {
+			flowN = int32(target - subscribed)
 			flowP = packet.MakeFlow(config.Code, streamID, flowN)
 			flowC = packets
 		}
@@ -133,7 +125,7 @@ func subscribeMoreData(config packet.Service, streamID int32, packets chan<- pac
 		case _, ok := <-consumed.Changed():
 			target = consumed.Current() + uint32(window)
 			if !ok {
-				return int32(window) - cover.MinMaxInt32(int32(target-subscribed), 0, int32(window))
+				return int32(window) - int32(target-subscribed)
 			}
 
 		case flowC <- flowP:

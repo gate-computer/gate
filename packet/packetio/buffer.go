@@ -6,29 +6,23 @@ package packetio
 
 import (
 	"io"
-	"math"
 	"math/bits"
 
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/reach/cover"
 )
 
-var errBufferOverflow = badprogram.Errorf("stream data buffer overflow")
+const errBufferOverflow = badprogram.Err("stream data buffer overflow")
 
 // BufferSize is rounded up to a power of two.
 func BufferSize(size int) int {
-	cover.MinMax(size, 1, (math.MaxInt32+1)/2)
 	return 1 << uint(bits.Len32(uint32(size)-1))
 }
 
 // PacketBufferSize returns an appropriate data packet size (including header).
 func PacketBufferSize(dataSize, maxPacketSize int) int {
-	cover.MinMax(maxPacketSize, 65536, math.MaxInt32)
-
 	n := packet.DataHeaderSize + BufferSize(dataSize)
-	if cover.Bool(n > maxPacketSize) {
-		cover.Cond(maxPacketSize == math.MaxInt32/2)
+	if n > maxPacketSize {
 		n = maxPacketSize
 	}
 
@@ -47,7 +41,7 @@ type Buffer struct {
 // Size will be rounded up to a power of two.
 func MakeBuffer(size int) Buffer {
 	return Buffer{
-		buf:      make([]byte, BufferSize(cover.Min(size, 1))),
+		buf:      make([]byte, BufferSize(size)),
 		produced: MakeThreshold(),
 		consumed: MakeThreshold(),
 	}
@@ -62,7 +56,7 @@ func NewBuffer(size int) *Buffer {
 }
 
 func (b Buffer) size() int {
-	return cover.Min(len(b.buf), 1)
+	return len(b.buf)
 }
 
 // Write all data or return an error.
@@ -76,7 +70,7 @@ func (b *Buffer) Write(data []byte) (n int, err error) {
 	mask := uint32(len(b.buf)) - 1
 	off := b.produced.nonatomic() & mask
 	n = copy(b.buf[off:], data)
-	if tail := data[n:]; cover.Bool(len(tail) > 0) {
+	if tail := data[n:]; len(tail) > 0 {
 		n += copy(b.buf, tail)
 	}
 	b.produced.Increase(int32(n))
@@ -96,7 +90,7 @@ func (b *Buffer) Finish() {
 // EOF status can be queried before writing has been started or after it has
 // been finished.
 func (b Buffer) EOF() bool {
-	return cover.Bool(b.eof)
+	return b.eof
 }
 
 // endMoved channel will be closed after Finish.
@@ -112,8 +106,6 @@ func (b Buffer) wrapRange(unwrappedBegin, unwrappedEnd uint32) (off, end int) {
 	mask := uint32(len(b.buf)) - 1
 	off = int(unwrappedBegin & mask)
 	end = int(unwrappedEnd & mask)
-
-	cover.Cond(off < end, off == end, off > end)
 	return
 }
 
@@ -133,20 +125,21 @@ func (b *Buffer) writeTo(w io.Writer, unwrappedBegin, unwrappedEnd uint32) (n in
 	return
 }
 
-func (b *Buffer) extract(unwrappedBegin, unwrappedEnd uint32) (buffers [][]byte, noEOF bool) {
+func (b *Buffer) extract(unwrappedBegin, unwrappedEnd uint32) (buffers [2][]byte, noEOF bool) {
 	switch off, end := b.wrapRange(unwrappedBegin, unwrappedEnd); {
 	case off < end:
-		buffers = [][]byte{
+		buffers = [2][]byte{
 			b.buf[off:end],
+			nil,
 		}
 
 	case off > end:
-		buffers = [][]byte{
+		buffers = [2][]byte{
 			b.buf[off:],
 			b.buf[:end],
 		}
 	}
 
-	noEOF = cover.Bool(!b.eof)
+	noEOF = !b.eof
 	return
 }

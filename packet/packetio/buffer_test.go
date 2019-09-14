@@ -83,10 +83,10 @@ func TestBufferWriteExtract(t *testing.T) {
 	if !noEOF {
 		t.Error("EOF")
 	}
-	if len(bs) != 1 {
+	if len(bs[0]) != 30 {
 		t.Error(bs)
 	}
-	if len(bs[0]) != 30 {
+	if len(bs[1]) != 0 {
 		t.Error(bs)
 	}
 	for i := 50; i < 80; i++ {

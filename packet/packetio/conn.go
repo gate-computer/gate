@@ -4,10 +4,6 @@
 
 package packetio
 
-import (
-	"github.com/tsavola/reach/cover"
-)
-
 // RWBufferer does internal buffering.
 type RWBufferer interface {
 	SetReadBuffer(bytes int) error
@@ -17,14 +13,14 @@ type RWBufferer interface {
 // SetBufferSizes set the connection's internal read and write buffer sizes,
 // unless it is nil.
 func SetBufferSizes(conn RWBufferer, size int) error {
-	if cover.Bool(conn != nil) {
+	if conn != nil {
 		size = BufferSize(size)
 
-		if err := conn.SetReadBuffer(size); cover.Error(err) != nil {
+		if err := conn.SetReadBuffer(size); err != nil {
 			return err
 		}
 
-		if err := conn.SetWriteBuffer(size); cover.Error(err) != nil {
+		if err := conn.SetWriteBuffer(size); err != nil {
 			return err
 		}
 	}
