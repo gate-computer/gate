@@ -118,8 +118,20 @@ static int accept_stream(int16_t origin_code, int32_t id, int32_t accept_flow)
 			return -1;
 		}
 
-		if (packet->domain != GATE_PACKET_DOMAIN_FLOW) {
-			__gate_debug_str("error: expected flow packet from origin\n");
+		switch (packet->domain) {
+		case GATE_PACKET_DOMAIN_FLOW:
+			break;
+
+		case GATE_PACKET_DOMAIN_DATA:
+			if (packet->size == sizeof(struct gate_data_packet)) { // EOF
+				continue;
+			} else {
+				__gate_debug_str("error: unexpected data from origin\n");
+				return -1;
+			}
+
+		default:
+			__gate_debug_str("error: expected flow or EOF packet from origin\n");
 			return -1;
 		}
 

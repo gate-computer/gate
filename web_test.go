@@ -1299,9 +1299,6 @@ func TestInstanceTerminated(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		instID = resp.Header.Get(webapi.HeaderInstance)
-
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
-		checkResponse(t, handler, req, http.StatusOK)
 	}
 
 	t.Run("Wait", func(t *testing.T) {

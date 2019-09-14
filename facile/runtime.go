@@ -151,9 +151,15 @@ func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) e
 
 func (process *RuntimeProcess) Serve(state *InstanceImage) (err error) {
 	connector := origin.New(origin.Config{MaxConns: 1})
-	conn := connector.Connect(context.Background())
 
 	go func() {
+		defer connector.Close()
+
+		conn := connector.Connect(context.Background())
+		if conn == nil {
+			return
+		}
+
 		if err := conn(context.Background(), bytes.NewReader(nil), os.Stdout); err != nil {
 			log.Print(err)
 		}
