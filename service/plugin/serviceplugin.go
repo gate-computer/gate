@@ -14,8 +14,8 @@ import (
 
 // Function names exported by service plugins.
 const (
-	ServiceConfigSymbol = "ServiceConfig" // Optional func() interface{}
-	InitServicesSymbol  = "InitServices"  // Required func(*service.Registry) error
+	SymbolServiceConfig = "ServiceConfig" // Optional func() interface{}
+	SymbolInitServices  = "InitServices"  // Required func(*service.Registry) error
 )
 
 type ServicePlugins struct {
@@ -49,14 +49,14 @@ func OpenAll(libdir string) (result ServicePlugins, err error) {
 }
 
 func getServiceConfig(p plugin.Plugin) (interface{}, error) {
-	x, err := p.Lookup(ServiceConfigSymbol)
+	x, err := p.Lookup(SymbolServiceConfig)
 	if err != nil {
 		return nil, nil
 	}
 
 	f, ok := x.(func() interface{})
 	if !ok {
-		return nil, fmt.Errorf("%s: %s is a %s; expected a %s", p, ServiceConfigSymbol, reflect.TypeOf(x), reflect.TypeOf(f))
+		return nil, fmt.Errorf("%s: %s is a %s; expected a %s", p, SymbolServiceConfig, reflect.TypeOf(x), reflect.TypeOf(f))
 	}
 
 	return f(), nil
@@ -76,7 +76,7 @@ func (ps ServicePlugins) InitServices(r *service.Registry) (err error) {
 }
 
 func initServices(r *service.Registry, p plugin.Plugin, require bool) error {
-	x, err := p.Lookup(InitServicesSymbol)
+	x, err := p.Lookup(SymbolInitServices)
 	if err != nil {
 		if require {
 			return fmt.Errorf("%s: %v", p, err)
@@ -87,7 +87,7 @@ func initServices(r *service.Registry, p plugin.Plugin, require bool) error {
 
 	f, ok := x.(func(*service.Registry) error)
 	if !ok {
-		return fmt.Errorf("%s: %s is a %s; expected a %s", p, InitServicesSymbol, reflect.TypeOf(x), reflect.TypeOf(f))
+		return fmt.Errorf("%s: %s is a %s; expected a %s", p, SymbolInitServices, reflect.TypeOf(x), reflect.TypeOf(f))
 	}
 
 	return f(r)
