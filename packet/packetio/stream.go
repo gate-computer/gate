@@ -103,7 +103,8 @@ func (s *Stream) Restore(state StreamState) (err error) {
 	s.Subscribe(state.Read.Subscribed)
 
 	if len(state.Read.Buffer) > 0 {
-		s.readBuf = append([]byte{}, state.Read.Buffer...)
+		s.readBuf = append(packet.DataBuf{}, state.Read.Buffer...)
+		s.readBuf.Sanitize()
 	}
 
 	s.sending = state.Sending

@@ -73,17 +73,10 @@ func (s *ReadState) Unmarshal(src []byte, config packet.Service) (tail []byte, e
 	}
 
 	if size != 0 {
-		p := packet.Buf(tail[:size:size])
-		if p.Code() != config.Code {
-			err = badprogram.Err("data packet has incorrect service code")
+		s.Buffer, err = packet.ImportData(tail[:size:size], config.Code)
+		if err != nil {
 			return
 		}
-		if p.Domain() != packet.DomainData {
-			err = badprogram.Err("data packet has incorrect domain")
-			return
-		}
-
-		s.Buffer = packet.DataBuf(p)
 		tail = tail[size:]
 	}
 

@@ -4,20 +4,27 @@
 
 package packet
 
+import (
+	"github.com/tsavola/gate/internal/error/badprogram"
+)
+
+const errInvalidCall = badprogram.Err("invalid call packet")
+const errInvalidData = badprogram.Err("invalid data packet")
+
 // IsValidCall checks service call packet's or call result packet's header.
 // Packet content is disregarded.
-func IsValidCall(b Buf, c Code) bool {
+func IsValidCall(b []byte, c Code) bool {
 	return isValidHeader(b, HeaderSize, c, DomainCall)
 }
 
 // IsValidState checks service state packet's header.  Packet content is
 // disregarded.
-func IsValidState(b Buf, c Code) bool {
+func IsValidState(b []byte, c Code) bool {
 	return isValidHeader(b, HeaderSize, c, DomainState)
 }
 
 // IsValidFlow checks stream flow packet, including the flow entries.
-func IsValidFlow(b Buf, c Code) bool {
+func IsValidFlow(b []byte, c Code) bool {
 	if !isValidHeader(b, FlowHeaderSize, c, DomainFlow) {
 		return false
 	}
@@ -36,16 +43,12 @@ func IsValidFlow(b Buf, c Code) bool {
 }
 
 // IsValidData checks stream data packet's header.  Data is disregarded.
-func IsValidData(b Buf, c Code) bool {
+func IsValidData(b []byte, c Code) bool {
 	if !isValidHeader(b, DataHeaderSize, c, DomainData) {
 		return false
 	}
 
 	return DataBuf(b).ID() >= 0 && isZeros(b[offsetDataReserved:DataHeaderSize])
-}
-
-func isValidHeader(b Buf, n int, c Code, d Domain) bool {
-	return len(b) >= n && b.Code() == c && b.Domain() == d && b[offsetReserved] == 0
 }
 
 func isZeros(b []byte) bool {
@@ -55,4 +58,36 @@ func isZeros(b []byte) bool {
 		}
 	}
 	return true
+}
+
+// ImportCall packet, validating it leniently.  The buffer is NOT copied.  Call
+// the Sanitize method after the packet has been copied.
+func ImportCall(b []byte, c Code) (p Buf, err error) {
+	if !isValidImportedHeader(b, HeaderSize, c, DomainCall) {
+		err = errInvalidCall
+		return
+	}
+
+	p = Buf(b)
+	return
+}
+
+// ImportData packet, validating it leniently.  The buffer is NOT copied.  Call
+// the Sanitize method after the packet has been copied.
+func ImportData(b []byte, c Code) (p DataBuf, err error) {
+	if !isValidImportedHeader(b, DataHeaderSize, c, DomainData) || DataBuf(b).ID() < 0 {
+		err = errInvalidData
+		return
+	}
+
+	p = DataBuf(b)
+	return
+}
+
+func isValidHeader(b []byte, n int, c Code, d Domain) bool {
+	return len(b) >= n && Buf(b).Code() == c && Buf(b).Domain() == d && b[offsetReserved] == 0
+}
+
+func isValidImportedHeader(b []byte, n int, c Code, d Domain) bool {
+	return len(b) >= n && Buf(b).Code() == c && Buf(b).Domain() == d
 }
