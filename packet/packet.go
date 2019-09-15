@@ -95,9 +95,8 @@ func Make(code Code, domain Domain, packetSize int) Buf {
 	return b
 }
 
-// MakeNoCall makes an empty call packet.
-func MakeNoCall(code Code) Buf {
-	return Make(code, DomainCall, HeaderSize)
+func MakeCall(code Code, contentSize int) Buf {
+	return Make(code, DomainCall, HeaderSize+contentSize)
 }
 
 func MakeFlow(code Code, id int32, increment int32) Buf {

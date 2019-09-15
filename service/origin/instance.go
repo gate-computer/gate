@@ -192,7 +192,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 
 func (inst *instance) respondToCall(ctx context.Context) {
 	select {
-	case inst.send <- packet.Make(inst.Code, packet.DomainCall, packet.HeaderSize):
+	case inst.send <- packet.MakeCall(inst.Code, 0):
 		inst.inCall = false
 
 	case <-ctx.Done():
