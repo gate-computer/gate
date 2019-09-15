@@ -6,10 +6,14 @@ package snapshot
 
 type Flags uint32
 
+const (
+	FlagTerminated Flags = 1 << 0
+)
+
 // Terminated indicates that the program should not be resumed - it should only
 // be inspected for debugging purposes.
-func (f Flags) Terminated() bool { return f&1 != 0 }
-func (f *Flags) SetTerminated()  { *f |= 1 }
+func (f Flags) Terminated() bool { return f&FlagTerminated != 0 }
+func (f *Flags) SetTerminated()  { *f |= FlagTerminated }
 
 // Service state representation.
 type Service struct {

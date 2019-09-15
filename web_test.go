@@ -1338,19 +1338,14 @@ func TestInstanceTerminated(t *testing.T) {
 		var flagsOK bool
 
 		loaders := section.CustomLoaders{
-			wasm.FlagSection: func(_ string, r section.Reader, length uint32) (err error) {
-				if length != 1 {
-					err = errors.New("bad flag section length")
-					return
-				}
-
-				flags, err := wasm.ReadFlagSection(r, length, errors.New)
+			wasm.SectionBuffer: func(_ string, r section.Reader, length uint32) (err error) {
+				bs, _, _, err := wasm.ReadBufferSectionHeader(r, length, errors.New)
 				if err != nil {
 					return
 				}
 
-				if !flags.Terminated() {
-					err = errors.New("flag section: not terminated")
+				if !bs.Terminated() {
+					err = errors.New("buffer section: terminated flag not set")
 					return
 				}
 

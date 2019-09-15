@@ -354,8 +354,6 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		InitRoutine:     b.initRoutine,
 		ModuleSize:      int64(b.prog.module.Cap()),
 		Sections:        sectionMap.manifestSections(),
-		ServiceSection:  manifestByteRange(sectionMap.Service),
-		IoSection:       manifestByteRange(sectionMap.IO),
 		BufferSection:   manifestByteRange(sectionMap.Buffer),
 		StackSection:    manifestByteRange(sectionMap.Stack),
 		GlobalTypes:     globalTypeBytes(globalTypes),

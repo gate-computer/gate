@@ -6,6 +6,7 @@ package build
 
 import (
 	"io"
+	"io/ioutil"
 
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
@@ -55,28 +56,11 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 }
 
 func (b *Build) InstallPrematureSnapshotSectionLoaders(newError func(string) error) {
-	b.Loaders[wasm.FlagSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installDuplicateFlagSectionLoader(newError)
-
-		b.SectionMap.Flag = b.SectionMap.Sections[section.Custom] // This section.
-
-		b.Buffers.Flags, err = wasm.ReadFlagSection(r, length, newError)
-		return
-	}
-
-	b.Loaders[wasm.ServiceSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		return newError("service section appears too early in wasm module")
-	}
-
-	b.Loaders[wasm.IOSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		return newError("io section appears too early in wasm module")
-	}
-
-	b.Loaders[wasm.BufferSection] = func(_ string, r section.Reader, length uint32) (err error) {
+	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
 		return newError("buffer section appears too early in wasm module")
 	}
 
-	b.Loaders[wasm.StackSection] = func(string, section.Reader, uint32) error {
+	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
 		return newError("stack section appears too early in wasm module")
 	}
 }
@@ -133,60 +117,33 @@ func (b Build) CodeConfig() *compile.CodeConfig {
 }
 
 func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
-	var serviceBuf []byte
-
-	b.Loaders[wasm.ServiceSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installDuplicateServiceSectionLoader(newError)
-
-		b.SectionMap.Service = b.SectionMap.Sections[section.Custom] // This section.
-
-		b.Buffers.Services, serviceBuf, err = wasm.ReadServiceSection(r, length, newError)
-		return
-	}
-
-	b.Loaders[wasm.IOSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installDuplicateServiceSectionLoader(newError)
-		b.installDuplicateIOSectionLoader(newError)
-
-		b.SectionMap.IO = b.SectionMap.Sections[section.Custom] // This section.
-
-		b.Buffers.Input, b.Buffers.Output, err = wasm.ReadIOSection(r, length, newError)
-		return
-	}
-
-	b.Loaders[wasm.BufferSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installDuplicateServiceSectionLoader(newError)
-		b.installDuplicateIOSectionLoader(newError)
+	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
 		b.installDuplicateBufferSectionLoader(newError)
 
-		if uint64(length) != uint64(len(serviceBuf)+len(b.Buffers.Input)+len(b.Buffers.Output)) {
-			err = newError("unexpected buffer section length in wasm module")
-		}
+		var n int
+		var dataBuf []byte
 
-		b.SectionMap.Buffer = b.SectionMap.Sections[section.Custom] // This section.
-
-		_, err = io.ReadFull(r, serviceBuf)
+		b.Buffers, n, dataBuf, err = wasm.ReadBufferSectionHeader(r, length, newError)
 		if err != nil {
 			return
 		}
 
-		_, err = io.ReadFull(r, b.Buffers.Input)
+		_, err = io.ReadFull(r, dataBuf)
 		if err != nil {
 			return
 		}
 
-		_, err = io.ReadFull(r, b.Buffers.Output)
+		_, err = io.CopyN(ioutil.Discard, r, int64(length)-int64(n)-int64(len(dataBuf)))
 		if err != nil {
 			return
 		}
 
+		b.SectionMap.Buffer = b.SectionMap.Sections[section.Custom]
 		return
 	}
 
-	b.Loaders[wasm.StackSection] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installDuplicateServiceSectionLoader(newError)
-		b.installDuplicateIOSectionLoader(newError)
-		b.installDuplicateBufferSectionLoader(newError)
+	b.Loaders[wasm.SectionStack] = func(_ string, r section.Reader, length uint32) (err error) {
+		b.installLateBufferSectionLoader(newError)
 		b.installDuplicateStackSectionLoader(newError)
 
 		if b.entryIndex >= 0 {
@@ -199,8 +156,6 @@ func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
 			return
 		}
 
-		b.SectionMap.Stack = b.SectionMap.Sections[section.Custom] // This section.
-
 		err = b.finishImageText(int(length))
 		if err != nil {
 			return
@@ -211,36 +166,19 @@ func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
 			return
 		}
 
+		b.SectionMap.Stack = b.SectionMap.Sections[section.Custom]
 		return
 	}
 }
 
-func (b *Build) installDuplicateFlagSectionLoader(newError func(string) error) {
-	b.Loaders[wasm.FlagSection] = func(string, section.Reader, uint32) error {
-		return newError("multiple flag sections in wasm module")
-	}
-}
-
-func (b *Build) installDuplicateServiceSectionLoader(newError func(string) error) {
-	b.Loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
-		return newError("service section must appear before stack section in wasm module")
-	}
-}
-
-func (b *Build) installDuplicateIOSectionLoader(newError func(string) error) {
-	b.Loaders[wasm.IOSection] = func(string, section.Reader, uint32) error {
-		return newError("io section must appear before stack section in wasm module")
-	}
-}
-
 func (b *Build) installDuplicateBufferSectionLoader(newError func(string) error) {
-	b.Loaders[wasm.BufferSection] = func(string, section.Reader, uint32) error {
-		return newError("buffer section must appear before stack section in wasm module")
+	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
+		return newError("multiple buffer sections in wasm module")
 	}
 }
 
 func (b *Build) installDuplicateStackSectionLoader(newError func(string) error) {
-	b.Loaders[wasm.StackSection] = func(string, section.Reader, uint32) error {
+	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
 		return newError("multiple stack sections in wasm module")
 	}
 }
@@ -259,19 +197,18 @@ func (b *Build) FinishImageText() (err error) {
 }
 
 func (b *Build) InstallLateSnapshotSectionLoaders(newError func(string) error) {
-	b.Loaders[wasm.ServiceSection] = func(string, section.Reader, uint32) error {
-		return newError("service section appears too late in wasm module")
-	}
+	b.installLateBufferSectionLoader(newError)
+	b.installLateStackSectionLoader(newError)
+}
 
-	b.Loaders[wasm.IOSection] = func(string, section.Reader, uint32) error {
-		return newError("io section appears too late in wasm module")
-	}
-
-	b.Loaders[wasm.BufferSection] = func(string, section.Reader, uint32) error {
+func (b *Build) installLateBufferSectionLoader(newError func(string) error) {
+	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
 		return newError("buffer section appears too late in wasm module")
 	}
+}
 
-	b.Loaders[wasm.StackSection] = func(string, section.Reader, uint32) error {
+func (b *Build) installLateStackSectionLoader(newError func(string) error) {
+	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
 		return newError("stack section appears too late in wasm module")
 	}
 }

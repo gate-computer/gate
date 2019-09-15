@@ -43,51 +43,25 @@ func (prog *Program) NewModuleReader() io.Reader {
 }
 
 func (prog *Program) LoadBuffers() (bs snapshot.Buffers, err error) {
-	var serviceBuf []byte
-
-	if n := prog.man.ServiceSection.Size(); n > 0 {
-		b := make([]byte, n)
-
-		_, err = prog.file.ReadAt(b, progModuleOffset+prog.man.ServiceSection.Offset)
-		if err != nil {
-			return
-		}
-
-		bs.Services, serviceBuf, err = wasm.ReadServiceSection(bytes.NewReader(b), uint32(n), errors.New)
-		if err != nil {
-			return
-		}
+	if prog.man.BufferSection.Length == 0 {
+		return
 	}
 
-	if n := prog.man.IoSection.Size(); n > 0 {
-		b := make([]byte, n)
-
-		_, err = prog.file.ReadAt(b, progModuleOffset+prog.man.IoSection.Offset)
-		if err != nil {
-			return
-		}
-
-		bs.Input, bs.Output, err = wasm.ReadIOSection(bytes.NewReader(b), uint32(n), errors.New)
-		if err != nil {
-			return
-		}
-	}
+	header := make([]byte, prog.man.BufferSectionHeaderLength)
 
 	off := progModuleOffset + prog.man.BufferSection.Offset
+	_, err = prog.file.ReadAt(header, off)
+	if err != nil {
+		return
+	}
 
-	n, err := prog.file.ReadAt(serviceBuf, off)
+	bs, n, dataBuf, err := wasm.ReadBufferSectionHeader(bytes.NewReader(header), uint32(prog.man.BufferSection.Length), errors.New)
 	if err != nil {
 		return
 	}
 	off += int64(n)
 
-	n, err = prog.file.ReadAt(bs.Input, off)
-	if err != nil {
-		return
-	}
-	off += int64(n)
-
-	n, err = prog.file.ReadAt(bs.Output, off)
+	n, err = prog.file.ReadAt(dataBuf, off)
 	if err != nil {
 		return
 	}

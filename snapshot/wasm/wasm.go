@@ -11,60 +11,50 @@ import (
 	"github.com/tsavola/wag/section"
 )
 
+const maxServiceNameLen = 127
+
 // Custom WebAssembly sections.
 const (
-	FlagSection    = "gate.flag"    // May appear once before service section.
-	ServiceSection = "gate.service" // May appear once after code section.
-	IOSection      = "gate.io"      // May appear once after service section.
-	BufferSection  = "gate.buffer"  // May appear once after io section.
-	StackSection   = "gate.stack"   // May appear once between buffer and data sections.
+	SectionBuffer = "gate.buffer" // May appear once between code and stack sections.
+	SectionStack  = "gate.stack"  // May appear once between buffer and data sections.
 )
 
-func ReadFlagSection(r section.Reader, length uint32, newError func(string) error,
-) (flags snapshot.Flags, err error) {
-	i, n, err := readVaruint32(r, newError)
-	if err != nil {
-		return
-	}
-
-	flags = snapshot.Flags(i)
-
-	remain := int64(length)
-	for {
-		remain -= int64(n)
-		if remain == 0 {
-			return
-		}
-		if remain < 0 {
-			err = newError("invalid flag section in wasm module")
-			return
-		}
-
-		_, n, err = readVaruint32(r, newError)
-		if err != nil {
-			return
-		}
-	}
-}
-
-func ReadServiceSection(r section.Reader, length uint32, newError func(string) error,
-) (services []snapshot.Service, buf []byte, err error) {
-	var readLen int
-
-	count, n, err := readVaruint32(r, newError)
+func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(string) error,
+) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
+	flags, n, err := readVaruint32(r, newError)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	// TODO: validate count
+	bs.Flags = snapshot.Flags(flags)
 
-	services = make([]snapshot.Service, count)
-	sizes := make([]uint32, count)
+	// TODO: limit sizes and count
 
-	var totalSize uint64
+	inputSize, n, err := readVaruint32(r, newError)
+	if err != nil {
+		return
+	}
+	readLen += n
 
-	for i := range services {
+	outputSize, n, err := readVaruint32(r, newError)
+	if err != nil {
+		return
+	}
+	readLen += n
+
+	serviceCount, n, err := readVaruint32(r, newError)
+	if err != nil {
+		return
+	}
+	readLen += n
+
+	dataSize := int64(inputSize) + int64(outputSize)
+
+	bs.Services = make([]snapshot.Service, serviceCount)
+	serviceSizes := make([]uint32, serviceCount)
+
+	for i := range bs.Services {
 		var nameLen byte
 
 		nameLen, err = r.ReadByte()
@@ -73,7 +63,10 @@ func ReadServiceSection(r section.Reader, length uint32, newError func(string) e
 		}
 		readLen++
 
-		// TODO: validate nameLen
+		if nameLen == 0 || nameLen > maxServiceNameLen {
+			err = newError("service name length out of bounds")
+			return
+		}
 
 		b := make([]byte, nameLen)
 		n, err = io.ReadFull(r, b)
@@ -81,51 +74,38 @@ func ReadServiceSection(r section.Reader, length uint32, newError func(string) e
 			return
 		}
 		readLen += n
-		services[i].Name = string(b)
+		bs.Services[i].Name = string(b)
 
-		sizes[i], n, err = readVaruint32(r, newError)
+		serviceSizes[i], n, err = readVaruint32(r, newError)
 		if err != nil {
 			return
 		}
 		readLen += n
 
-		// TODO: validate size
+		// TODO: limit size
 
-		totalSize += uint64(sizes[i])
+		dataSize += int64(serviceSizes[i])
 	}
 
-	if uint64(readLen) != uint64(length) {
-		err = newError("invalid service section in wasm module")
+	if int64(readLen)+dataSize > int64(length) {
+		err = newError("invalid buffer section in wasm module")
 		return
 	}
 
-	// TODO: validate totalSize
+	dataBuf = make([]byte, dataSize)
+	b := dataBuf
 
-	buf = make([]byte, totalSize)
-	return
-}
+	bs.Input = b[:inputSize:inputSize]
+	b = b[inputSize:]
 
-func ReadIOSection(r section.Reader, length uint32, newError func(string) error,
-) (inputBuf, outputBuf []byte, err error) {
-	inputSize, n1, err := readVaruint32(r, newError)
-	if err != nil {
-		return
+	bs.Output = b[:outputSize:outputSize]
+	b = b[outputSize:]
+
+	for i, size := range serviceSizes {
+		bs.Services[i].Buffer = b[:size:size]
+		b = b[size:]
 	}
 
-	outputSize, n2, err := readVaruint32(r, newError)
-	if err != nil {
-		return
-	}
-
-	// TODO: validate sizes
-
-	if uint64(n1+n2) != uint64(length) {
-		err = newError("invalid io section in wasm module")
-		return
-	}
-
-	inputBuf = make([]byte, inputSize)
-	outputBuf = make([]byte, outputSize)
 	return
 }
 

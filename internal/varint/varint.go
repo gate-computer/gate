@@ -11,6 +11,8 @@ import (
 	"github.com/tsavola/gate/internal/error/badprogram"
 )
 
+const MaxLen = binary.MaxVarintLen32
+
 // Scan a non-negative 31-bit integer off the head of a buffer.
 func Scan(src []byte) (value int32, tail []byte, err error) {
 	tail = src
@@ -32,7 +34,7 @@ func Scan(src []byte) (value int32, tail []byte, err error) {
 
 // Len of an encoded non-negative 31-bit integer in bytes.
 func Len(value int32) int {
-	var tmp [binary.MaxVarintLen32]byte
+	var tmp [MaxLen]byte
 	return binary.PutUvarint(tmp[:], uint64(value))
 }
 
