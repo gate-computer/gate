@@ -68,7 +68,7 @@ const (
 
 	// Services packet header
 	OffsetServicesCount = HeaderSize + 0
-	ServicesHeaderSize  = HeaderSize + 8
+	ServicesHeaderSize  = HeaderSize + 2
 
 	// Flow packet header
 	FlowHeaderSize = HeaderSize

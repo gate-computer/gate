@@ -236,14 +236,12 @@ struct gate_packet {
 struct gate_service_name_packet {
 	struct gate_packet header;
 	uint16_t count;
-	uint8_t __reserved[6];
 	char names[0]; // Variable length.
 } GATE_PACKED;
 
 struct gate_service_state_packet {
 	struct gate_packet header;
 	uint16_t count;
-	uint8_t __reserved[6];
 	uint8_t states[0]; // Variable length.
 } GATE_PACKED;
 
