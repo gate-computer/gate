@@ -50,7 +50,7 @@ GATE_PACKET_CODE_SERVICES
 
 ```c
 GATE_PACKET_DOMAIN_CALL
-GATE_PACKET_DOMAIN_STATE
+GATE_PACKET_DOMAIN_INFO
 GATE_PACKET_DOMAIN_FLOW
 GATE_PACKET_DOMAIN_DATA
 ```
@@ -174,7 +174,7 @@ struct gate_packet {
 > services.  Each request is matched with one response.  The responses are
 > received in the same order as requests are sent (per service).
 >
-> The `GATE_PACKET_DOMAIN_STATE` domain is for receiving state change
+> The `GATE_PACKET_DOMAIN_INFO` domain is for receiving state change
 > notifications from services.  A service won't start sending notifications
 > before at least one call is made to that service.
 >

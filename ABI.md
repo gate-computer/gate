@@ -84,8 +84,8 @@ Codes:
 Domains:
 
   - 0 - Function calls.  Used to send requests and receive responses.
-  - 1 - State change notifications.  Used by services to notify the program
-        about things which don't require flow control.
+  - 1 - Service information.  Used to notify the program about state changes
+        asynchronously, without flow control.
   - 2 - Flow control.  Used to indicate how much data can be received per
         stream.
   - 3 - Data transfers.  Used to stream data according to flow control.

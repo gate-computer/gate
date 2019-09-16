@@ -34,7 +34,7 @@ type Domain uint8
 
 const (
 	DomainCall Domain = iota
-	DomainState
+	DomainInfo
 	DomainFlow
 	DomainData
 )
@@ -44,8 +44,8 @@ func (d Domain) String() string {
 	case DomainCall:
 		return "call"
 
-	case DomainState:
-		return "state"
+	case DomainInfo:
+		return "info"
 
 	case DomainFlow:
 		return "flow"

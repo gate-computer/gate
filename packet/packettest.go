@@ -17,10 +17,10 @@ func IsValidCall(b []byte, c Code) bool {
 	return isValidHeader(b, HeaderSize, c, DomainCall)
 }
 
-// IsValidState checks service state packet's header.  Packet content is
+// IsValidInfo checks service info packet's header.  Packet content is
 // disregarded.
-func IsValidState(b []byte, c Code) bool {
-	return isValidHeader(b, HeaderSize, c, DomainState)
+func IsValidInfo(b []byte, c Code) bool {
+	return isValidHeader(b, HeaderSize, c, DomainInfo)
 }
 
 // IsValidFlow checks stream flow packet, including the flow entries.

@@ -98,7 +98,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	}
 
 	if len(initialServiceState) > 0 {
-		pendingEvs = append(pendingEvs, makeServicesPacket(packet.DomainState, initialServiceState))
+		pendingEvs = append(pendingEvs, makeServicesPacket(packet.DomainInfo, initialServiceState))
 	}
 	initialServiceState = nil
 
