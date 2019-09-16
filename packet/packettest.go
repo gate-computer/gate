@@ -48,7 +48,7 @@ func IsValidData(b []byte, c Code) bool {
 		return false
 	}
 
-	return DataBuf(b).ID() >= 0 && isZeros(b[offsetDataReserved:DataHeaderSize])
+	return DataBuf(b).ID() >= 0
 }
 
 func isZeros(b []byte) bool {

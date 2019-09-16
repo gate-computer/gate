@@ -259,6 +259,7 @@ struct gate_flow {
 struct gate_data_packet {
 	struct gate_packet header;
 	int32_t id;
+	int32_t note;
 	char data[0]; // Variable length.
 };
 ```
@@ -266,6 +267,5 @@ struct gate_data_packet {
 > identified by the code in the packet header.  The length of *data* is
 > implicitly decremented from the reception capacity.
 >
-> The struct declaration may contain additional reserved fields which must be
-> zeroed in sent packets.
+> Note value's semantics are specified separately by each service.
 

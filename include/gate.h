@@ -260,7 +260,7 @@ struct gate_flow_packet {
 struct gate_data_packet {
 	struct gate_packet header;
 	int32_t id;
-	uint8_t __reserved[4];
+	int32_t note;
 	char data[0]; // Variable length.
 } GATE_PACKED;
 

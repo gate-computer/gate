@@ -74,9 +74,9 @@ const (
 	FlowHeaderSize = HeaderSize
 
 	// Data packet header
-	OffsetDataID       = HeaderSize + 0
-	offsetDataReserved = HeaderSize + 4
-	DataHeaderSize     = HeaderSize + 8
+	OffsetDataID   = HeaderSize + 0
+	OffsetDataNote = HeaderSize + 4
+	DataHeaderSize = HeaderSize + 8
 )
 
 const (
@@ -221,6 +221,17 @@ func (b DataBuf) ID() int32 {
 	return int32(binary.LittleEndian.Uint32(b[OffsetDataID:]))
 }
 
+// Note is a value associated with a data packet.  Each service interface
+// specifies its semantics separately.
+func (b DataBuf) Note() int32 {
+	return int32(binary.LittleEndian.Uint32(b[OffsetDataNote:]))
+}
+
+// SetNote value.  It defaults to zero.
+func (b DataBuf) SetNote(value int32) {
+	binary.LittleEndian.PutUint32(b[OffsetDataNote:], uint32(value))
+}
+
 func (b DataBuf) Data() []byte {
 	return b[DataHeaderSize:]
 }
@@ -239,18 +250,19 @@ func (b DataBuf) Split(dataLen int) (prefix Buf, unused DataBuf) {
 // from snapshots.
 func (b DataBuf) Sanitize() {
 	Buf(b).Sanitize()
-	for i := offsetDataReserved; i < DataHeaderSize; i++ {
-		b[i] = 0
-	}
 }
 
 func (b DataBuf) String() string {
 	return Buf(b).String() + b.string()
 }
 
-func (b DataBuf) string() string {
-	if b.DataLen() == 0 {
-		return fmt.Sprintf(" id=%d eof", b.ID())
+func (b DataBuf) string() (s string) {
+	s = fmt.Sprintf(" id=%d", b.ID())
+	if n := b.DataLen(); n > 0 {
+		s += fmt.Sprintf(" datalen=%d", n)
 	}
-	return fmt.Sprintf(" id=%d datalen=%d", b.ID(), b.DataLen())
+	if x := b.Note(); x != 0 {
+		s += fmt.Sprintf(" note=%d", x)
+	}
+	return
 }
