@@ -20,91 +20,114 @@ import (
 	"savo.la/gate/localhost/flat"
 )
 
-// Suspended state buffer may contain a packet with its size header field
-// overwritten with one of these values.
+// Snapshot may contain a call packet with its size header field overwritten
+// with one of these values.
 const (
-	suspendedPacketIncoming uint32 = iota
-	suspendedPacketOutgoing
+	pendingIncoming uint32 = iota
+	pendingOutgoing
 )
 
 type instance struct {
 	local *localhost
 	packet.Service
-	suspended packet.Buf
+
+	pending packet.Buf
 }
 
 func newInstance(local *localhost, config service.InstanceConfig) *instance {
-	return &instance{local, config.Service, nil}
+	return &instance{
+		local:   local,
+		Service: config.Service,
+	}
 }
 
-func renewInstance(local *localhost, config service.InstanceConfig, state []byte,
-) (inst *instance, err error) {
-	if len(state) > 0 && len(state) < packet.HeaderSize {
-		err = errors.New("state buffer is too short")
+func (inst *instance) restore(snapshot []byte) (err error) {
+	if len(snapshot) == 0 {
 		return
 	}
 
-	inst = &instance{local, config.Service, state}
+	if len(snapshot) > inst.MaxPacketSize {
+		err = errors.New("snapshot is too large")
+		return
+	}
+
+	p, err := packet.ImportCall(snapshot, inst.Code)
+	if err != nil {
+		return
+	}
+
+	switch binary.LittleEndian.Uint32(p) {
+	case pendingIncoming, pendingOutgoing:
+
+	default:
+		err = errors.New("snapshot is invalid")
+		return
+	}
+
+	inst.pending = append(packet.Buf{}, p...)
+	inst.pending.Sanitize()
 	return
 }
 
-func (inst *instance) Resume(ctx context.Context, replies chan<- packet.Buf) {
-	p := inst.suspended
-	inst.suspended = nil
+func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
+	p := inst.pending
+	inst.pending = nil
 	if len(p) == 0 {
 		return
 	}
 
 	switch binary.LittleEndian.Uint32(p) {
-	case suspendedPacketIncoming:
-		inst.Handle(ctx, replies, p)
+	case pendingIncoming:
+		inst.Handle(ctx, send, p)
 
-	case suspendedPacketOutgoing:
+	case pendingOutgoing:
 		select {
-		case replies <- p:
+		case send <- p:
 
 		case <-ctx.Done():
-			inst.suspended = p
+			inst.pending = p
 		}
 	}
 }
 
-func (inst *instance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {
-	switch p.Domain() {
-	case packet.DomainCall:
-		build := flatbuffers.NewBuilder(0)
-		restart := false
-		tab := new(flatbuffers.Table)
-		call := flat.GetRootAsCall(p, packet.HeaderSize)
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
+	if p.Domain() != packet.DomainCall {
+		return
+	}
 
-		if call.Function(tab) {
-			switch call.FunctionType() {
-			case flat.FunctionHTTPRequest:
-				var req flat.HTTPRequest
-				req.Init(tab.Bytes, tab.Pos)
-				restart = inst.handleHTTPRequest(ctx, build, req)
-				if !restart {
-					build.Finish(flat.HTTPResponseEnd(build))
-				}
+	build := flatbuffers.NewBuilder(0)
+	restart := false
+	tab := new(flatbuffers.Table)
+	call := flat.GetRootAsCall(p, packet.HeaderSize)
+
+	if call.Function(tab) {
+		switch call.FunctionType() {
+		case flat.FunctionHTTPRequest:
+			var req flat.HTTPRequest
+			req.Init(tab.Bytes, tab.Pos)
+			restart = inst.handleHTTPRequest(ctx, build, req)
+			if !restart {
+				build.Finish(flat.HTTPResponseEnd(build))
 			}
 		}
+	}
 
-		if restart {
-			binary.LittleEndian.PutUint32(p, suspendedPacketIncoming)
-			inst.suspended = p
-			return
-		}
+	if restart {
+		binary.LittleEndian.PutUint32(p, pendingIncoming)
+		inst.pending = p
+		return
+	}
 
-		p = packet.Make(inst.Code, packet.DomainCall, packet.HeaderSize+len(build.FinishedBytes()))
-		copy(p.Content(), build.FinishedBytes())
+	p = packet.Make(inst.Code, packet.DomainCall, packet.HeaderSize+len(build.FinishedBytes()))
+	copy(p.Content(), build.FinishedBytes())
 
-		select {
-		case replies <- p:
+	select {
+	case send <- p:
 
-		case <-ctx.Done():
-			binary.LittleEndian.PutUint32(p, suspendedPacketOutgoing)
-			inst.suspended = p
-		}
+	case <-ctx.Done():
+		binary.LittleEndian.PutUint32(p, pendingOutgoing)
+		inst.pending = p
+		return
 	}
 }
 
@@ -191,10 +214,5 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 	return
 }
 
-func (inst *instance) ExtractState() []byte {
-	return inst.suspended
-}
-
-func (*instance) Close() (err error) {
-	return
-}
+func (inst *instance) Suspend() []byte { return inst.pending }
+func (inst *instance) Shutdown()       {}

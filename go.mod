@@ -1,8 +1,8 @@
 module savo.la/gate/localhost
 
-go 1.12
+go 1.11
 
 require (
-	github.com/google/flatbuffers v1.10.0
-	github.com/tsavola/gate v0.0.0-20190421223426-f0bf61dff2ff
+	github.com/google/flatbuffers v1.11.0
+	github.com/tsavola/gate v0.0.0-20190916184916-6499fff9ffa7
 )

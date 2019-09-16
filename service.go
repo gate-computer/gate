@@ -111,22 +111,17 @@ type localhost struct {
 	client *http.Client
 }
 
-func (*localhost) ServiceName() string {
-	return ServiceName
-}
-
-func (*localhost) Discoverable(ctx context.Context) bool {
-	return true
-}
+func (*localhost) ServiceName() string               { return ServiceName }
+func (*localhost) Discoverable(context.Context) bool { return true }
 
 func (l *localhost) CreateInstance(ctx context.Context, config service.InstanceConfig) service.Instance {
 	return newInstance(l, config)
 }
 
-func (l *localhost) RecreateInstance(ctx context.Context, config service.InstanceConfig, state []byte,
+func (l *localhost) RestoreInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
-	inst, err := renewInstance(l, config, state)
-	if err != nil {
+	inst := newInstance(l, config)
+	if err := inst.restore(snapshot); err != nil {
 		return nil, err
 	}
 
