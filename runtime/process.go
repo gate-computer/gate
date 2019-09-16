@@ -82,7 +82,7 @@ type ProcessFactory interface {
 // called to release resources.
 type Process struct {
 	execution execProcess // Executor's low-level process state.
-	writer    *os.File
+	writer    *file.File
 	writerOut *file.Ref
 	reader    *os.File
 	suspended chan struct{}

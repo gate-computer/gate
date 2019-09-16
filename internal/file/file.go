@@ -7,6 +7,7 @@ package file
 import (
 	"log"
 	"runtime"
+	"syscall"
 )
 
 type File struct {
@@ -33,7 +34,9 @@ func (f *File) Close() (err error) {
 	return
 }
 
-func (f *File) Fd() uintptr                                 { return uintptr(f.fd) }
-func (f *File) Read(b []byte) (int, error)                  { return read(f.fd, b) }
-func (f *File) ReadAt(b []byte, offset int64) (int, error)  { return pread(f.fd, b, offset) }
-func (f *File) WriteAt(b []byte, offset int64) (int, error) { return pwrite(f.fd, b, offset) }
+func (f *File) Fd() uintptr                                        { return uintptr(f.fd) }
+func (f *File) Read(b []byte) (int, error)                         { return read(f.fd, b) }
+func (f *File) ReadAt(b []byte, offset int64) (int, error)         { return pread(f.fd, b, offset) }
+func (f *File) WriteAt(b []byte, offset int64) (int, error)        { return pwrite(f.fd, b, offset) }
+func (f *File) WriteVec(iov []syscall.Iovec) error                 { return writev(f.fd, iov) }
+func (f *File) WriteVecAt(iov []syscall.Iovec, offset int64) error { return pwritev(f.fd, iov, offset) }

@@ -18,10 +18,11 @@ static struct gate_packet *receive_packet(void *buf, size_t bufsize)
 	}
 
 	struct gate_packet *header = buf;
+	size_t aligned_size = GATE_ALIGN_PACKET(header->size);
 
-	while (offset < header->size) {
+	while (offset < aligned_size) {
 		void *ptr = buf + offset;
-		size_t n = header->size - offset;
+		size_t n = aligned_size - offset;
 		gate_io(ptr, &n, NULL, NULL, GATE_IO_RECV_WAIT);
 		offset += n;
 	}
@@ -58,7 +59,8 @@ static int discover(int16_t *origin_code, int16_t *test_code)
 		.names = "origin\0test",
 	};
 
-	send(&discover, sizeof discover);
+	// Send some uninitialized bytes from stack as padding.
+	send(&discover, GATE_ALIGN_PACKET(sizeof discover));
 
 	struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
 
@@ -179,13 +181,14 @@ static int send_hello(int16_t origin_code, int32_t id, int *flow)
 		.data = "hello, world\n",
 	};
 
-	if ((int) sizeof hello > *flow) {
+	if ((int) sizeof hello.data > *flow) {
 		__gate_debug_str("error: not enough flow for hello\n");
 		return -1;
 	}
 
-	send(&hello, sizeof hello);
-	*flow -= sizeof hello;
+	// Send some uninitialized bytes from stack as padding.
+	send(&hello, GATE_ALIGN_PACKET(sizeof hello));
+	*flow -= sizeof hello.data;
 	return 0;
 }
 

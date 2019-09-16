@@ -37,6 +37,12 @@ GATE_IO_RECV_WAIT
 
 
 ```c
+GATE_PACKET_ALIGNMENT
+```
+> Granularity of I/O packet buffers.
+
+
+```c
 GATE_MAX_PACKET_SIZE
 ```
 > Packet size limit.
@@ -61,6 +67,14 @@ GATE_PACKET_DOMAIN_DATA
 GATE_SERVICE_STATE_AVAIL
 ```
 > Service state flag.
+
+
+#### Macros
+
+```c
+GATE_ALIGN_PACKET(size)
+```
+> Rounds packet size up to a multiple of packet alignment.
 
 
 #### Functions
@@ -119,7 +133,8 @@ void gate_io(void * restrict recv_buffer,
              size_t * restrict send_length,
              unsigned io_flags);
 ```
-> Receive and/or send packet data.
+> Receive and/or send packets.  A packet is padded so that its buffer size is
+> aligned on the wire.
 >
 > Receive and send lengths are specified as pointers to integers, which are
 > updated to reflect the number of bytes transferred.  Specifying zero length
@@ -165,7 +180,7 @@ struct gate_packet {
 	uint8_t domain;
 };
 ```
-> The size includes the header and the trailing contents.
+> The size includes the header and the trailing contents, but not the padding.
 >
 > Non-negative codes identify discovered services.  Negative codes are for
 > built-in functionality.
@@ -197,9 +212,6 @@ struct gate_service_name_packet {
 > as *names*.
 >
 > Services may be discovered in multiple steps.
->
-> The struct declaration may contain additional reserved fields which must be
-> zeroed.
 
 
 ```c

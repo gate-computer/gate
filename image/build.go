@@ -98,7 +98,7 @@ func (prog *programBuild) writeObjectMapAt(offset int64) (err error) {
 		})
 	}
 
-	return pwritev(prog.file.Fd(), iov, offset)
+	return prog.file.WriteVecAt(iov, offset)
 }
 
 type instanceBuild struct {

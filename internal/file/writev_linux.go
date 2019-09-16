@@ -2,16 +2,23 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package image
+package file
 
 import (
 	"fmt"
 	"io"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
-func pwritev(fd uintptr, iov []syscall.Iovec, offset int64) (err error) {
+func writev(fd int, iov []syscall.Iovec) error {
+	return pwritev(fd, iov, -1)
+}
+
+// pwritev actually calls pwritev2 so offset may be -1.
+func pwritev(fd int, iov []syscall.Iovec, offset int64) (err error) {
 	for {
 		var total uint64
 		for _, span := range iov {
@@ -21,7 +28,7 @@ func pwritev(fd uintptr, iov []syscall.Iovec, offset int64) (err error) {
 			return
 		}
 
-		n, _, errno := syscall.Syscall6(syscall.SYS_PWRITEV, fd, uintptr(unsafe.Pointer(&iov[0])), uintptr(len(iov)), uintptr(offset), 0, 0)
+		n, _, errno := syscall.Syscall6(unix.SYS_PWRITEV2, uintptr(fd), uintptr(unsafe.Pointer(&iov[0])), uintptr(len(iov)), uintptr(offset), 0, 0)
 
 		switch errno {
 		case 0:
@@ -38,7 +45,7 @@ func pwritev(fd uintptr, iov []syscall.Iovec, offset int64) (err error) {
 			continue
 
 		default:
-			err = fmt.Errorf("pwritev: %v", errno)
+			err = fmt.Errorf("pwritev2: %v", errno)
 			return
 		}
 

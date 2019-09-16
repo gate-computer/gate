@@ -158,6 +158,8 @@ static inline void __gate_debug_int(int64_t n) GATE_NOEXCEPT
 
 #define GATE_IO_RECV_WAIT 0x1
 
+#define GATE_PACKET_ALIGNMENT 8
+
 #define GATE_PACKET_CODE_SERVICES -1
 
 enum {
@@ -168,6 +170,9 @@ enum {
 };
 
 #define GATE_SERVICE_STATE_AVAIL 0x1
+
+#define GATE_ALIGN_PACKET(size) \
+	(((size) + (size_t)(GATE_PACKET_ALIGNMENT - 1)) & ~(size_t)(GATE_PACKET_ALIGNMENT - 1))
 
 #define gate_debug1(a)                           \
 	do {                                     \

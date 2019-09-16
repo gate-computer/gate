@@ -12,8 +12,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"syscall"
 
 	"github.com/tsavola/gate/internal/error/badprogram"
+	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/snapshot"
 )
@@ -269,7 +271,7 @@ func subjectReadLoop(r *os.File, partial []byte) <-chan read {
 				return
 			}
 
-			buf := make([]byte, size)
+			buf := make([]byte, packet.Align(int(size)))
 			offset = copy(buf, header)
 			offset += copy(buf[offset:], partial)
 			partial = nil
@@ -282,21 +284,30 @@ func subjectReadLoop(r *os.File, partial []byte) <-chan read {
 				return
 			}
 
-			reads <- read{buf: buf}
+			reads <- read{buf: buf[:size]}
 		}
 	}()
 
 	return reads
 }
 
-func subjectWriteLoop(w *os.File) chan<- packet.Buf {
+func subjectWriteLoop(w *file.File) chan<- packet.Buf {
 	writes := make(chan packet.Buf)
 
 	go func() {
 		defer w.Close()
 
+		iov := make([]syscall.Iovec, 2)
+		pad := make([]byte, packet.Alignment-1)
+
 		for buf := range writes {
-			if _, err := w.Write(buf); err != nil {
+			iov[0].Base = &buf[0]
+			iov[0].Len = uint64(len(buf))
+
+			iov[1].Base = &pad[0]
+			iov[1].Len = (packet.Alignment - (uint64(len(buf)) & (packet.Alignment - 1))) &^ packet.Alignment
+
+			if err := w.WriteVec(iov); err != nil {
 				return
 			}
 		}

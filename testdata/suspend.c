@@ -37,7 +37,8 @@ int loop(void)
 		.names = "origin\0test\0_nonexistent",
 	};
 
-	size_t n = sizeof packet;
+	// Send some uninitialized bytes from stack as padding.
+	size_t n = GATE_ALIGN_PACKET(sizeof packet);
 	gate_io(NULL, NULL, &packet, &n, 0);
 
 	for (long i = 0;; i++)

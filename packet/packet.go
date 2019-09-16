@@ -59,6 +59,8 @@ func (d Domain) String() string {
 }
 
 const (
+	Alignment = 8
+
 	// Packet header
 	OffsetSize     = 0
 	OffsetCode     = 4
@@ -84,6 +86,11 @@ const (
 	flowOffsetIncrement = 4
 	flowSize            = 8
 )
+
+// Align packet length up to a multiple of packet alignment.
+func Align(length int) int {
+	return (length + (Alignment - 1)) &^ (Alignment - 1)
+}
 
 // Buf holds a packet.
 type Buf []byte
@@ -155,15 +162,20 @@ func (b Buf) String() (s string) {
 
 // Split a packet into two parts.  The headerSize parameter determins how many
 // bytes are initialized in the second part: the header is copied from the
-// first part.  The length (and capacity) of the first part is given as the
-// packetSize parameter.  If the buffer is too short for the second part, nil
-// is returned.
-func (b Buf) Split(headerSize, packetSize int) (prefix, unused Buf) {
-	prefix = b[:packetSize:packetSize]
-	unused = b[len(prefix):]
+// first part.  The length of the first part is given as the prefixLen
+// parameter.  If the buffer is too short for the second part, the length of
+// the second buffer will be zero.
+func (b Buf) Split(headerSize, prefixLen int) (prefix, unused Buf) {
+	prefixCap := Align(prefixLen)
+	if prefixCap > len(b) {
+		prefixCap = len(b)
+	}
+
+	prefix = b[:prefixLen:prefixCap]
+	unused = b[prefixCap:]
 
 	if len(unused) < headerSize {
-		unused = nil
+		unused = unused[0:]
 		return
 	}
 
