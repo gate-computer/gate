@@ -212,6 +212,9 @@ struct gate_service_name_packet {
 > as *names*.
 >
 > Services may be discovered in multiple steps.
+>
+> The struct declaration may contain additional reserved fields which must be
+> zeroed in sent packets.
 
 
 ```c
@@ -253,6 +256,9 @@ struct gate_flow_packet {
 ```
 > Reception capacity notification for one or more streams.  All streams belong
 > to the service identified by the code in the packet header.
+>
+> The struct declaration may contain additional reserved fields which must be
+> zeroed in sent packets.
 
 
 ```c
@@ -280,4 +286,7 @@ struct gate_data_packet {
 > implicitly decremented from the reception capacity.
 >
 > Note value's semantics are specified separately by each service.
+>
+> The struct declaration may contain additional reserved fields which must be
+> zeroed in sent packets.
 

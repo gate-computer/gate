@@ -60,10 +60,9 @@ func isZeros(b []byte) bool {
 	return true
 }
 
-// ImportCall packet, validating it leniently.  The buffer is NOT copied.  Call
-// the Sanitize method after the packet has been copied.
+// ImportCall packet, validating it leniently.  The buffer is NOT copied.
 func ImportCall(b []byte, c Code) (p Buf, err error) {
-	if !isValidImportedHeader(b, HeaderSize, c, DomainCall) {
+	if !isValidHeader(b, HeaderSize, c, DomainCall) {
 		err = errInvalidCall
 		return
 	}
@@ -72,10 +71,9 @@ func ImportCall(b []byte, c Code) (p Buf, err error) {
 	return
 }
 
-// ImportData packet, validating it leniently.  The buffer is NOT copied.  Call
-// the Sanitize method after the packet has been copied.
+// ImportData packet, validating it leniently.  The buffer is NOT copied.
 func ImportData(b []byte, c Code) (p DataBuf, err error) {
-	if !isValidImportedHeader(b, DataHeaderSize, c, DomainData) || DataBuf(b).ID() < 0 {
+	if !isValidHeader(b, DataHeaderSize, c, DomainData) || DataBuf(b).ID() < 0 {
 		err = errInvalidData
 		return
 	}
@@ -86,8 +84,4 @@ func ImportData(b []byte, c Code) (p DataBuf, err error) {
 
 func isValidHeader(b []byte, n int, c Code, d Domain) bool {
 	return len(b) >= n && Buf(b).Code() == c && Buf(b).Domain() == d && b[offsetReserved] == 0
-}
-
-func isValidImportedHeader(b []byte, n int, c Code, d Domain) bool {
-	return len(b) >= n && Buf(b).Code() == c && Buf(b).Domain() == d
 }

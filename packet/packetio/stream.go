@@ -104,7 +104,6 @@ func (s *Stream) Restore(state StreamState) (err error) {
 
 	if len(state.Read.Buffer) > 0 {
 		s.readBuf = append(packet.DataBuf{}, state.Read.Buffer...)
-		s.readBuf.Sanitize()
 	}
 
 	s.sending = state.Sending

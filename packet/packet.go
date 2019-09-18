@@ -126,12 +126,6 @@ func (b Buf) Content() []byte {
 	return b[HeaderSize:]
 }
 
-// Sanitize resets reserved fields.  It must be called for packets imported
-// from snapshots.
-func (b Buf) Sanitize() {
-	b[offsetReserved] = 0
-}
-
 func (b Buf) String() (s string) {
 	var (
 		size     string
@@ -256,12 +250,6 @@ func (b DataBuf) Split(dataLen int) (prefix Buf, unused DataBuf) {
 	prefix, unusedBuf := Buf(b).Split(DataHeaderSize, DataHeaderSize+dataLen)
 	unused = DataBuf(unusedBuf)
 	return
-}
-
-// Sanitize resets reserved fields.  It must be called for packets imported
-// from snapshots.
-func (b DataBuf) Sanitize() {
-	Buf(b).Sanitize()
 }
 
 func (b DataBuf) String() string {
