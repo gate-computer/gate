@@ -20,6 +20,10 @@ import (
 	"savo.la/gate/localhost/flat"
 )
 
+// Any encoded flat.HTTPResponse (just the table) must not be larger than this,
+// excluding fields which are stored out of line.
+const maxFlatHTTPResponseSize = 100
+
 // Snapshot may contain a call packet with its size header field overwritten
 // with one of these values.
 const (
@@ -188,13 +192,22 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 	contentType := build.CreateString(res.Header.Get("Content-Type"))
 
 	var inlineBody flatbuffers.UOffsetT
-	if res.ContentLength > 0 && res.ContentLength <= int64(inst.MaxPacketSize-int(build.Offset()+100)) {
+
+	if res.ContentLength > 0 {
+		bodySpace := inst.MaxPacketSize - int(build.Offset()) - maxFlatHTTPResponseSize
+		if res.ContentLength > int64(bodySpace) {
+			flat.HTTPResponseStart(build)
+			flat.HTTPResponseAddStatusCode(build, http.StatusNotImplemented)
+			return
+		}
+
 		data := make([]byte, res.ContentLength)
 		if _, err := io.ReadFull(res.Body, data); err != nil {
 			flat.HTTPResponseStart(build)
 			flat.HTTPResponseAddStatusCode(build, http.StatusInternalServerError)
 			return
 		}
+
 		inlineBody = build.CreateByteVector(data)
 	}
 
@@ -204,12 +217,8 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 	flat.HTTPResponseAddContentType(build, contentType)
 	if inlineBody != 0 {
 		flat.HTTPResponseAddBody(build, inlineBody)
-		flat.HTTPResponseAddBodyStreamId(build, -1)
-	} else if res.ContentLength != 0 {
-		flat.HTTPResponseAddBodyStreamId(build, 0) // TODO: stream body
-	} else {
-		flat.HTTPResponseAddBodyStreamId(build, -1)
 	}
+	flat.HTTPResponseAddBodyStreamId(build, -1)
 	return
 }
 
