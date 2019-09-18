@@ -185,8 +185,10 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 	}
 	defer res.Body.Close()
 
+	contentType := build.CreateString(res.Header.Get("Content-Type"))
+
 	var inlineBody flatbuffers.UOffsetT
-	if res.ContentLength > 0 && res.ContentLength <= 32768 {
+	if res.ContentLength > 0 && res.ContentLength <= int64(inst.MaxPacketSize-int(build.Offset()+100)) {
 		data := make([]byte, res.ContentLength)
 		if _, err := io.ReadFull(res.Body, data); err != nil {
 			flat.HTTPResponseStart(build)
@@ -195,8 +197,6 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 		}
 		inlineBody = build.CreateByteVector(data)
 	}
-
-	contentType := build.CreateString(res.Header.Get("Content-Type"))
 
 	flat.HTTPResponseStart(build)
 	flat.HTTPResponseAddStatusCode(build, int32(res.StatusCode))
