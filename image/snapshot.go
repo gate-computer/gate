@@ -106,6 +106,15 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	off = mapOldSection(off, newRanges, oldRanges, section.Element)
 	off = mapOldSection(off, newRanges, oldRanges, section.Code)
 
+	var (
+		versionSection       = getVersionSection(buffers, suspended)
+		versionSectionOffset int64
+	)
+	if len(versionSection) > 0 {
+		versionSectionOffset = off
+		off += int64(len(versionSection))
+	}
+
 	bufferHeader, bufferSectionSize := makeBufferSectionHeader(buffers)
 	bufferSectionOffset := off
 	off += bufferSectionSize
@@ -131,11 +140,13 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	newModuleSize -= man.Sections[section.Memory].Length
 	newModuleSize -= man.Sections[section.Global].Length
 	newModuleSize -= man.Sections[section.Start].Length
+	newModuleSize -= man.VersionSection.Length
 	newModuleSize -= man.BufferSection.Length
 	newModuleSize -= man.StackSection.Length
 	newModuleSize -= man.Sections[section.Data].Length
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
+	newModuleSize += int64(len(versionSection))
 	newModuleSize += bufferSectionSize
 	newModuleSize += int64(stackSectionSize)
 	newModuleSize += int64(dataSectionSize)
@@ -201,6 +212,16 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	if err != nil {
 		return
 	}
+
+	// Write new version section, and skip old one.
+	if len(versionSection) > 0 {
+		n, err = newFile.WriteAt(versionSection, newOff)
+		if err != nil {
+			return
+		}
+		newOff += int64(n)
+	}
+	oldOff += man.VersionSection.Length
 
 	// Write new buffer section, and skip old one.
 	if bufferSectionSize > 0 {
@@ -319,6 +340,10 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	man.InitRoutine = newInitRoutine
 	man.ModuleSize = newModuleSize
 	man.Sections = newRanges
+	man.VersionSection = manifest.ByteRange{
+		Offset: versionSectionOffset,
+		Length: int64(len(versionSection)),
+	}
 	man.BufferSection = manifest.ByteRange{
 		Offset: bufferSectionOffset,
 		Length: bufferSectionSize,
@@ -417,6 +442,21 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 	}
 
 	return
+}
+
+var currentVersionSection = append(append([]byte{
+	byte(section.Custom),                   // Section id
+	byte(1 + len(wasm.SectionVersion) + 1), // Payload length
+	byte(len(wasm.SectionVersion))},        // Section name length
+	wasm.SectionVersion...),
+	wasm.SnapshotVersion)
+
+func getVersionSection(buffers snapshot.Buffers, suspended bool) []byte {
+	if len(buffers.Services) == 0 && len(buffers.Input) == 0 && len(buffers.Output) == 0 && buffers.Flags == 0 && !suspended {
+		return nil
+	}
+
+	return currentVersionSection
 }
 
 func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSize int64) {

@@ -11,12 +11,16 @@ import (
 	"github.com/tsavola/wag/section"
 )
 
+// Version of the WebAssembly binary format extensions.
+const SnapshotVersion = 0
+
 const maxServiceNameLen = 127
 
 // Custom WebAssembly sections.
 const (
-	SectionBuffer = "gate.buffer" // May appear once between code and stack sections.
-	SectionStack  = "gate.stack"  // May appear once between buffer and data sections.
+	SectionVersion = "gate.version" // May appear once before buffer section.
+	SectionBuffer  = "gate.buffer"  // May appear once between code and stack sections.
+	SectionStack   = "gate.stack"   // May appear once between buffer and data sections.
 )
 
 func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(string) error,

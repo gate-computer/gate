@@ -5,6 +5,7 @@
 package build
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 
@@ -32,6 +33,7 @@ type Build struct {
 	MaxMemorySize int
 	entryIndex    int64
 	Buffers       snapshot.Buffers
+	versionOK     bool
 }
 
 func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool,
@@ -56,12 +58,39 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 }
 
 func (b *Build) InstallPrematureSnapshotSectionLoaders(newError func(string) error) {
+	b.Loaders[wasm.SectionVersion] = func(_ string, r section.Reader, length uint32) (err error) {
+		b.installDuplicateVersionSectionLoader(newError)
+
+		if length == 0 {
+			err = newError("gate.version section is empty")
+			return
+		}
+
+		version, err := r.ReadByte()
+		if err != nil {
+			return
+		}
+
+		if version != wasm.SnapshotVersion {
+			err = newError(fmt.Sprintf("unsupported snapshot version: %d", version))
+			return
+		}
+
+		_, err = io.CopyN(ioutil.Discard, r, int64(length-1))
+		if err != nil {
+			return
+		}
+
+		b.versionOK = true
+		return
+	}
+
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
-		return newError("buffer section appears too early in wasm module")
+		return newError("gate.buffer section appears too early in wasm module")
 	}
 
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return newError("stack section appears too early in wasm module")
+		return newError("gate.stack section appears too early in wasm module")
 	}
 }
 
@@ -118,7 +147,13 @@ func (b Build) CodeConfig() *compile.CodeConfig {
 
 func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
+		b.installLateVersionSectionLoader(newError)
 		b.installDuplicateBufferSectionLoader(newError)
+
+		if !b.versionOK {
+			err = newError("no gate.version section")
+			return
+		}
 
 		var n int
 		var dataBuf []byte
@@ -143,8 +178,14 @@ func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
 	}
 
 	b.Loaders[wasm.SectionStack] = func(_ string, r section.Reader, length uint32) (err error) {
+		b.installLateVersionSectionLoader(newError)
 		b.installLateBufferSectionLoader(newError)
 		b.installDuplicateStackSectionLoader(newError)
+
+		if !b.versionOK {
+			err = newError("no gate.version section")
+			return
+		}
 
 		if b.entryIndex >= 0 {
 			err = notfound.ErrSuspended
@@ -171,15 +212,21 @@ func (b *Build) InstallSnapshotSectionLoaders(newError func(string) error) {
 	}
 }
 
+func (b *Build) installDuplicateVersionSectionLoader(newError func(string) error) {
+	b.Loaders[wasm.SectionVersion] = func(string, section.Reader, uint32) error {
+		return newError("multiple gate.version sections in wasm module")
+	}
+}
+
 func (b *Build) installDuplicateBufferSectionLoader(newError func(string) error) {
 	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
-		return newError("multiple buffer sections in wasm module")
+		return newError("multiple gate.buffer sections in wasm module")
 	}
 }
 
 func (b *Build) installDuplicateStackSectionLoader(newError func(string) error) {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return newError("multiple stack sections in wasm module")
+		return newError("multiple gate.stack sections in wasm module")
 	}
 }
 
@@ -197,19 +244,26 @@ func (b *Build) FinishImageText() (err error) {
 }
 
 func (b *Build) InstallLateSnapshotSectionLoaders(newError func(string) error) {
+	b.installLateVersionSectionLoader(newError)
 	b.installLateBufferSectionLoader(newError)
 	b.installLateStackSectionLoader(newError)
 }
 
+func (b *Build) installLateVersionSectionLoader(newError func(string) error) {
+	b.Loaders[wasm.SectionVersion] = func(string, section.Reader, uint32) error {
+		return newError("gate.version section appears too late in wasm module")
+	}
+}
+
 func (b *Build) installLateBufferSectionLoader(newError func(string) error) {
 	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
-		return newError("buffer section appears too late in wasm module")
+		return newError("gate.buffer section appears too late in wasm module")
 	}
 }
 
 func (b *Build) installLateStackSectionLoader(newError func(string) error) {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return newError("stack section appears too late in wasm module")
+		return newError("gate.stack section appears too late in wasm module")
 	}
 }
 
