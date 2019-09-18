@@ -65,7 +65,6 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 	}
 
 	inst.pending = append(packet.Buf{}, p...)
-	inst.pending.Sanitize()
 	return
 }
 

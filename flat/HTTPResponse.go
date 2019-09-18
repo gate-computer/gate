@@ -83,6 +83,15 @@ func (rcv *HTTPResponse) BodyBytes() []byte {
 	return nil
 }
 
+func (rcv *HTTPResponse) MutateBody(j int, n byte) bool {
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	if o != 0 {
+		a := rcv._tab.Vector(o)
+		return rcv._tab.MutateByte(a+flatbuffers.UOffsetT(j*1), n)
+	}
+	return false
+}
+
 func (rcv *HTTPResponse) BodyStreamId() int32 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(12))
 	if o != 0 {
