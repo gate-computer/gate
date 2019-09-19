@@ -16,6 +16,12 @@ import (
 
 const maxServiceNameLen = 127
 
+// Service metadata.
+type Service struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
 // InstanceConfig for a service instance.
 type InstanceConfig struct {
 	packet.Service
@@ -35,6 +41,7 @@ type Instance interface {
 // naming conventions.
 type Factory interface {
 	ServiceName() string
+	ServiceVersion() string
 	Discoverable(ctx context.Context) bool
 	CreateInstance(ctx context.Context, config InstanceConfig) Instance
 	RestoreInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
@@ -62,6 +69,10 @@ func (r *Registry) Register(f Factory) {
 		}
 	}
 
+	if f.ServiceVersion() == "" {
+		panic("service version string is empty")
+	}
+
 	if r.factories == nil {
 		r.factories = make(map[string]Factory)
 	}
@@ -73,6 +84,35 @@ func (r *Registry) Register(f Factory) {
 func (r *Registry) Clone() *Registry {
 	return &Registry{
 		parent: r,
+	}
+}
+
+// Catalog of service metadata.  Only the services which are discoverable in
+// this context are included.
+func (r *Registry) Catalog(ctx context.Context) (services []Service) {
+	m := make(map[string]string)
+	r.catalog(ctx, m)
+
+	for name, version := range m {
+		if version != "" {
+			services = append(services, Service{name, version})
+		}
+	}
+
+	return
+}
+
+func (r *Registry) catalog(ctx context.Context, m map[string]string) {
+	if r.parent != nil {
+		r.parent.catalog(ctx, m)
+	}
+
+	for name, f := range r.factories {
+		if f.Discoverable(ctx) {
+			m[name] = f.ServiceVersion()
+		} else {
+			m[name] = ""
+		}
 	}
 }
 

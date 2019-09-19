@@ -26,6 +26,7 @@ import (
 	"github.com/tsavola/gate/internal/system"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/service"
+	"github.com/tsavola/gate/service/catalog"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/wag/binding"
@@ -214,6 +215,7 @@ func main() {
 
 			r := serviceRegistry.Clone()
 			r.Register(connector)
+			r.Register(catalog.New(r))
 
 			go func() {
 				defer connector.Close()

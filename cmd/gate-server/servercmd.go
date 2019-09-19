@@ -34,6 +34,7 @@ import (
 	"github.com/tsavola/gate/server/sshkeys"
 	"github.com/tsavola/gate/server/webserver"
 	"github.com/tsavola/gate/service"
+	"github.com/tsavola/gate/service/catalog"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/gate/source/ipfs"
@@ -256,6 +257,7 @@ func main() {
 		o := origin.New(originConfig)
 		r := serviceRegistry.Clone()
 		r.Register(o)
+		r.Register(catalog.New(r))
 		return server.NewInstanceServices(o, r)
 	}
 
