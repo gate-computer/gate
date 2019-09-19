@@ -96,9 +96,9 @@ func TestReadStateUnmarshal(t *testing.T) {
 	}
 
 	bad = append([]byte{}, b...)
-	bad[headerLen+7] = 0xff // Reserved byte must be ignored.
-	if _, err := new(ReadState).Unmarshal(bad, testService); err != nil {
-		t.Error(err)
+	bad[headerLen+7] = 0xff
+	if _, err := new(ReadState).Unmarshal(bad, testService); err == nil {
+		t.Error("reserved byte with incorrect value")
 	}
 }
 
