@@ -193,7 +193,6 @@ func main() {
 			filename := filename
 
 			connector := origin.New(originConfig)
-			conn := connector.Connect(ctx)
 
 			var input io.Reader = os.Stdin
 			if i > 0 {
@@ -202,6 +201,12 @@ func main() {
 
 			go func() {
 				defer func() { ioDone <- struct{}{} }()
+
+				conn := connector.Connect(ctx)
+				if conn == nil {
+					return
+				}
+
 				if err := conn(ctx, input, os.Stdout); err != nil {
 					log.Print(err)
 				}
