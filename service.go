@@ -16,7 +16,10 @@ import (
 	"github.com/tsavola/gate/service"
 )
 
-const ServiceName = "savo.la/gate/localhost"
+const (
+	ServiceName    = "savo.la/gate/localhost"
+	ServiceVersion = "0"
+)
 
 type Config struct {
 	Address string
@@ -112,6 +115,7 @@ type localhost struct {
 }
 
 func (*localhost) ServiceName() string               { return ServiceName }
+func (*localhost) ServiceVersion() string            { return ServiceVersion }
 func (*localhost) Discoverable(context.Context) bool { return true }
 
 func (l *localhost) CreateInstance(ctx context.Context, config service.InstanceConfig) service.Instance {
