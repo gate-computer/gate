@@ -29,12 +29,12 @@ const ModuleRefHash = crypto.SHA384
 
 // Request URL paths.
 const (
-	PathVersions   = "/gate/"                            // Available API versions.
-	Path           = "/gate/v0"                          // The API.
-	PathModule     = Path + "/module"                    // Base of relative module URIs.
-	PathModules    = PathModule + "/"                    // Module sources.
-	PathModuleRefs = PathModules + ModuleRefSource + "/" // Module reference keys.
-	PathInstances  = Path + "/instance/"                 // Instance ids.
+	PathVersions   = "/gate/"                  // Available API versions.
+	Path           = "/gate/v0"                // The API.
+	PathModule     = "/gate/v0/module"         // Base of relative module URIs.
+	PathModules    = "/gate/v0/module/"        // Module sources.
+	PathModuleRefs = "/gate/v0/module/sha384/" // Module reference keys.
+	PathInstances  = "/gate/v0/instance/"      // Instance ids.
 )
 
 // Query parameters.
@@ -259,5 +259,5 @@ type ConnectionStatus struct {
 	Status Status `json:"status"` // Instance status after disconnection.
 }
 
-// FunctionRegexp matches valid a function name.
+// FunctionRegexp matches a valid function name.
 var FunctionRegexp = regexp.MustCompile("^[A-Za-z0-9-._]{1,31}$")

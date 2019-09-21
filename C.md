@@ -133,12 +133,16 @@ void gate_io(void * restrict recv_buffer,
              size_t * restrict send_length,
              unsigned io_flags);
 ```
-> Receive and/or send packets.  A packet is padded so that its buffer size is
-> aligned on the wire.
+> Receive and/or send packets.
 >
 > Receive and send lengths are specified as pointers to integers, which are
 > updated to reflect the number of bytes transferred.  Specifying zero length
 > or a null pointer disables transfer.
+>
+> A packet is padded so that its buffer size is rounded up to the next multiple
+> of GATE_PACKET_ALIGNMENT.  When sending a packet, 0 to
+> GATE_PACKET_ALIGNMENT-1 padding bytes must be sent after the packet to ensure
+> alignment.
 >
 > A buffer might contain partial packet, a whole packet, or (parts of) multiple
 > packets.

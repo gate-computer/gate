@@ -10,7 +10,7 @@ definitions useful for clients.
 
 A `Bearer` JSON Web Token is required for most module and instance API
 requests.  It's not required for requests which query general information, or
-if server configuration allows anonymous access for a module action.
+if server configuration allows anonymous access to a module action.
 
 The JWT must identify a principal by specifying an Ed25519 public key via the
 `jwk` header.  See the PublicKey struct for details.  The JWT must be signed

@@ -106,6 +106,12 @@ Possible operations:
   - Read from/write to the same file descriptors which the program could access
     via the unprivileged Gate runtime ABI functions.
 
+  - mprotect linear memory and stack regions as read/writable.  Of those, the
+    only thing which is not already read/writable is the unallocated portion of
+    linear memory, and the program could do that also via the unprivileged
+    WebAssembly `memory.grow` function.  Runtime and program code protections
+    cannot be changed.
+
   - Terminate the process with an arbitrary exit status.  It can be used to
     communicate a fake trap or error condition.
 

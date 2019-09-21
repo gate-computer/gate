@@ -41,7 +41,10 @@ Important Go packages:
     Core functionality.  Interface to the execution mechanism.
 
   - [**gate/image**](https://godoc.org/github.com/tsavola/gate/image):
-    Executable building and management.
+    Low-level executable building and instance management.
+
+  - [**gate/build**](https://godoc.org/github.com/tsavola/gate/build):
+    High-level executable building and snapshot restoration.
 
   - [**gate/server/webserver**](https://godoc.org/github.com/tsavola/gate/server/webserver):
     HTTP server component which executes your code on purpose.  It has a
@@ -86,25 +89,27 @@ of continually running programs.
 ## Work in progress
 
   - [x] Linux x86-64 host support
+  - [x] Android host support
+  - [x] Support for WebAssembly version 1
   - [x] Planned security measures have been implemented
   - [x] HTTP server for running programs
   - [x] Client can communicate with the program it runs on the server
-  - [ ] Programs can discover and communicate with their peers on a server
-  - [x] Support for WebAssembly version 1
   - [x] Speculative execution security issue mitigations
   - [x] Pluggable authentication
   - [x] Load programs from IPFS
   - [x] Reconnect to program instance
   - [x] Snapshot
-  - [ ] Restore (wag already has support)
+  - [x] Restore
+  - [ ] Programs can discover and communicate with their peers on a server
+  - [ ] Full ARM64 host support
+  - [ ] [milestone/1](https://github.com/tsavola/gate/milestone/1)
   - [ ] Clone programs locally or remotely (with or without snapshotting)
+  - [ ] [milestone/2](https://github.com/tsavola/gate/milestone/2)
   - [ ] Expose program instance at some type of internet endpoint to implement ad-hoc servers
   - [ ] Mechanism for implementing services in a programmer-friendly way
   - [ ] Useful resource control policies need more thought (cgroup configuration etc.)
   - [ ] Stable APIs
-  - [ ] Full ARM64 host support
-  - [ ] Additional security measures (such as AppArmor/SELinux profiles)
-  - [x] Android host support
+  - [ ] Additional security measures (such as a SELinux profile)
   - [ ] Non-Linux host support
 
 User program support:

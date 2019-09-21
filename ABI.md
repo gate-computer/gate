@@ -34,6 +34,10 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 > reflect the number of bytes transferred.  Specifying zero length or a null
 > pointer disables transfer.
 >
+> A packet is padded so that its buffer size is rounded up to the next multiple
+> of 8.  When sending a packet, 0-7 padding bytes must be sent after the packet
+> to ensure alignment.
+>
 > A buffer might contain partial packet, a whole packet, or (parts of) multiple
 > packets.
 >

@@ -1,6 +1,6 @@
 # Container capabilities
 
-Linux `capabilities(7)` needed by the container binary (in library directory):
+Linux `capabilities(7)` needed by the container binary (in lib directory):
 
   - If the kernel doesn't allow user namespace creation for non-root users,
     `CAP_SYS_ADMIN` is needed for that.  After the container has been
@@ -24,8 +24,9 @@ binary:
     circumventing resource controls.
 
   - Supply the file descriptor used for interacting with the executor process
-    inside the container.  It can be used to spawn and kill processes inside
-    the container, and execute arbitrary code in the processes.
+    inside a new empty container.  It can be used to spawn and kill processes
+    inside the container, and execute arbitrary code in the processes.  (This
+    is the normal function of the Gate runtime.)
 
 
 Environmental factors:
@@ -37,9 +38,9 @@ Environmental factors:
     and `/usr/bin/newgidmap`.
 
   - The binaries executed inside the container are determined by the location
-    of the `gate-runtime-container.X` binary itself: it looks for the
-    `gate-runtime-executor.X.Y` and `gate-runtime-loader.X.Y` files in the same
-    directory where it is located (X and Y are version numbers).  The write
+    of the `gate-runtime-container.N` binary itself: it looks for the
+    `gate-runtime-executor.N` and `gate-runtime-loader.N` files in the same
+    directory where it is located (N is an internal version number).  The write
     permissions of the directory and the binaries should be limited.  (Note
     that executor and loader don't need capabilities, and they need to have
     more relaxed read and execution permissions.)
