@@ -68,7 +68,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(), reader, b.Module)
+	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module)
 	if err != nil {
 		return
 	}
