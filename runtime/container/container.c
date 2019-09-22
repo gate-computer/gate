@@ -481,6 +481,9 @@ int main(int argc, char **argv)
 	cgroup_config.title = argv[6];
 	cgroup_config.parent = argv[7];
 
+	if (setpgid(0, 0) != 0)
+		xerror("setpgid");
+
 	close_excess_fds();
 
 	int clone_flags = SIGCHLD;
