@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"debug/dwarf"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -22,7 +23,7 @@ import (
 	"time"
 
 	"github.com/tsavola/confi"
-	"github.com/tsavola/gate/entry"
+	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/internal/system"
@@ -32,7 +33,6 @@ import (
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/gate/snapshot"
-	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack"
@@ -286,7 +286,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 	var ns = new(section.NameSection)
 	var cs = new(section.CustomSections)
 
-	funcSigs, prog, inst, err := load(filename, &im, ns, cs)
+	funcSigs, prog, inst, buffers, err := load(filename, &im, ns, cs)
 	if err != nil {
 		log.Fatalf("load: %v", err)
 	}
@@ -310,8 +310,6 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 			return
 		}
 	}()
-
-	var buffers snapshot.Buffers
 
 	exit, trapID, err := proc.Serve(ctx, services, &buffers)
 
@@ -369,7 +367,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 }
 
 func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *section.CustomSections,
-) (funcSigs []wa.FuncType, prog *image.Program, inst *image.Instance, err error) {
+) (funcSigs []wa.FuncType, prog *image.Program, inst *image.Instance, buffers snapshot.Buffers, err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return
@@ -381,114 +379,79 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	build, err := image.NewBuild(image.Memory, int(info.Size()), compile.DefaultMaxTextSize, &codeMap.CallMap, true)
+	b, err := build.New(image.Memory, int(info.Size()), compile.DefaultMaxTextSize, &codeMap.CallMap, true)
 	if err != nil {
 		return
 	}
-	defer build.Close()
+	defer b.Close()
 
-	r := codeMap.Reader(bufio.NewReader(io.TeeReader(f, build.ModuleWriter())))
+	b.Loaders["name"] = ns.Load
+	b.Loaders[".debug_abbrev"] = cs.Load
+	b.Loaders[".debug_info"] = cs.Load
+	b.Loaders[".debug_line"] = cs.Load
+	b.Loaders[".debug_pubnames"] = cs.Load
+	b.Loaders[".debug_ranges"] = cs.Load
+	b.Loaders[".debug_str"] = cs.Load
 
-	var loadConfig = compile.Config{
-		CustomSectionLoader: section.CustomLoaders{
-			".debug_abbrev":   cs.Load,
-			".debug_info":     cs.Load,
-			".debug_line":     cs.Load,
-			".debug_pubnames": cs.Load,
-			".debug_ranges":   cs.Load,
-			".debug_str":      cs.Load,
-			"name":            ns.Load,
-		}.Load,
-	}
+	reader := codeMap.Reader(bufio.NewReader(io.TeeReader(f, b.Image.ModuleWriter())))
 
-	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: loadConfig}, r)
-	if err != nil {
-		return
-	}
+	b.InstallPrematureSnapshotSectionLoaders(errors.New)
 
-	err = binding.BindImports(&mod, build.ImportResolver())
+	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
 		return
 	}
 
-	text := build.TextBuffer()
+	funcSigs = b.Module.FuncTypes()
 
-	var codeConfig = &compile.CodeConfig{
-		Text:   text,
-		Mapper: codeMap,
-		Config: loadConfig,
-	}
+	b.StackSize = c.Program.StackSize
+	b.MaxMemorySize = b.Module.MemorySizeLimit()
 
-	err = compile.LoadCodeSection(codeConfig, r, mod)
+	err = b.BindFunctions(c.Function)
 	if err != nil {
 		return
 	}
 
-	// textCopy := make([]byte, len(text.Bytes()))
-	// copy(textCopy, text.Bytes())
-
-	var entryIndex uint32
-	var entryAddr uint32
-
-	if c.Function != "" {
-		entryIndex, err = entry.ModuleFuncIndex(mod, c.Function)
-		if err != nil {
-			return
-		}
-
-		entryAddr = codeMap.FuncAddrs[entryIndex]
-	}
-
-	err = build.FinishText(c.Program.StackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize(), mod.MemorySizeLimit())
+	err = compile.LoadCodeSection(b.CodeConfig(codeMap), reader, b.Module)
 	if err != nil {
 		return
 	}
 
-	var dataConfig = &compile.DataConfig{
-		GlobalsMemory:   build.GlobalsMemoryBuffer(),
-		MemoryAlignment: build.MemoryAlignment(),
-		Config:          loadConfig,
-	}
+	b.InstallSnapshotSectionLoaders(errors.New)
 
-	err = compile.LoadDataSection(dataConfig, r, mod)
+	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
 		return
 	}
 
-	// if f, err := os.Create("/tmp/datadump.txt"); err != nil {
-	// 	log.Fatal(err)
-	// } else {
-	// 	defer f.Close()
-	// 	if _, err := f.Write(dataConfig.GlobalsMemory.Bytes()); err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }
-
-	err = compile.LoadCustomSections(&loadConfig, r)
+	err = b.FinishImageText()
 	if err != nil {
 		return
 	}
 
-	// if f, err := os.Create("/tmp/textdump.txt"); err != nil {
-	// 	log.Fatal(err)
-	// } else {
-	// 	defer f.Close()
-	// 	if err := dump.Text(f, textCopy, 0, codeMap.FuncAddrs, ns); err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }
+	b.InstallLateSnapshotSectionLoaders(errors.New)
 
-	prog, err = build.FinishProgram(image.SectionMap{}, nil, nil, nil)
+	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {
 		return
 	}
 
-	inst, err = build.FinishInstance(entryIndex, entryAddr)
+	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
 		return
 	}
 
-	funcSigs = mod.FuncTypes()
+	prog, err = b.FinishProgramImage()
+	if err != nil {
+		return
+	}
+
+	inst, err = b.FinishInstanceImage()
+	if err != nil {
+		return
+	}
+
+	buffers = b.Buffers
 	return
 }
 
