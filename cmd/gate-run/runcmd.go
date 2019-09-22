@@ -15,8 +15,10 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/signal"
 	"path"
 	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/tsavola/confi"
@@ -29,12 +31,14 @@ import (
 	"github.com/tsavola/gate/service/catalog"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/object/stack/stacktrace"
 	"github.com/tsavola/wag/section"
+	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wa"
 )
 
@@ -87,6 +91,8 @@ type Config struct {
 		Repeat int
 		Timing bool
 	}
+
+	Dump string
 }
 
 var c = new(Config)
@@ -106,6 +112,16 @@ func main() {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	parseConfig(flags)
+
+	suspend := make(chan struct{})
+	signals := make(chan os.Signal)
+	signal.Notify(signals, syscall.SIGQUIT)
+	go func() {
+		<-signals
+		close(suspend)
+		for range signals {
+		}
+	}()
 
 	if c.Runtime.LibDir == "" || c.Plugin.LibDir == "" {
 		filename, err := os.Executable()
@@ -219,7 +235,7 @@ func main() {
 
 			go func() {
 				defer connector.Close()
-				execute(ctx, executor, filename, r, &timings[i], execDone)
+				execute(ctx, executor, filename, r, &timings[i], suspend, execDone)
 			}()
 		}
 
@@ -249,7 +265,7 @@ func main() {
 	}
 }
 
-func execute(ctx context.Context, executor *runtime.Executor, filename string, services runtime.ServiceRegistry, timing *timing, done chan<- int) {
+func execute(ctx context.Context, executor *runtime.Executor, filename string, services runtime.ServiceRegistry, timing *timing, suspend <-chan struct{}, done chan<- int) {
 	var exit int
 
 	defer func() {
@@ -285,19 +301,40 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 		log.Fatalf("execute: %v", err)
 	}
 
-	exit, trapID, err := proc.Serve(ctx, services, nil)
+	go func() {
+		select {
+		case <-suspend:
+			proc.Suspend()
+
+		case <-ctx.Done():
+			return
+		}
+	}()
+
+	var buffers snapshot.Buffers
+
+	exit, trapID, err := proc.Serve(ctx, services, &buffers)
 
 	tRunEnd := time.Now()
 	tEnd := tRunEnd
 
-	if err != nil {
+	switch {
+	case err != nil:
 		defer os.Exit(1)
 		log.Printf("serve: %v", err)
-	} else {
-		if trapID != 0 {
-			log.Printf("%v", trapID)
+
+	case trapID != 0:
+		log.Printf("%v", trapID)
+		if trapID == trap.Suspended {
+			if !dump(prog, inst, buffers, true) {
+				exit = 4
+			}
+		} else {
 			exit = 3
-		} else if exit != 0 {
+		}
+
+	default:
+		if exit != 0 {
 			log.Printf("exit: %d", exit)
 		}
 	}
@@ -333,13 +370,18 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 	}
 	defer f.Close()
 
-	build, err := image.NewBuild(image.Memory, 0, compile.DefaultMaxTextSize, &codeMap.CallMap, true)
+	info, err := f.Stat()
+	if err != nil {
+		return
+	}
+
+	build, err := image.NewBuild(image.Memory, int(info.Size()), compile.DefaultMaxTextSize, &codeMap.CallMap, true)
 	if err != nil {
 		return
 	}
 	defer build.Close()
 
-	r := codeMap.Reader(bufio.NewReader(f))
+	r := codeMap.Reader(bufio.NewReader(io.TeeReader(f, build.ModuleWriter())))
 
 	var loadConfig = compile.Config{
 		CustomSectionLoader: section.CustomLoaders{
@@ -441,6 +483,50 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 	}
 
 	funcSigs = mod.FuncTypes()
+	return
+}
+
+func dump(prog *image.Program, inst *image.Instance, buffers snapshot.Buffers, suspended bool) (ok bool) {
+	if c.Dump == "" {
+		return
+	}
+
+	prog2, err := image.Snapshot(prog, inst, buffers, suspended)
+	if err != nil {
+		log.Printf("snapshot: %v", err)
+		return
+	}
+	defer prog2.Close()
+
+	f, err := os.Create(c.Dump)
+	if err != nil {
+		log.Print(err)
+		return
+	}
+	defer func() {
+		if f != nil {
+			f.Close()
+		}
+		if err != nil {
+			os.Remove(c.Dump)
+		}
+	}()
+
+	_, err = io.Copy(f, prog2.NewModuleReader())
+	if err != nil {
+		log.Printf("dump: %v", err)
+		return
+	}
+
+	err = f.Close()
+	f = nil
+	if err != nil {
+		log.Print(err)
+		return
+	}
+
+	ok = true
+	log.Printf("snapshot: %s", c.Dump)
 	return
 }
 
