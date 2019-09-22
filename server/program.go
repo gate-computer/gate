@@ -116,7 +116,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(), reader, b.Module)
+	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module)
 	if err != nil {
 		err = failrequest.Tag(event.FailModuleError, err)
 		return

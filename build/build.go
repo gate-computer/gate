@@ -137,10 +137,10 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 	return
 }
 
-func (b Build) CodeConfig() *compile.CodeConfig {
+func (b Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
 	return &compile.CodeConfig{
 		Text:   b.Image.TextBuffer(),
-		Mapper: b.Image.ObjectMap(),
+		Mapper: mapper,
 		Config: b.Config,
 	}
 }
