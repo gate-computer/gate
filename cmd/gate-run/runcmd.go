@@ -337,6 +337,12 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 		if exit != 0 {
 			log.Printf("exit: %d", exit)
 		}
+
+		if !buffers.Terminated() {
+			if !dump(prog, inst, buffers, false) {
+				exit = 4
+			}
+		}
 	}
 
 	timing.loading += tLoadEnd.Sub(tLoadBegin)
