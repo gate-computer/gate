@@ -4,6 +4,8 @@
 
 #define _GNU_SOURCE
 
+#include "reaper.h"
+
 #include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -21,7 +23,6 @@
 #include "executor.h"
 #include "map.h"
 #include "queue.h"
-#include "reaper.h"
 #include "runtime.h"
 
 struct queue {

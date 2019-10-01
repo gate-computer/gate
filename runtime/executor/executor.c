@@ -4,6 +4,8 @@
 
 #define _GNU_SOURCE
 
+#include "executor.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
@@ -13,7 +15,6 @@
 #include <string.h>
 
 #include <fcntl.h>
-#include <poll.h>
 #include <sys/personality.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
@@ -26,11 +27,11 @@
 #include "align.h"
 #include "caps.h"
 #include "errors.h"
-#include "executor.h"
 #include "execveat.h"
 #include "map.h"
 #include "reaper.h"
 #include "runtime.h"
+#include "sentinel.h"
 
 #define NOINLINE __attribute__((noinline))
 
@@ -42,30 +43,6 @@ union control_buffer {
 	char buf[CMSG_SPACE(2 * sizeof(int))]; // Space for 2 file descriptors.
 	struct cmsghdr alignment;
 };
-
-// Close a file descriptor or die.
-static void xclose(int fd)
-{
-	if (close(fd) != 0)
-		_exit(ERR_SENTINEL_CLOSE);
-}
-
-static void sentinel_child(void)
-{
-	sigset_t sigmask;
-	sigemptyset(&sigmask);
-	if (pthread_sigmask(SIG_SETMASK, &sigmask, NULL) != 0)
-		_exit(ERR_SENTINEL_SIGMASK);
-
-	xclose(GATE_CONTROL_FD);
-	xclose(GATE_LOADER_FD);
-
-	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
-		_exit(ERR_SENTINEL_PRCTL_PDEATHSIG);
-
-	pause();
-	_exit(ERR_SENTINEL_PAUSE);
-}
 
 // Duplicate a file descriptor or die.
 static void xdup2(int oldfd, int newfd)
@@ -335,7 +312,7 @@ int main(int argc, char **argv)
 	if (sentinel_pid < 0)
 		_exit(ERR_EXEC_FORK_SENTINEL);
 	if (sentinel_pid == 0)
-		sentinel_child();
+		sentinel();
 
 	long pagesize = sysconf(_SC_PAGESIZE);
 	if (pagesize <= 0)
@@ -353,8 +330,8 @@ int main(int argc, char **argv)
 	}
 
 	// ASLR makes stack size and stack pointer position unpredictable, so
-	// it's hard to unmap the initial stack.  Run-time mapping addresses
-	// are randomized manually.
+	// it's hard to unmap the initial stack in loader.  Run-time mapping
+	// addresses are randomized manually anyway.
 	if (personality(ADDR_NO_RANDOMIZE) < 0)
 		_exit(ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE);
 

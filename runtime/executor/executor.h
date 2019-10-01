@@ -5,6 +5,7 @@
 #ifndef GATE_RUNTIME_EXECUTOR_EXECUTOR_H
 #define GATE_RUNTIME_EXECUTOR_EXECUTOR_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define PACKED __attribute__((packed))
