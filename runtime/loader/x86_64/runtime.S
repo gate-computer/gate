@@ -24,7 +24,7 @@
 // Out: rcx = start of stack buffer
 // Clobbers rax.
 .macro	stack_buffer
-	mov	$0x7ffffffffffffffe, %rax
+	mov	$0xbffffffffffffffe, %rax
 	mov	%rbx, %rcx
 	and	%rax, %rcx			// Clear suspend bits.
 	sub	$GATE_STACK_LIMIT_OFFSET, %rcx
@@ -185,7 +185,7 @@ signal_handler:
 	cmp	$SIGSEGV, %edi
 	je	.Lsigsegv
 
-	mov	$0x8000000000000001, %rax	// Suspend calls and loops.
+	mov	$0x4000000000000001, %rax	// Suspend calls and loops.
 	or	%rax, UCONTEXT_SUSPEND_REG_OFFSET(%rdx)
 
 .Lsigio:

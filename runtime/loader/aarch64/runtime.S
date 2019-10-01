@@ -31,7 +31,7 @@
 // Clobbers r0.
 .macro	stack_buffer
 	movn	x0, #0x0001, lsl #0		// ffff ffff ffff fffe
-	movk	x0, #0x7fff, lsl #48		// 7fff ffff ffff fffe
+	movk	x0, #0xbfff, lsl #48		// bfff ffff ffff fffe
 	and	x1, x28, x0			// Clear suspend bits.
 	mov	x0, #-GATE_STACK_LIMIT_OFFSET
 	add	x1, x0, x1, lsl #4		// (x1 << 4) - GATE_STACK_LIMIT_OFFSET
@@ -207,7 +207,7 @@ signal_handler:
 	b.eq	.Lsigsegv
 
 	movz	x0, #0x0001, lsl #0		// 0000 0000 0000 0001
-	movk	x0, #0x8000, lsl #48		// 8000 0000 0000 0001
+	movk	x0, #0x4000, lsl #48		// 4000 0000 0000 0001
 	ldr	x1, [x2, #UCONTEXT_SUSPEND_REG_OFFSET]
 	orr	x1, x1, x0			// Suspend calls and loops.
 	str	x1, [x2, #UCONTEXT_SUSPEND_REG_OFFSET]
