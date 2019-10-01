@@ -1,6 +1,7 @@
 GO		?= go
 GOFMT		?= gofmt
 PROTOC		?= protoc
+PERFLOCK	?= perflock
 
 CGROUP_BACKEND	?= systemd
 
@@ -52,8 +53,8 @@ check: lib bin
 	$(GO) test $(GOTESTFLAGS) ./...
 
 benchmark: lib bin
-	$(GO) test -run=^$$ $(GOBENCHFLAGS) ./... | tee bench-new.txt
-	[ ! -e bench-old.txt ] || benchcmp bench-old.txt bench-new.txt
+	$(PERFLOCK) $(GO) test -run=^$$ $(GOBENCHFLAGS) ./... | tee bench-new.txt
+	[ ! -e bench-old.txt ] || benchstat bench-old.txt bench-new.txt
 
 install-lib:
 	install -m 755 -d $(DESTDIR)$(LIBDIR)/runtime
