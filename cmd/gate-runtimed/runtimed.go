@@ -13,6 +13,7 @@ import (
 	"path"
 
 	"github.com/coreos/go-systemd/activation"
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/internal/runtimeapi"
 	"github.com/tsavola/gate/runtime"
@@ -110,6 +111,10 @@ func main() {
 
 	default:
 		critLog.Fatal("need either runtime.daemonsocket setting or socket activation")
+	}
+
+	if _, err := daemon.SdNotify(true, daemon.SdNotifyReady); err != nil {
+		critLog.Fatal(err)
 	}
 
 	var client uint64
