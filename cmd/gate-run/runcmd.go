@@ -464,6 +464,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 
 func dump(prog *image.Program, inst *image.Instance, buffers snapshot.Buffers, suspended bool) (ok bool) {
 	if c.Dump == "" {
+		ok = true
 		return
 	}
 
