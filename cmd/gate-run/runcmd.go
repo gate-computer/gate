@@ -417,6 +417,8 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
+	text := prepareTextDump(b.Image.TextBuffer().Bytes())
+
 	b.InstallSnapshotSectionLoaders(errors.New)
 
 	err = compile.LoadCustomSections(&b.Config, reader)
@@ -437,6 +439,11 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 	}
 
 	err = compile.LoadCustomSections(&b.Config, reader)
+	if err != nil {
+		return
+	}
+
+	err = dumpText(text, codeMap.FuncAddrs, ns)
 	if err != nil {
 		return
 	}
