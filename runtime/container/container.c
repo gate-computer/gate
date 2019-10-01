@@ -307,6 +307,19 @@ static int xopen_executor_and_loader(void)
 	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_PATH | O_NOFOLLOW | O_CLOEXEC);
 }
 
+// Open /proc or die.  The hard-coded GATE_PROC_FD is valid after this.
+static void xopen_proc(void)
+{
+	int fd = open("/proc", O_PATH | O_DIRECTORY, 0);
+	if (fd < 0)
+		xerror("/proc");
+
+	if (fd != GATE_PROC_FD) {
+		fprintf(stderr, "wrong number of open files\n");
+		exit(1);
+	}
+}
+
 // Close excess file descriptors or die.
 static void close_excess_fds(void)
 {
@@ -538,6 +551,8 @@ static int child_main(void *dummy_arg)
 	// User namespace and cgroup have been configured by parent.
 
 	int executor_fd = xopen_executor_and_loader();
+
+	xopen_proc();
 
 	if (GATE_SANDBOX)
 		sandbox_by_child();

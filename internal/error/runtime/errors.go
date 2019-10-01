@@ -2,7 +2,7 @@
 
 package runtime
 
-var ExecutorErrors = [67]Error{
+var ExecutorErrors = [71]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},
 	12: {"ERR_EXEC_SETRLIMIT_DATA", "runtime executor", "setrlimit: failed to set DATA limit"},
@@ -50,6 +50,7 @@ var ExecutorErrors = [67]Error{
 	64: {"ERR_EXEC_RAISE", "runtime repaer", "TODO: ERR_EXEC_RAISE"},
 	65: {"ERR_EXEC_NO_NEW_PRIVS", "runtime executor", "prctl: failed to PR_SET_NO_NEW_PRIVS"},
 	66: {"ERR_EXEC_CLEAR_CAPS", "runtime executor", "failed to clear capabilities"},
+	70: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
 }
 
 var ProcessErrors = [51]Error{

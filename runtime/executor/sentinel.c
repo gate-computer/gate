@@ -31,6 +31,7 @@ void sentinel(void)
 
 	xclose(GATE_CONTROL_FD);
 	xclose(GATE_LOADER_FD);
+	xclose(GATE_PROC_FD);
 
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
 		_exit(ERR_SENTINEL_PRCTL_PDEATHSIG);

@@ -44,6 +44,13 @@ union control_buffer {
 	struct cmsghdr alignment;
 };
 
+// Close a file descriptor or die.
+static void xclose(int fd)
+{
+	if (close(fd) != 0)
+		_exit(ERR_EXEC_CLOSE);
+}
+
 // Duplicate a file descriptor or die.
 static void xdup2(int oldfd, int newfd)
 {
@@ -95,8 +102,8 @@ static pid_t create_process(struct cmsghdr *cmsg, struct pid_map *map, int16_t n
 	if (pid_map_replace(map, pid, new_id, old_id_out) < 0)
 		_exit(ERR_EXEC_MAP_INSERT);
 
-	close(fds[1]);
-	close(fds[0]);
+	xclose(fds[1]);
+	xclose(fds[0]);
 
 	return pid;
 }
@@ -290,6 +297,7 @@ int main(int argc, char **argv)
 	set_cloexec(STDERR_FILENO);
 	set_cloexec(GATE_CONTROL_FD);
 	set_cloexec(GATE_LOADER_FD);
+	set_cloexec(GATE_PROC_FD);
 
 	if (GATE_SANDBOX) {
 		if (prctl(PR_SET_DUMPABLE, 0) != 0)

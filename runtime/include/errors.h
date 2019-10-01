@@ -48,6 +48,7 @@
 #define ERR_EXEC_RAISE 64
 #define ERR_EXEC_NO_NEW_PRIVS 65
 #define ERR_EXEC_CLEAR_CAPS 66
+#define ERR_EXEC_CLOSE 70
 
 // Process
 #define ERR_RT_RECVFROM 4
