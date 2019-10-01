@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -116,7 +117,8 @@ static bool signal_process(pid_t pid, int signum)
 	if (kill(pid, signum) != 0) {
 		// The child might have been reaped after the map lookup.  No
 		// processes are created between the map lookup and kill, so
-		// the pid cannot have been reused.
+		// the pid cannot have been reused.  (This assumption depends
+		// on having a private pid namespace.)
 		if (errno == ESRCH)
 			return false;
 
@@ -126,18 +128,69 @@ static bool signal_process(pid_t pid, int signum)
 	return true;
 }
 
+// get_process_cpu_time returns -1 if the process is gone.
+static long get_process_cpu_time(pid_t pid)
+{
+	char name[16];
+	snprintf(name, sizeof name, "%u/stat", pid);
+
+	int fd = openat(GATE_PROC_FD, name, O_RDONLY | O_CLOEXEC, 0);
+	if (fd < 0) {
+		if (errno == ENOENT) // Already reaped.
+			return -1;
+
+		_exit(ERR_EXEC_PROCSTAT_OPEN);
+	}
+
+	// The buffer is large enough for the first 15 tokens.
+	char buf[512];
+	ssize_t len = read(fd, buf, sizeof buf - 1);
+	if (len < 0)
+		_exit(ERR_EXEC_PROCSTAT_READ);
+	buf[len] = '\0';
+
+	xclose(fd);
+
+	// Find the end of the comm string.  It's the second token.
+	const char *s = strrchr(buf, ')');
+	if (s == NULL)
+		_exit(ERR_EXEC_PROCSTAT_PARSE);
+
+	char state = '\0';
+	unsigned long utime = 0;
+	unsigned long stime = 0;
+
+	//             2  3   4   5   6   7   8   9  10  11  12  13  14  15
+	if (sscanf(s, ") %c %*d %*d %*d %*d %*d %*d %*u %*u %*u %*u %lu %lu ", &state, &utime, &stime) != 3)
+		_exit(ERR_EXEC_PROCSTAT_PARSE);
+
+	switch (state) {
+	case 'Z': // Zombie
+	case 'X': // Dead
+		return -1;
+	}
+
+	return utime + stime;
+}
+
 static void suspend_process(pid_t pid)
 {
 	if (!signal_process(pid, SIGXCPU))
 		return;
 
+	long spent = get_process_cpu_time(pid);
+	if (spent == -1)
+		return;
+
+	// Depending on rounding, adding just 1 might not give the process a
+	// full second.  Add 2 to give it a fighting chance.
 	const struct rlimit cpu = {
-		.rlim_cur = 1,
-		.rlim_max = 1, // SIGKILL in one second.
+		.rlim_cur = 0,
+		.rlim_max = (unsigned long) spent + 2,
 	};
 
 	if (prlimit(pid, RLIMIT_CPU, &cpu, NULL) != 0) {
-		// See the comment in kill_existing.
+		// See the comment in signal_process.
 		if (errno == ESRCH)
 			return;
 

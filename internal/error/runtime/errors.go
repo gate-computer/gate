@@ -50,6 +50,9 @@ var ExecutorErrors = [71]Error{
 	64: {"ERR_EXEC_RAISE", "runtime repaer", "TODO: ERR_EXEC_RAISE"},
 	65: {"ERR_EXEC_NO_NEW_PRIVS", "runtime executor", "prctl: failed to PR_SET_NO_NEW_PRIVS"},
 	66: {"ERR_EXEC_CLEAR_CAPS", "runtime executor", "failed to clear capabilities"},
+	67: {"ERR_EXEC_PROCSTAT_OPEN", "runtime executor", "failed to open /proc/PID/stat"},
+	68: {"ERR_EXEC_PROCSTAT_READ", "runtime executor", "failed to read /proc/PID/stat"},
+	69: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/PID/stat parse error"},
 	70: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
 }
 
