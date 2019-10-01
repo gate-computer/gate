@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-systemd/daemon"
 	"github.com/gorilla/handlers"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/image"
@@ -462,6 +463,8 @@ func main2(critLog *log.Logger) (err error) {
 		<-dead
 		critLog.Print("executor died")
 
+		daemon.SdNotify(false, daemon.SdNotifyStopping)
+
 		ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
 
@@ -498,6 +501,10 @@ func main2(critLog *log.Logger) (err error) {
 		go func() {
 			critLog.Fatal(http.ListenAndServe(":http", m.HTTPHandler(http.HandlerFunc(handleHTTP))))
 		}()
+	}
+
+	if _, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
+		critLog.Fatal(err)
 	}
 
 	return httpServer.Serve(l)
