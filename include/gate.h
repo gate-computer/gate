@@ -154,8 +154,6 @@ static inline void __gate_debug_int(int64_t n) GATE_NOEXCEPT
 
 #define GATE_API_VERSION 0
 
-#define GATE_DEBUG_SEPARATOR "\x1e"
-
 #define GATE_IO_RECV_WAIT 0x1
 
 #define GATE_PACKET_ALIGNMENT 8

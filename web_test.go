@@ -961,14 +961,14 @@ func TestInstanceDebug(t *testing.T) {
 	t.Run("Output", func(t *testing.T) {
 		debugOutput.Reset()
 
-		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&function=log&debug=output", nil)
+		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&function=debug&debug=output", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusOK)
 
 		if s := resp.Header.Get(webapi.HeaderDebug); s != "out-putting" {
 			t.Error(s)
 		}
 
-		if debugOutput.String() != "hello…\nworld\n" {
+		if debugOutput.String() != "hello, world\n" {
 			t.Errorf("%q", debugOutput)
 		}
 

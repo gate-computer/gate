@@ -343,16 +343,16 @@ func TestRunHelloNoDebug(t *testing.T) {
 
 func TestRunHelloDebug(t *testing.T) {
 	var debug bytes.Buffer
-	runProgram(t, wasmHelloDebug, "log", &debug)
+	runProgram(t, wasmHelloDebug, "debug", &debug)
 	s := debug.String()
 	t.Logf("debug: %q", s)
-	if s != "hello…\nworld\n" {
+	if s != "hello, world\n" {
 		t.Errorf("%q", s)
 	}
 }
 
 func TestRunHelloDebugNoDebug(t *testing.T) {
-	runProgram(t, wasmHelloDebug, "log", nil)
+	runProgram(t, wasmHelloDebug, "debug", nil)
 }
 
 func TestRunSuspendMem(t *testing.T) {

@@ -11,11 +11,6 @@ import (
 	"os"
 )
 
-const (
-	debugSeparator = '\u001e'
-	debugEllipsis  = '\u2026'
-)
-
 func copyDebug(outputDone chan<- struct{}, output io.Writer, input *os.File) {
 	defer input.Close()
 
@@ -28,8 +23,6 @@ func copyDebug(outputDone chan<- struct{}, output io.Writer, input *os.File) {
 			close(outputDone)
 		}
 	}()
-
-	atSeparator := true // At start of stream.
 
 reading:
 	for {
@@ -47,27 +40,10 @@ reading:
 				break reading
 			}
 
-			atSeparator = true
-
-		case debugSeparator:
-			if !atSeparator {
-				if _, err := w.WriteRune(debugEllipsis); err != nil {
-					break reading
-				}
-
-				if _, err := w.WriteRune('\n'); err != nil {
-					break reading
-				}
-
-				atSeparator = true
-			}
-
 		default:
 			if _, err := w.WriteRune(char); err != nil {
 				break reading
 			}
-
-			atSeparator = false
 		}
 	}
 

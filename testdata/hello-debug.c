@@ -4,9 +4,9 @@
 
 #include <gate.h>
 
-int log(void)
+int debug(void)
 {
-	gate_debug1(GATE_DEBUG_SEPARATOR "hello");
-	gate_debug2(GATE_DEBUG_SEPARATOR, "world\n");
+	gate_debug("hello, ");
+	gate_debug("world\n");
 	return 0;
 }

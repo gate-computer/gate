@@ -24,13 +24,6 @@ GATE_CLOCK_MONOTONIC
 
 
 ```c
-GATE_DEBUG_SEPARATOR
-```
-> A string which can be used in debug log messages.  It will start a new line
-> unless the write position is already at the start of a line.
-
-
-```c
 GATE_IO_RECV_WAIT
 ```
 > I/O function flag.

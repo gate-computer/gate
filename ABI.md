@@ -10,9 +10,6 @@ ABI functions are accessed using WebAssembly module's import mechanism.
 ```
 > Write UTF-8 text to debug log, if enabled.  First argument is buffer pointer
 > and second is length.
->
-> Code point 0x1e is interpreted as optional newline: it ensures that text
-> following it will be at the start of a line.
 
 
 ```wasm
