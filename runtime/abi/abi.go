@@ -9,11 +9,6 @@ import (
 	"github.com/tsavola/wag/wa"
 )
 
-const (
-	MaxVersion = 0
-	MinVersion = 0
-)
-
 type function struct {
 	index  int
 	sig    wa.FuncType

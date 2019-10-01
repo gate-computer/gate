@@ -27,6 +27,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
+	"github.com/tsavola/gate/runtime/runtimeinfo"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/database"
 	"github.com/tsavola/gate/server/database/sql"
@@ -330,8 +331,8 @@ func TestAPI(t *testing.T) {
 
 	if !reflect.DeepEqual(info, map[string]interface{}{
 		"runtime": map[string]interface{}{
-			"max_abi_version": float64(abi.MaxVersion),
-			"min_abi_version": float64(abi.MinVersion),
+			"max_abi_version": float64(runtimeinfo.MaxABIVersion),
+			"min_abi_version": float64(runtimeinfo.MinABIVersion),
 		},
 	}) {
 		t.Errorf("%#v", info)

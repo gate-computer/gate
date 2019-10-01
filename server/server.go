@@ -15,7 +15,7 @@ import (
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
-	runtimeabi "github.com/tsavola/gate/runtime/abi"
+	"github.com/tsavola/gate/runtime/runtimeinfo"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
@@ -41,12 +41,7 @@ type instProgPolicy struct {
 }
 
 type Info struct {
-	Runtime RuntimeInfo `json:"runtime"`
-}
-
-type RuntimeInfo struct {
-	MaxABIVersion int `json:"max_abi_version"`
-	MinABIVersion int `json:"min_abi_version"`
+	Runtime runtimeinfo.Info `json:"runtime"`
 }
 
 type Server struct {
@@ -72,10 +67,7 @@ func New(config Config) *Server {
 	s := &Server{
 		Config: config,
 		Info: Info{
-			Runtime: RuntimeInfo{
-				MaxABIVersion: runtimeabi.MaxVersion,
-				MinABIVersion: runtimeabi.MinVersion,
-			},
+			Runtime: runtimeinfo.Get(),
 		},
 	}
 
