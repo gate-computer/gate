@@ -2,7 +2,7 @@
 
 package runtime
 
-var ExecutorErrors = [71]Error{
+var ExecutorErrors = [72]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},
 	12: {"ERR_EXEC_SETRLIMIT_DATA", "runtime executor", "setrlimit: failed to set DATA limit"},
@@ -54,20 +54,21 @@ var ExecutorErrors = [71]Error{
 	68: {"ERR_EXEC_PROCSTAT_READ", "runtime executor", "failed to read /proc/PID/stat"},
 	69: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/PID/stat parse error"},
 	70: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
+	71: {"ERR_EXEC_SIGNAL", "runtime executor", "failed to configure signal"},
 }
 
-var ProcessErrors = [51]Error{
+var ProcessErrors = [49]Error{
 	4:  {"ERR_RT_RECVFROM", "process runtime", "recvfrom call failed"},
 	5:  {"ERR_RT_WRITE", "process runtime", "write call failed"},
 	6:  {"ERR_RT_DEBUG", "process runtime", "debug write call failed"},
 	7:  {"ERR_RT_MPROTECT", "process runtime", "mprotect call failed"},
 	8:  {"ERR_RT_MREMAP", "process runtime", "mremap call failed"},
 	9:  {"ERR_RT_CLOCK_GETTIME", "process runtime", "clock_gettime call failed"},
-	10: {"ERR_SENTINEL_SIGNAL_HANDLER", "sentinel process", "signal handler registration failed"},
-	11: {"ERR_SENTINEL_CLOSE", "dummy process", "TODO: ERR_SENTINEL_CLOSE"},
-	12: {"ERR_SENTINEL_PAUSE", "dummy process", "TODO: ERR_SENTINEL_PAUSE"},
-	13: {"ERR_EXECHILD_DUP2", "process executor", "child: dup2 call failed"},
-	14: {"ERR_EXECHILD_EXEC_LOADER", "process executor", "child: failed to execute loader"},
+	11: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "sentinel process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
+	12: {"ERR_SENTINEL_CLOSE", "sentinel process", "TODO: ERR_SENTINEL_CLOSE"},
+	13: {"ERR_SENTINEL_SIGSUSPEND", "sentinel process", "TODO: ERR_SENTINEL_SIGSUSPEND"},
+	14: {"ERR_EXECHILD_DUP2", "process executor", "child: dup2 call failed"},
+	15: {"ERR_EXECHILD_EXEC_LOADER", "process executor", "child: failed to execute loader"},
 	19: {"ERR_LOAD_SETRLIMIT_NOFILE", "process loader", "child: setrlimit: failed to set NOFILE limit"},
 	20: {"ERR_LOAD_SETRLIMIT_NPROC", "process loader", "child: setrlimit: failed to set NPROC limit"},
 	21: {"ERR_LOAD_PRCTL_NOT_DUMPABLE", "process loader", "prctl: failed to set not dumpable"},
@@ -87,15 +88,14 @@ var ProcessErrors = [51]Error{
 	35: {"ERR_LOAD_SECCOMP", "process loader", "seccomp call failed"},
 	36: {"ERR_LOAD_ARG_ENV", "process loader", "loader executed with arguments or environment"},
 	37: {"ERR_LOAD_NO_VDSO", "process loader", "vdso address not found in auxiliary vector"},
-	39: {"ERR_LOAD_FCNTL_OUTPUT", "process loader", "failed to set output file flags"},
-	40: {"ERR_LOAD_MPROTECT_HEAP", "process loader", "mprotect: globals/memory protection failed"},
-	41: {"ERR_LOAD_CLOSE_TEXT", "process loader", "failed to close program text fd"},
-	42: {"ERR_LOAD_SETPRIORITY", "process loader", "TODO: ERR_LOAD_SETPRIORITY"},
-	44: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "dummy process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
-	45: {"ERR_SENTINEL_SIGMASK", "sentinel process", "TODO: ERR_SENTINEL_SIGMASK"},
-	47: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "clock_gettime not found in vDSO ELF"},
-	48: {"ERR_LOAD_READ_TEXT", "process loader", "failed to read text section of image"},
-	49: {"ERR_LOAD_MREMAP_HEAP", "process loader", "failed to mremap globals/memory section of image"},
+	39: {"ERR_LOAD_FCNTL_INPUT", "process loader", "failed to set input file flags"},
+	40: {"ERR_LOAD_FCNTL_OUTPUT", "process loader", "failed to set output file flags"},
+	41: {"ERR_LOAD_MPROTECT_HEAP", "process loader", "mprotect: globals/memory protection failed"},
+	42: {"ERR_LOAD_CLOSE_TEXT", "process loader", "failed to close program text fd"},
+	43: {"ERR_LOAD_SETPRIORITY", "process loader", "TODO: ERR_LOAD_SETPRIORITY"},
+	46: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "clock_gettime not found in vDSO ELF"},
+	47: {"ERR_LOAD_READ_TEXT", "process loader", "failed to read text section of image"},
+	48: {"ERR_LOAD_MREMAP_HEAP", "process loader", "failed to mremap globals/memory section of image"},
 }
 
 var ErrorsInitialized struct{}

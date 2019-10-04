@@ -114,12 +114,10 @@ void reaper(struct params *args)
 {
 	sigset_t sigmask;
 	sigfillset(&sigmask); // Block all signals by default.
-
-	configure_signal(&sigmask, SIGILL);
-	configure_signal(&sigmask, SIGFPE);
-	configure_signal(&sigmask, SIGSEGV);
 	configure_signal(&sigmask, SIGBUS);
-
+	configure_signal(&sigmask, SIGFPE);
+	configure_signal(&sigmask, SIGILL);
+	configure_signal(&sigmask, SIGSEGV);
 	if (pthread_sigmask(SIG_SETMASK, &sigmask, NULL) != 0)
 		_exit(ERR_EXEC_SIGMASK);
 
