@@ -269,9 +269,23 @@ static void xoom_score_adj(pid_t pid)
 	free(path);
 }
 
-// Open a file in a directory, or die.
-static int xopen_dir_file(const char *dir, const char *file, int flags)
+// Open a binary file in the runtime lib directory, or die.
+static int xopen_runtime_lib(const char *file, int flags)
 {
+	static const char *dir;
+
+	if (dir == NULL) {
+		// lstat'ing a symlink in /proc doesn't yield target path length. :(
+		static char linkbuf[PATH_MAX];
+
+		ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof linkbuf);
+		if (linklen <= 0 || linklen >= (ssize_t) sizeof linkbuf)
+			xerror("readlink /proc/self/exe");
+		linkbuf[linklen] = '\0';
+
+		dir = dirname(linkbuf); // linkbuf is unusable after this.
+	}
+
 	char *path;
 	if (asprintf(&path, "%s/%s", dir, file) < 0)
 		xerror("asprintf");
@@ -285,26 +299,15 @@ static int xopen_dir_file(const char *dir, const char *file, int flags)
 	return fd;
 }
 
-// Open loader and executor binaries, or die.  Only executor fd is returned.
-// The hard-coded GATE_LOADER_FD is valid after this.
-static int xopen_executor_and_loader(void)
+// Open loader binary or die.  The hard-coded GATE_LOADER_FD is valid after
+// this.
+static void xopen_loader(void)
 {
-	// lstat'ing a symlink in /proc doesn't yield target path length. :(
-	char linkbuf[PATH_MAX];
-	ssize_t linklen = readlink("/proc/self/exe", linkbuf, sizeof linkbuf);
-	if (linklen <= 0 || linklen >= (ssize_t) sizeof linkbuf)
-		xerror("readlink /proc/self/exe");
-	linkbuf[linklen] = '\0';
-
-	const char *dir = dirname(linkbuf); // linkbuf is unusable after this.
-
-	int loader_fd = xopen_dir_file(dir, LOADER_FILENAME, O_PATH | O_NOFOLLOW);
+	int loader_fd = xopen_runtime_lib(LOADER_FILENAME, O_PATH | O_NOFOLLOW);
 	if (loader_fd != GATE_LOADER_FD) {
 		fprintf(stderr, "wrong number of open files\n");
 		exit(1);
 	}
-
-	return xopen_dir_file(dir, EXECUTOR_FILENAME, O_PATH | O_NOFOLLOW | O_CLOEXEC);
 }
 
 // Open /proc or die.  The hard-coded GATE_PROC_FD is valid after this.
@@ -320,15 +323,21 @@ static void xopen_proc(void)
 	}
 }
 
-// Close excess file descriptors or die.
-static void close_excess_fds(void)
+// Open executor binary or die.
+static int xopen_executor(void)
+{
+	return xopen_runtime_lib(EXECUTOR_FILENAME, O_PATH | O_NOFOLLOW | O_CLOEXEC);
+}
+
+// Close higher file descriptors or die.
+static void close_higher_fds(int last_kept_fd)
 {
 	struct rlimit buf;
 
 	if (getrlimit(RLIMIT_NOFILE, &buf) != 0)
 		xerror("getrlimit: RLIMIT_NOFILE");
 
-	for (int fd = GATE_CONTROL_FD + 1; fd < (int) buf.rlim_cur; fd++)
+	for (int fd = last_kept_fd + 1; fd < (int) buf.rlim_cur; fd++)
 		close(fd);
 }
 
@@ -371,19 +380,20 @@ static int wait_for_child(pid_t child_pid)
 	}
 }
 
-static void furnish_namespaces(void)
+static void set_container_creds(void)
 {
 	if (setgroups(0, NULL) != 0)
 		xerror("setgroups to empty list");
-
-	// Container credentials
 
 	if (setreuid(2, 2) != 0)
 		xerror("setuid for container setup");
 
 	if (setregid(2, 2) != 0)
 		xerror("setgid for container setup");
+}
 
+static void furnish_namespaces(void)
+{
 	// UTS namespace
 
 	if (sethostname("", 0) != 0)
@@ -404,26 +414,33 @@ static void furnish_namespaces(void)
 	if (mount("tmpfs", "/tmp", "tmpfs", mount_options, "mode=0,nr_blocks=1,nr_inodes=2") != 0)
 		xerror("mount small tmpfs at /tmp");
 
-	if (mkdir("/tmp/dir", 0) != 0)
+	if (mkdir("/tmp/x", 0) != 0)
 		xerror("mkdir inside small tmpfs");
 
-	xpivot_root("/tmp", "/tmp/dir");
+	xpivot_root("/tmp", "/tmp/x");
 
 	if (chdir("/") != 0)
 		xerror("chdir to new root");
 
-	if (umount2("/dir", MNT_DETACH) != 0)
+	if (umount2("/x", MNT_DETACH) != 0)
 		xerror("umount old root");
 
-	// Keep the directory so that the filesystem remains full inode-wise.
+	// Sit in the directory so that it remains busy and keeps the
+	// filesystem full inode-wise.
+
+	if (chdir("/x") != 0)
+		xerror("chdir to subdir");
+
+	// Read-only filesystem
 
 	mount_options |= MS_RDONLY;
 
 	if (mount("", "/", "", MS_REMOUNT | mount_options, NULL) != 0)
 		xerror("remount new root as read-only");
+}
 
-	// Executor credentials
-
+static void set_executor_creds(void)
+{
 	if (setreuid(3, 3) != 0)
 		xerror("setuid for executor");
 
@@ -431,47 +448,12 @@ static void furnish_namespaces(void)
 		xerror("setgid for executor");
 }
 
-static const char *flags_arg;
+static char *flags_arg;
 static bool no_namespaces;
 static struct cred container_cred;
 static struct cred executor_cred;
 static struct cgroup_config cgroup_config;
 static int sync_pipe[2];
-
-static void sandbox_common(void)
-{
-	umask(0777);
-
-	xsetrlimit(RLIMIT_FSIZE, GATE_LIMIT_FSIZE);
-	xsetrlimit(RLIMIT_MEMLOCK, 0);
-	xsetrlimit(RLIMIT_MSGQUEUE, 0);
-	xsetrlimit(RLIMIT_RTPRIO, 0);
-	xsetrlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
-}
-
-static void sandbox_by_child(void)
-{
-	if (!no_namespaces)
-		furnish_namespaces();
-
-	long pagesize = sysconf(_SC_PAGESIZE);
-	if (pagesize <= 0)
-		xerror("sysconf: _SC_PAGESIZE");
-
-	xsetrlimit(RLIMIT_AS, GATE_LIMIT_AS);
-	xsetrlimit(RLIMIT_CORE, 0);
-	xsetrlimit(RLIMIT_STACK, align_size(GATE_EXECUTOR_STACK_SIZE, pagesize));
-}
-
-static void sandbox_by_parent(pid_t child_pid)
-{
-	xoom_score_adj(child_pid);
-
-	if (!no_namespaces) {
-		xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
-		xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
-	}
-}
 
 int main(int argc, char **argv)
 {
@@ -497,12 +479,18 @@ int main(int argc, char **argv)
 	if (setpgid(0, 0) != 0)
 		xerror("setpgid");
 
-	close_excess_fds();
+	close_higher_fds(GATE_CONTROL_FD);
 
 	int clone_flags = SIGCHLD;
 
 	if (GATE_SANDBOX) {
-		sandbox_common();
+		umask(0777);
+
+		xsetrlimit(RLIMIT_FSIZE, GATE_LIMIT_FSIZE);
+		xsetrlimit(RLIMIT_MEMLOCK, 0);
+		xsetrlimit(RLIMIT_MSGQUEUE, 0);
+		xsetrlimit(RLIMIT_RTPRIO, 0);
+		xsetrlimit(RLIMIT_SIGPENDING, 0); // Applies only to sigqueue.
 
 		if (!no_namespaces)
 			clone_flags |= CLONE_NEWCGROUP | CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID | CLONE_NEWUSER | CLONE_NEWUTS;
@@ -513,9 +501,7 @@ int main(int argc, char **argv)
 	if (pipe2(sync_pipe, O_CLOEXEC) != 0)
 		xerror("pipe2");
 
-	pid_t child_pid = xclone(child_main, clone_flags);
-
-	return parent_main(child_pid);
+	return parent_main(xclone(child_main, clone_flags));
 }
 
 static int parent_main(pid_t child_pid)
@@ -529,8 +515,14 @@ static int parent_main(pid_t child_pid)
 
 	xclear_caps();
 
-	if (GATE_SANDBOX)
-		sandbox_by_parent(child_pid);
+	if (GATE_SANDBOX) {
+		xoom_score_adj(child_pid);
+
+		if (!no_namespaces) {
+			xwrite_uid_map(child_pid, container_cred.uid, executor_cred.uid);
+			xwrite_gid_map(child_pid, container_cred.gid, executor_cred.gid);
+		}
+	}
 
 	// User namespace configured.
 
@@ -550,12 +542,23 @@ static int child_main(void *dummy_arg)
 
 	// User namespace and cgroup have been configured by parent.
 
-	int executor_fd = xopen_executor_and_loader();
-
+	xopen_loader();
 	xopen_proc();
+	int executor_fd = xopen_executor();
 
-	if (GATE_SANDBOX)
-		sandbox_by_child();
+	long pagesize = sysconf(_SC_PAGESIZE);
+	if (pagesize <= 0)
+		xerror("sysconf: _SC_PAGESIZE");
+
+	if (GATE_SANDBOX && !no_namespaces) {
+		set_container_creds();
+		furnish_namespaces();
+		set_executor_creds();
+
+		xsetrlimit(RLIMIT_AS, GATE_LIMIT_AS);
+		xsetrlimit(RLIMIT_CORE, 0);
+		xsetrlimit(RLIMIT_STACK, align_size(GATE_EXECUTOR_STACK_SIZE, pagesize));
+	}
 
 	xset_pdeathsig(SIGKILL);
 
@@ -564,14 +567,13 @@ static int child_main(void *dummy_arg)
 	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
 		xerror("prctl: PR_CAP_AMBIENT_CLEAR_ALL");
 
-	// New session and process group.  Enables scheduler's autogroup feature.
-	if (setsid() < 0)
+	if (setsid() < 0) // Enable scheduler's autogroup feature.
 		xerror("setsid");
 
 	if (GATE_SANDBOX)
 		xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
-	char *argv[] = {EXECUTOR_FILENAME, (char *) flags_arg, NULL};
+	char *argv[] = {EXECUTOR_FILENAME, flags_arg, NULL};
 	char *envp[] = {NULL};
 
 	sys_execveat(executor_fd, "", argv, envp, AT_EMPTY_PATH);

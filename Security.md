@@ -154,7 +154,7 @@ The user program processes run in a container.  The container also includes an
 init process which spawns and kills the programs.  The container has dedicated
 cgroup, IPC, network, mount, pid, user and UTS namespaces.
 
-The user namespace contains only two unprivileged user ids (there is no root
+The user namespace contains only three unprivileged user ids (there is no root
 user), one of which is used to run the processes.
 
 The mount namespace contains only a constrained read-only tmpfs as its root.

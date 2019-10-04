@@ -20,11 +20,11 @@
   # Mount namespace setup
   mount options=(rw, make-rprivate) -> /,
   mount fstype=tmpfs options=(rw, nosuid, nodev, noexec) -> /tmp/,
-  /tmp/dir/ w,
-  pivot_root oldroot=/tmp/dir/ /tmp/,
+  /tmp/x/ w,
+  pivot_root oldroot=/tmp/x/ /tmp/,
 
   # Mount namespace setup after pivot_root
-  umount /dir/,
+  umount /x/,
   mount options=(ro, nosuid, nodev, noexec, remount) -> /,
   /usr/local/lib/gate/runtime/gate-runtime-executor.0 Cx,
 
