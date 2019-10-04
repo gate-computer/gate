@@ -39,6 +39,7 @@ import (
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/gate/webapi/authorization"
 	"github.com/tsavola/wag"
+	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/section"
 	"golang.org/x/crypto/ed25519"
@@ -1227,7 +1228,8 @@ func TestInstanceSuspend(t *testing.T) {
 			}
 		}
 
-		if _, err := wag.Compile(nil, bytes.NewReader(snapshot), new(abi.ImportResolver)); err != nil {
+		config := &wag.Config{ImportResolver: new(abi.ImportResolver)}
+		if _, err := wag.Compile(config, bytes.NewReader(snapshot), abi.Library()); err != nil {
 			t.Error(err)
 		}
 	})
@@ -1363,7 +1365,9 @@ func TestInstanceTerminated(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if err := compile.LoadCodeSection(&compile.CodeConfig{Config: c}, r, m); err != nil {
+		binding.BindImports(&m, new(abi.ImportResolver))
+
+		if err := compile.LoadCodeSection(&compile.CodeConfig{Config: c}, r, m, abi.Library()); err != nil {
 			t.Fatal(err)
 		}
 

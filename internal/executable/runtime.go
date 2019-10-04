@@ -6,8 +6,9 @@ package executable
 
 // Some of these values are also defined in runtime/include/runtime.h
 
+// See wag/Stack.md.
 const (
-	signalStackReserve = 8192
-	StackUsageOffset   = 16 + signalStackReserve + 128
-	StackLimitOffset   = StackUsageOffset + 16
+	StackVarsSize    = 64       // Variables at start of stack memory.
+	stackSignalSpace = 5120 * 2 // For simultaneous SIGSEGV and SIGXCPU handling.
+	StackUsageOffset = StackVarsSize + stackSignalSpace + 240
 )

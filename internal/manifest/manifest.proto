@@ -22,7 +22,7 @@ message Program {
 	uint32 init_routine = 8;
 	int64 module_size = 9;
 	repeated ByteRange sections = 10;
-	ByteRange version_section = 11;
+	ByteRange snapshot_section = 11;
 	ByteRange buffer_section = 12;
 	int64 buffer_section_header_length = 13;
 	ByteRange stack_section = 14;
@@ -31,7 +31,8 @@ message Program {
 	map<uint32, uint32> entry_addrs = 17;
 	uint32 call_sites_size = 18;
 	uint32 func_addrs_size = 19;
-	bool random_seed = 20;
+	bool random = 20;
+	Snapshot snapshot = 21;
 }
 
 message Instance {
@@ -44,4 +45,9 @@ message Instance {
 	uint32 init_routine = 7;
 	uint32 entry_index = 8;
 	uint32 entry_addr = 9;
+	Snapshot snapshot = 10;
+}
+
+message Snapshot {
+	uint64 monotonic_time = 1;
 }

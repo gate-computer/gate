@@ -6,21 +6,19 @@
 
 int check(void)
 {
-	struct gate_timespec t = {0, -1};
-
-	if (gate_gettime(GATE_CLOCK_REALTIME, &t) != 0)
+	uint64_t t = gate_clock_realtime();
+	if (t < 1500000000000000000ULL)
 		return 1;
 
-	if (t.sec < 1500000000 || t.nsec < 0 || t.nsec >= 1000000000)
-		return 1;
-
-	struct gate_timespec t2;
+	uint64_t t2;
 	do {
-		if (gate_gettime(GATE_CLOCK_REALTIME, &t2) != 0)
-			return 1;
-	} while (t.sec == t2.sec && t.nsec == t2.nsec);
+		t2 = gate_clock_realtime();
+	} while (t == t2);
 
-	if (gate_gettime(2, &t) != -1 || gate_gettime(-1, &t) != -1)
+	if (__wasi_clock_time_get(4, 1, &t) != 28) // EINVAL
+		return 1;
+
+	if (__wasi_clock_time_get(-1, 1, &t) != 28) // EINVAL
 		return 1;
 
 	return 0;

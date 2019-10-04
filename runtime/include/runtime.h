@@ -28,15 +28,18 @@
 #define GATE_DEBUG_FD 2   //                             loader runtime
 #define GATE_CONTROL_FD 3 // container executor exechild
 #define GATE_LOADER_FD 4  // container executor exechild
-#define GATE_PROC_FD 6    // container executor
+#define GATE_PROC_FD 5    // container executor
 
 #define GATE_MIN_HEAP_HIGH32 0x2aa9
 
 #define GATE_EXECUTOR_STACK_SIZE PTHREAD_STACK_MIN // Depends on target architecture.
 #define GATE_LOADER_STACK_SIZE 12288LL             // 3 pages
 
-#define GATE_SIGNAL_STACK_RESERVE 8192
-#define GATE_STACK_LIMIT_OFFSET (16 + GATE_SIGNAL_STACK_RESERVE + 128 + 16) // See wag/Stack.md
+// See wag/Stack.md.
+#define GATE_STACK_VARS_SIZE 64            // Variables at start of stack memory.
+#define GATE_STACK_SIGNAL_SPACE (5120 * 2) // For simultaneous SIGSEGV and SIGXCPU handling.
+#define GATE_STACK_USAGE_OFFSET (GATE_STACK_VARS_SIZE + GATE_STACK_SIGNAL_SPACE + 240)
+#define GATE_STACK_LIMIT_OFFSET (GATE_STACK_USAGE_OFFSET + 8 + 8)
 
 #define GATE_LIMIT_AS (GATE_LOADER_STACK_SIZE + /* */         \
 		       0x1000LL +               /* loader */  \
@@ -63,5 +66,6 @@
 
 #define GATE_MAGIC_NUMBER_1 0x19328f3a
 #define GATE_MAGIC_NUMBER_2 0x7e1c5d67
+#define GATE_STACK_MAGIC 0x7b53c485c17322fe
 
 #endif

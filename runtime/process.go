@@ -25,7 +25,7 @@ import (
 	"github.com/tsavola/wag/trap"
 )
 
-const imageInfoSize = 80
+const imageInfoSize = 96
 
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
@@ -34,7 +34,7 @@ type imageInfo struct {
 	TextAddr       uint64
 	StackAddr      uint64
 	HeapAddr       uint64
-	RandomValue    uint64
+	Random         [16]byte
 	TextSize       uint32
 	StackSize      uint32
 	StackUnused    uint32
@@ -43,6 +43,7 @@ type imageInfo struct {
 	GrowMemorySize uint32
 	InitRoutine    uint32
 	EntryAddr      uint32
+	MonotonicTime  uint64
 	TimeMask       uint32
 	MagicNumber2   uint32
 }
@@ -50,7 +51,7 @@ type imageInfo struct {
 type ProgramCode interface {
 	PageSize() int
 	TextSize() int
-	RandomSeed() bool
+	Random() bool
 	Text() (interface{ Fd() uintptr }, error)
 }
 
@@ -63,6 +64,7 @@ type ProgramState interface {
 	MaxMemorySize() int
 	InitRoutine() uint32
 	EntryAddr() uint32
+	MonotonicTime() uint64
 	BeginMutation(textAddr uint64) (interface{ Fd() uintptr }, error)
 }
 
@@ -134,7 +136,7 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 // This function must be called before Serve, and must not be called after
 // Kill.
 func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPolicy) (err error) {
-	textAddr, heapAddr, stackAddr, randValue, err := getRand(state.TextAddr(), code.RandomSeed())
+	textAddr, heapAddr, stackAddr, random, err := getRand(state.TextAddr(), code.Random())
 	if err != nil {
 		return
 	}
@@ -150,7 +152,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		TextAddr:       textAddr,
 		StackAddr:      stackAddr,
 		HeapAddr:       heapAddr,
-		RandomValue:    randValue,
+		Random:         random,
 		TextSize:       uint32(code.TextSize()),
 		StackSize:      uint32(state.StackSize()),
 		StackUnused:    uint32(state.StackSize() - state.StackUsage()),
@@ -159,6 +161,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		GrowMemorySize: uint32(state.MaxMemorySize()), // TODO: check policy too
 		InitRoutine:    state.InitRoutine(),
 		EntryAddr:      state.EntryAddr(),
+		MonotonicTime:  state.MonotonicTime(),
 		TimeMask:       uint32(timeMask),
 		MagicNumber2:   magicNumber2,
 	}
@@ -265,8 +268,8 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 			return
 		}
 
-		if n := code - 100; n >= 0 && n < int(trap.NumTraps) {
-			trapID = trap.ID(n)
+		if code >= 100 && code <= 127 {
+			trapID = trap.ID(code - 100)
 			return
 		}
 
@@ -338,14 +341,14 @@ func (p *Process) killWait() (syscall.WaitStatus, error) {
 	return p.execution.killWait()
 }
 
-func getRand(fixedTextAddr uint64, needValue bool,
-) (textAddr, heapAddr, stackAddr, randValue uint64, err error) {
+func getRand(fixedTextAddr uint64, needData bool,
+) (textAddr, heapAddr, stackAddr uint64, randData [16]byte, err error) {
 	n := 4 + 4
 	if fixedTextAddr == 0 {
 		n += 4
 	}
-	if needValue {
-		n += 8
+	if needData {
+		n += 16
 	}
 
 	b := make([]byte, n)
@@ -367,9 +370,9 @@ func getRand(fixedTextAddr uint64, needValue bool,
 		b = b[4:]
 	}
 
-	if needValue {
-		randValue = binary.LittleEndian.Uint64(b)
-		b = b[8:]
+	if needData {
+		copy(randData[:], b)
+		b = b[16:]
 	}
 
 	return

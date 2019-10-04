@@ -18,9 +18,9 @@ const maxServiceNameLen = 127
 
 // Custom WebAssembly sections.
 const (
-	SectionVersion = "gate.version" // May appear once before buffer section.
-	SectionBuffer  = "gate.buffer"  // May appear once between code and stack sections.
-	SectionStack   = "gate.stack"   // May appear once between buffer and data sections.
+	SectionSnapshot = "gate.snapshot" // Must appear once somewhere before buffer section.
+	SectionBuffer   = "gate.buffer"   // May appear once between code and stack sections.
+	SectionStack    = "gate.stack"    // May appear once between buffer and data sections.
 )
 
 func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(string) error,

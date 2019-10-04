@@ -45,9 +45,9 @@ for _ in range(10000):
     if code != 0:
         raise Exception(code)
 
-    assert len(output) == 8 * 3, len(output)
+    assert len(output) == 8 * 5, len(output)
 
-    init_addr, low_addr, high_addr = struct.unpack(b"QQQ", output)
+    init_addr, low_addr, hand_addr, high_addr, _ = struct.unpack(b"QQQQQ", output)
     low_addr += 8  # skip over the faulting address
     alloc = high_addr - low_addr
     usage = high_addr - init_addr
@@ -69,6 +69,7 @@ print("min stack alloc limit   = %d" % min_alloc)
 print("max stack alloc limit   = %d" % max_alloc)
 print("min initial stack usage = %d" % min_usage)
 print("max initial stack usage = %d" % max_usage)
+print("signal handler stack usage (approx) = %d" % hand_addr)
 
 if 0:
     print("")

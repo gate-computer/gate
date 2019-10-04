@@ -4,21 +4,36 @@
 
 #include <gate.h>
 
-int check(void)
+uint16_t __wasi_random_get(void *buf, size_t buflen);
+
+void dump(void)
 {
-	uint64_t value = gate_randomseed();
+	uint64_t value[2];
+	__wasi_random_get(value, sizeof value);
 
-	gate_debug_hex(value);
+	gate_debug_hex(value[0]);
+	gate_debug(" ");
+	gate_debug_hex(value[1]);
+}
 
-	// If this happens, it's probably due to a bug; detect it.
-	if ((value & 0xffffffff) == 0 || (value >> 32) == 0)
-		return 1;
+void toomuch(void)
+{
+	gate_debug("ping");
 
-	// This is not a useful property, but if it doesn't hold, it's
-	// indicative of a problem.
-	for (int i = 0; i < 10; i++)
-		if (gate_randomseed() != value)
-			return 1;
+	char value[17];
+	__wasi_random_get(value, sizeof value);
 
-	return 0;
+	gate_debug("\nunreachable");
+}
+
+void toomuch2(void)
+{
+	char value[10];
+	__wasi_random_get(value, sizeof value);
+
+	gate_debug("ping");
+
+	__wasi_random_get(value, sizeof value);
+
+	gate_debug("\nunreachable");
 }

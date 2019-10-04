@@ -13,6 +13,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
+	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
@@ -62,6 +64,7 @@ func newExecutor(config runtime.Config) (tester *executor) {
 
 	go func() {
 		<-tester.Dead()
+		time.Sleep(time.Second)
 		if !tester.closed {
 			panic("executor died")
 		}
@@ -163,9 +166,11 @@ func init() {
 	}
 }
 
-func prepareBuild(exec *executor, storage image.Storage, r compile.Reader, moduleSize int, codeMap *object.CallMap,
-) (mod compile.Module, build *image.Build) {
-	mod, err := compile.LoadInitialSections(nil, r)
+func prepareBuild(exec *executor, storage image.Storage, config compile.Config, wasm []byte, moduleSize int, codeMap *object.CallMap,
+) (r *bytes.Reader, mod compile.Module, build *image.Build) {
+	r = bytes.NewReader(wasm)
+
+	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, r)
 	if err != nil {
 		panic(err)
 	}
@@ -182,17 +187,31 @@ func prepareBuild(exec *executor, storage image.Storage, r compile.Reader, modul
 	return
 }
 
-func buildInstance(exec *executor, storage image.Storage, objectMapper compile.ObjectMapper, codeMap *object.CallMap, r compile.Reader, moduleSize int, function string,
+func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap, wasm []byte, moduleSize int, function string, persistent bool,
 ) (prog *image.Program, inst *image.Instance, mod compile.Module) {
-	mod, build := prepareBuild(exec, storage, r, moduleSize, codeMap)
+	var config compile.Config
+	var sectionMap image.SectionMap
+
+	if persistent {
+		config.SectionMapper = sectionMap.Mapper()
+	}
+
+	r, mod, build := prepareBuild(exec, storage, config, wasm, moduleSize, &codeMap.CallMap)
 	defer build.Close()
+
+	if persistent {
+		if _, err := build.ModuleWriter().Write(wasm); err != nil {
+			panic(err)
+		}
+	}
 
 	var codeConfig = &compile.CodeConfig{
 		Text:   build.TextBuffer(),
-		Mapper: objectMapper,
+		Mapper: codeMap,
+		Config: config,
 	}
 
-	err := compile.LoadCodeSection(codeConfig, r, mod)
+	err := compile.LoadCodeSection(codeConfig, r, mod, abi.Library())
 	if err != nil {
 		panic(err)
 	}
@@ -216,20 +235,36 @@ func buildInstance(exec *executor, storage image.Storage, objectMapper compile.O
 		entryAddr = codeMap.FuncAddrs[entryIndex]
 	}
 
-	if err := build.FinishText(stackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize(), maxMemorySize); err != nil {
+	if err := build.FinishText(stackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize(), maxMemorySize, nil); err != nil {
 		panic(err)
 	}
 
 	var dataConfig = &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
 		MemoryAlignment: build.MemoryAlignment(),
+		Config:          config,
 	}
 
 	if err := compile.LoadDataSection(dataConfig, r, mod); err != nil {
 		panic(err)
 	}
 
-	prog, err = build.FinishProgram(image.SectionMap{}, nil, nil, nil)
+	if persistent {
+		err = compile.LoadCustomSections(&config, r)
+		if err != nil {
+			return
+		}
+	}
+
+	var (
+		entryIndexes map[string]uint32
+		entryAddrs   map[uint32]uint32
+	)
+	if persistent {
+		entryIndexes, entryAddrs = entry.Maps(mod, codeMap.FuncAddrs)
+	}
+
+	prog, err = build.FinishProgram(sectionMap, mod.GlobalTypes(), entryIndexes, entryAddrs)
 	if err != nil {
 		panic(err)
 	}
@@ -243,7 +278,7 @@ func buildInstance(exec *executor, storage image.Storage, objectMapper compile.O
 }
 
 func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer,
-) (*executor, *image.Program, *image.Instance, *runtime.Process, debug.InsnMap, compile.Module) {
+) (*executor, *image.Program, *image.Instance, *runtime.Process, debug.TrapMap, compile.Module) {
 	var err error
 
 	executor := newExecutor(runtime.Config{})
@@ -253,9 +288,9 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		}
 	}()
 
-	var codeMap debug.InsnMap
+	var codeMap debug.TrapMap
 
-	prog, inst, mod := buildInstance(executor, storage, &codeMap, &codeMap.CallMap, codeMap.Reader(bytes.NewReader(wasm)), len(wasm), function)
+	prog, inst, mod := buildInstance(executor, storage, &codeMap, wasm, len(wasm), function, true)
 	defer func() {
 		if err != nil {
 			prog.Close()
@@ -291,10 +326,12 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 	return executor, prog, inst, proc, codeMap, mod
 }
 
-func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer) (output bytes.Buffer) {
+func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, expectTrap trap.ID) (output bytes.Buffer) {
+	t.Helper()
+
 	ctx := context.Background()
 
-	executor, prog, inst, proc, insnMap, mod := startInstance(ctx, t, image.Memory, wasm, function, debug)
+	executor, prog, inst, proc, trapMap, mod := startInstance(ctx, t, image.Memory, wasm, function, debug)
 	defer proc.Kill()
 	defer inst.Close()
 	defer prog.Close()
@@ -303,17 +340,22 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer) (ou
 	exit, trapID, err := proc.Serve(ctx, serviceRegistry{&output}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
-	} else if trapID != 0 {
-		t.Errorf("run %v", trapID)
-		trace, err := inst.Stacktrace(&insnMap, mod.FuncTypes())
-		if err == nil {
-			err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
+	} else {
+		if trapID != expectTrap {
+			t.Errorf("run %v", trapID)
 		}
-		if err != nil {
-			t.Errorf("stacktrace: %v", err)
+		if trapID == 0 && exit != 0 {
+			t.Errorf("run exit: %d", exit)
 		}
-	} else if exit != 0 {
-		t.Errorf("run exit: %d", exit)
+		if testing.Verbose() {
+			trace, err := inst.Stacktrace(&trapMap, mod.FuncTypes())
+			if err == nil {
+				err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
+			}
+			if err != nil {
+				t.Error(err)
+			}
+		}
 	}
 
 	if s := output.String(); len(s) > 0 {
@@ -323,11 +365,11 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer) (ou
 }
 
 func TestRunNop(t *testing.T) {
-	runProgram(t, wasmNop, "", nil)
+	runProgram(t, wasmNop, "", nil, trap.Exit)
 }
 
 func testRunHello(t *testing.T, debug io.Writer) {
-	output := runProgram(t, wasmHello, "greet", debug)
+	output := runProgram(t, wasmHello, "greet", debug, trap.Exit)
 	if s := output.String(); s != "hello, world\n" {
 		t.Errorf("%q", s)
 	}
@@ -343,7 +385,7 @@ func TestRunHelloNoDebug(t *testing.T) {
 
 func TestRunHelloDebug(t *testing.T) {
 	var debug bytes.Buffer
-	runProgram(t, wasmHelloDebug, "debug", &debug)
+	runProgram(t, wasmHelloDebug, "debug", &debug, trap.Exit)
 	s := debug.String()
 	t.Logf("debug: %q", s)
 	if s != "hello, world\n" {
@@ -352,7 +394,7 @@ func TestRunHelloDebug(t *testing.T) {
 }
 
 func TestRunHelloDebugNoDebug(t *testing.T) {
-	runProgram(t, wasmHelloDebug, "debug", nil)
+	runProgram(t, wasmHelloDebug, "debug", nil, trap.Exit)
 }
 
 func TestRunSuspendMem(t *testing.T) {
@@ -423,16 +465,18 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 }
 
 func TestRandomSeed(t *testing.T) {
-	values := make([]uint64, 10)
+	values := make([][2]uint64, 10)
 
 	for i := 0; i < len(values); i++ {
 		var debug bytes.Buffer
-		runProgram(t, wasmRandomSeed, "check", &debug)
-		n, err := strconv.ParseUint(debug.String(), 16, 64)
-		if err != nil {
-			t.Fatal(err)
+		runProgram(t, wasmRandomSeed, "dump", &debug, trap.Exit)
+		for j, s := range strings.Split(debug.String(), " ") {
+			n, err := strconv.ParseUint(s, 16, 64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			values[i][j] = n
 		}
-		values[i] = n
 	}
 
 	for i := 0; i < len(values); i++ {
@@ -444,6 +488,22 @@ func TestRandomSeed(t *testing.T) {
 	}
 }
 
+func TestRandomDeficiency(t *testing.T) {
+	testRandomDeficiency(t, "toomuch")
+}
+
+func TestRandomDeficiency2(t *testing.T) {
+	testRandomDeficiency(t, "toomuch2")
+}
+
+func testRandomDeficiency(t *testing.T, function string) {
+	var debug bytes.Buffer
+	runProgram(t, wasmRandomSeed, function, &debug, trap.ID(26))
+	if s := debug.String(); s != "ping" {
+		t.Error(s)
+	}
+}
+
 func TestTime(t *testing.T) {
-	runProgram(t, wasmTime, "check", os.Stderr)
+	runProgram(t, wasmTime, "check", os.Stderr, trap.Exit)
 }

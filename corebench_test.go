@@ -17,8 +17,8 @@ import (
 
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/object/abi"
+	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/trap"
 )
 
@@ -126,13 +126,14 @@ func benchBuild(b *testing.B, storage image.Storage) {
 	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
-			var codeMap object.CallMap
+			var codeMap debug.TrapMap
 
 			for i := 0; i < b.N; i++ {
 				codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 				codeMap.CallSites = codeMap.CallSites[:0]
+				codeMap.TrapSites = codeMap.TrapSites[:0]
 
-				prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
+				prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, wasm, len(wasm), "", false)
 				inst.Close()
 				prog.Close()
 			}
@@ -147,13 +148,14 @@ func BenchmarkBuildStore(b *testing.B) {
 
 	prefix := fmt.Sprintf("%s.%d.", strings.Replace(b.Name(), "/", "-", -1), b.N)
 
-	var codeMap object.CallMap
+	var codeMap debug.TrapMap
 
 	for i := 0; i < b.N; i++ {
 		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 		codeMap.CallSites = codeMap.CallSites[:0]
+		codeMap.TrapSites = codeMap.TrapSites[:0]
 
-		prog, inst, _ := buildInstance(benchExecutor, testFS, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
+		prog, inst, _ := buildInstance(benchExecutor, testFS, &codeMap, wasmNop, len(wasmNop), "", false)
 		err := prog.Store(prefix + strconv.Itoa(i))
 		inst.Close()
 		prog.Close()
@@ -179,9 +181,9 @@ func benchExecInst(b *testing.B, storage image.Storage) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var codeMap object.CallMap
+	var codeMap debug.TrapMap
 
-	prog, instProto, _ := buildInstance(benchExecutor, storage, &codeMap, &codeMap, bytes.NewReader(wasmNop), len(wasmNop), "")
+	prog, instProto, _ := buildInstance(benchExecutor, storage, &codeMap, wasmNop, len(wasmNop), "", false)
 	defer prog.Close()
 	defer instProto.Close()
 
@@ -237,9 +239,9 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
-			var codeMap object.CallMap
+			var codeMap debug.TrapMap
 
-			prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, &codeMap, bytes.NewReader(wasm), len(wasm), "")
+			prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, wasm, len(wasm), "", false)
 			defer prog.Close()
 			inst.Close()
 

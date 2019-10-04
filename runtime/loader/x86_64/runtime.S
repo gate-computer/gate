@@ -13,7 +13,7 @@
 #include "errors.h"
 #include "runtime.h"
 
-#include "../msg.S"
+#include "../poll.S"
 
 #define INT3 0xcc
 
@@ -21,61 +21,45 @@
 #define UCONTEXT_STACKPTR_REG_OFFSET 160 // rsp
 #define UCONTEXT_INSNPTR_REG_OFFSET  168 // rip
 
-// Out: rcx = start of stack buffer
+// Out: rcx = stack vars
 // Clobbers rax.
-.macro	stack_buffer
+.macro	stack_vars
 	mov	$0xbffffffffffffffe, %rax
 	mov	%rbx, %rcx
-	and	%rax, %rcx			// Clear suspend bits.
+	and	%rax, %rcx			// Clear suspend bits
 	sub	$GATE_STACK_LIMIT_OFFSET, %rcx
 .endm
 
-// Out: rcx = start of stack buffer
+// Out: rcx = stack vars
 //      out = current memory size in wasm pages
 // Clobbers rax.
-.macro	current_memory out
-	stack_buffer
-	mov	(%rcx), \out
+.macro	current_memory_pages out
+	stack_vars
+	mov	4(%rcx), \out
 .endm
 
-// In:  r12 = relative length address (zero-extended 32-bit value)
+// Out: rsi = absolute buffer start address
+//      rdx = buffer length
+//      r11 = absolute buffer end address
 //      r13 = current memory end address
-// Out: r12 = absolute length address
-//      r13 = current memory end address
-// Clobbers r11.
-.macro	io_len_check nop_label
-	test	%r12d, %r12d
-	je	\nop_label
+// Clobbers rax.
+.macro	io_prologue
+	current_memory_pages %r13d
+	shl	$16, %r13d			// Current memory size
+	add	%r14, %r13			// Current memory end address
 
-	add	%r14, %r12			// Absolute length address.
-	lea	4(%r12), %r11			// End of absolute length.
+	mov	16(%rsp), %esi			// Relative buffer address
+	mov	8(%rsp), %edx			// Buffer length
+	test	%edx, %edx
+	je	rt_nop				// Nothing to transfer
 
-	cmp	%r11, %r13			// Check against memory limit,
-	jl	.Lout_of_bounds			//
-	cmp	%r12, %r11			// and detect wrap-around.
-	jl	.Lout_of_bounds			//
-.endm
+	add	%r14, %rsi			// Absolute buffer address
+	lea	(%rsi, %rdx), %r11		// End of absolute buffer
 
-// In:  rsi = relative buffer address (zero-extended 32-bit value)
-//      r12 = absolute length address
-//      r13 = current memory end address
-// Out: rdx = length
-//      rsi = absolute buffer address
-//      r12 = absolute length address
-//      r13 = current memory end address
-// Clobbers r11.
-.macro	io_setup nop_label
-	mov	(%r12), %edx			// Length (zero-extended).
-	test	%edx, %edx			//
-	je	\nop_label			// Nothing to transfer.
-
-	add	%r14, %rsi			// Absolute buffer address.
-	lea	(%rsi, %rdx), %r11		// End of absolute buffer.
-
-	cmp	%r11, %r13			// Check against memory limit,
-	jl	.Lout_of_bounds			//
-	cmp	%rsi, %r11			// and detect wrap-around.
-	jl	.Lout_of_bounds			//
+	cmp	%r11, %r13			// Check against memory limit
+	jl	.Lout_of_bounds
+	cmp	%rsi, %r11			// ...and detect wrap-around
+	jl	.Lout_of_bounds
 .endm
 
 .section .text
@@ -103,7 +87,8 @@ runtime_code_begin:
 //      r14 = memory address
 //      r15 = text address + init routine
 runtime_init:
-	// Unmap loader .text and .rodata sections.
+
+	// Unmap loader .text and .rodata sections
 
 	mov	$GATE_LOADER_ADDR, %rdi		// munmap addr
 	mov	$GATE_LOADER_SIZE, %esi		// munmap length
@@ -113,7 +98,7 @@ runtime_init:
 	test	%eax, %eax
 	jne	sys_exit
 
-	// Build sock_fprog structure on stack.  Using 16 bytes of red zone.
+	// Build sock_fprog structure on stack
 
 	lea	-16(%rsp), %rdx			// seccomp args
 	mov	$seccomp_filter_len, %rax
@@ -121,7 +106,7 @@ runtime_init:
 	lea	.Lseccomp_filter(%rip), %rax
 	mov	%rax, 8(%rdx)
 
-	// Enable seccomp.
+	// Enable seccomp
 
 	mov	$SECCOMP_SET_MODE_FILTER, %edi	// seccomp mode
 	xor	%esi, %esi			// seccomp flags
@@ -131,11 +116,28 @@ runtime_init:
 	test	%eax, %eax
 	jne	sys_exit
 
-	// Fall through to runtime_init_no_sandbox.
+	// Fall through
 
 runtime_init_no_sandbox:
-	// Clear registers used by wag codegen.
 
+	// Terminate in uninitialized state if already suspended
+
+	mov	$100+2, %edi			// Suspended
+	test	$1, %ebx
+	jne	sys_exit			// Don't use .Lexit
+
+	// Mark stack as dirty just before execution.  (If SIGXCPU signal was
+	// received just after the above check, the process has about a second
+	// worth of CPU time to reach the first suspend check and execute
+	// .Lexit to avoid inconsistent state.)
+
+	stack_vars
+	movl	$-1, (%rcx)			// stack_unused
+
+	// Clear registers used by wag codegen
+
+	xor	%eax, %eax			// Result when resuming
+	xor	%edx, %edx
 	xor	%ebp, %ebp
 	xor	%esi, %esi
 	xor	%edi, %edi
@@ -146,28 +148,9 @@ runtime_init_no_sandbox:
 	xor	%r12d, %r12d
 	xor	%r13d, %r13d
 
-	// Already suspended?  Terminate in uninitialized state.
+	// Execute wag object ABI init routine
 
-	test	$1, %ebx
-	je	.Lproceed
-
-	mov	$100+2, %edi			// Suspended
-	jmp	sys_exit			// Don't use .Lruntime_exit
-
-.Lproceed:
-	// Mark stack as dirty just before execution.  (If SIGXCPU signal was
-	// received just after the above check, the process has one second
-	// worth of CPU time to reach the first suspend check in generated code
-	// or ABI call and execute .Lruntime_exit to avoid inconsistent state.)
-
-	stack_buffer
-	movl	$-1, 4(%rcx)
-
-	// Execute wag object ABI init routine.
-
-	xor	%eax, %eax			// Result reg when resuming after ABI call
 	mov	%r15, %rcx			// Init routine address
-	xor	%edx, %edx			// Zero reg
 	and	$~0x7f, %r15			// Text base
 	jmp	retpoline
 
@@ -179,16 +162,11 @@ runtime_init_no_sandbox:
 //      rsi = siginfo
 //      rdx = ucontext
 signal_handler:
-	cmp	$SIGIO, %edi
-	je	.Lsigio
-
 	cmp	$SIGSEGV, %edi
 	je	.Lsigsegv
 
-	mov	$0x4000000000000001, %rax	// Suspend calls and loops.
+	mov	$0x4000000000000001, %rax	// Suspend calls and loops
 	or	%rax, UCONTEXT_SUSPEND_REG_OFFSET(%rdx)
-
-.Lsigio:
 	ret
 
 .Lsigsegv:
@@ -205,7 +183,7 @@ signal_handler:
 
 .Lsigsegv_exit:
 	mov	$100+5, %edi			// MemoryAccessOutOfBounds
-	jmp	.Lruntime_exit
+	jmp	.Lexit
 
 .align	16,INT3
 .globl	signal_restorer
@@ -224,33 +202,29 @@ signal_restorer:
 trap_handler:
 	test	%eax, %eax
 	je	.Ltrap_exit
-
-	cmp	$2, %eax			// Suspended
-	je	.Lsuspended
-
 	cmp	$4, %eax			// CallStackExhausted
-	je	.Lcall_stack_exhausted
+	je	.Ltrap_call_stack_exhausted
 
 	mov	%eax, %edi
-	add	$100, %edi			// exit status
-	jmp	.Lruntime_exit
+	add	$100, %edi
+	jmp	.Lexit
 
 .Ltrap_exit:
-	mov	$1, %edi			// exit status on failure
-	shrq	$32, %rax			// Program result
-	cmove	%eax, %edi			// exit status on success
-	jmp	.Lruntime_exit
+	mov	$1, %edi			// Status on failure
+	shr	$32, %rax			// Program result
+	cmove	%eax, %edi			// Status on success
+	jmp	.Lexit
 
-.Lsuspended:
-	mov	$100+2, %edi			// exit status: Suspended
-	jmp	.Lruntime_exit
-
-.Lcall_stack_exhausted:
+.Ltrap_call_stack_exhausted:
 	test	$1, %ebx
-	jne	.Lsuspended
+	jne	.Ltrap_suspended
 
-	mov	$100+4, %edi			// exit status: CallStackExhausted
-	jmp	.Lruntime_exit
+	mov	$100+4, %edi			// CallStackExhausted
+	jmp	.Lexit
+
+.Ltrap_suspended:
+	mov	$100+2, %edi			// Suspended
+	jmp	.Lexit
 
 .align	16,INT3
 .globl	current_memory
@@ -258,7 +232,7 @@ trap_handler:
 
 // Out: eax = allocated wasm pages
 current_memory:
-	current_memory %eax
+	current_memory_pages %eax
 	jmp	.Lresume
 
 .align	16,INT3
@@ -271,9 +245,9 @@ grow_memory:
 	mov	%eax, %r12d
 	mov	%eax, %esi
 
-	current_memory %edi
+	current_memory_pages %edi
 	add	%rdi, %r12			// New memory pages
-	cmp	%r12, -32(%r15)			// Grow memory limit pages
+	cmp	%r12, -2*8(%r15)		// grow_memory
 	jl	.Loom
 
 #ifdef __ANDROID__
@@ -288,10 +262,10 @@ grow_memory:
 	mov	$SYS_mremap, %eax
 	syscall
 	test	$0xfff, %eax
-	je	.Lgrow_done
+	je	.Lgrow_memory_done
 
 	mov	$ERR_RT_MREMAP, %eax
-	jmp	.Lruntime_exit
+	jmp	.Lexit
 
 #else // !__ANDROID__
 
@@ -299,22 +273,22 @@ grow_memory:
 	add	%r14, %rdi			// mprotect addr
 
 	shl	$16, %rsi			// mprotect len
-	je	.Lgrow_done
+	je	.Lgrow_memory_done
 
 	mov	$PROT_READ|PROT_WRITE, %edx
 	mov	$SYS_mprotect, %eax
 	syscall
 	test	%eax, %eax
-	je	.Lgrow_done
+	je	.Lgrow_memory_done
 
 	mov	$ERR_RT_MPROTECT, %eax
-	jmp	.Lruntime_exit
+	jmp	.Lexit
 
 #endif // __ANDROID__
 
-.Lgrow_done:
-	current_memory %eax
-	mov	%r12d, (%rcx)
+.Lgrow_memory_done:
+	current_memory_pages %eax
+	mov	%r12d, 4(%rcx)			// current_memory_pages
 	jmp	.Lresume
 
 .Loom:
@@ -322,11 +296,18 @@ grow_memory:
 	jmp	.Lresume
 
 .align	16,INT3
+.globl	rt_nop
+.type	rt_nop,@function
+
+rt_nop:
+	xor	%eax, %eax
+
+	// Fall through
 
 .Lresume:
 	lea	16(%r15), %rcx			// wag object ABI resume routine
 
-	// Fall through to retpoline.
+	// Fall through
 
 .globl	retpoline
 .type	retpoline,@function
@@ -343,206 +324,206 @@ retpoline:
 	ret
 
 .align	16,INT3
-.globl	gate_io
-.type	gate_io,@function
+.globl	rt_poll
+.type	rt_poll,@function
 
-gate_io:
-	current_memory %r13d
-	shl	$16, %r13d			// Current memory size
-	add	%r14, %r13			// Current memory end address
+rt_poll:
+	mov	16(%rsp), %ecx			// Input events
+	mov	8(%rsp), %esi			// Output events
 
-	// Setup source buffer.
+	sub	$8*2, %rsp			// sizeof(struct pollfd) * 2
+	movl	$GATE_INPUT_FD, (%rsp)		// fds[0].fd
+	mov	%ecx, 4(%rsp)			// fds[0].events and .revents
+	movl	$GATE_OUTPUT_FD, 8(%rsp)	// fds[1].fd
+	mov	%esi, 12(%rsp)			// fds[1].events and .revents
 
-	mov	24(%rsp), %esi			// Relative buffer address
-	mov	16(%rsp), %r12d			// Relative length address
-	io_len_check .Lskip_send
-	io_setup .Lskip_send
-
-	// Send.
-
-	mov	$SYS_write, %eax
-	mov	$GATE_OUTPUT_FD, %edi
+	mov	%rsp, %rdi			// fds
+	mov	$2, %esi			// nfds
+	xor	%edx, %edx			// tmo_p
+	xor	%r10d, %r10d			// sigmask
+	mov	$SYS_ppoll, %eax
 	syscall
 
-	// Handle normal write result.
+	xor	%ecx, %ecx
+	xor	%esi, %esi
+	mov	6(%rsp), %cx			// Input revents
+	mov	14(%rsp), %si			// Output revents
+	add	$8*2, %rsp			// sizeof(struct pollfd) * 2
+
+	mov	$ERR_RT_POLL, %edi
 
 	test	%rax, %rax
-	jg	.Lsent
-
-	// Handle write errors.
+	jg	.Lpoll_revents
 
 	cmp	$-EAGAIN, %eax
-	je	.Lnot_sent
+	je	rt_nop
 	cmp	$-EINTR, %eax
-	je	.Lnot_sent
+	je	rt_nop
 
-	mov	$ERR_RT_WRITE, %edi		// exit status
-	jmp	.Lruntime_exit
+	jmp	.Lexit
 
-.Lnot_sent:
-	xor	%eax, %eax			// Sent 0 bytes
-
-.Lsent:
-	mov	%eax, (%r12)			// Sent length
-
-.Lskip_send:
-	// Setup target buffer.
-
-	mov	40(%rsp), %esi			// Relative buffer address
-	mov	32(%rsp), %r12d			// Relative length address
-	io_len_check .Lskip_receive
-	io_setup .Lskip_receive
-
-	// Map gate_io flag to recv flag.
-
-	mov	8(%rsp), %r10d			// I/O flags
-	and	$1, %r10d			// Discard unknown flags
-	xor	$1, %r10d			// Invert IO_RECV_WAIT flag
-	shl	$MSG_DONTWAIT_BIT, %r10d
-
-	// No source address/length.
-
-	xor	%r8d, %r8d
-	xor	%r9d, %r9d
-
-	// Receive.
-
-	mov	$SYS_recvfrom, %eax
-	xor	%edi, %edi			// GATE_INPUT_FD
-	syscall
-
-	// Handle normal read result.
-
-	test	%rax, %rax
-	jg	.Lreceived
-	je	.Lreceived_eof
-
-	// Handle read errors.
-
-	cmp	$-EAGAIN, %eax
-	je	.Lnot_received
-	cmp	$-EINTR, %eax
-	je	.Lnot_received
-
-	mov	$ERR_RT_RECVFROM, %edi		// exit status
-	jmp	.Lruntime_exit
-
-.Lnot_received:
-	xor	%eax, %eax			// Received 0 bytes
-
-.Lreceived:
-	mov	%eax, (%r12)			// Received length
-
-.Lskip_receive:
-	test	$1, %ebx
-	jne	.Lsuspended
-
+.Lpoll_revents:
 	xor	%eax, %eax
+
+	test	$POLLHUP|POLLRDHUP, %ecx	// Being suspended?
+	jne	rt_nop
+	test	$~POLLIN, %ecx
+	jne	.Lexit
+	or	%ecx, %eax
+
+	test	$~POLLOUT, %esi
+	jne	.Lexit
+	or	%esi, %eax
+
 	jmp	.Lresume
 
-.Lreceived_eof:
-	mov	%eax, (%r12)			// Received length
-	jmp	.Lsuspended
+.align	16,INT3
+.globl	rt_read
+.type	rt_read,@function
+
+rt_read:
+	io_prologue
+
+	mov	$GATE_INPUT_FD, %edi
+	mov	$SYS_read, %eax
+	syscall
+	test	%rax, %rax
+	jge	.Lresume			// EOF if being suspended or killed
+
+	cmp	$-EAGAIN, %eax
+	je	rt_nop
+	cmp	$-EINTR, %eax
+	je	rt_nop
+
+	mov	$ERR_RT_READ, %edi
+	jmp	.Lexit
+
+.align	16,INT3
+.globl	rt_write
+.type	rt_write,@function
+
+rt_write:
+	io_prologue
+
+	mov	$GATE_OUTPUT_FD, %edi
+	mov	$SYS_write, %eax
+	syscall
+	test	%rax, %rax
+	jg	.Lresume
+
+	cmp	$-EAGAIN, %eax
+	je	rt_nop
+	cmp	$-EINTR, %eax
+	je	rt_nop
+
+	mov	$ERR_RT_WRITE, %edi
+	jmp	.Lexit
 
 .Lout_of_bounds:
-	mov	$5, %eax			// MemoryAccessOutOfBounds trap
-	jmp	trap_handler
+	mov	$100+5, %edi			// MemoryAccessOutOfBounds
+	jmp	.Lexit
 
 .align	16,INT3
-.globl	gate_randomseed
-.type	gate_randomseed,@function
+.globl	rt_time
+.type	rt_time,@function
 
-gate_randomseed:
-	test	$1, %ebx
-	jne	.Lsuspended
+rt_time:
+	mov	8(%rsp), %edi			// clk_id
 
-	mov	-10*8(%r15), %rax
-	jmp	.Lresume
+	// Fall through
 
-.align	16,INT3
-.globl	gate_time
-.type	gate_time,@function
+// In:  edi = clock id
+.Ltime:
+	mov	%edi, %r12d
 
-gate_time:
-	test	$1, %ebx
-	jne	.Lsuspended
-
-	mov	16(%rsp), %edi			// Clock id.
-	test	$~1, %edi			// Accept 0 and 1.
-	jne	.Lclock_error
-	add	$5, %edi			// Coarse clock (5 or 6).
-
-	current_memory %r13d
-	shl	$16, %r13d			// Current memory size.
-	add	%r14, %r13			// Current memory end address.
-
-	mov	8(%rsp), %esi			// Relative buffer address.
-	add	%r14, %rsi			// Absolute buffer address.
-	lea	16(%rsi), %r11			// End of absolute buffer.
-
-	cmp	%r11, %r13			// Check against memory limit,
-	jl	.Lout_of_bounds			//
-	cmp	%rsi, %r11			// and detect wrap-around.
-	jl	.Lout_of_bounds			//
+	sub	$16, %rsp			// sizeof(struct timespec)
+	mov	%rsp, %rsi			// tp
 
 	push	%rbx
 	push	%r14
 	push	%r15
 
-	mov	-6*8(%r15), %rcx		// clock_gettime C ABI function.
+	mov	-11*8(%r15), %rcx		// clock_gettime C ABI function
 	call	retpoline
 
 	pop	%r15
 	pop	%r14
-	pop	%rbx
+	pop	%rbx				// XXX: this messes with suspend
 
-	mov	$ERR_RT_CLOCK_GETTIME, %edi	// Exit status.
+	pop	%r10				// tv_sec
+	pop	%r11				// tv_nsec
+
+	mov	$ERR_RT_CLOCK_GETTIME, %edi
+	mov	$-1, %rdx			// Outrageous timestamp
 	test	%eax, %eax
-	jne	.Lruntime_exit
+	jne	.Lexit_time
 
-	mov	-7*8(%r15), %eax		// Time mask.
-	and	%rax, 8(%rsi)			// tv_nsec
+	mov	%r10, %rax
+	mov	$1000000000, %ecx
+	mul	%rcx
+	and	-9*8(%r15), %r11d		// mask
+	add	%r11, %rax			// (tv_sec * 1000000000) + (tv_nsec & mask)
 
-	xor	%eax, %eax			// Success.
-	jmp	.Lresume
+	cmp	$6, %r12d			// CLOCK_MONOTONIC_COARSE
+	jne	.Lresume
 
-.Lclock_error:
-	mov	$-1, %eax			// Error: clock id not supported.
+	sub	-10*8(%r15), %rax		// local_monotonic_time_base
+	mov	%rax, %rdx
+	stack_vars
+	add	8(%rcx), %rdx			// monotonic_time_snapshot
+	mov	%rdx, %rax
 	jmp	.Lresume
 
 .align	16,INT3
-.globl	gate_nop
-.type	gate_nop,@function
+.globl	rt_random
+.type	rt_random,@function
 
-gate_nop:
-	test	$1, %ebx
-	jne	.Lsuspended
+rt_random:
+	stack_vars
+	mov	16(%rcx), %edx			// random_avail
+	dec	%edx
+	jl	.Lno_random
+	mov	%edx, 16(%rcx)			// random_avail
 
 	xor	%eax, %eax
+	mov	-8*8(%r15, %rdx), %al		// random
+	jmp	.Lresume
+
+.Lno_random:
+	mov	$-1, %eax
 	jmp	.Lresume
 
 .align	16,INT3
-.globl	gate_exit
-.type	gate_exit,@function
+.globl	rt_stop
+.type	rt_stop,@function
 
-gate_exit:
-	mov	8(%rsp), %ecx			// gate_exit status number
+rt_stop:
+	mov	8(%rsp), %edi
 
-	xor	%edi, %edi
-	test	%ecx, %ecx
-	setne	%dil				// exit syscall status bit #0
-	or	$2, %dil			// exit syscall status bit #1
-
-	// Fall through to .Lruntime_exit.
+	// Fall through
 
 // In:  edi = status code
-.Lruntime_exit:
-	stack_buffer
-	mov	%rsp, %rax
-	sub	%rcx, %rax			// Stack offset.
-	mov	%eax, 4(%rcx)			// After current memory size.
+.Lexit:
+	pushq	%rdi
 
-	// Fall through to sys_exit.
+	mov	$6, %edi			// CLOCK_MONOTONIC_COARSE
+	call	.Ltime
+	mov	%rax, %rdx
+
+	popq	%rdi
+
+	// Fall through
+
+// In:  edi = status code
+//	rdx = monotonic time
+.Lexit_time:
+	stack_vars
+	mov	%rsp, %rax
+	sub	%rcx, %rax
+	mov	%eax, (%rcx)			// stack_unused
+	mov	%rdx, 8(%rcx)			// monotonic_time_snapshot
+
+	// Fall through
 
 .globl	sys_exit
 .type	sys_exit,@function
@@ -554,42 +535,31 @@ sys_exit:
 	int3
 
 .align	16,INT3
-.globl	gate_debug
-.type	gate_debug,@function
+.globl	rt_debug
+.type	rt_debug,@function
 
-gate_debug:
-	current_memory %r13d
-	shl	$16, %r13d			// Current memory size
-	add	%r14, %r13			// Current memory end address
-
-	mov	16(%rsp), %esi			// Relative buffer address
-	lea	8(%rsp), %r12			// Absolute length address
-	io_setup .Lskip_debug
+rt_debug:
+	io_prologue
 
 	mov	$SYS_write, %eax
 	mov	$GATE_DEBUG_FD, %edi
 	syscall
-
 	test	%rax, %rax
-	jge	.Ldebugged
+	jg	.Ldebugged_some
+	je	rt_nop				// EOF; being suspended or killed
 
 	cmp	$-EINTR, %eax
-	je	gate_debug
+	je	rt_debug
 
-	mov	$ERR_RT_DEBUG, %edi		// exit status
-	jmp	.Lruntime_exit
+	mov	$ERR_RT_DEBUG, %edi
+	jmp	.Lexit
 
-.Ldebugged:
+.Ldebugged_some:
 	add	%eax, 16(%rsp)
 	sub	%eax, 8(%rsp)
-	jne	gate_debug
+	je	rt_nop
 
-.Lskip_debug:
-	test	$1, %ebx
-	jne	.Lsuspended
-
-	xor	%eax, %eax
-	jmp	.Lresume
+	jmp	rt_debug
 
 	int3
 
@@ -598,5 +568,4 @@ gate_debug:
 
 runtime_code_end:
 
-// Don't want executable stack.
-.section .note.GNU-stack,"",%progbits
+.section .note.GNU-stack,"",%progbits		// Don't want executable stack

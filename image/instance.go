@@ -5,6 +5,7 @@
 package image
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"math"
@@ -26,6 +27,19 @@ var ErrInvalidState = errors.New("instance state is invalid")
 const (
 	instMaxOffset = int64(0x180000000) // 0x80000000 * 3
 )
+
+const stackMagic = 0x7b53c485c17322fe
+
+// stackVars is like stack_vars in runtime/loader/loader.c
+type stackVars struct {
+	StackUnused           uint32 // Other fields are meaningless if this is zero.
+	CurrentMemoryPages    uint32 // WebAssembly pages.
+	MonotonicTimeSnapshot uint64
+	RandomAvail           int32
+	Reserved              uint32
+	TextAddr              uint64
+	Magic                 [4]uint64
+}
 
 type InstanceStorage interface {
 	newInstanceFile() (*file.File, error)
@@ -65,7 +79,7 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 		instTextAddr = man.TextAddr
 	}
 
-	if instStackUsage > instStackSize-internal.StackLimitOffset {
+	if instStackUsage > instStackSize-internal.StackUsageOffset {
 		err = resourcelimit.New("call stack size limit exceeded")
 		return
 	}
@@ -134,6 +148,7 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 			MaxMemorySize: man.MemorySizeLimit,
 			EntryIndex:    entryIndex,
 			EntryAddr:     entryAddr,
+			Snapshot:      man.Snapshot,
 		},
 		file:     instFile,
 		coherent: true,
@@ -193,14 +208,15 @@ func (inst *Instance) Close() (err error) {
 	return
 }
 
-func (inst *Instance) TextAddr() uint64    { return inst.man.TextAddr }
-func (inst *Instance) StackSize() int      { return int(inst.man.StackSize) }
-func (inst *Instance) StackUsage() int     { return int(inst.man.StackUsage) }
-func (inst *Instance) GlobalsSize() int    { return alignPageSize32(inst.man.GlobalsSize) }
-func (inst *Instance) MemorySize() int     { return int(inst.man.MemorySize) }
-func (inst *Instance) MaxMemorySize() int  { return int(inst.man.MaxMemorySize) }
-func (inst *Instance) InitRoutine() uint32 { return inst.man.InitRoutine }
-func (inst *Instance) EntryAddr() uint32   { return inst.man.EntryAddr }
+func (inst *Instance) TextAddr() uint64      { return inst.man.TextAddr }
+func (inst *Instance) StackSize() int        { return int(inst.man.StackSize) }
+func (inst *Instance) StackUsage() int       { return int(inst.man.StackUsage) }
+func (inst *Instance) GlobalsSize() int      { return alignPageSize32(inst.man.GlobalsSize) }
+func (inst *Instance) MemorySize() int       { return int(inst.man.MemorySize) }
+func (inst *Instance) MaxMemorySize() int    { return int(inst.man.MaxMemorySize) }
+func (inst *Instance) InitRoutine() uint32   { return inst.man.InitRoutine }
+func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryAddr }
+func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.MonotonicTime }
 
 // BeginMutation is invoked by a mutator when it takes exclusive ownership of
 // the instance state.  CheckMutation and Close may be called during the
@@ -217,7 +233,8 @@ func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintp
 		return
 	}
 
-	inst.man.TextAddr = textAddr
+	// Text address is currently unused, as it's later read from stack vars.
+
 	inst.coherent = false
 	file = inst.file
 	return
@@ -232,28 +249,44 @@ func (inst *Instance) CheckMutation() (err error) {
 		return
 	}
 
-	b := make([]byte, 8)
+	b := make([]byte, internal.StackVarsSize)
 
 	_, err = inst.file.ReadAt(b, 0)
 	if err != nil {
 		return
 	}
 
-	unused, memorySize, ok := checkStack(b, int(inst.man.StackSize))
+	err = inst.checkMutation(b)
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+func (inst *Instance) checkMutation(stack []byte) (err error) {
+	if inst.coherent {
+		return
+	}
+
+	vars, ok := checkStack(stack, inst.man.StackSize)
 	if !ok {
 		err = ErrInvalidState
 		return
 	}
 
-	if unused == 0 {
+	if vars.StackUnused == 0 {
 		inst.man.InitRoutine = abi.TextAddrEnter
 		inst.man.StackUsage = 0
+		inst.man.TextAddr = 0
 	} else {
+		inst.man.Snapshot.MonotonicTime = vars.MonotonicTimeSnapshot
 		inst.man.InitRoutine = abi.TextAddrResume
-		inst.man.StackUsage = inst.man.StackSize - unused
+		inst.man.StackUsage = inst.man.StackSize - vars.StackUnused
+		inst.man.TextAddr = vars.TextAddr
 	}
 
-	inst.man.MemorySize = memorySize
+	inst.man.MemorySize = vars.CurrentMemoryPages << wa.PageBits
 	inst.coherent = true
 	return
 }
@@ -275,49 +308,53 @@ func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
 		return
 	}
 
-	unused, _, ok := checkStack(b, len(b))
-	if !ok {
-		err = ErrInvalidState
+	err = inst.checkMutation(b)
+	if err != nil {
 		return
 	}
 
-	if unused != 0 && int(unused) != len(b) {
-		stacktrace, err = stack.Trace(b[unused:], inst.man.TextAddr, textMap, funcSigs)
+	if inst.man.StackUsage == 0 {
+		return
 	}
-	return
+
+	return stack.Trace(b[len(b)-int(inst.man.StackUsage):], inst.man.TextAddr, textMap, funcSigs)
 }
 
-func checkStack(b []byte, stackSize int) (unused, memorySize uint32, ok bool) {
-	if len(b) < 8 {
+func checkStack(b []byte, stackSize uint32) (vars stackVars, ok bool) {
+	if binary.Read(bytes.NewReader(b), binary.LittleEndian, &vars) != nil {
 		return
 	}
 
-	memoryPages := binary.LittleEndian.Uint32(b[0:])
-	memorySize = memoryPages * wa.PageSize
-	unused = binary.LittleEndian.Uint32(b[4:])
-
-	switch {
-	case memoryPages > math.MaxInt32/wa.PageSize:
-		// Impossible memory state.
-		return
-
-	case unused == 0:
+	if vars.StackUnused == 0 {
 		// Suspended before execution started.
 		ok = true
 		return
+	}
 
-	case unused == math.MaxUint32:
-		// Execution was suspended by force.
-		return
-
-	case unused < internal.StackLimitOffset || unused > uint32(stackSize) || unused&7 != 0:
-		// Impossible stack state.
-		return
+	switch {
+	case vars.StackUnused == math.MaxUint32: // Execution was suspended by force.
+	case vars.StackUnused < internal.StackUsageOffset || vars.StackUnused > stackSize || vars.StackUnused&7 != 0:
+	case vars.CurrentMemoryPages > math.MaxInt32/wa.PageSize:
+	case vars.RandomAvail > 16:
+	case vars.Reserved != 0:
+	case !checkStackMagic(vars.Magic[:]):
 
 	default:
+		// All values seem legit.
 		ok = true
 		return
 	}
+
+	return
+}
+
+func checkStackMagic(numbers []uint64) bool {
+	for _, n := range numbers {
+		if n != stackMagic {
+			return false
+		}
+	}
+	return true
 }
 
 var pageMask = int64(internal.PageSize - 1)

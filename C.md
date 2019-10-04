@@ -17,16 +17,9 @@ GATE_API_VERSION
 
 
 ```c
-GATE_CLOCK_REALTIME
-GATE_CLOCK_MONOTONIC
+GATE_IO_WAIT
 ```
-> Supported clock identifiers.
-
-
-```c
-GATE_IO_RECV_WAIT
-```
-> I/O function flag.
+> I/O flag.
 
 
 ```c
@@ -70,7 +63,26 @@ GATE_ALIGN_PACKET(size)
 > Rounds packet size up to a multiple of packet alignment.
 
 
+#### Types
+
+```c
+struct gate_iovec {
+	void *iov_base;
+	size_t iov_len;
+};
+```
+> Specifies buffers for scatter-gather I/O.
+
+
 #### Functions
+
+```c
+uint64_t gate_clock_realtime(void);
+uint64_t gate_clock_monotonic(void);
+```
+> Get current wall-clock or monotonic time in nanoseconds.  Actual resolution
+> is unspecified.
+
 
 ```c
 void gate_debug(arg);
@@ -120,52 +132,27 @@ void gate_exit(int status);
 
 
 ```c
-void gate_io(void * restrict recv_buffer,
-             size_t * restrict recv_length,
-             const void * restrict send_buffer,
-             size_t * restrict send_length,
-             unsigned io_flags);
+void gate_io(const struct gate_iovec *recv,
+             int recvveclen,
+             size_t *nreceived,
+             const struct gate_iovec *send,
+             int sendveclen,
+             size_t *nsent,
+             unsigned flags);
+size_t gate_recv(void *buf, size_t size, unsigned flags);
+size_t gate_send(const void *data, size_t size);
 ```
-> Receive and/or send packets.
->
-> Receive and send lengths are specified as pointers to integers, which are
-> updated to reflect the number of bytes transferred.  Specifying zero length
-> or a null pointer disables transfer.
+> Receive and/or send packet data.  The transferred data sizes are returned
+> through the *nreceived* and *nsent* pointers, or as return values.
 >
 > A packet is padded so that its buffer size is rounded up to the next multiple
-> of GATE_PACKET_ALIGNMENT.  When sending a packet, 0 to
-> GATE_PACKET_ALIGNMENT-1 padding bytes must be sent after the packet to ensure
-> alignment.
->
-> A buffer might contain partial packet, a whole packet, or (parts of) multiple
-> packets.
+> of `GATE_PACKET_ALIGNMENT`.  When sending a packet, `0` to
+> `GATE_PACKET_ALIGNMENT-1` padding bytes must be sent after the packet to
+> ensure alignment.
 >
 > The call is non-blocking by default.  Blocking behavior can be requested by
-> specifying receive buffer and `GATE_IO_RECV_WAIT` flag.  The call may still
-> be interrupted without any bytes having been transferred.  Blocking send
-> without receive is not supported.
-
-
-```c
-uint64_t gate_randomseed();
-```
-> Return a cryptographically secure pseudorandom number.  If called multiple
-> times, a different number may or may not be returned.
-
-
-```c
-struct gate_timespec {
-	int64_t sec;
-	long nsec;
-}
-
-int gate_gettime(enum gate_clockid clk_id, struct gate_timespec *tp);
-```
-> Get current wall-clock or monotonic time.  Actual resolution is unspecified.
->
-> On success 0 is returned.  If an unsupported clock id is specified, -1 is
-> returned.
-
+> specifying the `GATE_IO_WAIT` flag.  The call may still be interrupted
+> without any bytes having been transferred.
 
 
 #### Packet header

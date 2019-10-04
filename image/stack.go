@@ -50,8 +50,8 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 			return
 		}
 
-		_, callIndex, _, stackOffset, initial, ok := codeMap.FindAddr(uint32(retAddr))
-		if !ok {
+		initial, _, callIndex, stackOffset, _ := codeMap.FindAddr(uint32(retAddr))
+		if callIndex < 0 {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", retAddr)
 			return
 		}
@@ -169,8 +169,8 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 		buf = buf[call.StackOffset-8:]
 
-		funcIndex, callIndexAgain, _, stackOffsetAgain, initial, ok := codeMap.FindAddr(call.RetAddr)
-		if !ok || uint64(callIndexAgain) != callIndex || stackOffsetAgain != call.StackOffset || initial {
+		initial, funcIndex, callIndexAgain, stackOffsetAgain, _ := codeMap.FindAddr(call.RetAddr)
+		if initial || uint64(callIndexAgain) != callIndex || stackOffsetAgain != call.StackOffset {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr)
 			return
 		}

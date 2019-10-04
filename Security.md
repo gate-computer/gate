@@ -106,6 +106,8 @@ Possible operations:
   - Read from/write to the same file descriptors which the program could access
     via the unprivileged Gate runtime ABI functions.
 
+  - Poll the file descriptors.
+
   - mprotect linear memory and stack regions as read/writable.  Of those, the
     only thing which is not already read/writable is the unallocated portion of
     linear memory, and the program could do that also via the unprivileged

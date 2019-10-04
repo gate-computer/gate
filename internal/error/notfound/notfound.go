@@ -20,8 +20,8 @@ type FunctionError interface {
 
 // Public function errors.
 var (
-	ErrFunction  = function("function not found or type is incompatible")
-	ErrSuspended = function("suspended program has no effective entry functions")
+	ErrFunction  = function("function not exported or it cannot be used as entry function")
+	ErrSuspended = function("explicit entry function may not be specified for suspended program")
 )
 
 type function string

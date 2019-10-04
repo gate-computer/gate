@@ -28,6 +28,7 @@ import (
 	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/internal/system"
 	"github.com/tsavola/gate/runtime"
+	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/catalog"
 	"github.com/tsavola/gate/service/origin"
@@ -395,7 +396,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 
 	reader := codeMap.Reader(bufio.NewReader(io.TeeReader(f, b.Image.ModuleWriter())))
 
-	b.InstallPrematureSnapshotSectionLoaders(errors.New)
+	b.InstallEarlySnapshotLoaders(errors.New)
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
@@ -412,14 +413,14 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(codeMap), reader, b.Module)
+	err = compile.LoadCodeSection(b.CodeConfig(codeMap), reader, b.Module, abi.Library())
 	if err != nil {
 		return
 	}
 
 	text := prepareTextDump(b.Image.TextBuffer().Bytes())
 
-	b.InstallSnapshotSectionLoaders(errors.New)
+	b.InstallSnapshotDataLoaders(errors.New)
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
@@ -431,7 +432,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	b.InstallLateSnapshotSectionLoaders(errors.New)
+	b.InstallLateSnapshotLoaders(errors.New)
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {

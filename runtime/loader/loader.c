@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include <elf.h>
 #include <fcntl.h>
@@ -28,7 +29,7 @@
 #include "syscall.h"
 
 #define SYS_SA_RESTORER 0x04000000
-#define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER | SA_SIGINFO)
+#define SIGACTION_FLAGS (SYS_SA_RESTORER | SA_SIGINFO)
 
 #ifdef __ANDROID__
 #define ANDROID 1
@@ -40,7 +41,7 @@
 
 #include "loader.h"
 
-#ifdef __clang__
+#if defined(__clang__) || defined(__aarch64__)
 void *memcpy(void *dest, const void *src, size_t n)
 {
 	for (size_t i = 0; i < n; i++)
@@ -55,7 +56,9 @@ size_t strlen(const char *s)
 		n++;
 	return n;
 }
+#endif
 
+#if defined(__clang__)
 struct cmsghdr *__cmsg_nxthdr(struct msghdr *msg, struct cmsghdr *cmsg)
 {
 	struct cmsghdr *ptr = (void *) cmsg + CMSG_ALIGN(cmsg->cmsg_len);
@@ -72,14 +75,16 @@ typedef const struct {
 } code;
 
 extern code current_memory;
-extern code gate_debug;
-extern code gate_exit;
-extern code gate_io;
-extern code gate_nop;
-extern code gate_randomseed;
-extern code gate_time;
 extern code grow_memory;
 extern code retpoline;
+extern code rt_debug;
+extern code rt_nop;
+extern code rt_poll;
+extern code rt_random;
+extern code rt_read;
+extern code rt_write;
+extern code rt_stop;
+extern code rt_time;
 extern code runtime_code_begin;
 extern code runtime_code_end;
 extern code runtime_init;
@@ -162,7 +167,7 @@ struct image_info {
 	uint64_t text_addr;
 	uint64_t stack_addr;
 	uint64_t heap_addr;
-	uint64_t random_value;
+	uint64_t random[2];
 	uint32_t text_size;
 	uint32_t stack_size;
 	uint32_t stack_unused;
@@ -171,8 +176,20 @@ struct image_info {
 	uint32_t grow_memory_size;
 	uint32_t init_routine;
 	uint32_t entry_addr;
+	uint64_t monotonic_time;
 	uint32_t time_mask;
 	uint32_t magic_number_2;
+} PACKED;
+
+// This is like stackVars in image/instance.go
+struct stack_vars {
+	uint32_t stack_unused;
+	uint32_t current_memory_pages; // WebAssembly pages.
+	uint64_t monotonic_time_snapshot;
+	int32_t random_avail;
+	uint32_t reserved;
+	uint64_t text_addr;
+	uint64_t magic[4];
 } PACKED;
 
 static int receive_info(struct image_info *buf, int *text_fd, int *state_fd)
@@ -311,6 +328,17 @@ clock_gettime_found:
 	if (info.magic_number_2 != GATE_MAGIC_NUMBER_2)
 		return ERR_LOAD_MAGIC_2;
 
+	// Time
+
+	struct timespec t;
+
+	int (*gettime)(clockid_t, struct timespec *) = (void *) clock_gettime_addr;
+	if (gettime(CLOCK_MONOTONIC_COARSE, &t) != 0)
+		return ERR_LOAD_CLOCK_GETTIME;
+
+	t.tv_nsec &= info.time_mask;
+	uint64_t local_monotonic_time_base = (uint64_t) t.tv_sec * 1000000000ULL + (uint64_t) t.tv_nsec;
+
 	// Runtime: code at start, import vector at end (and maybe space for text)
 
 	uint64_t runtime_addr = info.text_addr - (uint64_t) info.page_size;
@@ -323,19 +351,27 @@ clock_gettime_found:
 	uintptr_t runtime_size = (uintptr_t) &runtime_code_end - (uintptr_t) &runtime_code_begin;
 	memcpy(runtime_ptr + ((uintptr_t) &runtime_code_begin - GATE_LOADER_ADDR), &runtime_code_begin, runtime_size);
 
+	// TODO: check that runtime and vector contents don't overlap
+
 	uint64_t *vector_end = (uint64_t *) (runtime_ptr + info.page_size);
 
-	code *debug_func = debug_flag ? &gate_debug : &gate_nop;
+	code *debug_func = debug_flag ? &rt_debug : &rt_nop;
 
-	// These assignments reflect the moduleFunctions map in runtime/abi/abi.go
-	*(vector_end - 11) = runtime_func_addr(runtime_ptr, &gate_exit);
-	*(vector_end - 10) = info.random_value;
-	*(vector_end - 9) = runtime_func_addr(runtime_ptr, &gate_randomseed);
-	*(vector_end - 8) = runtime_func_addr(runtime_ptr, debug_func);
-	*(vector_end - 7) = info.time_mask;
-	*(vector_end - 6) = clock_gettime_addr;
-	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &gate_time);
-	*(vector_end - 4) = runtime_func_addr(runtime_ptr, &gate_io);
+	// These assignments reflect the rtFunctions map in runtime/abi/abi.go
+	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_stop);
+	*(vector_end - 16) = runtime_func_addr(runtime_ptr, &rt_nop);
+	*(vector_end - 15) = runtime_func_addr(runtime_ptr, &rt_write);
+	*(vector_end - 14) = runtime_func_addr(runtime_ptr, &rt_read);
+	*(vector_end - 13) = runtime_func_addr(runtime_ptr, &rt_poll);
+	*(vector_end - 12) = runtime_func_addr(runtime_ptr, &rt_time);
+	*(vector_end - 11) = clock_gettime_addr;
+	*(vector_end - 10) = local_monotonic_time_base;
+	*(vector_end - 9) = info.time_mask;
+	*(vector_end - 8) = info.random[0];
+	*(vector_end - 7) = info.random[1];
+	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &rt_random);
+	*(vector_end - 5) = runtime_func_addr(runtime_ptr, debug_func);
+	*(vector_end - 4) = info.grow_memory_size >> 16;
 	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
 	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
 	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
@@ -367,9 +403,15 @@ clock_gettime_found:
 	if (stack_buf == MAP_FAILED)
 		return ERR_LOAD_MMAP_STACK;
 
-	// Write stack variables atomically.  Clearing the second 32-bit value
-	// invalidates state (in case of re-entry).
-	*(uint64_t *) stack_buf = info.init_memory_size >> 16; // WebAssembly pages.
+	volatile struct stack_vars *vars = stack_buf;
+	vars->stack_unused = 0; // Invalidate state (in case of re-entry).
+	vars->current_memory_pages = info.init_memory_size >> 16;
+	vars->monotonic_time_snapshot = info.monotonic_time;
+	vars->random_avail = sizeof info.random;
+	vars->reserved = 0;
+	vars->text_addr = (uint64_t) text_ptr;
+	for (unsigned i = 0; i < sizeof vars->magic / sizeof vars->magic[0]; i++)
+		vars->magic[i] = GATE_STACK_MAGIC;
 
 	void *stack_limit = stack_buf + GATE_STACK_LIMIT_OFFSET;
 	uint64_t *stack_ptr = stack_buf + info.stack_unused;
@@ -419,9 +461,12 @@ clock_gettime_found:
 	if (sys_close(state_fd) != 0)
 		return ERR_LOAD_CLOSE_STATE;
 
-	// Enable I/O signals for sending file descriptor.
+	// Non-blocking I/O.
 
-	if (sys_fcntl(GATE_OUTPUT_FD, F_SETFL, O_ASYNC | O_NONBLOCK) != 0)
+	if (sys_fcntl(GATE_INPUT_FD, F_SETFL, O_NONBLOCK) != 0)
+		return ERR_LOAD_FCNTL_INPUT;
+
+	if (sys_fcntl(GATE_OUTPUT_FD, F_SETFL, O_NONBLOCK) != 0)
 		return ERR_LOAD_FCNTL_OUTPUT;
 
 	// Start runtime.

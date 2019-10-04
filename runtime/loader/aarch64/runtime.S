@@ -12,75 +12,61 @@
 #include "errors.h"
 #include "runtime.h"
 
-#include "../msg.S"
+#include "../poll.S"
 
+#define SYS_close        57
+#define SYS_read         63
 #define SYS_write        64
+#define SYS_ppoll        73
 #define SYS_exit_group   94
 #define SYS_rt_sigreturn 139
-#define SYS_recvfrom     207
 #define SYS_munmap       215
 #define SYS_mremap       216
 #define SYS_mprotect     226
 #define SYS_seccomp      277
 
 #define UCONTEXT_SUSPEND_REG_OFFSET  408 // x28
-#define UCONTEXT_STACKPTR_REG_OFFSET 416 // x29
+#define UCONTEXT_LINK_REG_OFFSET     424 // x30
 #define UCONTEXT_INSNPTR_REG_OFFSET  440 // pc
 
-// Out: x1 = start of stack buffer
-// Clobbers r0.
-.macro	stack_buffer
+// Out: x1 = stack vars
+// Clobbers x0.
+.macro	stack_vars
 	movn	x0, #0x0001, lsl #0		// ffff ffff ffff fffe
 	movk	x0, #0xbfff, lsl #48		// bfff ffff ffff fffe
-	and	x1, x28, x0			// Clear suspend bits.
+	and	x1, x28, x0			// Clear suspend bits
 	mov	x0, #-GATE_STACK_LIMIT_OFFSET
 	add	x1, x0, x1, lsl #4		// (x1 << 4) - GATE_STACK_LIMIT_OFFSET
 .endm
 
-// Out: x1 = start of stack buffer
+// Out: x1  = stack vars
 //      out = current memory size in wasm pages
-// Clobbers r0.
-.macro	current_memory out
-	stack_buffer
-	ldr	\out, [x1]
+// Clobbers x0.
+.macro	current_memory_pages out
+	stack_vars
+	ldr	\out, [x1, #4]
 .endm
 
-// In:  x12 = relative length address (zero-extended 32-bit value)
+// Out: x1  = absolute buffer start address
+//      x2  = buffer length
+//      x11 = absolute buffer end address
 //      x13 = current memory end address
-// Out: x12 = absolute length address
-//      x13 = current memory end address
-// Clobbers r11.
-.macro	io_len_check nop_label
-	cbz	w12, \nop_label
+// Clobbers x0.
+.macro	io_prologue
+	current_memory_pages w13
+	add	x13, x26, x13, lsl #16		// Current memory end address
 
-	add	x12, x26, x12			// Absolute length address.
-	add	x11, x12, #4			// End of absolute length.
+	ldr	w1, [x29, #8]			// Relative buffer address
+	ldr	w2, [x29, #0]			// Buffer length
+	cbz	w2, rt_nop			// Nothing to transfer?
 
-	cmp	x13, x11			// Check against memory limit,
+	add	x1, x1, x26			// Absolute buffer address
+	add	x11, x1, x2			// End of absolute buffer
+
+	cmp	x13, x11			// Check against memory limit
 	b.lt	.Lout_of_bounds
-	cmp	x11, x12			// and detect wrap-around.
+	cmp	x11, x1				// ...and detect wrap-around
 	b.lt	.Lout_of_bounds
-.endm
-
-// In:  x1 = relative buffer address (zero-extended 32-bit value)
-//      x12 = absolute length address
-//      x13 = current memory end address
-// Out: x1 = absolute buffer address
-//      x2 = length
-//      x12 = absolute length address
-//      x13 = current memory end address
-// Clobbers r11.
-.macro	io_setup nop_label
-	ldr	w2, [x12]			// Length (zero-extended).
-	cbz	w2, \nop_label			// Nothing to transfer.
-
-	add	x1, x1, x26			// Absolute buffer address.
-	add	x11, x1, x2			// End of absolute buffer.
-
-	cmp	x13, x11			// Check against memory limit,
-	b.lt	.Lout_of_bounds			//
-	cmp	x11, x1				// and detect wrap-around.
-	b.lt	.Lout_of_bounds			//
 .endm
 
 .section .text
@@ -108,7 +94,8 @@ runtime_code_begin:
 //      x28 = stack limit >> 4
 //      x29 = fake stack ptr
 runtime_init:
-	// Unmap loader .text and .rodata sections.
+
+	// Unmap loader .text and .rodata sections
 
 	mov	x0, #GATE_LOADER_ADDR
 	mov	x1, #GATE_LOADER_SIZE
@@ -118,7 +105,7 @@ runtime_init:
 	mov	w0, #ERR_LOAD_MUNMAP_LOADER
 	b.ne	sys_exit
 
-	// Build sock_fprog structure on stack.  Using 16 bytes of red zone.
+	// Build sock_fprog structure on stack
 
 	mov	x2, sp				// seccomp args
 	adr	x0, .Lseccomp_filter_len	// clang doesn't understand #seccomp_filter_len
@@ -127,7 +114,7 @@ runtime_init:
 	adr	x0, .Lseccomp_filter
 	str	x0, [x2, #8]
 
-	// Enable seccomp.
+	// Enable seccomp
 
 	mov	w0, #SECCOMP_SET_MODE_FILTER	// seccomp mode
 	mov	w1, #0				// seccomp flags
@@ -138,10 +125,25 @@ runtime_init:
 	mov	w0, #ERR_LOAD_SECCOMP
 	b.ne	sys_exit
 
-	// Fall through to runtime_init_no_sandbox.
+	// Fall through to runtime_init_no_sandbox
 
 runtime_init_no_sandbox:
-	// Clear registers used by wag codegen.
+
+	// Terminate in uninitialized state if already suspended
+
+	mov	w0, #100+2			// Suspended
+	tbnz	x28, #0, sys_exit		// Don't use .Lexit
+
+	// Mark stack as dirty just before execution.  (If SIGXCPU signal was
+	// received just after the above check, the process has about a second
+	// worth of CPU time to reach the first suspend check and execute
+	// .Lexit to avoid inconsistent state.)
+
+	stack_vars
+	mov	w0, #-1
+	str	w0, [x1]			// stack_unused
+
+	// Clear registers used by wag codegen
 
 	mov	x2, #0
 	mov	x3, #0
@@ -168,29 +170,12 @@ runtime_init_no_sandbox:
 	mov	x24, #0
 	mov	x25, #0
 
-	// Already suspended?  Terminate in uninitialized state.
-
-	tbz	x28, #0, .Lproceed
-
-	mov	w0, #100+2			// Suspended
-	b	sys_exit			// Don't use .Lruntime_exit
-
-.Lproceed:
-	// Mark stack as dirty just before execution.  (If SIGXCPU signal was
-	// received just after the above check, the process has one second
-	// worth of CPU time to reach the first suspend check in generated code
-	// or ABI call and execute .Lruntime_exit to avoid inconsistent state.)
-
-	stack_buffer
-	mov	w0, #-1
-	str	w0, [x1, #4]
-
-	// Execute wag object ABI init routine.
+	// Execute wag object ABI init routine
 
 	mov	x1, x27				// Init routine address
 	mov	x0, #~0x7f
 	and	x27, x27, x0			// Text base
-	mov	x0, #0				// Result reg when resuming after ABI call
+	mov	x0, #0				// Result when resuming
 	br	x1
 
 .globl	signal_handler
@@ -200,28 +185,19 @@ runtime_init_no_sandbox:
 //      x1 = siginfo
 //      x2 = ucontext
 signal_handler:
-	cmp	w0, #SIGIO
-	b.eq	.Lsigio
-
 	cmp	w0, #SIGSEGV
 	b.eq	.Lsigsegv
 
 	movz	x0, #0x0001, lsl #0		// 0000 0000 0000 0001
 	movk	x0, #0x4000, lsl #48		// 4000 0000 0000 0001
 	ldr	x1, [x2, #UCONTEXT_SUSPEND_REG_OFFSET]
-	orr	x1, x1, x0			// Suspend calls and loops.
+	orr	x1, x1, x0			// Suspend calls and loops
 	str	x1, [x2, #UCONTEXT_SUSPEND_REG_OFFSET]
-
-.Lsigio:
 	ret
 
 .Lsigsegv:
-	ldr	x0, [x2, #UCONTEXT_STACKPTR_REG_OFFSET]
-	sub	x0, x0, #8
-	str	x0, [x2, #UCONTEXT_STACKPTR_REG_OFFSET]
-
 	ldr	x1, [x2, #UCONTEXT_INSNPTR_REG_OFFSET]
-	str	x1, [x0]
+	str	x1, [x2, #UCONTEXT_LINK_REG_OFFSET]
 
 	adr	x1, .Lsigsegv_exit
 	str	x1, [x2, #UCONTEXT_INSNPTR_REG_OFFSET]
@@ -229,7 +205,7 @@ signal_handler:
 
 .Lsigsegv_exit:
 	mov	w9, #100+5			// MemoryAccessOutOfBounds
-	b	.Lruntime_exit
+	b	.Lexit
 
 .globl	signal_restorer
 .type	signal_restorer,@function
@@ -245,37 +221,33 @@ signal_restorer:
 // In:  x0 = (result << 32) | trap_id
 trap_handler:
 	cbz	w0, .Ltrap_exit
-
-	cmp	w0, #2				// Suspended
-	b.eq	.Lsuspended
-
 	cmp	w0, #4				// CallStackExhausted
-	b.eq	.Lcall_stack_exhausted
+	b.eq	.Ltrap_call_stack_exhausted
 
-	add	w9, w0, #100			// exit status
-	b	.Lruntime_exit
+	add	w9, w0, #100
+	b	.Lexit
 
 .Ltrap_exit:
 	cmp	xzr, x0, lsr #32		// Program result
-	cset	w9, ne				// exit status bit
-	b	.Lruntime_exit
+	cset	w9, ne				// Status depending on result
+	b	.Lexit
 
-.Lsuspended:
-	mov	w9, #100+2			// exit status: Suspended
-	b	.Lruntime_exit
+.Ltrap_call_stack_exhausted:
+	tbnz	x28, #0, .Ltrap_suspended
 
-.Lcall_stack_exhausted:
-	tbnz	x28, #0, .Lsuspended
+	mov	w9, #100+4			// CallStackExhausted
+	b	.Lexit
 
-	mov	w9, #100+4			// exit status: CallStackExhausted
-	b	.Lruntime_exit
+.Ltrap_suspended:
+	mov	w9, #100+2			// Suspended
+	b	.Lexit
 
 .globl	current_memory
 .type	current_memory,@function
 
 // Out: w0 = allocated wasm pages
 current_memory:
-	current_memory w0
+	current_memory_pages w0
 	b	.Lresume
 
 .globl	grow_memory
@@ -286,9 +258,9 @@ current_memory:
 grow_memory:
 	mov	w12, w0
 
-	current_memory w0
+	current_memory_pages w0
 	add	x13, x0, x12			// New memory pages
-	ldr	x1, [x27, #-32]			// Grow memory limit pages
+	ldr	x1, [x27, #-4*8]		// Memory grow limit in pages
 	cmp	x1, x13
 	b.lt	.Loom
 
@@ -304,7 +276,7 @@ grow_memory:
 
 	mov	w9, #ERR_RT_MREMAP
 	and	w0, w0, #0xfff
-	cbnz	w0, .Lruntime_exit
+	cbnz	w0, .Lexit
 
 #else // !__ANDROID__
 
@@ -318,17 +290,24 @@ grow_memory:
 	svc	#0
 
 	mov	w9, #ERR_RT_MPROTECT
-	cbnz	w0, .Lruntime_exit
+	cbnz	w0, .Lexit
 
 #endif // __ANDROID__
 
 .Lgrow_done:
-	current_memory w0
-	str	w13, [x1]
+	current_memory_pages w0
+	str	w13, [x1, #4]			// current_memory_pages
 	b	.Lresume
 
 .Loom:
 	mov	w0, #-1
+	b	.Lresume
+
+.globl	rt_nop
+.type	rt_nop,@function
+
+rt_nop:
+	mov	x0, #0
 
 	// Fall through to .Lresume.
 
@@ -336,181 +315,194 @@ grow_memory:
 	add	x1, x27, #16			// wag object ABI resume routine
 	br	x1
 
-.globl	gate_io
-.type	gate_io,@function
+.globl	rt_poll
+.type	rt_poll,@function
 
-gate_io:
-	current_memory w13
-	add	x13, x26, x13, lsl #16		// Current memory end address
+rt_poll:
+	ldr	w4, [x29, #8]			// Input events
+	ldr	w5, [x29, #0]			// Output events
 
-	// Setup source buffer.
+	sub	x0, x29, #8*2			// sizeof(struct pollfd) * 2
+	str	wzr, [x0, #0]			// fds[0].fd <- GATE_INPUT_FD
+	str	w4, [x0, #4]			// fds[0].events and .revents
+	mov	w6, #GATE_OUTPUT_FD
+	str	w6, [x0, #8]			// fds[1].fd
+	str	w5, [x0, #12]			// fds[1].events and .revents
 
-	ldr	w1, [x29, #16]			// Relative buffer address
-	ldr	w12, [x29, #8]			// Relative length address
-	io_len_check .Lskip_send
-	io_setup .Lskip_send
-
-	// Send.
-
-	mov	w8, #SYS_write
-	mov	w0, #GATE_OUTPUT_FD
+	mov	w1, #2				// nfds
+	mov	w2, #0				// tmo_p
+	mov	w3, #0				// sigmask
+	mov	w8, #SYS_ppoll
 	svc	#0
 
-	// Handle normal write result.
+	ldrh	w4, [x29, #-10]			// Input revents
+	ldrh	w5, [x29, #-2]			// Output revents
 
-	tbz	x0, #63, .Lsent
+	mov	w9, #ERR_RT_POLL
 
-	// Handle write errors.
+	cmp	x0, #0
+	b.gt	.Lpoll_revents
 
 	cmp	x0, #-EAGAIN
-	b.eq	.Lnot_sent
+	b.eq	rt_nop
 	cmp	x0, #-EINTR
-	b.eq	.Lnot_sent
+	b.eq	rt_nop
 
-	mov	w9, #ERR_RT_WRITE		// exit status
-	b	.Lruntime_exit
+	b	.Lexit
 
-.Lnot_sent:
-	mov	w0, #0				// Sent 0 bytes
+.Lpoll_revents:
+	mov	w0, #0
 
-.Lsent:
-	str	w0, [x12]			// Sent length
+	mov	w6, #POLLHUP|POLLRDHUP
+	tst	w4, w6				// Being suspended?
+	b.ne	rt_nop
+	tst	w4, #~POLLIN
+	b.ne	.Lexit
+	orr	w0, w0, w4
 
-.Lskip_send:
-	// Setup target buffer.
+	tst	w5, #~POLLIN
+	b.ne	.Lexit
+	orr	w0, w0, w5
 
-	ldr	w1, [x29, #32]			// Relative buffer address
-	ldr	w12, [x29, #24]			// Relative length address
-	io_len_check gate_nop
-	io_setup gate_nop
+	b	.Lresume
 
-	// Map gate_io flag to recv flag.
+.globl	rt_read
+.type	rt_read,@function
 
-	ldr	w3, [x29, #0]			// I/O flags
-	mvn	w3, w3, lsl #MSG_DONTWAIT_BIT	// Invert and reposition I/O bit as MSG bit
-	and	w3, w3, #MSG_DONTWAIT		// Discard unknown flags
+rt_read:
+	io_prologue
 
-	// No source address/length.
-
-	mov	x4, #0
-	mov	x5, #0
-
-	// Receive.
-
-	mov	w8, #SYS_recvfrom
 	mov	w0, #GATE_INPUT_FD
+	mov	w8, #SYS_read
 	svc	#0
-
-	// Handle normal read result.
-
-	tbz	x0, #63, .Lreceived
-	cbz	x0, .Lreceived_eof
-
-	// Handle read errors.
+	cmp	x0, #0
+	b.ge	.Lresume			// EOF if being suspended or killed
 
 	cmp	x0, #-EAGAIN
-	b.eq	.Lnot_received
+	b.eq	rt_nop
 	cmp	x0, #-EINTR
-	b.eq	.Lnot_received
+	b.eq	rt_nop
 
-	mov	w9, #ERR_RT_RECVFROM		// exit status
-	b	.Lruntime_exit
+	mov	w9, #ERR_RT_READ
+	b	.Lexit
 
-.Lnot_received:
-	mov	w0, #0				// Received 0 bytes
+.globl	rt_write
+.type	rt_write,@function
 
-.Lreceived:
-	str	w0, [x12]			// Received length
-	b	gate_nop
+rt_write:
+	io_prologue
 
-.Lreceived_eof:
-	str	w0, [x12]			// Received length
-	b	.Lsuspended
+	mov	w0, #GATE_OUTPUT_FD
+	mov	w8, #SYS_write
+	svc	#0
+	cmp	x0, #0
+	b.gt	.Lresume
+
+	cmp	x0, #-EAGAIN
+	b.eq	rt_nop
+	cmp	x0, #-EINTR
+	b.eq	rt_nop
+
+	mov	w9, #ERR_RT_WRITE
+	b	.Lexit
 
 .Lout_of_bounds:
-	mov	w0, #5				// MemoryAccessOutOfBounds trap
-	b	trap_handler
+	mov	w9, #100+5			// MemoryAccessOutOfBounds
+	b	.Lexit
 
-.globl	gate_randomseed
-.type	gate_randomseed,@function
+.globl	rt_time
+.type	rt_time,@function
 
-gate_randomseed:
-	tbnz	x28, #0, .Lsuspended
+rt_time:
+	ldr	w0, [x29, #0]			// clk_id
 
-	ldr	x0, [x27, #-10*8]
-	b	.Lresume
+	// Fall through
 
-.globl	gate_time
-.type	gate_time,@function
+// In:  w0 = clock id
+.Ltime:
+	mov	w12, w0
 
-gate_time:
-	tbnz	x28, #0, .Lsuspended
+	sub	x1, x29, #16			// sizeof(struct timespec)
 
-	ldr	w18, [x29, #8]			// Clock id.
-	cmp	wzr, w18, lsr #1		// Accept 0 and 1.
-	b.ne	.Lclock_error
-	add	w18, w18, #5			// Coarse clock (5 or 6).
-
-	current_memory w13
-	add	x13, x26, x13, lsl #16		// Current memory end address.
-
-	ldr	w1, [x29, #0]			// Relative buffer address.
-	add	x1, x26, x1			// Absolute length address.
-	add	x11, x1, #16			// End of absolute buffer.
-
-	cmp	x13, x11			// Check against memory limit,
-	b.lt	.Lout_of_bounds			//
-	cmp	x11, x1				// and detect wrap-around.
-	b.lt	.Lout_of_bounds			//
-
-	mov	w0, w18				// clock_gettime clk_id
-	mov	x19, x1				// Save clock_gettime tp
-
-	mov	x20, x30			// Save link register.
-
-	ldr	x8, [x27, #-6*8]		// clock_gettime C ABI function.
+	mov	x20, x30			// Save link register
+	ldr	x8, [x27, #-11*8]		// clock_gettime C ABI function
 	blr	x8
+	mov	x30, x20			// Restore link register
 
-	mov	x30, x20			// Restore link register.
+	ldr	x10, [x29], #8			// tv_sec
+	ldr	x11, [x29], #8			// tv_nsec
 
-	mov	w9, #ERR_RT_CLOCK_GETTIME	// Exit status.
-	cbnz	w0, .Lruntime_exit
+	mov	w9, #ERR_RT_CLOCK_GETTIME
+	mov	x12, #-1			// Outrageous timestamp
+	cbnz	w0, .Lexit_time			// Don't use .Lexit
 
-	ldr	w0, [x27, #-7*8]		// Time mask.
-	ldr	x1, [x19, #8]			// tv_nsec
-	and	x1, x1, x0
-	str	x1, [x19, #8]
+	movz	x3, #0xca00, lsl #16
+	movk	x3, #0x3b9a, lsl #0		// 1000000000
+	mul	x10, x10, x2
+	ldr	w2, [x27, #-9*8]		// mask
+	and	x11, x11, x2
+	add	x0, x10, x11
 
-	mov	w0, #0				// Success.
+	cmp	w12, #6				// CLOCK_MONOTONIC_COARSE
+	b.ne	.Lresume
+
+	ldr	x2, [x27, #-10*8]		// local_monotonic_time_base
+	sub	x3, x0, x2
+	stack_vars
+	ldr	x2, [x1, #8]			// monotonic_time_snapshot
+	add	x0, x3, x2
 	b	.Lresume
 
-.Lclock_error:
-	mov	w0, #-1				// Error: clock id not supported.
+.globl	rt_random
+.type	rt_random,@function
+
+rt_random:
+	stack_vars
+	ldr	w2, [x1, #16]			// random_avail
+	subs	w2, w2, #1
+	b.lt	.Lno_random
+	str	w2, [x1, #16]			// random_avail
+
+	add	x1, x27, w2, uxtw		// text + offset
+	ldurb	w0, [x1, #-8*8]			// text + offset - random
 	b	.Lresume
 
-.globl	gate_exit
-.type	gate_exit,@function
+.Lno_random:
+	mov	w0, #-1
+	b	.Lresume
 
-gate_exit:
-	ldr	w0, [x29]			// gate_exit status number
+.globl	rt_stop
+.type	rt_stop,@function
 
-	cmp	w0, #0
-	cset	w9, ne				// exit syscall status bit #0
-	orr	w9, w9, #2			// exit syscall status bit #1
+rt_stop:
+	ldr	w9, [x29, #0]
 
-	// Fall through to .Lruntime_exit.
+	// Fall through
 
 // In:  w9 = status code
-.Lruntime_exit:
-	str	x30, [x29, #-8]!		// Push ABI caller address.
+.Lexit:
+	str	x30, [x29, #-8]!		// Push ABI call site
+	str	x9, [x29, #-8]!
 
-	stack_buffer
-	sub	x2, x29, x1			// Stack offset.
-	str	w2, [x1, #4]			// After current memory size.
+	mov	w0, #6				// CLOCK_MONOTONIC_COARSE
+	bl	.Ltime
+	mov	x12, x0
 
-	mov	w0, w9				// exit syscall status
+	ldr	x9, [x29], #8
 
-	// Fall through to sys_exit.
+	// Fall through
+
+// In:  w9  = status code
+//	x12 = monotonic time
+.Lexit_time:
+	stack_vars
+	sub	x2, x29, x1
+	str	w2, [x1, #0]			// stack_unused
+	str	x12, [x1, #8]			// monotonic_time_snapshot
+
+	mov	w0, w9
+
+	// Fall through
 
 .globl	sys_exit
 .type	sys_exit,@function
@@ -521,47 +513,36 @@ sys_exit:
 	svc	#0
 	brk	#0
 
-.globl	gate_debug
-.type	gate_debug,@function
+.globl	rt_debug
+.type	rt_debug,@function
 
-gate_debug:
-	current_memory w13
-	add	x13, x26, x13, lsl #16		// Current memory end address
-
-	ldr	w1, [x29, #8]			// Relative buffer address
-	add	x12, x29, #0			// Absolute length address
-	io_setup gate_nop
+rt_debug:
+	io_prologue
 
 	mov	w8, #SYS_write
 	mov	w0, #GATE_DEBUG_FD
 	svc	#0
+	cmp	x0, #0
+	b.gt	.Ldebugged_some
+	b.eq	rt_nop				// EOF; being suspended or killed
 
 	cmp	x0, #-EINTR
-	b.eq	gate_debug
+	b.eq	rt_debug
 
-	mov	w9, #ERR_RT_DEBUG		// exit status
-	tbnz	x0, #63, .Lruntime_exit
+	mov	w9, #ERR_RT_DEBUG
+	b	.Lexit
 
+.Ldebugged_some:
 	add	w1, w1, w0
 	str	w1, [x29, #8]
 	subs	w2, w2, w0
 	str	w2, [x29, #0]
-	b.ne	gate_debug
+	b.eq	rt_nop
 
-	// Fall through to gate_nop.
-
-.globl	gate_nop
-.type	gate_nop,@function
-
-gate_nop:
-	tbnz	x28, #0, .Lsuspended
-
-	mov	x0, #0
-	b	.Lresume
+	b	rt_debug
 
 .globl	runtime_code_end
 
 runtime_code_end:
 
-// Don't want executable stack.
-.section .note.GNU-stack,"",%progbits
+.section .note.GNU-stack,"",%progbits		// Don't want executable stack

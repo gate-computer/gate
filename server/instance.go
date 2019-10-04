@@ -269,6 +269,10 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 		result.State = StateSuspended
 		result.Cause = Cause(trapID)
 
+	case trap.ID(CauseABIDeficiency):
+		result.State = StateSuspended
+		result.Cause = CauseABIDeficiency
+
 	default:
 		result.State = StateKilled
 		result.Cause = Cause(trapID)

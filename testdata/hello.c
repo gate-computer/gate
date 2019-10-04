@@ -4,6 +4,13 @@
 
 #include <gate.h>
 
+void *memset(void *s, int c, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		((char *) s)[i] = c;
+	return s;
+}
+
 static struct gate_packet *receive_packet(void *buf, size_t bufsize)
 {
 	if (bufsize < GATE_MAX_PACKET_SIZE)
@@ -11,21 +18,14 @@ static struct gate_packet *receive_packet(void *buf, size_t bufsize)
 
 	size_t offset = 0;
 
-	while (offset < sizeof(struct gate_packet)) {
-		size_t n = sizeof(struct gate_packet) - offset;
-		gate_io(buf + offset, &n, NULL, NULL, GATE_IO_RECV_WAIT);
-		offset += n;
-	}
+	while (offset < sizeof(struct gate_packet))
+		offset += gate_recv(buf + offset, sizeof(struct gate_packet) - offset, GATE_IO_WAIT);
 
 	struct gate_packet *header = buf;
 	size_t aligned_size = GATE_ALIGN_PACKET(header->size);
 
-	while (offset < aligned_size) {
-		void *ptr = buf + offset;
-		size_t n = aligned_size - offset;
-		gate_io(ptr, &n, NULL, NULL, GATE_IO_RECV_WAIT);
-		offset += n;
-	}
+	while (offset < aligned_size)
+		offset += gate_recv(buf + offset, aligned_size - offset, GATE_IO_WAIT);
 
 	return header;
 }
@@ -34,11 +34,8 @@ static void send(const void *data, size_t size)
 {
 	size_t offset = 0;
 
-	while (offset < size) {
-		size_t n = size - offset;
-		gate_io(NULL, NULL, data + offset, &n, 0);
-		offset += n;
-	}
+	while (offset < size)
+		offset += gate_send(data + offset, size - offset); // Busyloop :(
 }
 
 static char receive_buffer[GATE_MAX_PACKET_SIZE];

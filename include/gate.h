@@ -46,12 +46,8 @@ extern "C" {
 #define GATE_PACKED __attribute__((packed))
 #endif
 
-#ifndef GATE_RESTRICT
-#ifdef __cplusplus
-#define GATE_RESTRICT __restrict__
-#else
-#define GATE_RESTRICT restrict
-#endif
+#ifndef GATE_PURE
+#define GATE_PURE __attribute__((pure))
 #endif
 
 // Internal functions (not part of supported C API)
@@ -83,14 +79,30 @@ extern "C" {
 
 #define __GATE_SYMVER_HELPER(name, num) name##_##num
 #define __GATE_SYMVER(name, num) __GATE_SYMVER_HELPER(name, num)
+#define __GATE_FD __GATE_SYMVER(__gate_fd, GATE_MAX_PACKET_SIZE)
 #define __GATE_IO __GATE_SYMVER(__gate_io, GATE_MAX_PACKET_SIZE)
 
-void __gate_debug(const void *data, size_t len) GATE_NOEXCEPT;
+struct gate_iovec {
+	void *iov_base;
+	size_t iov_len;
+};
+
 void __gate_debug_type_not_supported(void); // No implementation.
-GATE_NORETURN void __gate_exit(int status) GATE_NOEXCEPT;
-void __GATE_IO(void *GATE_RESTRICT recv, size_t *GATE_RESTRICT recvlen, const void *GATE_RESTRICT send, size_t *GATE_RESTRICT sendlen, unsigned flags) GATE_NOEXCEPT;
-uint64_t __gate_randomseed(void) GATE_NOEXCEPT;
-int __gate_time(int clockid, int64_t buf[2]) GATE_NOEXCEPT;
+GATE_PURE uint32_t __GATE_FD(void) GATE_NOEXCEPT;
+void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, const struct gate_iovec *send, int sendlen, size_t *sendsize, unsigned flags) GATE_NOEXCEPT;
+
+uint16_t __wasi_clock_time_get(uint32_t clock_id, uint64_t precision, uint64_t *time) GATE_NOEXCEPT;
+uint16_t __wasi_fd_write(uint32_t fd, const struct gate_iovec *iov, size_t iovlen, size_t *nwritten) GATE_NOEXCEPT;
+uint16_t __wasi_poll_oneoff(const void *in, void *out, size_t nsubs, size_t *nevents) GATE_NOEXCEPT;
+GATE_NORETURN void __wasi_proc_exit(uint32_t val) GATE_NOEXCEPT;
+
+static inline void __gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
+{
+	const struct gate_iovec iov = {(void *) data, size};
+	size_t written;
+
+	__wasi_fd_write(2, &iov, 1, &written);
+}
 
 static inline void __gate_debug_str(const char *s) GATE_NOEXCEPT
 {
@@ -99,7 +111,7 @@ static inline void __gate_debug_str(const char *s) GATE_NOEXCEPT
 	for (const char *ptr = s; *ptr != '\0'; ptr++)
 		size++;
 
-	__gate_debug(s, size);
+	__gate_debug_data(s, size);
 }
 
 static inline void __gate_debug_hex(uint64_t n) GATE_NOEXCEPT
@@ -118,7 +130,7 @@ static inline void __gate_debug_hex(uint64_t n) GATE_NOEXCEPT
 		n >>= 4;
 	} while (n);
 
-	__gate_debug(buf + i, sizeof buf - i);
+	__gate_debug_data(buf + i, sizeof buf - i);
 }
 
 static inline void __gate_debug_uint(uint64_t n) GATE_NOEXCEPT
@@ -131,7 +143,7 @@ static inline void __gate_debug_uint(uint64_t n) GATE_NOEXCEPT
 		n /= 10;
 	} while (n);
 
-	__gate_debug(buf + i, sizeof buf - i);
+	__gate_debug_data(buf + i, sizeof buf - i);
 }
 
 static inline void __gate_debug_int(int64_t n) GATE_NOEXCEPT
@@ -142,7 +154,7 @@ static inline void __gate_debug_int(int64_t n) GATE_NOEXCEPT
 		u = n;
 	} else {
 		const char sign[1] = {'-'};
-		__gate_debug(sign, sizeof sign);
+		__gate_debug_data(sign, sizeof sign);
 
 		u = ~n + 1;
 	}
@@ -154,7 +166,7 @@ static inline void __gate_debug_int(int64_t n) GATE_NOEXCEPT
 
 #define GATE_API_VERSION 0
 
-#define GATE_IO_RECV_WAIT 0x1
+#define GATE_IO_WAIT 0x1
 
 #define GATE_PACKET_ALIGNMENT 8
 
@@ -219,16 +231,6 @@ enum {
 
 #define gate_debug gate_debug1
 
-enum gate_clockid {
-	GATE_CLOCK_REALTIME,
-	GATE_CLOCK_MONOTONIC,
-};
-
-struct gate_timespec {
-	int64_t sec;
-	long nsec;
-};
-
 struct gate_packet {
 	uint32_t size;
 	int16_t code;
@@ -265,6 +267,20 @@ struct gate_data_packet {
 	char data[0]; // Variable length.
 } GATE_PACKED;
 
+static inline uint64_t gate_clock_realtime(void) GATE_NOEXCEPT
+{
+	uint64_t t;
+	__wasi_clock_time_get(0, 1, &t);
+	return t;
+}
+
+static inline uint64_t gate_clock_monotonic(void) GATE_NOEXCEPT
+{
+	uint64_t t;
+	__wasi_clock_time_get(1, 1, &t);
+	return t;
+}
+
 static inline void gate_debug_int(int64_t n) GATE_NOEXCEPT
 {
 #ifdef NDEBUG
@@ -297,7 +313,7 @@ static inline void gate_debug_ptr(const void *ptr) GATE_NOEXCEPT
 #ifdef NDEBUG
 	(void) ptr;
 #else
-	__gate_debug("0x", 2);
+	__gate_debug_data("0x", 2);
 	__gate_debug_hex((uintptr_t) ptr);
 #endif
 }
@@ -317,35 +333,35 @@ static inline void gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
 	(void) data;
 	(void) size;
 #else
-	__gate_debug(data, size);
+	__gate_debug_data(data, size);
 #endif
 }
 
 GATE_NORETURN
 static inline void gate_exit(int status) GATE_NOEXCEPT
 {
-	__gate_exit(status);
+	__wasi_proc_exit(status);
 }
 
-static inline void gate_io(void *GATE_RESTRICT recv, size_t *GATE_RESTRICT recvlen, const void *GATE_RESTRICT send, size_t *GATE_RESTRICT sendlen, unsigned flags) GATE_NOEXCEPT
+static inline void gate_io(const struct gate_iovec *recv, int recvveclen, size_t *nreceived, const struct gate_iovec *send, int sendveclen, size_t *nsent, unsigned flags) GATE_NOEXCEPT
 {
-	__GATE_IO(recv, recvlen, send, sendlen, flags);
+	__GATE_IO(recv, recvveclen, nreceived, send, sendveclen, nsent, flags);
 }
 
-static inline uint64_t gate_randomseed(void) GATE_NOEXCEPT
+static inline size_t gate_recv(void *buf, size_t size, unsigned flags) GATE_NOEXCEPT
 {
-	return __gate_randomseed();
+	const struct gate_iovec iov = {buf, size};
+	size_t n;
+	__GATE_IO(&iov, 1, &n, NULL, 0, NULL, flags);
+	return n;
 }
 
-static inline int gate_gettime(enum gate_clockid clk_id, struct gate_timespec *tp) GATE_NOEXCEPT
+static inline size_t gate_send(const void *data, size_t size) GATE_NOEXCEPT
 {
-	int64_t buf[2];
-	int ret = __gate_time(clk_id, buf);
-	if (ret >= 0) {
-		tp->sec = buf[0];
-		tp->nsec = buf[1];
-	}
-	return ret;
+	const struct gate_iovec iov = {(void *) data, size};
+	size_t n;
+	__GATE_IO(NULL, 0, NULL, &iov, 1, &n, 0);
+	return n;
 }
 
 #ifdef __cplusplus

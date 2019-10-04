@@ -73,18 +73,9 @@ static inline void enter(
 		"xor  %%edx, %%edx                          \n" // sigaction oldact
 		"mov  $8, %%r10d                            \n" // sigaction mask size
 
-		// Async I/O signal handler.
-
-		"mov  $"xstr(SIGIO)", %%edi                 \n" // sigaction signum
-		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
-		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
-		"test %%eax, %%eax                          \n"
-		"jne  sys_exit                              \n"
-
 		// Segmentation fault signal handler.
 
-		"mov  $"xstr(SIGSEGV)", %%edi               \n" // sigaction signum
+		"mov  $"xstr(SIGSEGV)", %%edi               \n"
 		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
 		"syscall                                    \n"
 		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
@@ -93,7 +84,7 @@ static inline void enter(
 
 		// Suspend signal handler.
 
-		"mov  $"xstr(SIGXCPU)", %%edi               \n" // siaction signum
+		"mov  $"xstr(SIGXCPU)", %%edi               \n"
 		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
 		"syscall                                    \n"
 		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"

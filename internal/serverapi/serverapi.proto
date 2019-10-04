@@ -38,7 +38,8 @@ enum Cause {
 	INTEGER_DIVIDE_BY_ZERO = 8;
 	INTEGER_OVERFLOW = 9;
 
-	ABI_VIOLATION = 65;
+	ABI_DEFICIENCY = 26;
+	ABI_VIOLATION = 27;
 }
 
 message Status {

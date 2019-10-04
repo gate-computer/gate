@@ -35,6 +35,7 @@ const (
 	CauseIndirectCallSignatureMismatch = serverapi.Cause_INDIRECT_CALL_SIGNATURE_MISMATCH
 	CauseIntegerDivideByZero           = serverapi.Cause_INTEGER_DIVIDE_BY_ZERO
 	CauseIntegerOverflow               = serverapi.Cause_INTEGER_OVERFLOW
+	CauseABIDeficiency                 = serverapi.Cause_ABI_DEFICIENCY
 	CauseABIViolation                  = serverapi.Cause_ABI_VIOLATION
 )
 

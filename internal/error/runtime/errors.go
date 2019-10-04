@@ -57,13 +57,14 @@ var ExecutorErrors = [72]Error{
 	71: {"ERR_EXEC_SIGNAL", "runtime executor", "failed to configure signal"},
 }
 
-var ProcessErrors = [49]Error{
-	4:  {"ERR_RT_RECVFROM", "process runtime", "recvfrom call failed"},
+var ProcessErrors = [48]Error{
+	4:  {"ERR_RT_READ", "process runtime", "read call failed"},
 	5:  {"ERR_RT_WRITE", "process runtime", "write call failed"},
 	6:  {"ERR_RT_DEBUG", "process runtime", "debug write call failed"},
 	7:  {"ERR_RT_MPROTECT", "process runtime", "mprotect call failed"},
 	8:  {"ERR_RT_MREMAP", "process runtime", "mremap call failed"},
 	9:  {"ERR_RT_CLOCK_GETTIME", "process runtime", "clock_gettime call failed"},
+	10: {"ERR_RT_POLL", "process runtime", "poll call failed"},
 	11: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "sentinel process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
 	12: {"ERR_SENTINEL_CLOSE", "sentinel process", "TODO: ERR_SENTINEL_CLOSE"},
 	13: {"ERR_SENTINEL_SIGSUSPEND", "sentinel process", "TODO: ERR_SENTINEL_SIGSUSPEND"},
@@ -93,9 +94,10 @@ var ProcessErrors = [49]Error{
 	41: {"ERR_LOAD_MPROTECT_HEAP", "process loader", "mprotect: globals/memory protection failed"},
 	42: {"ERR_LOAD_CLOSE_TEXT", "process loader", "failed to close program text fd"},
 	43: {"ERR_LOAD_SETPRIORITY", "process loader", "TODO: ERR_LOAD_SETPRIORITY"},
-	46: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "clock_gettime not found in vDSO ELF"},
-	47: {"ERR_LOAD_READ_TEXT", "process loader", "failed to read text section of image"},
-	48: {"ERR_LOAD_MREMAP_HEAP", "process loader", "failed to mremap globals/memory section of image"},
+	44: {"ERR_LOAD_NO_CLOCK_GETTIME", "process loader", "clock_gettime not found in vDSO ELF"},
+	45: {"ERR_LOAD_CLOCK_GETTIME", "process loader", "clock_gettime call failed"},
+	46: {"ERR_LOAD_READ_TEXT", "process loader", "failed to read text section of image"},
+	47: {"ERR_LOAD_MREMAP_HEAP", "process loader", "failed to mremap globals/memory section of image"},
 }
 
 var ErrorsInitialized struct{}

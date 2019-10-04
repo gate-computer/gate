@@ -27,7 +27,7 @@ loader.o: loader.c $(wildcard $(ARCH)/*.h ../include/$(ARCH)/*.h ../include/*.h)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ loader.c
 
 $(ARCH)/start.o: $(ARCH)/start.S Makefile ../include/runtime.mk
-$(ARCH)/runtime.o: $(ARCH)/runtime.S msg.S seccomp.S $(wildcard ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
+$(ARCH)/runtime.o: $(ARCH)/runtime.S poll.S seccomp.S $(wildcard ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
 
 %.o: %.S
 	$(CC_S) $(CPPFLAGS) -c -o $@ $*.S

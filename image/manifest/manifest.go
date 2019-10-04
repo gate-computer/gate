@@ -11,3 +11,4 @@ import (
 type ByteRange = internal.ByteRange
 type Program = internal.Program
 type Instance = internal.Instance
+type Snapshot = internal.Snapshot

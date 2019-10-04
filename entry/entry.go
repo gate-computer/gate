@@ -2,18 +2,28 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package entry contains entry function utilities.
+// Package entry contains start and entry function utilities.
 package entry
 
 import (
 	internal "github.com/tsavola/gate/internal/entry"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/wag/compile"
+	"github.com/tsavola/wag/wa"
 )
+
+const StartFuncName = "_start"
+
+var StartFuncType wa.FuncType
 
 // ModuleFuncIndex returns an error if name is not exported by module or has
 // incompatible type.
 func ModuleFuncIndex(mod compile.Module, name string) (index uint32, err error) {
+	if name == StartFuncName {
+		err = notfound.ErrFunction
+		return
+	}
+
 	index, sig, ok := mod.ExportFunc(name)
 	if ok {
 		ok = internal.CheckType(sig)
@@ -48,6 +58,11 @@ func Maps(mod compile.Module, funcAddrs []uint32,
 
 // MapFuncIndex returns an error if name is not in entryIndexes.
 func MapFuncIndex(entryIndexes map[string]uint32, name string) (index uint32, err error) {
+	if name == StartFuncName {
+		err = notfound.ErrFunction
+		return
+	}
+
 	index, ok := entryIndexes[name]
 	if !ok {
 		err = notfound.ErrFunction

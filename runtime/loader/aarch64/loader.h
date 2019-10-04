@@ -76,15 +76,6 @@ static inline void enter(
 		"mov  x2, #0                             \n" // sigaction oldact
 		"mov  x3, #8                             \n" // sigaction mask size
 
-		// Async I/O signal handler.
-
-		"mov  w0, #"xstr(SIGIO)"                 \n" // sigaction signum
-		"mov  w8, #"xstr(SYS_rt_sigaction)"      \n"
-		"svc  #0                                 \n"
-		"cmp  w0, #0                             \n"
-		"mov  w0, #"xstr(ERR_LOAD_SIGACTION)"    \n"
-		"b.ne sys_exit                           \n"
-
 		// Segmentation fault signal handler.
 
 		"mov  w0, #"xstr(SIGSEGV)"               \n" // sigaction signum

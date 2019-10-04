@@ -123,6 +123,7 @@ type Build struct {
 	memorySize    int
 	maxMemorySize int
 	initRoutine   uint32
+	snapshot      manifest.Snapshot
 }
 
 // NewBuild for a program and optionally an instance.
@@ -182,7 +183,7 @@ func (b *Build) ModuleWriter() io.Writer {
 }
 
 func (b *Build) ImportResolver() interface {
-	ResolveFunc(module, field string, sig wa.FuncType) (index int, err error)
+	ResolveFunc(module, field string, sig wa.FuncType) (index uint32, err error)
 	ResolveGlobal(module, field string, t wa.Type) (value uint64, err error)
 } {
 	return &b.imports
@@ -200,9 +201,9 @@ func (b *Build) TextBuffer() interface {
 }
 
 // FinishText after TextBuffer has been populated.
-func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMemorySize int,
+func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMemorySize int, snapshot *manifest.Snapshot,
 ) (err error) {
-	if stackSize < internal.StackLimitOffset+stackUsage {
+	if stackSize < internal.StackUsageOffset+stackUsage {
 		err = resourcelimit.New("call stack size limit exceeded")
 		return
 	}
@@ -250,6 +251,10 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMe
 	b.globalsSize = globalsSize
 	b.memorySize = memorySize
 	b.maxMemorySize = maxMemorySize
+
+	if snapshot != nil {
+		b.snapshot = *snapshot
+	}
 
 	// Copy or write object map to program.
 	var (
@@ -361,7 +366,8 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		EntryAddrs:      entryAddrs,
 		CallSitesSize:   uint32(b.prog.callSitesSize()),
 		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
-		RandomSeed:      b.imports.RandomSeed,
+		Random:          b.imports.Random,
+		Snapshot:        b.snapshot,
 	}
 
 	b.stack = nil
@@ -414,6 +420,7 @@ func (b *Build) FinishInstance(entryIndex, entryAddr uint32) (inst *Instance, er
 			InitRoutine:   b.initRoutine,
 			EntryIndex:    entryIndex,
 			EntryAddr:     entryAddr,
+			Snapshot:      b.snapshot,
 		},
 		file:     b.inst.file,
 		coherent: true,

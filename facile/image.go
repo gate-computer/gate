@@ -11,6 +11,7 @@ import (
 	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
@@ -53,7 +54,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 
 	reader := bytes.NewReader(wasm)
 
-	b.InstallPrematureSnapshotSectionLoaders(errors.New)
+	b.InstallEarlySnapshotLoaders(errors.New)
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
@@ -68,12 +69,12 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module)
+	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library())
 	if err != nil {
 		return
 	}
 
-	b.InstallSnapshotSectionLoaders(errors.New)
+	b.InstallSnapshotDataLoaders(errors.New)
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
@@ -85,7 +86,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	b.InstallLateSnapshotSectionLoaders(errors.New)
+	b.InstallLateSnapshotLoaders(errors.New)
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {

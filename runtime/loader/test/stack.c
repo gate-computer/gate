@@ -68,10 +68,26 @@ static void output(uint64_t i)
 }
 
 static volatile uint64_t scan_addr;
+static volatile uint64_t handbase_addr;
 
 static void segfault_handler(int signum)
 {
 	output(scan_addr);
+
+	uint64_t hand_addr;
+#ifdef __amd64__
+	asm volatile(
+		"mov %%rsp, %%rax"
+		: "=a"(hand_addr)::);
+#else
+	register uint64_t hand_addr_r asm("x0");
+	asm volatile(
+		"mov x0, sp"
+		: "=r"(hand_addr_r)::);
+	hand_addr = hand_addr_r;
+#endif
+	output(handbase_addr - hand_addr);
+
 	sys_exit(0);
 }
 
@@ -79,6 +95,18 @@ NORETURN
 static void scan(uint64_t addr, uint64_t step)
 {
 	while (1) {
+#ifdef __amd64__
+		asm volatile(
+			"mov %%rsp, %%rax"
+			: "=a"(handbase_addr)::);
+#else
+		register uint64_t handbase_addr_r asm("x0");
+		asm volatile(
+			"mov x0, sp"
+			: "=r"(handbase_addr_r)::);
+		handbase_addr = handbase_addr_r;
+#endif
+
 		scan_addr = addr;
 		*(volatile uint64_t *) addr; // read memory
 		addr += step;

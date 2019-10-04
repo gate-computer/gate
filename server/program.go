@@ -19,6 +19,7 @@ import (
 	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/snapshot"
@@ -92,7 +93,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	hasher := newHash()
 	reader := bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher))
 
-	b.InstallPrematureSnapshotSectionLoaders(newModuleError)
+	b.InstallEarlySnapshotLoaders(newModuleError)
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
@@ -116,13 +117,13 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module)
+	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library())
 	if err != nil {
 		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
-	b.InstallSnapshotSectionLoaders(newModuleError)
+	b.InstallSnapshotDataLoaders(newModuleError)
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
@@ -135,7 +136,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		return
 	}
 
-	b.InstallLateSnapshotSectionLoaders(newModuleError)
+	b.InstallLateSnapshotLoaders(newModuleError)
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {

@@ -164,6 +164,7 @@ const (
 const (
 	// Abnormal causes for StateSuspended:
 	CauseCallStackExhausted = "CALL_STACK_EXHAUSTED"
+	CauseABIDeficiency      = "ABI_DEFICIENCY"
 
 	// Abnormal causes for StateKilled:
 	CauseUnreachable                   = "UNREACHABLE"
