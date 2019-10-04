@@ -12,10 +12,9 @@
 
 #include <pthread.h>
 
+#include "attribute.h"
 #include "executor.h"
 #include "queue.h"
-
-#define ALIGNED(n) __attribute__((aligned(n)))
 
 #define CACHE_LINE_SIZE 64
 

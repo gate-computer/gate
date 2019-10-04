@@ -2,7 +2,7 @@ PYTHON		?= python
 
 ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
 
-CPPFLAGS	+= -I../../include/$(ARCH) -DPIE
+CPPFLAGS	+= -I../../include/$(ARCH) -I../../include -DPIE
 CFLAGS		+= -std=gnu99 -Os -g -Wall -Wextra -Wno-unused-parameter -fPIE -fomit-frame-pointer -fno-stack-protector
 LDFLAGS		+= -static
 

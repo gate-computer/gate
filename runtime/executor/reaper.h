@@ -7,9 +7,8 @@
 
 #include <sys/types.h>
 
+#include "attribute.h"
 #include "map.h"
-
-#define NORETURN __attribute__((noreturn))
 
 struct params {
 	struct pid_map pid_map;

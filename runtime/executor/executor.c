@@ -34,8 +34,6 @@
 #include "runtime.h"
 #include "sentinel.h"
 
-#define NOINLINE __attribute__((noinline))
-
 #define RECEIVE_BUFLEN 128
 
 bool no_namespaces;

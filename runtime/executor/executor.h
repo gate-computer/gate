@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PACKED __attribute__((packed))
+#include "attribute.h"
 
 enum {
 	EXEC_OP_CREATE,

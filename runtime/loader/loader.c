@@ -21,13 +21,11 @@
 #include <sys/types.h>
 
 #include "align.h"
+#include "attribute.h"
 #include "debug.h"
 #include "errors.h"
 #include "runtime.h"
 #include "syscall.h"
-
-#define NORETURN __attribute__((noreturn))
-#define PACKED __attribute__((packed))
 
 #define SYS_SA_RESTORER 0x04000000
 #define SIGACTION_FLAGS (SA_RESTART | SYS_SA_RESTORER | SA_SIGINFO)

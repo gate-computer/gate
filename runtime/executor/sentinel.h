@@ -5,6 +5,8 @@
 #ifndef GATE_RUNTIME_EXECUTOR_SENTINEL_H
 #define GATE_RUNTIME_EXECUTOR_SENTINEL_H
 
-void sentinel(void);
+#include "attribute.h"
+
+NORETURN void sentinel(void);
 
 #endif

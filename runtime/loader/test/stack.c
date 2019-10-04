@@ -10,9 +10,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "attribute.h"
 #include "syscall.h"
-
-#define NORETURN __attribute__((noreturn))
 
 #define SYS_SA_RESTORER 0x04000000
 
