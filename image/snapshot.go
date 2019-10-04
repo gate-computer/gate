@@ -414,11 +414,11 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 		switch t.Type() {
 		case wa.I32:
 			target[0] = byte(opcode.I32Const)
-			n = 1 + binary.PutVarint(target[1:], int64(int32(uint32(value))))
+			n = 1 + putVarint(target[1:], int64(int32(uint32(value))))
 
 		case wa.I64:
 			target[0] = byte(opcode.I64Const)
-			n = 1 + binary.PutVarint(target[1:], int64(value))
+			n = 1 + putVarint(target[1:], int64(value))
 
 		case wa.F32:
 			target[0] = byte(opcode.F32Const)
@@ -614,4 +614,19 @@ func mapNewSection(offset int64, dest []manifest.ByteRange, length int, i sectio
 		Length: int64(length),
 	}
 	return offset + int64(length)
+}
+
+func putVarint(dest []byte, x int64) (n int) {
+	for {
+		n++
+		b := byte(x & 0x7f)
+		x >>= 7
+		if (x == 0 && b&0x40 == 0) || (x == -1 && b&0x40 != 0) {
+			dest[0] = b
+			return
+		} else {
+			dest[0] = b | 0x80
+		}
+		dest = dest[1:]
+	}
 }
