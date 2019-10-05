@@ -359,7 +359,7 @@ clock_gettime_found:
 
 	// These assignments reflect the rtFunctions map in runtime/abi/abi.go
 	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_stop);
-	*(vector_end - 16) = runtime_func_addr(runtime_ptr, &rt_nop);
+	*(vector_end - 16) = runtime_func_addr(runtime_ptr, debug_func);
 	*(vector_end - 15) = runtime_func_addr(runtime_ptr, &rt_write);
 	*(vector_end - 14) = runtime_func_addr(runtime_ptr, &rt_read);
 	*(vector_end - 13) = runtime_func_addr(runtime_ptr, &rt_poll);
@@ -370,7 +370,7 @@ clock_gettime_found:
 	*(vector_end - 8) = info.random[0];
 	*(vector_end - 7) = info.random[1];
 	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &rt_random);
-	*(vector_end - 5) = runtime_func_addr(runtime_ptr, debug_func);
+	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &rt_nop);
 	*(vector_end - 4) = info.grow_memory_size >> 16;
 	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
 	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);

@@ -23,13 +23,13 @@ const (
 var rtFunctions = map[string]map[string]int{
 	"rt": {
 		"stop":   -17,
-		"nop":    -16,
+		"debug":  -16,
 		"write":  -15,
 		"read":   -14,
 		"poll":   -13,
 		"time":   -12,
 		"random": -6,
-		"debug":  -5,
+		"nop":    -5,
 	},
 }
 
