@@ -12,9 +12,9 @@ import (
 )
 
 // ReadTo a service's data stream according to its flow.  A previously buffered
-// data packet may be supplied.  Buffer size is limited by
-// config.MaxPacketSize.  nil reader acts like a closed connection.  An EOF
-// packet will NOT be sent automatically.
+// data packet may be supplied.  Buffer size is limited by config.MaxSendSize.
+// nil reader acts like a closed connection.  An EOF packet will NOT be sent
+// automatically.
 //
 // Buffered state is returned if context is done.  Any read error is returned
 // (including EOF).  Context error is not returned.
@@ -84,7 +84,7 @@ loop:
 					off = packet.DataHeaderSize
 				}
 
-				if space := config.MaxPacketSize - off; recv > uint32(space) {
+				if space := config.MaxSendSize - off; recv > uint32(space) {
 					recv = uint32(space)
 				}
 

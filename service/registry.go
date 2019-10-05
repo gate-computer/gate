@@ -169,8 +169,8 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 
 		if s.factory != nil {
 			instConfig := InstanceConfig{packet.Service{
-				MaxPacketSize: serviceConfig.MaxPacketSize,
-				Code:          code,
+				MaxSendSize: serviceConfig.MaxSendSize,
+				Code:        code,
 			}}
 			inst, err = s.factory.RestoreInstance(ctx, instConfig, s.Buffer)
 			if err != nil {
@@ -207,8 +207,8 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 		if !found {
 			if s := d.getServices()[code]; s.factory != nil {
 				instConfig := InstanceConfig{packet.Service{
-					MaxPacketSize: serviceConfig.MaxPacketSize,
-					Code:          code,
+					MaxSendSize: serviceConfig.MaxSendSize,
+					Code:        code,
 				}}
 				inst = s.factory.CreateInstance(ctx, instConfig)
 			}

@@ -67,7 +67,7 @@ func (s *ReadState) Unmarshal(src []byte, config packet.Service) (tail []byte, e
 
 	*s = ReadState{}
 
-	_, s.Subscribed, size, tail, err = unmarshalCommonStateHeader(src, config.MaxPacketSize)
+	_, s.Subscribed, size, tail, err = unmarshalCommonStateHeader(src, config.MaxSendSize)
 	if err != nil {
 		return
 	}

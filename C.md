@@ -29,9 +29,9 @@ GATE_PACKET_ALIGNMENT
 
 
 ```c
-GATE_MAX_PACKET_SIZE
+GATE_MAX_RECV_SIZE
 ```
-> Packet size limit.
+> Size limit for received packets.
 
 
 ```c
@@ -219,10 +219,8 @@ struct gate_service_state_packet {
 >
 > When the `GATE_SERVICE_STATE_AVAIL` flag is unset for a service, sending of
 > packets to that service must cease.  If a partial packet has been sent to the
-> service, transmission of the packet can be completed.  In other words, up to
-> `GATE_MAX_PACKET_SIZE` bytes can be sent to disappeared services.  It is a
-> fatal error to send more.  No data can be sent to services which haven't been
-> available.
+> service, transmission of the packet can be completed.  It is a fatal error to
+> send more.  No data can be sent to services which haven't been available.
 
 
 ### Streaming

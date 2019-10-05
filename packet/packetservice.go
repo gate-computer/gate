@@ -6,6 +6,6 @@ package packet
 
 // Service packet properties.
 type Service struct {
-	MaxPacketSize int
-	Code          Code
+	MaxSendSize int // Maximum size which the program is prepared to receive.
+	Code        Code
 }

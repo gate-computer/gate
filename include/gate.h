@@ -26,8 +26,8 @@ extern "C" {
 #define GATE_ABI_VERSION 0
 #endif
 
-#ifndef GATE_MAX_PACKET_SIZE
-#define GATE_MAX_PACKET_SIZE 65536
+#ifndef GATE_MAX_RECV_SIZE
+#define GATE_MAX_RECV_SIZE 65536
 #endif
 
 #ifndef GATE_NOEXCEPT
@@ -79,8 +79,8 @@ extern "C" {
 
 #define __GATE_SYMVER_HELPER(name, num) name##_##num
 #define __GATE_SYMVER(name, num) __GATE_SYMVER_HELPER(name, num)
-#define __GATE_FD __GATE_SYMVER(__gate_fd, GATE_MAX_PACKET_SIZE)
-#define __GATE_IO __GATE_SYMVER(__gate_io, GATE_MAX_PACKET_SIZE)
+#define __GATE_FD __GATE_SYMVER(__gate_fd, GATE_MAX_RECV_SIZE)
+#define __GATE_IO __GATE_SYMVER(__gate_io, GATE_MAX_RECV_SIZE)
 
 struct gate_iovec {
 	void *iov_base;

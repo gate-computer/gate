@@ -87,11 +87,11 @@ func (inst *instance) restore(input []byte) (err error) {
 		// Discard data sent by the program as we won't restore the connection.
 		state.Write.Discard()
 
-		if state.Write.Subscribed > int32(inst.MaxPacketSize) {
+		if state.Write.Subscribed > int32(inst.MaxSendSize) {
 			err = errors.New("origin service resumed subscription size is too large")
 			return
 		}
-		if len(state.Read.Buffer) > inst.MaxPacketSize {
+		if len(state.Read.Buffer) > inst.MaxSendSize {
 			err = errors.New("origin service resumed stream packet buffer size exceeds maximum packet size")
 			return
 		}

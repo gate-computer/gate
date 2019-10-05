@@ -56,7 +56,7 @@ func TestReadStateZero(t *testing.T) {
 }
 
 func TestReadStateUnmarshal(t *testing.T) {
-	p := packet.MakeData(testService.Code, testStreamID, testService.MaxPacketSize-packet.DataHeaderSize)
+	p := packet.MakeData(testService.Code, testStreamID, testService.MaxSendSize-packet.DataHeaderSize)
 	s1 := ReadState{
 		Buffer:     p,
 		Subscribed: math.MaxInt32,
@@ -226,7 +226,7 @@ func TestStreamStateZero(t *testing.T) {
 }
 
 func TestStreamStateBusy(t *testing.T) {
-	p := packet.MakeData(testService.Code, testStreamID, testService.MaxPacketSize-packet.DataHeaderSize)
+	p := packet.MakeData(testService.Code, testStreamID, testService.MaxSendSize-packet.DataHeaderSize)
 	s1 := StreamState{
 		Write: WriteState{
 			Buffers: [2][]byte{
@@ -268,7 +268,7 @@ func TestStreamStateBusy(t *testing.T) {
 }
 
 func TestStreamStateUnmarshalError(t *testing.T) {
-	p := packet.MakeData(testService.Code, testStreamID, testService.MaxPacketSize-packet.DataHeaderSize)
+	p := packet.MakeData(testService.Code, testStreamID, testService.MaxSendSize-packet.DataHeaderSize)
 	s := StreamState{
 		Write: WriteState{
 			Buffers: [2][]byte{

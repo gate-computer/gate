@@ -13,7 +13,7 @@ void *memset(void *s, int c, size_t n)
 
 static struct gate_packet *receive_packet(void *buf, size_t bufsize)
 {
-	if (bufsize < GATE_MAX_PACKET_SIZE)
+	if (bufsize < GATE_MAX_RECV_SIZE)
 		gate_exit(1);
 
 	size_t offset = 0;
@@ -38,7 +38,7 @@ static void send(const void *data, size_t size)
 		offset += gate_send(data + offset, size - offset); // Busyloop :(
 }
 
-static char receive_buffer[GATE_MAX_PACKET_SIZE];
+static char receive_buffer[GATE_MAX_RECV_SIZE];
 
 static int discover(int16_t *origin_code, int16_t *test_code)
 {

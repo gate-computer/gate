@@ -31,7 +31,7 @@ func (s *ServiceState) SetAvail() {
 
 // ServiceConfig for program instance specific ServiceRegistry invocation.
 type ServiceConfig struct {
-	MaxPacketSize int
+	MaxSendSize int // Maximum size which the program is prepared to receive.
 }
 
 // ServiceRegistry is a collection of configured services.

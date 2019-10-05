@@ -9,6 +9,6 @@ import (
 )
 
 var (
-	testService        = packet.Service{MaxPacketSize: 65536, Code: 1234}
+	testService        = packet.Service{MaxSendSize: 65536, Code: 1234}
 	testStreamID int32 = 56789
 )
