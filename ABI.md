@@ -47,7 +47,7 @@ prefix.
 > respectively: I/O vector, I/O vector length, and pointer to a buffer for a
 > 32-bit integer for storing the transferred size.  Parameter 7 is for flags.
 >
-> I/O vectors consist of 8-byte entries.  An entrys contain two 32-bit fields:
+> I/O vectors consist of 8-byte entries.  An entry contains two 32-bit fields:
 > pointer and length.
 >
 > A packet is padded so that its buffer size is rounded up to the next multiple
