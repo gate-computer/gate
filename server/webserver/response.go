@@ -174,7 +174,7 @@ func respondExcessQueryParams(w http.ResponseWriter, r *http.Request, s *webserv
 }
 
 func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserver) {
-	respond(w, r, http.StatusBadRequest, "unsupported action")
+	respond(w, r, http.StatusNotImplemented, "unsupported action")
 	reportProtocolError(r.Context(), s, nil, fmt.Errorf("bad action query: %s", r.URL.RawQuery))
 }
 
