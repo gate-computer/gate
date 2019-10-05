@@ -16,6 +16,8 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
+	"github.com/tsavola/wag/object/stack/stacktrace"
+	"github.com/tsavola/wag/trap"
 	"golang.org/x/sys/unix"
 )
 
@@ -149,7 +151,7 @@ func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) e
 	})
 }
 
-func (process *RuntimeProcess) Serve(state *InstanceImage) (err error) {
+func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) (err error) {
 	connector := origin.New(origin.Config{MaxConns: 1})
 
 	go func() {
@@ -168,7 +170,22 @@ func (process *RuntimeProcess) Serve(state *InstanceImage) (err error) {
 	var services service.Registry
 	services.Register(connector)
 
-	_, _, err = process.p.Serve(context.Background(), &services, &state.buffers)
+	_, trapID, err := process.p.Serve(context.Background(), &services, &state.buffers)
+	if err != nil {
+		return
+	}
+	if trapID == trap.Exit {
+		return
+	}
+
+	trace, e := state.image.Stacktrace(&code.objectMap, code.funcTypes)
+	if e == nil {
+		e = stacktrace.Fprint(os.Stdout, trace, code.funcTypes, nil, nil)
+	}
+	if e != nil {
+		log.Printf("stacktrace: %v", e)
+	}
+
 	return
 }
 

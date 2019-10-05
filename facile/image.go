@@ -37,16 +37,18 @@ func (filesystem *Filesystem) Close() error {
 }
 
 type ProgramImage struct {
-	image   *image.Program
-	buffers snapshot.Buffers
+	image     *image.Program
+	buffers   snapshot.Buffers
+	funcTypes []wa.FuncType
+	objectMap object.CallMap
 }
 
 func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImage, err error) {
 	storage := image.CombinedStorage(programStorage.fs, image.Memory)
 
-	var codeMap object.CallMap
+	var objectMap object.CallMap
 
-	b, err := build.New(storage, len(wasm), compile.DefaultMaxTextSize, &codeMap, false)
+	b, err := build.New(storage, len(wasm), compile.DefaultMaxTextSize, &objectMap, false)
 	if err != nil {
 		return
 	}
@@ -69,7 +71,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library())
+	err = compile.LoadCodeSection(b.CodeConfig(&objectMap), reader, b.Module, abi.Library())
 	if err != nil {
 		return
 	}
@@ -103,7 +105,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	prog = &ProgramImage{progImage, b.Buffers}
+	prog = &ProgramImage{progImage, b.Buffers, b.Module.FuncTypes(), objectMap}
 	return
 }
 
