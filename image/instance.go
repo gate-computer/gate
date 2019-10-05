@@ -299,6 +299,28 @@ func (inst *Instance) ResetEntry(entryIndex, entryAddr uint32) {
 	inst.man.StackUsage = 0
 }
 
+func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
+	var (
+		instGlobalsEnd    = int64(inst.man.StackSize) + alignPageOffset32(inst.man.GlobalsSize)
+		instGlobalsOffset = instGlobalsEnd - int64(inst.man.GlobalsSize)
+	)
+
+	b := make([]byte, inst.man.GlobalsSize)
+
+	_, err = inst.file.ReadAt(b, instGlobalsOffset)
+	if err != nil {
+		return
+	}
+
+	values = make([]uint64, len(prog.man.GlobalTypes))
+
+	for i := range values {
+		values[i] = binary.LittleEndian.Uint64(b[len(b)-(i+1)*8:])
+	}
+
+	return
+}
+
 func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
 ) (stacktrace []stack.Frame, err error) {
 	b := make([]byte, inst.man.StackSize)
