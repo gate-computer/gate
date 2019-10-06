@@ -20,6 +20,9 @@
   # Mount namespace setup
   mount options=(rw, make-rprivate) -> /,
   mount fstype=tmpfs options=(rw, nosuid, nodev, noexec) -> /tmp/,
+  mount fstype=proc options=(nosuid, nodev, noexec) -> /tmp/proc/,
+  /tmp/proc/ w,
+  umount /tmp/proc/,
   /tmp/x/ w,
   pivot_root oldroot=/tmp/x/ /tmp/,
 

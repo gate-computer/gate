@@ -318,11 +318,11 @@ static void xopen_loader(void)
 }
 
 // Open /proc or die.  The hard-coded GATE_PROC_FD is valid after this.
-static void xopen_proc(void)
+static void xopen_proc(const char *path)
 {
-	int fd = open("/proc", O_PATH | O_DIRECTORY, 0);
+	int fd = open(path, O_PATH | O_DIRECTORY, 0);
 	if (fd < 0)
-		xerror("/proc");
+		xerror(path);
 
 	if (fd != GATE_PROC_FD) {
 		fprintf(stderr, "wrong number of open files\n");
@@ -417,9 +417,23 @@ static void furnish_namespaces(void)
 	int mount_options = MS_NODEV | MS_NOEXEC | MS_NOSUID;
 
 	// Abuse /tmp as staging area for new root.
-
 	if (mount("tmpfs", "/tmp", "tmpfs", mount_options, "mode=0,nr_blocks=1,nr_inodes=2") != 0)
 		xerror("mount small tmpfs at /tmp");
+
+	if (mkdir("/tmp/proc", 0) != 0)
+		xerror("mkdir /tmp/proc");
+
+	// For some reason this causes EPERM if done after pivot_root...
+	if (mount("proc", "/tmp/proc", "proc", mount_options, "hidepid=2") != 0)
+		xerror("mount /tmp/proc");
+
+	xopen_proc("/tmp/proc");
+
+	if (umount2("/tmp/proc", MNT_DETACH) != 0)
+		xerror("umount /tmp/proc");
+
+	if (rmdir("/tmp/proc") != 0)
+		xerror("rmdir /tmp/proc");
 
 	if (mkdir("/tmp/x", 0) != 0)
 		xerror("mkdir inside small tmpfs");
@@ -572,7 +586,6 @@ static int child_main(void *dummy_arg)
 	// User namespace and cgroup have been configured by parent.
 
 	xopen_loader();
-	xopen_proc();
 	int executor_fd = xopen_executor();
 
 	long pagesize = sysconf(_SC_PAGESIZE);
@@ -587,6 +600,8 @@ static int child_main(void *dummy_arg)
 		xsetrlimit(RLIMIT_AS, GATE_LIMIT_AS);
 		xsetrlimit(RLIMIT_CORE, 0);
 		xsetrlimit(RLIMIT_STACK, align_size(GATE_EXECUTOR_STACK_SIZE, pagesize));
+	} else {
+		xopen_proc("/proc");
 	}
 
 	xset_pdeathsig(SIGKILL);

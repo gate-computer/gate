@@ -28,7 +28,7 @@
 #define GATE_DEBUG_FD 2   //                             loader runtime
 #define GATE_CONTROL_FD 3 // container executor exechild
 #define GATE_LOADER_FD 4  // container executor exechild
-#define GATE_PROC_FD 5    // container executor
+#define GATE_PROC_FD 6    // container executor
 
 #define GATE_MIN_HEAP_HIGH32 0x2aa9
 
