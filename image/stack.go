@@ -60,7 +60,7 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		portable = portable[8:]
 
 		if false {
-			log.Printf("exportStack: level=%d callIndex=%d", level, callIndex)
+			log.Printf("exportStack: level=%d callIndex=%d stackOffset=%d", level, callIndex, stackOffset)
 			level++
 		}
 
@@ -90,15 +90,20 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 			log.Printf("exportStack: level=%d entry funcAddr=0x%x", level, funcAddr)
 		}
 
-		i := sort.Search(len(codeMap.FuncAddrs), func(i int) bool {
-			return codeMap.FuncAddrs[i] >= funcAddr
-		})
-		if i == len(codeMap.FuncAddrs) || codeMap.FuncAddrs[i] != funcAddr {
-			err = fmt.Errorf("entry function address 0x%x is unknown", funcAddr)
-			return
+		funcIndex := uint32(math.MaxUint32) // No entry function.
+
+		if funcAddr != 0 {
+			i := sort.Search(len(codeMap.FuncAddrs), func(i int) bool {
+				return codeMap.FuncAddrs[i] >= funcAddr
+			})
+			if i == len(codeMap.FuncAddrs) || codeMap.FuncAddrs[i] != funcAddr {
+				err = fmt.Errorf("entry function address 0x%x is unknown", funcAddr)
+				return
+			}
+			funcIndex = uint32(i)
 		}
 
-		binary.LittleEndian.PutUint32(portable, uint32(i)) // Entry function index.
+		binary.LittleEndian.PutUint32(portable, funcIndex)
 		portable = portable[8:]
 
 	case 8:
@@ -154,11 +159,11 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		buf = buf[8:]
 
 		if false {
-			log.Printf("importStack: level=%d callIndex=%d absRetAddr=0x%x", level, callIndex, textAddr+uint64(call.RetAddr))
+			log.Printf("importStack: level=%d callIndex=%d call.RetAddr=0x%x call.StackOffset=%d", level, callIndex, call.RetAddr, call.StackOffset)
 			level++
 		}
 
-		if len(codeMap.FuncAddrs) == 0 || call.RetAddr <= codeMap.FuncAddrs[0] {
+		if len(codeMap.FuncAddrs) == 0 || call.RetAddr < codeMap.FuncAddrs[0] {
 			break
 		}
 
@@ -188,18 +193,21 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 	// See the comments in exportStack's switch statement.
 	switch call.StackOffset {
 	case 16:
-		funcIndex := binary.LittleEndian.Uint32(buf)
-		if funcIndex >= uint32(len(codeMap.FuncAddrs)) {
-			err = fmt.Errorf("entry function index %d is unknown", funcIndex)
-			return
-		}
-		funcAddr := codeMap.FuncAddrs[funcIndex]
+		var funcAddr uint32
 
-		sigIndex := funcTypeIndexes[funcIndex]
-		sig := types[sigIndex]
-		if !entry.CheckType(sig) {
-			err = fmt.Errorf("entry function %d has invalid signature: %s", funcIndex, sig)
-			return
+		if funcIndex := binary.LittleEndian.Uint32(buf); funcIndex != math.MaxUint32 {
+			if funcIndex >= uint32(len(codeMap.FuncAddrs)) {
+				err = fmt.Errorf("entry function index %d is unknown", funcIndex)
+				return
+			}
+			funcAddr = codeMap.FuncAddrs[funcIndex]
+
+			sigIndex := funcTypeIndexes[funcIndex]
+			sig := types[sigIndex]
+			if !entry.CheckType(sig) {
+				err = fmt.Errorf("entry function %d has invalid signature: %s", funcIndex, sig)
+				return
+			}
 		}
 
 		binary.LittleEndian.PutUint64(buf, uint64(funcAddr))
