@@ -4,12 +4,15 @@
 
 package packet
 
-import (
-	"github.com/tsavola/gate/internal/error/badprogram"
-)
+type err string
 
-const errInvalidCall = badprogram.Err("invalid call packet")
-const errInvalidData = badprogram.Err("invalid data packet")
+func (s err) Error() string       { return string(s) }
+func (s err) PublicError() string { return string(s) }
+func (s err) BadRequest()         {}
+func (s err) BadProgram()         {}
+
+const errInvalidCall = err("invalid call packet")
+const errInvalidData = err("invalid data packet")
 
 // IsValidCall checks service call packet's or call result packet's header.
 // Packet content is disregarded.

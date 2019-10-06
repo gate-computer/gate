@@ -6,8 +6,6 @@ package packet
 
 import (
 	"encoding/binary"
-	"fmt"
-	"strconv"
 )
 
 // Code represents the source or destination of a packet.
@@ -16,19 +14,6 @@ type Code int16
 const (
 	CodeServices Code = -1
 )
-
-func (code Code) String() string {
-	switch {
-	case code >= 0:
-		return fmt.Sprintf("service[%d]", code)
-
-	case code == CodeServices:
-		return "services"
-
-	default:
-		return fmt.Sprintf("<invalid code %d>", code)
-	}
-}
 
 type Domain uint8
 
@@ -130,34 +115,6 @@ func (b Buf) Content() []byte {
 	return b[HeaderSize:]
 }
 
-func (b Buf) String() (s string) {
-	var (
-		size     string
-		reserved string
-	)
-
-	if n := binary.LittleEndian.Uint32(b); n == 0 || n == uint32(len(b)) {
-		size = strconv.Itoa(len(b))
-	} else {
-		size = fmt.Sprintf("%d/%d", n, len(b))
-	}
-
-	if x := b[offsetReserved]; x != 0 {
-		reserved = fmt.Sprintf(" reserved=0x%02x", x)
-	}
-
-	s = fmt.Sprintf("size=%s code=%s domain=%s%s", size, b.Code(), b.Domain(), reserved)
-
-	switch b.Domain() {
-	case DomainFlow:
-		s += FlowBuf(b).string()
-
-	case DomainData:
-		s += DataBuf(b).string()
-	}
-	return
-}
-
 // Split a packet into two parts.  The headerSize parameter determins how many
 // bytes are initialized in the second part: the header is copied from the
 // first part.  The length of the first part is given as the prefixLen
@@ -206,18 +163,6 @@ func (b FlowBuf) Set(i int, id int32, increment int32) {
 	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], uint32(increment))
 }
 
-func (b FlowBuf) String() string {
-	return Buf(b).String() + b.string()
-}
-
-func (b FlowBuf) string() (s string) {
-	for i := 0; i < b.Num(); i++ {
-		id, inc := b.Get(i)
-		s += fmt.Sprintf(" stream[%d]+=%d", id, inc)
-	}
-	return
-}
-
 // DataBuf holds a data packet.
 type DataBuf Buf
 
@@ -253,20 +198,5 @@ func (b DataBuf) DataLen() int {
 func (b DataBuf) Split(dataLen int) (prefix Buf, unused DataBuf) {
 	prefix, unusedBuf := Buf(b).Split(DataHeaderSize, DataHeaderSize+dataLen)
 	unused = DataBuf(unusedBuf)
-	return
-}
-
-func (b DataBuf) String() string {
-	return Buf(b).String() + b.string()
-}
-
-func (b DataBuf) string() (s string) {
-	s = fmt.Sprintf(" id=%d", b.ID())
-	if n := b.DataLen(); n > 0 {
-		s += fmt.Sprintf(" datalen=%d", n)
-	}
-	if x := b.Note(); x != 0 {
-		s += fmt.Sprintf(" note=%d", x)
-	}
 	return
 }
