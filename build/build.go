@@ -25,6 +25,7 @@ import (
 )
 
 const maxPacketSize = 65536
+const minSnapshotVersion = 0
 
 type Build struct {
 	Image         *image.Build
@@ -69,12 +70,12 @@ func (b *Build) InstallEarlySnapshotLoaders(newError func(string) error) {
 			return
 		}
 
-		version, err := r.ReadByte()
+		version, n, err := readVaruint64(r, newError)
+		length -= uint32(n)
 		if err != nil {
 			return
 		}
-		length--
-		if version != wasm.SnapshotVersion {
+		if version < minSnapshotVersion {
 			err = newError(fmt.Sprintf("unsupported snapshot version: %d", version))
 			return
 		}

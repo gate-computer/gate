@@ -20,6 +20,7 @@ import (
 )
 
 const wasmModuleHeaderSize = 8
+const snapshotVersion = 0
 
 func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool,
 ) (newProg *Program, err error) {
@@ -448,7 +449,7 @@ func makeSnapshotSection(vars manifest.Snapshot) []byte {
 	b[i] = byte(len(wasm.SectionSnapshot))
 	i++
 	i += copy(b[i:], wasm.SectionSnapshot)
-	b[i] = wasm.SnapshotVersion
+	b[i] = snapshotVersion
 	i++
 	i += binary.PutUvarint(b[i:], vars.MonotonicTime)
 

@@ -11,9 +11,6 @@ import (
 	"github.com/tsavola/wag/section"
 )
 
-// Version of the WebAssembly binary format extensions.
-const SnapshotVersion = 0
-
 const maxServiceNameLen = 127
 
 // Custom WebAssembly sections.
