@@ -60,5 +60,6 @@
     signal peer=@{profile_name},
     /usr/local/lib/gate/runtime/gate-runtime-executor.0 rm,
     /usr/local/lib/gate/runtime/gate-runtime-loader.0 ix,  # Must inherit due to no-new-privs.
+    /@{pid}/stat r,  # Unprefixed proc path due to openat.
   }
 }
