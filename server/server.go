@@ -15,7 +15,6 @@ import (
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/runtime/runtimeinfo"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
@@ -40,13 +39,8 @@ type instProgPolicy struct {
 	inst InstancePolicy
 }
 
-type Info struct {
-	Runtime runtimeinfo.Info `json:"runtime"`
-}
-
 type Server struct {
 	Config
-	Info Info
 
 	lock     sync.Mutex
 	accounts map[principalKeyArray]*account
@@ -66,9 +60,6 @@ func New(config Config) *Server {
 
 	s := &Server{
 		Config: config,
-		Info: Info{
-			Runtime: runtimeinfo.Get(),
-		},
 	}
 
 	s.accounts = make(map[principalKeyArray]*account)

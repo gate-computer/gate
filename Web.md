@@ -25,16 +25,7 @@ must be unique during the expiration period.  Server configuration may preclude
 nonce usage.
 
 The `aud` claim may be specified in order to prevent misdirected requests.  The
-audience string is the HTTPS URL of the API, e.g. `https://example.net/gate`.
-
-
-## Actions
-
-The server responds with HTTP status 501 (Not Implemented) if the action
-parameter's value is unknown.  New actions may be added while the API version
-stays the same, so server deployments might not support all actions.
-(Semantics of existing actions don't change unless the API version is changed
-too.)
+audience string is the HTTPS URL of the API, e.g. `https://example.net/gate/`.
 
 
 ## Function name
@@ -48,4 +39,16 @@ The length must be between 1 and 31 characters (inclusive).
 Instance strings are UUIDs; RFC 4122 format, version 4 (random).  When creating
 an instance, an explicit identifier should not be specified unless migrating an
 existing instance from another host.
+
+
+## Feature detection
+
+It's safe to query information using GET and HEAD requests at any directory
+path (ending with a slash).  The server responds with HTTP status 405 (Method
+Not Allowed) if the HTTP method is not supported (yet) for the given resource.
+
+The server responds with HTTP status 501 (Not Implemented) if the `action`
+query parameter value is unknown.  New actions may be added at any time, so
+server deployments might not support all features.  (Semantics of existing
+actions don't change for a given resource location.)
 

@@ -59,8 +59,7 @@ func NewHandler(pattern string, config Config) http.Handler {
 	}
 
 	p := strings.TrimRight(pattern, "/")                                // host/path
-	patternAPI := p + webapi.Path                                       // host/path/gate
-	patternAPIDir := p + webapi.Path + "/"                              // host/path/gate/
+	patternAPI := p + webapi.Path                                       // host/path/gate/
 	patternModule := p + webapi.PathModule                              // host/path/gate/module
 	patternModules := p + webapi.PathModules                            // host/path/gate/module/
 	patternModuleRef := p + webapi.PathModules + webapi.ModuleRefSource // host/path/gate/module/hash
@@ -69,8 +68,7 @@ func NewHandler(pattern string, config Config) http.Handler {
 	patternInstance := patternInstances[:len(patternInstances)-1]       // host/path/gate/instance
 
 	p = strings.TrimLeftFunc(p, func(r rune) bool { return r != '/' }) // /path
-	pathAPI := p + webapi.Path                                         // /path/gate
-	pathAPIDir := p + webapi.Path + "/"                                // /path/gate/
+	pathAPI := p + webapi.Path                                         // /path/gate/
 	pathModule := p + webapi.PathModule                                // /path/gate/module
 	pathModules := p + webapi.PathModules                              // /path/gate/module/
 	pathModuleRef := p + webapi.PathModules + webapi.ModuleRefSource   // /path/gate/module/hash
@@ -78,11 +76,10 @@ func NewHandler(pattern string, config Config) http.Handler {
 	pathInstances := p + webapi.PathInstances                          // /path/gate/instance/
 	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/gate/instance
 
-	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/gate
+	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/gate/
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(patternAPI, newStaticHandler(s, pathAPI, &s.Server.Info))
-	mux.HandleFunc(patternAPIDir, newOpaqueHandler(s, pathAPIDir))
+	mux.HandleFunc(patternAPI, newOpaqueHandler(s, pathAPI))
 	mux.HandleFunc(patternModule, newOpaqueHandler(s, pathModule))
 	mux.HandleFunc(patternInstance, newOpaqueHandler(s, pathInstance))
 	mux.HandleFunc(patternInstances, newInstanceHandler(s, pathInstances))
@@ -134,7 +131,7 @@ func newOpaqueHandler(s *webserver, path string) http.HandlerFunc {
 		}
 
 		methods := "OPTIONS"
-		setAccessControl(w, r, methods)
+		setAccessControl(w, r, "GET, HEAD, "+methods)
 
 		switch r.Method {
 		case "OPTIONS":
@@ -238,7 +235,7 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, sour
 			// support any methods itself.
 
 			methods := "OPTIONS"
-			setAccessControl(w, r, methods)
+			setAccessControl(w, r, "GET, HEAD, "+methods)
 
 			switch r.Method {
 			case "OPTIONS":

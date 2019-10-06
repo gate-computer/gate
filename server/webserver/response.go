@@ -111,6 +111,7 @@ func (wr *requestResponseWriter) WriteError(status int, text string) {
 
 func respondMethodNotAllowed(w http.ResponseWriter, r *http.Request, s *webserver, allow string) {
 	w.Header().Set("Allow", allow)
+	w.Header().Set("Cache-Control", cacheControlStatic)
 	respond(w, r, http.StatusMethodNotAllowed, errMethodNotAllowed.Error())
 	reportProtocolError(r.Context(), s, nil, errMethodNotAllowed)
 }
@@ -174,6 +175,7 @@ func respondExcessQueryParams(w http.ResponseWriter, r *http.Request, s *webserv
 }
 
 func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserver) {
+	w.Header().Set("Cache-Control", cacheControlStatic)
 	respond(w, r, http.StatusNotImplemented, "unsupported action")
 	reportProtocolError(r.Context(), s, nil, fmt.Errorf("bad action query: %s", r.URL.RawQuery))
 }

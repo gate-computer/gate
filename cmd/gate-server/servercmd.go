@@ -536,7 +536,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Location", s)
 		}
 
-	case r.URL.Path == webapi.Path || strings.HasPrefix(r.URL.Path, webapi.Path+"/"):
+	case strings.HasPrefix(r.URL.Path, webapi.Path):
 		status = http.StatusMisdirectedRequest
 		message = "HTTP scheme not supported"
 	}

@@ -26,7 +26,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
-	"github.com/tsavola/gate/runtime/runtimeinfo"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/database"
 	"github.com/tsavola/gate/server/database/sql"
@@ -231,7 +230,7 @@ func newSignedRequest(pri principalKey, method, path string, content []byte) (re
 	req = newRequest(method, path, content)
 	req.Header.Set(webapi.HeaderAuthorization, pri.authorization(&webapi.Claims{
 		Exp:   time.Now().Add(time.Minute).Unix(),
-		Aud:   []string{"no", "https://test/gate"},
+		Aud:   []string{"no", "https://test/gate/"},
 		Nonce: strconv.Itoa(rand.Int()),
 	}))
 	return
@@ -281,27 +280,23 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect webapi.Status) 
 	}
 }
 
-func TestAPI(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, webapi.Path, nil)
-	resp, content := checkResponse(t, newHandler(), req, http.StatusOK)
+func TestMethodNotAllowed(t *testing.T) {
+	all := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut}
 
-	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
-		t.Error(x)
-	}
-
-	var info interface{}
-
-	if err := json.Unmarshal(content, &info); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(info, map[string]interface{}{
-		"runtime": map[string]interface{}{
-			"max_abi_version": float64(runtimeinfo.MaxABIVersion),
-			"min_abi_version": float64(runtimeinfo.MinABIVersion),
-		},
-	}) {
-		t.Errorf("%#v", info)
+	for path, methods := range map[string][]string{
+		webapi.Path:                                 all,
+		webapi.PathModule:                           all,
+		webapi.PathModules:                          []string{http.MethodPost, http.MethodPut},
+		webapi.Path + "instance":                    all,
+		webapi.PathInstances:                        []string{http.MethodPost, http.MethodPut},
+		webapi.PathInstances + "id":                 []string{http.MethodHead, http.MethodPut},
+		webapi.PathModules + webapi.ModuleRefSource: all,
+		webapi.PathModuleRefs:                       []string{http.MethodPost, http.MethodPut},
+	} {
+		for _, method := range methods {
+			req := httptest.NewRequest(method, path, nil)
+			checkResponse(t, newHandler(), req, http.StatusMethodNotAllowed)
+		}
 	}
 }
 
@@ -688,6 +683,19 @@ func TestModuleRef(t *testing.T) {
 		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 	})
+
+	t.Run("ActionNotImplemented", func(t *testing.T) {
+		req := newRequest(http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=bad", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
+
+		req = newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=bad", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
+
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=bad", nil)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
+	})
 }
 
 func TestModuleSource(t *testing.T) {
@@ -919,6 +927,14 @@ func TestModuleSource(t *testing.T) {
 			t.Error(content)
 		}
 	})
+
+	t.Run("ActionNotImplemented", func(t *testing.T) {
+		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello?action=bad", nil)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
+
+		req = newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=bad", nil)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
+	})
 }
 
 func TestInstanceDebug(t *testing.T) {
@@ -1062,6 +1078,11 @@ func TestInstance(t *testing.T) {
 		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
 			State: webapi.StateHalted,
 		})
+	})
+
+	t.Run("ActionNotImplemented", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=bad", nil)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
