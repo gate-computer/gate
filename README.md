@@ -161,5 +161,4 @@ installed container binary (lib).  That requires:
 - [Container capabilities](Capabilities.md)
 - [Go packages](https://godoc.org/github.com/tsavola/gate)
 - [wag](https://github.com/tsavola/wag)
-- [wag-toolchain](https://github.com/tsavola/wag-toolchain)
 
