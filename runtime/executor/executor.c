@@ -43,6 +43,8 @@ union control_buffer {
 	struct cmsghdr alignment;
 };
 
+static long clock_ticks;
+
 // Close a file descriptor or die.
 static void xclose(int fd)
 {
@@ -126,8 +128,8 @@ static bool signal_process(pid_t pid, int signum)
 	return true;
 }
 
-// get_process_cpu_time returns -1 if the process is gone.
-static long get_process_cpu_time(pid_t pid)
+// get_process_cpu_ticks returns -1 if the process is gone.
+static long get_process_cpu_ticks(pid_t pid)
 {
 	char name[16];
 	snprintf(name, sizeof name, "%u/stat", pid);
@@ -176,15 +178,16 @@ static void suspend_process(pid_t pid)
 	if (!signal_process(pid, SIGXCPU))
 		return;
 
-	long spent = get_process_cpu_time(pid);
-	if (spent == -1)
+	long spent_ticks = get_process_cpu_ticks(pid);
+	if (spent_ticks < 0)
 		return;
 
-	// Depending on rounding, adding just 1 might not give the process a
-	// full second.  Add 2 to give it a fighting chance.
+	// Add 1 second, rounding up.
+	long secs = (spent_ticks + clock_ticks + clock_ticks / 2) / clock_ticks;
+
 	const struct rlimit cpu = {
-		.rlim_cur = 0,
-		.rlim_max = (unsigned long) spent + 2,
+		.rlim_cur = secs,
+		.rlim_max = secs,
 	};
 
 	if (prlimit(pid, RLIMIT_CPU, &cpu, NULL) != 0) {
@@ -354,6 +357,10 @@ int main(int argc, char **argv)
 		if (prctl(PR_SET_DUMPABLE, 0) != 0)
 			_exit(ERR_EXEC_PRCTL_NOT_DUMPABLE);
 	}
+
+	clock_ticks = sysconf(_SC_CLK_TCK);
+	if (clock_ticks <= 0)
+		_exit(ERR_EXEC_SYSCONF_CLK_TCK);
 
 	// Block signals during thread creation to avoid race conditions.
 	sigset_t sigmask;
