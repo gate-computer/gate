@@ -52,7 +52,6 @@
 #define ERR_EXEC_PROCSTAT_READ 68
 #define ERR_EXEC_PROCSTAT_PARSE 69
 #define ERR_EXEC_CLOSE 70
-#define ERR_EXEC_SIGNAL 71
 
 // Process
 #define ERR_RT_READ 4

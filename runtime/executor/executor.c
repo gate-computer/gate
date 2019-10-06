@@ -50,13 +50,6 @@ static void xclose(int fd)
 		_exit(ERR_EXEC_CLOSE);
 }
 
-// Set a signal handler or die.
-static void xsignal(int signum, sighandler_t handler)
-{
-	if (signal(signum, handler) == SIG_ERR)
-		_exit(ERR_EXEC_SIGNAL);
-}
-
 // Duplicate a file descriptor or die.
 static void xdup2(int oldfd, int newfd)
 {
@@ -361,31 +354,6 @@ int main(int argc, char **argv)
 		if (prctl(PR_SET_DUMPABLE, 0) != 0)
 			_exit(ERR_EXEC_PRCTL_NOT_DUMPABLE);
 	}
-
-	for (int n = 1; n < 32; n++) {
-		switch (n) {
-		case SIGKILL:
-		case SIGSTOP:
-			break;
-
-		case SIGBUS:
-		case SIGCHLD: // Processed by reaper.
-		case SIGFPE:
-		case SIGILL:
-		case SIGSEGV:
-		case SIGTERM: // Must be queued for sentinel.
-		case SIGXCPU: // Don't ignore; would be inherited by children, across exec.
-			xsignal(n, SIG_DFL);
-			break;
-
-		default:
-			xsignal(n, SIG_IGN);
-			break;
-		}
-	}
-
-	for (int n = SIGRTMIN; n <= SIGRTMAX; n++)
-		xsignal(n, SIG_IGN);
 
 	// Block signals during thread creation to avoid race conditions.
 	sigset_t sigmask;

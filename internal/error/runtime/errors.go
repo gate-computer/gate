@@ -2,7 +2,7 @@
 
 package runtime
 
-var ExecutorErrors = [72]Error{
+var ExecutorErrors = [71]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},
 	12: {"ERR_EXEC_SETRLIMIT_DATA", "runtime executor", "setrlimit: failed to set DATA limit"},
@@ -54,7 +54,6 @@ var ExecutorErrors = [72]Error{
 	68: {"ERR_EXEC_PROCSTAT_READ", "runtime executor", "failed to read /proc/PID/stat"},
 	69: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/PID/stat parse error"},
 	70: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
-	71: {"ERR_EXEC_SIGNAL", "runtime executor", "failed to configure signal"},
 }
 
 var ProcessErrors = [48]Error{

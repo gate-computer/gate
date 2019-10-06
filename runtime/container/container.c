@@ -74,6 +74,13 @@ static void xdup2(int oldfd, int newfd)
 		xerror("dup2");
 }
 
+// Set a signal handler or die.
+static void xsignal(int signum, sighandler_t handler)
+{
+	if (signal(signum, handler) == SIG_ERR)
+		xerror("signal");
+}
+
 // Read from blocking file descriptor until EOF, or die.
 static void xread_until_eof(int fd)
 {
@@ -476,10 +483,32 @@ int main(int argc, char **argv)
 	cgroup_config.title = argv[6];
 	cgroup_config.parent = argv[7];
 
-	if (setpgid(0, 0) != 0)
-		xerror("setpgid");
-
 	close_higher_fds(GATE_CONTROL_FD);
+
+	if (setsid() < 0)
+		xerror("setsid");
+
+	for (int n = 1; n < 32; n++) {
+		switch (n) {
+		case SIGBUS:
+		case SIGCHLD:
+		case SIGFPE:
+		case SIGILL:
+		case SIGKILL:
+		case SIGSEGV:
+		case SIGSTOP:
+		case SIGTERM:
+		case SIGXCPU:
+			break;
+
+		default:
+			xsignal(n, SIG_IGN);
+			break;
+		}
+	}
+
+	for (int n = SIGRTMIN; n <= SIGRTMAX; n++)
+		xsignal(n, SIG_IGN);
 
 	int clone_flags = SIGCHLD;
 
@@ -566,9 +595,6 @@ static int child_main(void *dummy_arg)
 
 	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
 		xerror("prctl: PR_CAP_AMBIENT_CLEAR_ALL");
-
-	if (setsid() < 0) // Enable scheduler's autogroup feature.
-		xerror("setsid");
 
 	if (GATE_SANDBOX)
 		xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
