@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -232,7 +231,7 @@ func newSignedRequest(pri principalKey, method, path string, content []byte) (re
 	req = newRequest(method, path, content)
 	req.Header.Set(webapi.HeaderAuthorization, pri.authorization(&webapi.Claims{
 		Exp:   time.Now().Add(time.Minute).Unix(),
-		Aud:   []string{"no", "https://test/gate/v0"},
+		Aud:   []string{"no", "https://test/gate"},
 		Nonce: strconv.Itoa(rand.Int()),
 	}))
 	return
@@ -279,40 +278,6 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect webapi.Status) 
 
 	if !reflect.DeepEqual(status, expect) {
 		t.Errorf("%#v", status)
-	}
-}
-
-func TestVersions(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, webapi.PathVersions, nil)
-	resp, content := checkResponse(t, newHandler(), req, http.StatusOK)
-
-	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
-		t.Error(x)
-	}
-
-	var versions interface{}
-
-	if err := json.Unmarshal(content, &versions); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(versions, []interface{}{
-		fmt.Sprintf("v%d", webapi.Version),
-	}) {
-		t.Errorf("%#v", versions)
-	}
-}
-
-func TestVersion404(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, webapi.PathVersions+"foo", nil)
-	resp, content := checkResponse(t, newHandler(), req, http.StatusNotFound)
-
-	if x := resp.Header.Get(webapi.HeaderContentType); x != "text/plain; charset=utf-8" {
-		t.Error(x)
-	}
-
-	if string(content) != "not found\n" {
-		t.Error(content)
 	}
 }
 

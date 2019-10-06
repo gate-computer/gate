@@ -11,7 +11,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	pathlib "path"
 	"sort"
 	"strconv"
 	"strings"
@@ -60,31 +59,28 @@ func NewHandler(pattern string, config Config) http.Handler {
 	}
 
 	p := strings.TrimRight(pattern, "/")                                // host/path
-	patternVersions := p + webapi.PathVersions                          // host/path/gate/
-	patternAPI := p + webapi.Path                                       // host/path/gate/v0
-	patternAPIDir := p + webapi.Path + "/"                              // host/path/gate/v0/
-	patternModule := p + webapi.PathModule                              // host/path/gate/v0/module
-	patternModules := p + webapi.PathModules                            // host/path/gate/v0/module/
-	patternModuleRef := p + webapi.PathModules + webapi.ModuleRefSource // host/path/gate/v0/module/hash
-	patternModuleRefs := p + webapi.PathModuleRefs                      // host/path/gate/v0/module/hash/
-	patternInstances := p + webapi.PathInstances                        // host/path/gate/v0/instance/
-	patternInstance := patternInstances[:len(patternInstances)-1]       // host/path/gate/v0/instance
+	patternAPI := p + webapi.Path                                       // host/path/gate
+	patternAPIDir := p + webapi.Path + "/"                              // host/path/gate/
+	patternModule := p + webapi.PathModule                              // host/path/gate/module
+	patternModules := p + webapi.PathModules                            // host/path/gate/module/
+	patternModuleRef := p + webapi.PathModules + webapi.ModuleRefSource // host/path/gate/module/hash
+	patternModuleRefs := p + webapi.PathModuleRefs                      // host/path/gate/module/hash/
+	patternInstances := p + webapi.PathInstances                        // host/path/gate/instance/
+	patternInstance := patternInstances[:len(patternInstances)-1]       // host/path/gate/instance
 
 	p = strings.TrimLeftFunc(p, func(r rune) bool { return r != '/' }) // /path
-	pathVersions := p + webapi.PathVersions                            // /path/gate/
-	pathAPI := p + webapi.Path                                         // /path/gate/v0
-	pathAPIDir := p + webapi.Path + "/"                                // /path/gate/v0/
-	pathModule := p + webapi.PathModule                                // /path/gate/v0/module
-	pathModules := p + webapi.PathModules                              // /path/gate/v0/module/
-	pathModuleRef := p + webapi.PathModules + webapi.ModuleRefSource   // /path/gate/v0/module/hash
-	s.pathModuleRefs = p + webapi.PathModuleRefs                       // /path/gate/v0/module/hash/
-	pathInstances := p + webapi.PathInstances                          // /path/gate/v0/instance/
-	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/gate/v0/instance
+	pathAPI := p + webapi.Path                                         // /path/gate
+	pathAPIDir := p + webapi.Path + "/"                                // /path/gate/
+	pathModule := p + webapi.PathModule                                // /path/gate/module
+	pathModules := p + webapi.PathModules                              // /path/gate/module/
+	pathModuleRef := p + webapi.PathModules + webapi.ModuleRefSource   // /path/gate/module/hash
+	s.pathModuleRefs = p + webapi.PathModuleRefs                       // /path/gate/module/hash/
+	pathInstances := p + webapi.PathInstances                          // /path/gate/instance/
+	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/gate/instance
 
-	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/gate/v0
+	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/gate
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(patternVersions, newVersionHandler(s, pathVersions))
 	mux.HandleFunc(patternAPI, newStaticHandler(s, pathAPI, &s.Server.Info))
 	mux.HandleFunc(patternAPIDir, newOpaqueHandler(s, pathAPIDir))
 	mux.HandleFunc(patternModule, newOpaqueHandler(s, pathModule))
@@ -141,35 +137,6 @@ func newOpaqueHandler(s *webserver, path string) http.HandlerFunc {
 		setAccessControl(w, r, methods)
 
 		switch r.Method {
-		case "OPTIONS":
-			setOptions(w, methods)
-
-		default:
-			respondMethodNotAllowed(w, r, s, methods)
-		}
-	}
-}
-
-func newVersionHandler(s *webserver, path string) http.HandlerFunc {
-	var (
-		versions      = []string{pathlib.Base(webapi.Path)}
-		content       = mustMarshalJSON(versions)
-		contentLength = strconv.Itoa(len(content))
-	)
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != path {
-			respondPathNotFound(w, r, s)
-			return
-		}
-
-		methods := "GET, HEAD, OPTIONS"
-		setAccessControl(w, r, methods)
-
-		switch r.Method {
-		case "GET", "HEAD":
-			handleGetStatic(w, r, s, content, contentLength)
-
 		case "OPTIONS":
 			setOptions(w, methods)
 

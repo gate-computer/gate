@@ -17,9 +17,6 @@ import (
 	"github.com/tsavola/gate/internal/serverapi"
 )
 
-// Version of the Gate webserver API.
-const Version = 0
-
 // Name of the module reference source and associated content hash algorithm.
 const ModuleRefSource = "sha384"
 
@@ -29,12 +26,11 @@ const ModuleRefHash = crypto.SHA384
 
 // Request URL paths.
 const (
-	PathVersions   = "/gate/"                  // Available API versions.
-	Path           = "/gate/v0"                // The API.
-	PathModule     = "/gate/v0/module"         // Base of relative module URIs.
-	PathModules    = "/gate/v0/module/"        // Module sources.
-	PathModuleRefs = "/gate/v0/module/sha384/" // Module reference keys.
-	PathInstances  = "/gate/v0/instance/"      // Instance ids.
+	Path           = "/gate"                // The API.
+	PathModule     = "/gate/module"         // Base of relative module URIs.
+	PathModules    = "/gate/module/"        // Module sources.
+	PathModuleRefs = "/gate/module/sha384/" // Module reference keys.
+	PathInstances  = "/gate/instance/"      // Instance ids.
 )
 
 // Query parameters.

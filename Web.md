@@ -24,9 +24,8 @@ The `nonce` claim may be specified in order to prevent token reuse.  If set, it
 must be unique during the expiration period.  Server configuration may preclude
 nonce usage.
 
-The `aud` claim may be specified in order to prevent misdirected requests.
-Suitable audience string is the HTTPS URL of the API,
-e.g. `https://example.net/gate/v0`.
+The `aud` claim may be specified in order to prevent misdirected requests.  The
+audience string is the HTTPS URL of the API, e.g. `https://example.net/gate`.
 
 
 ## Actions
