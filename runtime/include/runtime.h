@@ -30,8 +30,8 @@
 
 #define GATE_MIN_HEAP_HIGH32 0x2aa9
 
-#define GATE_EXECUTOR_STACK_SIZE PTHREAD_STACK_MIN // Depends on target architecture.
-#define GATE_LOADER_STACK_SIZE 12288LL             // 3 pages
+#define GATE_EXECUTOR_STACK_SIZE 20480LL // Depends on target architecture.
+#define GATE_LOADER_STACK_SIZE 12288LL   // 3 pages
 
 // See wag/Stack.md.
 #define GATE_STACK_VARS_SIZE 64            // Variables at start of stack memory.
