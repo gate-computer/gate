@@ -17,11 +17,27 @@ import (
 	"github.com/tsavola/wag/wa"
 )
 
+// synthesizeStack state which represents an unstarted program.
+func synthesizeStack(portable []byte, entryFuncIndex uint32) {
+	if n := len(portable); n != 16 {
+		panic(n)
+	}
+
+	const callIndex = 0   // Virtual call site at beginning of start routine.
+	const stackOffset = 8 // Entry function address is on the stack.
+
+	binary.LittleEndian.PutUint64(portable[0:], stackOffset<<32|callIndex)
+	binary.LittleEndian.PutUint64(portable[8:], uint64(entryFuncIndex))
+}
+
 // exportStack from native source buffer to portable target buffer.
 func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMap) (err error) {
 	if n := len(native); n == 0 || n&7 != 0 {
 		err = fmt.Errorf("invalid stack size %d", n)
 		return
+	}
+	if n := len(portable); n != len(native) {
+		panic(n)
 	}
 
 	var level int
@@ -29,7 +45,7 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		log.Printf("exportStack: textAddr=0x%x", textAddr)
 	}
 
-	var initialStackOffset int32
+	var initStackOffset int32
 
 	for {
 		if len(native) == 0 {
@@ -50,13 +66,13 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 			return
 		}
 
-		initial, _, callIndex, stackOffset, _ := codeMap.FindAddr(uint32(retAddr))
+		init, _, callIndex, stackOffset, _ := codeMap.FindAddr(uint32(retAddr))
 		if callIndex < 0 {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", retAddr)
 			return
 		}
 
-		binary.LittleEndian.PutUint64(portable, uint64(callIndex))
+		binary.LittleEndian.PutUint64(portable, uint64(stackOffset)<<32|uint64(callIndex))
 		portable = portable[8:]
 
 		if false {
@@ -64,8 +80,8 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 			level++
 		}
 
-		if initial {
-			initialStackOffset = stackOffset
+		if init {
+			initStackOffset = stackOffset
 			break
 		}
 
@@ -79,11 +95,11 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		portable = portable[stackOffset-8:]
 	}
 
-	switch initialStackOffset {
-	case 16:
-		// Stack contains entry function address.  (This precedes entry
-		// function call, i.e. this is the start function return site.)
-		funcAddr := binary.LittleEndian.Uint32(native)
+	switch initStackOffset {
+	case 8:
+		// Stack still contains entry function address: this call site precedes
+		// entry function call; this is the start function return site.
+		funcAddr := binary.LittleEndian.Uint64(native)
 		native = native[8:]
 
 		if false {
@@ -94,25 +110,24 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 
 		if funcAddr != 0 {
 			i := sort.Search(len(codeMap.FuncAddrs), func(i int) bool {
-				return codeMap.FuncAddrs[i] >= funcAddr
+				return uint64(codeMap.FuncAddrs[i]) >= funcAddr
 			})
-			if i == len(codeMap.FuncAddrs) || codeMap.FuncAddrs[i] != funcAddr {
+			if i == len(codeMap.FuncAddrs) || uint64(codeMap.FuncAddrs[i]) != funcAddr {
 				err = fmt.Errorf("entry function address 0x%x is unknown", funcAddr)
 				return
 			}
 			funcIndex = uint32(i)
 		}
 
-		binary.LittleEndian.PutUint32(portable, funcIndex)
+		binary.LittleEndian.PutUint64(portable, uint64(funcIndex))
 		portable = portable[8:]
 
-	case 8:
-		// Entry function address has been popped off stack.  (This
-		// follows start function call, i.e. this is the entry function
-		// return site.)
+	case 0:
+		// Entry function address has been popped off the stack: this call site
+		// follows start function call; this is the entry function return site.
 
 	default:
-		err = fmt.Errorf("initial function call site has inconsistent stack offset %d", initialStackOffset)
+		err = fmt.Errorf("initial function call site has inconsistent stack offset %d", initStackOffset)
 		return
 	}
 
@@ -120,7 +135,9 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		err = fmt.Errorf("%d bytes of excess data at start of stack", n)
 		return
 	}
-
+	if n := len(portable); n != len(native) {
+		panic(n)
+	}
 	return
 }
 
@@ -143,15 +160,17 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 			return
 		}
 
-		callIndex := binary.LittleEndian.Uint64(buf)
-		if callIndex >= uint64(len(codeMap.CallSites)) {
+		pair := binary.LittleEndian.Uint64(buf)
+
+		callIndex := uint32(pair)
+		if callIndex >= uint32(len(codeMap.CallSites)) {
 			err = fmt.Errorf("function call site index %d is unknown", callIndex)
 			return
 		}
 		call = codeMap.CallSites[callIndex]
 
-		if call.StackOffset == 0 || call.StackOffset&7 != 0 {
-			err = fmt.Errorf("invalid stack offset %d", call.StackOffset)
+		if off := int32(pair >> 32); off != call.StackOffset {
+			err = fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset)
 			return
 		}
 
@@ -167,6 +186,10 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 			break
 		}
 
+		if call.StackOffset&7 != 0 {
+			err = fmt.Errorf("invalid stack offset %d", call.StackOffset)
+			return
+		}
 		if int(call.StackOffset-8) < minVars*8 {
 			err = fmt.Errorf("inconsistent call stack")
 			return
@@ -174,8 +197,8 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 		buf = buf[call.StackOffset-8:]
 
-		initial, funcIndex, callIndexAgain, stackOffsetAgain, _ := codeMap.FindAddr(call.RetAddr)
-		if initial || uint64(callIndexAgain) != callIndex || stackOffsetAgain != call.StackOffset {
+		init, funcIndex, callIndexAgain, stackOffsetAgain, _ := codeMap.FindAddr(call.RetAddr)
+		if init || callIndexAgain != int(callIndex) || stackOffsetAgain != call.StackOffset {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr)
 			return
 		}
@@ -190,9 +213,9 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		return
 	}
 
-	// See the comments in exportStack's switch statement.
 	switch call.StackOffset {
-	case 16:
+	case 8:
+		// See the comment in exportStack.
 		var funcAddr uint32
 
 		if funcIndex := binary.LittleEndian.Uint32(buf); funcIndex != math.MaxUint32 {
@@ -213,7 +236,8 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		binary.LittleEndian.PutUint64(buf, uint64(funcAddr))
 		buf = buf[8:]
 
-	case 8:
+	case 0:
+		// See the comment in exportStack.
 
 	default:
 		err = fmt.Errorf("initial function call site 0x%x has inconsistent stack offset %d", call.RetAddr, call.StackOffset)
@@ -224,6 +248,5 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		err = fmt.Errorf("%d bytes of excess data at start of stack", n)
 		return
 	}
-
 	return
 }

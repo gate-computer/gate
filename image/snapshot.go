@@ -241,10 +241,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 				return
 			}
 		} else {
-			// Synthesize portable stack, suspended at virtual call site at
-			// index 0 (beginning of start routine).
-			binary.LittleEndian.PutUint64(newStack[0:], 0)
-			binary.LittleEndian.PutUint32(newStack[8:], inst.man.EntryIndex)
+			synthesizeStack(newStack, inst.man.EntryIndex)
 		}
 
 		n, err = newFile.WriteAt(newStackSection, newOff)
