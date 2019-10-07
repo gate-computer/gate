@@ -66,6 +66,7 @@ func newExecutor(config runtime.Config) (tester *executor) {
 		<-tester.Dead()
 		time.Sleep(time.Second)
 		if !tester.closed {
+			time.Sleep(time.Second)
 			panic("executor died")
 		}
 	}()

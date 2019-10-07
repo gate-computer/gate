@@ -194,6 +194,7 @@ func main() {
 		<-executor.Dead()
 		if !execClosed {
 			log.Fatal("executor died")
+			time.Sleep(time.Second)
 		}
 	}()
 
