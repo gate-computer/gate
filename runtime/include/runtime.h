@@ -30,7 +30,7 @@
 
 #define GATE_MIN_HEAP_HIGH32 0x2aa9
 
-#define GATE_EXECUTOR_STACK_SIZE 20480LL // Depends on target architecture.
+#define GATE_EXECUTOR_STACK_SIZE 65536LL // Depends on target architecture.
 #define GATE_LOADER_STACK_SIZE 12288LL   // 3 pages
 
 // See wag/Stack.md.
