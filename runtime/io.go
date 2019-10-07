@@ -62,6 +62,9 @@ type read struct {
 // ioLoop mutates Process and IOState (if any).
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers,
 ) (err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	if frozen == nil {
 		subject.writerOut.Close()
 		subject.writerOut = nil
@@ -81,6 +84,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		return
 	}
 	defer func() {
+		cancel()
 		close(messageOutput)
 		if frozen != nil {
 			frozen.Services = discoverer.Suspend()
@@ -130,7 +134,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		subjectOutput = nil
 	}
 
-	for subjectInput != nil || pendingMsg != nil {
+	for (subjectInput != nil || pendingMsg != nil) && subjectOutput != nil {
 		var (
 			doEv            packet.Buf
 			doMessageInput  <-chan packet.Buf
