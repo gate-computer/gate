@@ -10,9 +10,7 @@
 #define xstr(s) str(s)
 #define str(s) #s
 
-#ifndef GATE_SANDBOX
-#error GATE_SANDBOX not defined
-#endif
+#define GATE_SANDBOX 1
 
 #if GATE_SANDBOX != 1
 #warning sandbox is disabled

@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "debug.h"
 #include "errors.h"
 #include "executor.h"
 #include "map.h"
@@ -83,14 +84,17 @@ static int kill_all(void)
 	return kill(-gid, sig);
 }
 
+NORETURN
 static void die(int code)
 {
+	debugf("reaper: die with code %d", code);
 	kill_all();
 	_exit(code);
 }
 
 static void signal_handler(int signum)
 {
+	debugf("reaper: signal %d", signum);
 	kill_all();
 	kill(getpid(), signum); // Handler was reset; simulate real termination reason.
 	_exit(ERR_EXEC_RAISE);
@@ -130,14 +134,18 @@ void reaper(struct params *args)
 	while (1) {
 		while (!queue_full(&q)) {
 			int options = 0;
-			if (!queue_empty(&q))
+			if (queue_empty(&q))
+				debugf("reaper: wait");
+			else
 				options |= WNOHANG;
 
 			int status;
 			pid_t pid = waitpid(-1, &status, options);
 			if (pid < 0) {
-				if (errno == ECHILD && sentinel_pid == 0)
+				if (errno == ECHILD && sentinel_pid == 0) {
+					debugf("reaper: no more children");
 					die(0);
+				}
 
 				die(ERR_REAP_WAITPID);
 			}
@@ -147,6 +155,7 @@ void reaper(struct params *args)
 
 			if (pid == sentinel_pid) {
 				if (WIFSIGNALED(status) && WTERMSIG(status) == SIGTERM) {
+					debugf("reaper: sentinel terminated");
 					sentinel_pid = 0;
 					continue;
 				}
@@ -154,6 +163,7 @@ void reaper(struct params *args)
 				die(ERR_REAP_SENTINEL);
 			}
 
+			debugf("reaper: pid %d terminated with status %d", pid, status);
 			queue_buffer(&q, pid, status);
 		}
 
@@ -163,6 +173,8 @@ void reaper(struct params *args)
 			// executor will do it right away when it is scheduled.
 
 			if (queue_full(&q)) {
+				debugf("reaper: queue full");
+
 				struct timespec delay = {
 					.tv_sec = 0,
 					.tv_nsec = 1,
@@ -195,8 +207,10 @@ void reaper(struct params *args)
 
 		ssize_t len = writev(GATE_CONTROL_FD, iov, spans);
 		if (len <= 0) {
-			if (len == 0)
+			if (len == 0) {
+				debugf("reaper: control socket closed");
 				die(0);
+			}
 
 			die(ERR_REAP_WRITEV);
 		}
@@ -204,6 +218,8 @@ void reaper(struct params *args)
 		if (len & (sizeof q.buf[0] - 1))
 			die(ERR_REAP_WRITE_ALIGN);
 
-		queue_consume(&q, len / sizeof q.buf[0]);
+		unsigned int count = len / sizeof q.buf[0];
+		queue_consume(&q, count);
+		debugf("reaper: %u dequeued", count);
 	}
 }

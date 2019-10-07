@@ -13,6 +13,7 @@
 #include <pthread.h>
 
 #include "attribute.h"
+#include "debug.h"
 #include "executor.h"
 #include "queue.h"
 
@@ -133,8 +134,12 @@ static inline unsigned int pid_map_remove_transform(struct pid_map *m, struct ex
 		struct exec_status *status = &queue[begin];
 
 		int16_t id = pid_map_remove_nolock(m, status->pid, pid_hash(status->pid));
-		if (id < 0)
+		if (id < 0) {
+			debugf("reaper: pid %d not found in map", status->pid);
 			break;
+		}
+
+		debugf("reaper: pid %d transformed to [%d]", status->pid, id);
 
 		status->pid = 0; // Clear the surroundings.
 		status->id = id;

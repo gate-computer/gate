@@ -33,6 +33,7 @@
 #include "align.h"
 #include "caps.h"
 #include "cgroup.h"
+#include "debug.h"
 #include "errors.h"
 #include "execveat.h"
 #include "runtime.h"
@@ -611,7 +612,7 @@ static int child_main(void *dummy_arg)
 	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
 		xerror("prctl: PR_CAP_AMBIENT_CLEAR_ALL");
 
-	if (GATE_SANDBOX)
+	if (GATE_SANDBOX && !GATE_RUNTIME_DEBUG)
 		xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null
 
 	char *argv[] = {EXECUTOR_FILENAME, flags_arg, NULL};
