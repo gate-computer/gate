@@ -46,9 +46,10 @@ type Config struct {
 	address string
 }
 
+var home = os.Getenv("HOME")
 var c = new(Config)
 
-const mainUsage = `Usage: %s [options] address command [arguments]
+const mainUsageHead = `Usage: %s [options] address command [arguments]
 
 Commands:
   call      execute a wasm module with I/O
@@ -70,16 +71,34 @@ Commands:
 Options:
 `
 
+const mainUsageTail = `
+Default configuration is read from ~/.config/gate/gate.toml if it exists.
+It will be ignored if the -F option is used.
+`
+
 func parseConfig(flags *flag.FlagSet, c *Config) {
-	flags.Var(confi.FileReader(c), "f", "read TOML configuration file")
-	flags.Var(confi.Assigner(c), "c", "set a configuration key (path.to.key=value)")
+	var defaults string
+	if home != "" {
+		defaults = path.Join(home, ".config/gate/gate.toml")
+	}
+
+	b := confi.NewBuffer(defaults)
+
+	flags.Var(b.FileReplacer(), "F", "replace previous configuration with this file")
+	flags.Var(b.FileReader(), "f", "read an additional configuration file")
+	flags.Var(b.Assigner(), "o", "set a configuration option (path.to.key=value)")
 	flags.Parse(os.Args[1:])
+
+	if err := b.Apply(c); err != nil {
+		fmt.Fprintf(flags.Output(), "%s: %v\n", flags.Name(), err)
+		os.Exit(2)
+	}
 }
 
 func main() {
 	log.SetFlags(0)
 
-	if home := os.Getenv("HOME"); home != "" {
+	if home != "" {
 		c.IdentityFile = path.Join(home, ".ssh/id_ed25519")
 	}
 
@@ -91,8 +110,9 @@ func main() {
 	parseConfig(flags, c)
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), mainUsage, flag.CommandLine.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), mainUsageHead, flag.CommandLine.Name())
 		flag.PrintDefaults()
+		fmt.Fprintf(flag.CommandLine.Output(), mainUsageTail)
 	}
 	flag.Usage = confi.FlagUsage(nil, c)
 	parseConfig(flag.CommandLine, c)
