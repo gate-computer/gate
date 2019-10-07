@@ -46,6 +46,8 @@ import (
 	"golang.org/x/net/netutil"
 )
 
+const serverHeaderValue = "gate"
+
 const (
 	DefaultExecutorCount   = 1
 	DefaultProgramStorage  = "memory"
@@ -512,6 +514,8 @@ func main2(critLog *log.Logger) (err error) {
 
 func newHTTPSHandler(gate http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", serverHeaderValue)
+
 		if r.URL.Path == "/" {
 			if s := c.HTTP.Index.Location; s != "" {
 				w.Header().Set("Location", s)
@@ -524,6 +528,8 @@ func newHTTPSHandler(gate http.Handler) http.Handler {
 }
 
 func handleHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Server", serverHeaderValue)
+
 	status := http.StatusNotFound
 	message := "not found"
 
