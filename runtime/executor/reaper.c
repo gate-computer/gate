@@ -163,7 +163,7 @@ void reaper(struct params *args)
 				die(ERR_REAP_SENTINEL);
 			}
 
-			debugf("reaper: pid %d terminated with status %d", pid, status);
+			debugf("reaper: pid %d terminated with status 0x%x", pid, status);
 			queue_buffer(&q, pid, status);
 		}
 
