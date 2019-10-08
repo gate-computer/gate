@@ -268,8 +268,10 @@ static void *executor(void *params)
 				if (kill(sentinel_pid, SIGTERM) != 0)
 					die(ERR_EXEC_KILL_SENTINEL);
 
-				debugf("executor: done");
-				return NULL;
+				// Don't exit immediately as that would send
+				// death signal to children.
+				pause();
+				die(ERR_EXEC_PAUSE);
 			}
 
 			if (msgs[i].msg_len != sizeof reqs[i])

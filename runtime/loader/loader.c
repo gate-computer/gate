@@ -268,6 +268,9 @@ static const char *elf_string(const Elf64_Ehdr *elf, unsigned strtab_index, unsi
 
 int main(int argc, char **argv, char **envp)
 {
+	if (sys_prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
+		return ERR_LOAD_PRCTL_PDEATHSIG;
+
 	// _start routine smuggles vDSO ELF address as argv pointer.
 	// Use it to lookup clock_gettime function.
 
@@ -295,11 +298,6 @@ int main(int argc, char **argv, char **envp)
 clock_gettime_found:
 	// Miscellaneous preparations.
 
-	if (GATE_SANDBOX) {
-		if (sys_prctl(PR_SET_DUMPABLE, 0) != 0)
-			return ERR_LOAD_PRCTL_NOT_DUMPABLE;
-	}
-
 	if (MAYBE_MAP_FIXED == 0) {
 		// Undo the ADDR_NO_RANDOMIZE setting as manually randomized
 		// addresses might not be used.
@@ -312,6 +310,11 @@ clock_gettime_found:
 
 	if (sys_setrlimit(RLIMIT_NPROC, 0) != 0)
 		return ERR_LOAD_SETRLIMIT_NPROC;
+
+	if (GATE_SANDBOX) {
+		if (sys_prctl(PR_SET_DUMPABLE, 0) != 0)
+			return ERR_LOAD_PRCTL_NOT_DUMPABLE;
+	}
 
 	// Image info and file descriptors
 
