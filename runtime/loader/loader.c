@@ -187,7 +187,7 @@ struct stack_vars {
 	uint32_t current_memory_pages; // WebAssembly pages.
 	uint64_t monotonic_time_snapshot;
 	int32_t random_avail;
-	uint32_t reserved;
+	uint32_t suspend_bits; // 0x1 = suspended | 0x2 = don't modify suspend reg
 	uint64_t text_addr;
 	uint64_t magic[4];
 } PACKED;
@@ -408,7 +408,7 @@ clock_gettime_found:
 	vars->current_memory_pages = info.init_memory_size >> 16;
 	vars->monotonic_time_snapshot = info.monotonic_time;
 	vars->random_avail = sizeof info.random;
-	vars->reserved = 0;
+	vars->suspend_bits = 0;
 	vars->text_addr = (uint64_t) text_ptr;
 	for (unsigned i = 0; i < sizeof vars->magic / sizeof vars->magic[0]; i++)
 		vars->magic[i] = GATE_STACK_MAGIC;

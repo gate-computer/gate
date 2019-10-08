@@ -36,7 +36,7 @@ type stackVars struct {
 	CurrentMemoryPages    uint32 // WebAssembly pages.
 	MonotonicTimeSnapshot uint64
 	RandomAvail           int32
-	Reserved              uint32
+	_                     uint32 // Used by runtime.
 	TextAddr              uint64
 	Magic                 [4]uint64
 }
@@ -358,7 +358,6 @@ func checkStack(b []byte, stackSize uint32) (vars stackVars, ok bool) {
 	case vars.StackUnused < internal.StackUsageOffset || vars.StackUnused > stackSize || vars.StackUnused&7 != 0:
 	case vars.CurrentMemoryPages > math.MaxInt32/wa.PageSize:
 	case vars.RandomAvail > 16:
-	case vars.Reserved != 0:
 	case !checkStackMagic(vars.Magic[:]):
 
 	default:

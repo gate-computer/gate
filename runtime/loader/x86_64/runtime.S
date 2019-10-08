@@ -17,9 +17,9 @@
 
 #define INT3 0xcc
 
-#define UCONTEXT_SUSPEND_REG_OFFSET  128 // rbx
-#define UCONTEXT_STACKPTR_REG_OFFSET 160 // rsp
-#define UCONTEXT_INSNPTR_REG_OFFSET  168 // rip
+#define UCONTEXT_STACKLIMIT_REG_OFFSET 128 // rbx
+#define UCONTEXT_STACKPTR_REG_OFFSET   160 // rsp
+#define UCONTEXT_INSNPTR_REG_OFFSET    168 // rip
 
 // Out: rcx = stack vars
 // Clobbers rax.
@@ -165,8 +165,14 @@ signal_handler:
 	cmp	$SIGSEGV, %edi
 	je	.Lsigsegv
 
+	mov	UCONTEXT_STACKLIMIT_REG_OFFSET(%rdx), %rbx
+	stack_vars
+	testl	$0x2, 20(%rcx)			// suspend_bits
+	jne	.Ldo_not_modify_suspend_reg
 	mov	$0x4000000000000001, %rax	// Suspend calls and loops
-	or	%rax, UCONTEXT_SUSPEND_REG_OFFSET(%rdx)
+	or	%rax, UCONTEXT_STACKLIMIT_REG_OFFSET(%rdx)
+.Ldo_not_modify_suspend_reg:
+	orl	$0x1, 20(%rcx)			// suspend_bits
 	ret
 
 .Lsigsegv:
@@ -439,23 +445,36 @@ rt_time:
 	sub	$16, %rsp			// sizeof(struct timespec)
 	mov	%rsp, %rsi			// tp
 
+	stack_vars
+	orl	$0x2, 20(%rcx)			// suspend_bits
+
 	push	%rbx
 	push	%r14
 	push	%r15
 
 	mov	-11*8(%r15), %rcx		// clock_gettime C ABI function
 	call	retpoline
+	mov	%eax, %r13d
 
 	pop	%r15
 	pop	%r14
-	pop	%rbx				// XXX: this messes with suspend
+	pop	%rbx
 
+	stack_vars
+	xor	%eax, %eax
+	xchg	%eax, 20(%rcx)			// suspend_bits
+	test	$0x1, %eax
+	je	.Lnot_suspended
+	mov	$0x4000000000000001, %rax	// Suspend calls and loops
+	or	%rax, %rbx			//
+
+.Lnot_suspended:
 	pop	%r10				// tv_sec
 	pop	%r11				// tv_nsec
 
 	mov	$ERR_RT_CLOCK_GETTIME, %edi
 	mov	$-1, %rdx			// Outrageous timestamp
-	test	%eax, %eax
+	test	%r13d, %r13d
 	jne	.Lexit_time
 
 	mov	%r10, %rax
