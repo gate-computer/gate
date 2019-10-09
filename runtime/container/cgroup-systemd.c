@@ -22,18 +22,24 @@ const char cgroup_backend[] = "systemd";
 
 void init_cgroup(pid_t pid, const struct cgroup_config *config)
 {
-	const uid_t orig_uid = getuid();
-
-	if (seteuid(0) == -1)
-		return;
+	const uid_t orig_euid = geteuid();
+	const bool euid_changed = seteuid(0) != -1;
 
 	int ret;
 	sd_bus *bus = NULL;
 
-	ret = sd_bus_default_system(&bus);
-	if (ret < 0) {
-		fprintf(stderr, "sd_bus_default_system: %s\n", strerror(-ret));
-		exit(1);
+	if (euid_changed) {
+		ret = sd_bus_default_system(&bus);
+		if (ret < 0) {
+			fprintf(stderr, "sd_bus_default_system: %s\n", strerror(-ret));
+			exit(1);
+		}
+	} else {
+		ret = sd_bus_default_user(&bus);
+		if (ret < 0) {
+			fprintf(stderr, "sd_bus_default_user: %s\n", strerror(-ret));
+			exit(1);
+		}
 	}
 
 	uint64_t scope_id;
@@ -90,7 +96,7 @@ void init_cgroup(pid_t pid, const struct cgroup_config *config)
 		exit(1);
 	}
 
-	if (seteuid(orig_uid) != 0) {
+	if (euid_changed && seteuid(orig_euid) != 0) {
 		perror("seteuid to back original user id");
 		exit(1);
 	}
