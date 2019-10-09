@@ -1,3 +1,7 @@
+ifeq (${origin CC},default)
+CC		:= musl-gcc
+endif
+
 ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
 
 CPPFLAGS	+= -pthread -I../include/$(ARCH) -I../include -DNDEBUG

@@ -126,7 +126,7 @@ User program support:
 The non-Go components can be built with `make`.  They require:
 
   - Linux
-  - gcc or clang
+  - musl-tools (musl-gcc), unless CC make variable is overridden
   - pkg-config
   - uidmap (shadow-utils)
   - protobuf-compiler
