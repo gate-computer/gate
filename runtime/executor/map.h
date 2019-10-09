@@ -20,6 +20,7 @@
 #define CACHE_LINE_SIZE 64
 
 #define ID_NUM 16384
+#define BUCKET_NUM 16384
 
 typedef int16_t index_t;
 typedef int16_t hash_t;
@@ -35,14 +36,17 @@ struct node {
 
 struct pid_map {
 	struct node arena[ID_NUM];
-	index_t buckets[ID_NUM] ALIGNED(CACHE_LINE_SIZE);
+	index_t buckets[BUCKET_NUM] ALIGNED(CACHE_LINE_SIZE);
 	index_t free_list ALIGNED(CACHE_LINE_SIZE);
 	pthread_mutex_t lock;
 } ALIGNED(CACHE_LINE_SIZE);
 
 static inline hash_t pid_hash(pid_t pid)
 {
-	return pid & (ID_NUM - 1);
+	// This assumes that /proc/sys/kernel/pid_max is not very high; with
+	// its default value (32768), the worst-case scenario is that there are
+	// two items per bucket.
+	return pid & (BUCKET_NUM - 1);
 }
 
 static inline index_t pid_map_alloc_node_nolock(struct pid_map *m)
@@ -95,10 +99,14 @@ static inline void pid_map_init(struct pid_map *m)
 		m->arena[i].pid = 0;
 		m->arena[i].index = i;
 		m->arena[i].next = i + 1;
-		m->buckets[i] = -1;
 	}
 	m->arena[ID_NUM - 1].next = -1;
+
+	for (int i = 0; i < BUCKET_NUM; i++)
+		m->buckets[i] = -1;
+
 	m->free_list = 0;
+
 	pthread_mutex_init(&m->lock, NULL);
 }
 
