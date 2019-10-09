@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/random.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -42,16 +43,16 @@ void init_cgroup(pid_t pid, const struct cgroup_config *config)
 		}
 	}
 
-	uint64_t scope_id;
+	uint32_t scope_id;
 
-	if (getentropy(&scope_id, sizeof scope_id) != 0) {
-		perror("getentropy");
+	if (getrandom(&scope_id, sizeof scope_id, 0) != sizeof scope_id) {
+		perror("getrandom");
 		exit(1);
 	}
 
 	char *scope;
 
-	if (asprintf(&scope, "%s-%lx.scope", config->title, scope_id) < 0) {
+	if (asprintf(&scope, "%s-%x.scope", config->title, scope_id) < 0) {
 		perror("asprintf");
 		exit(1);
 	}
