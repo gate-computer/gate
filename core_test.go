@@ -472,7 +472,7 @@ func TestRandomSeed(t *testing.T) {
 		var debug bytes.Buffer
 		runProgram(t, wasmRandomSeed, "dump", &debug, trap.Exit)
 		for j, s := range strings.Split(debug.String(), " ") {
-			n, err := strconv.ParseUint(s, 16, 64)
+			n, err := strconv.ParseUint(strings.TrimSpace(s), 16, 64)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -500,7 +500,7 @@ func TestRandomDeficiency2(t *testing.T) {
 func testRandomDeficiency(t *testing.T, function string) {
 	var debug bytes.Buffer
 	runProgram(t, wasmRandomSeed, function, &debug, trap.ID(26))
-	if s := debug.String(); s != "ping" {
+	if s := debug.String(); s != "ping\n" {
 		t.Error(s)
 	}
 }

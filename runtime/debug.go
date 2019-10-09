@@ -11,43 +11,41 @@ import (
 	"os"
 )
 
-func copyDebug(outputDone chan<- struct{}, output io.Writer, input *os.File) {
-	defer input.Close()
-
-	w := bufio.NewWriter(output)
-	r := bufio.NewReader(input)
-
+func copyDebug(outputDone chan<- struct{}, output io.Writer, r *os.File) {
 	defer func() {
 		if outputDone != nil {
-			w.Flush()
 			close(outputDone)
 		}
+		r.Close()
 	}()
 
-reading:
+	w := bufio.NewWriter(output)
+	b := make([]byte, 1)
+	c := byte('\n')
+
 	for {
-		char, _, err := r.ReadRune()
-		if err != nil {
+		if _, err := r.Read(b); err != nil {
+			if c != '\n' {
+				if w.WriteByte('\n') == nil {
+					w.Flush()
+				}
+			}
 			return
 		}
 
-		switch char {
-		case '\n':
-			if _, err := w.WriteRune(char); err != nil {
-				break reading
-			}
-			if err := w.Flush(); err != nil {
-				break reading
-			}
+		c = b[0]
 
-		default:
-			if _, err := w.WriteRune(char); err != nil {
-				break reading
+		if w.WriteByte(c) != nil {
+			break
+		}
+
+		if c == '\n' {
+			if w.Flush() != nil {
+				break
 			}
 		}
 	}
 
-	w.Flush()
 	close(outputDone)
 	outputDone = nil
 
