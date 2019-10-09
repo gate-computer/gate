@@ -82,23 +82,7 @@ func (prog *programBuild) copyObjectMapTo(dest []byte) {
 }
 
 func (prog *programBuild) writeObjectMapAt(offset int64) (err error) {
-	iov := make([]syscall.Iovec, 0, 2)
-
-	if n := prog.callSitesSize(); n > 0 {
-		iov = append(iov, syscall.Iovec{
-			Base: &prog.callSitesBytes()[0],
-			Len:  uint64(n),
-		})
-	}
-
-	if n := prog.funcAddrsSize(); n > 0 {
-		iov = append(iov, syscall.Iovec{
-			Base: &prog.funcAddrsBytes()[0],
-			Len:  uint64(n),
-		})
-	}
-
-	return prog.file.WriteVecAt(iov, offset)
+	return prog.file.WriteVecAt([2][]byte{prog.callSitesBytes(), prog.funcAddrsBytes()}, offset)
 }
 
 type instanceBuild struct {

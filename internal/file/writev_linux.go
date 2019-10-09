@@ -13,30 +13,33 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func writev(fd int, iov []syscall.Iovec) error {
-	return pwritev(fd, iov, -1)
+func writev(fd int, bufs [2][]byte) error {
+	return pwritev(fd, bufs, -1)
 }
 
 // pwritev actually calls pwritev2 so offset may be -1.
-func pwritev(fd int, iov []syscall.Iovec, offset int64) (err error) {
+func pwritev(fd int, bufs [2][]byte, offset int64) (err error) {
+	bs := bufs[:]
+	iov := make([]syscall.Iovec, 2)
+
 	for {
-		var total uint64
-		for _, span := range iov {
-			total += span.Len
+		var n uintptr
+		for _, b := range bs {
+			if len(b) > 0 {
+				iov[n].Base = &b[0]
+				iov[n].SetLen(len(b))
+				n++
+			}
 		}
-		if total == 0 {
+		if n == 0 {
 			return
 		}
 
-		n, _, errno := syscall.Syscall6(unix.SYS_PWRITEV2, uintptr(fd), uintptr(unsafe.Pointer(&iov[0])), uintptr(len(iov)), uintptr(offset), 0, 0)
+		n, _, errno := syscall.Syscall6(unix.SYS_PWRITEV2, uintptr(fd), uintptr(unsafe.Pointer(&iov[0])), n, uintptr(offset), 0, 0)
 
 		switch errno {
 		case 0:
-			switch uint64(n) {
-			case total:
-				return
-
-			case 0:
+			if n == 0 {
 				err = io.EOF
 				return
 			}
@@ -49,14 +52,19 @@ func pwritev(fd int, iov []syscall.Iovec, offset int64) (err error) {
 			return
 		}
 
+		if offset >= 0 {
+			offset += int64(n)
+		}
+
 		for {
-			if total >= iov[0].Len {
-				total -= iov[0].Len
-				iov = iov[1:]
+			if n >= uintptr(len(bs[0])) {
+				n -= uintptr(len(bs[0]))
+				bs = bs[1:]
+				if n == 0 && len(bs) == 0 {
+					return
+				}
 			} else {
-				span := iov[0]
-				span.Len = iov[0].Len - total
-				iov = append([]syscall.Iovec{span}, iov[1:]...)
+				bs[0] = bs[0][n:]
 				break
 			}
 		}
