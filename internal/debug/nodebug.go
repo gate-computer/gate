@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build !debug,!gateruntimedebug
+// +build !gatedebug
 
-package runtime
+package debug
 
-func debugf(format string, args ...interface{}) {}
+func Printf(format string, args ...interface{}) {}
