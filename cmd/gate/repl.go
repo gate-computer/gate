@@ -37,7 +37,7 @@ func repl(instanceID string) {
 func doREPL(instanceID string) (success bool, err error) {
 	params := url.Values{webapi.ParamAction: []string{webapi.ActionIO}}
 
-	u, err := makeURL("ws", webapi.PathInstances+instanceID, params)
+	u, err := makeWebsocketURL(webapi.PathInstances+instanceID, params)
 	if err != nil {
 		return
 	}

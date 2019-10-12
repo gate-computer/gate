@@ -31,19 +31,16 @@ import (
 
 const (
 	DefaultRef = true
-	DefaultTLS = true
 )
 
 type Config struct {
+	Address      string
 	IdentityFile string
 	Ref          bool
 	Function     string
 	Instance     string
 	Debug        string
-	TLS          bool
 	REPL         REPLConfig
-
-	address string
 }
 
 var home = os.Getenv("HOME")
@@ -68,7 +65,18 @@ Commands:
   upload    upload a wasm module
   wait      wait until an instance is suspended, halted or terminated
 
+Address examples:
+  example.net           (scheme defaults to https)
+  http://localhost:8080
+
 Options:
+`
+
+const moduleUsage = `
+Module can be a local wasm file, a reference, or a supported source:
+  ./wasm-file
+  I4hOg1lxclcr20elFIIjlrWw4H7Twp2eMTGU1KrfX_np05M6WZ0DpcTIvSajbE9d
+  /ipfs/QmQugy6674g1rJumFQ5gAtuJf8uJobxSi23GUqUaewoPLc
 `
 
 const mainUsageTail = `
@@ -103,7 +111,6 @@ func main() {
 	}
 
 	c.Ref = DefaultRef
-	c.TLS = DefaultTLS
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
@@ -122,7 +129,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	c.address = flag.Arg(0)
+	c.Address = flag.Arg(0)
 	os.Args = flag.Args()[1:]
 
 	progname := flag.CommandLine.Name()
@@ -138,25 +145,29 @@ func main() {
 		var options bool
 		flag.VisitAll(func(*flag.Flag) { options = true })
 
-		usageFmt := "Usage: %s %s %s"
-
+		usageFmt := "Usage: %s"
+		if c.Address != "" {
+			usageFmt += " "
+		}
+		usageFmt += "%s %s"
 		if options {
 			usageFmt += " [options]"
 		}
-
-		usageFmt += "%s\n"
-
-		if strings.Contains(command.usage, "module") {
-			usageFmt += "\nThe module can be a local wasm file, a reference which exists on the server,\nor a source supported by the server.\n"
+		if command.usage != "" {
+			usageFmt += " "
 		}
-
+		usageFmt += "%s\n"
+		if strings.Contains(command.usage, "module") {
+			usageFmt += moduleUsage
+		}
 		if options {
 			usageFmt += "\nOptions:\n"
 		}
 
-		fmt.Fprintf(flag.CommandLine.Output(), usageFmt, progname, c.address, flag.CommandLine.Name(), command.usage)
+		fmt.Fprintf(flag.CommandLine.Output(), usageFmt, progname, c.Address, flag.CommandLine.Name(), command.usage)
 		flag.PrintDefaults()
 	}
+	flag.CommandLine.Usage = flag.Usage
 
 	command.do()
 }
@@ -166,7 +177,7 @@ var commands = map[string]struct {
 	do    func()
 }{
 	"call": {
-		usage: " module [function]",
+		usage: "module [function]",
 		do: func() {
 			flag.Parse()
 			switch flag.NArg() {
@@ -219,14 +230,14 @@ var commands = map[string]struct {
 	},
 
 	"delete": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			commandInstance(webapi.ActionDelete)
 		},
 	},
 
 	"download": {
-		usage: " module",
+		usage: "module",
 		do: func() {
 			// TODO: output file option
 
@@ -279,7 +290,7 @@ var commands = map[string]struct {
 	},
 
 	"io": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -307,7 +318,7 @@ var commands = map[string]struct {
 	},
 
 	"launch": {
-		usage: " module [function]",
+		usage: "module [function]",
 		do: func() {
 			flag.Parse()
 			switch flag.NArg() {
@@ -408,7 +419,7 @@ var commands = map[string]struct {
 	},
 
 	"repl": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -421,7 +432,7 @@ var commands = map[string]struct {
 	},
 
 	"resume": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -446,7 +457,7 @@ var commands = map[string]struct {
 	},
 
 	"snapshot": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -472,21 +483,21 @@ var commands = map[string]struct {
 	},
 
 	"status": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			commandInstance(webapi.ActionStatus)
 		},
 	},
 
 	"suspend": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			commandInstance(webapi.ActionSuspend)
 		},
 	},
 
 	"unref": {
-		usage: " module",
+		usage: "module",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -505,7 +516,7 @@ var commands = map[string]struct {
 	},
 
 	"upload": {
-		usage: " module",
+		usage: "module",
 		do: func() {
 			flag.Parse()
 			if flag.NArg() != 1 {
@@ -542,7 +553,7 @@ var commands = map[string]struct {
 	},
 
 	"wait": {
-		usage: " instance",
+		usage: "instance",
 		do: func() {
 			commandInstance(webapi.ActionWait)
 		},
@@ -579,7 +590,7 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 		log.Fatal(err)
 	}
 
-	u, err := makeURL("ws", webapi.PathModuleRefs+key, params)
+	u, err := makeWebsocketURL(webapi.PathModuleRefs+key, params)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -675,7 +686,7 @@ func loadModule(filename string) (b *bytes.Buffer, key string, err error) {
 }
 
 func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Status, resp *http.Response, err error) {
-	u, err := makeURL("http", uri, params)
+	u, err := makeURL(uri, params)
 	if err != nil {
 		return
 	}
@@ -720,15 +731,37 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	return
 }
 
-func makeURL(scheme, uri string, params url.Values) (u *url.URL, err error) {
-	u, err = url.Parse(scheme + "s://" + c.address + uri)
+func makeURL(uri string, params url.Values) (u *url.URL, err error) {
+	addr := c.Address
+	if !strings.Contains(addr, "://") {
+		addr = "https://" + addr
+	}
+
+	u, err = url.Parse(addr + uri)
 	if err != nil {
 		return
 	}
-	if !c.TLS {
-		u.Scheme = scheme
-	}
+
 	u.RawQuery = params.Encode()
+	return
+}
+
+func makeWebsocketURL(uri string, params url.Values) (u *url.URL, err error) {
+	u, err = makeURL(uri, params)
+	if err != nil {
+		return
+	}
+
+	switch u.Scheme {
+	case "http":
+		u.Scheme = "ws"
+	case "https":
+		u.Scheme = "wss"
+	default:
+		err = fmt.Errorf("address has unsupported scheme: %q", u.Scheme)
+		return
+	}
+
 	return
 }
 
@@ -758,7 +791,7 @@ func makeAuthorization() (auth string, err error) {
 
 	claims := &webapi.Claims{
 		Exp: time.Now().Unix() + 60,
-		Aud: []string{"https://" + c.address + webapi.Path},
+		Aud: []string{"https://" + c.Address + webapi.Path},
 	}
 
 	auth, err = authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
