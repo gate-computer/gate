@@ -76,6 +76,7 @@ message FailRequest {
 		INSTANCE_ID_EXISTS = 18;
 		INSTANCE_STATUS = 19;
 		INSTANCE_NO_CONNECT = 20;
+		INSTANCE_TRANSIENT = 21;
 	}
 
 	detail.Context ctx = 1;

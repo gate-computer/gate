@@ -23,6 +23,7 @@ import (
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/gate/server/internal/error/notapplicable"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	"github.com/tsavola/gate/webapi"
 )
@@ -249,6 +250,12 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 			}
 			ew.SetHeader("Retry-After", strconv.Itoa(int(s)))
 		}
+
+	case notapplicable.Error:
+		status = http.StatusConflict
+		text = "not applicable"
+		internal = false
+		request = x.FailRequestType()
 
 	case notfound.Error:
 		status = http.StatusNotFound
