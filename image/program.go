@@ -9,7 +9,8 @@ import (
 	"errors"
 	"io"
 
-	"github.com/tsavola/gate/image/manifest"
+	"github.com/tsavola/gate/image/internal/manifest"
+	"github.com/tsavola/gate/internal/error/notfound"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/snapshot"
@@ -26,11 +27,23 @@ type Program struct {
 	mem     []byte
 }
 
-func (prog *Program) Manifest() manifest.Program { return prog.man }
-func (prog *Program) PageSize() int              { return internal.PageSize }
-func (prog *Program) TextSize() int              { return alignPageSize32(prog.man.TextSize) }
-func (prog *Program) ModuleSize() int64          { return prog.man.ModuleSize }
-func (prog *Program) Random() bool               { return prog.man.Random }
+func (prog *Program) PageSize() int     { return internal.PageSize }
+func (prog *Program) TextSize() int     { return alignPageSize32(prog.man.TextSize) }
+func (prog *Program) ModuleSize() int64 { return prog.man.ModuleSize }
+func (prog *Program) Random() bool      { return prog.man.Random }
+
+func (prog *Program) ResolveEntryFunc(exportName string) (index int, err error) {
+	if exportName == "" {
+		return -1, nil
+	}
+
+	i, found := prog.man.EntryIndexes[exportName]
+	if !found {
+		return -1, notfound.ErrFunction
+	}
+
+	return int(i), nil
+}
 
 func (prog *Program) Text() (file interface{ Fd() uintptr }, err error) {
 	file = prog.file

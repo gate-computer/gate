@@ -9,7 +9,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"math/bits"
@@ -25,7 +24,7 @@ import (
 	"github.com/tsavola/wag/trap"
 )
 
-const imageInfoSize = 96
+const imageInfoSize = 104
 
 // imageInfo is like the info object in runtime/loader/loader.c
 type imageInfo struct {
@@ -42,10 +41,11 @@ type imageInfo struct {
 	InitMemorySize uint32
 	GrowMemorySize uint32
 	InitRoutine    uint32
+	StartAddr      uint32
 	EntryAddr      uint32
-	MonotonicTime  uint64
 	TimeMask       uint32
-	MagicNumber2   uint32
+	MonotonicTime  uint64
+	MagicNumber2   uint64
 }
 
 type ProgramCode interface {
@@ -62,7 +62,7 @@ type ProgramState interface {
 	GlobalsSize() int
 	MemorySize() int
 	MaxMemorySize() int
-	InitRoutine() uint32
+	StartAddr() uint32
 	EntryAddr() uint32
 	MonotonicTime() uint64
 	BeginMutation(textAddr uint64) (interface{ Fd() uintptr }, error)
@@ -159,24 +159,16 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		GlobalsSize:    uint32(state.GlobalsSize()),
 		InitMemorySize: uint32(state.MemorySize()),
 		GrowMemorySize: uint32(state.MaxMemorySize()), // TODO: check policy too
-		InitRoutine:    state.InitRoutine(),
+		StartAddr:      state.StartAddr(),
 		EntryAddr:      state.EntryAddr(),
 		MonotonicTime:  state.MonotonicTime(),
 		TimeMask:       uint32(timeMask),
 		MagicNumber2:   magicNumber2,
 	}
-
-	switch info.InitRoutine {
-	case abi.TextAddrNoFunction, abi.TextAddrStart, abi.TextAddrEnter:
-
-	case abi.TextAddrResume:
-		if info.StackUnused == info.StackSize {
-			err = errors.New("resuming without stack contents")
-			return
-		}
-
-	default:
-		panic(info.InitRoutine)
+	if info.StackUnused == info.StackSize {
+		info.InitRoutine = abi.TextAddrEnter
+	} else {
+		info.InitRoutine = abi.TextAddrResume
 	}
 
 	buf := bytes.NewBuffer(make([]byte, 0, imageInfoSize))

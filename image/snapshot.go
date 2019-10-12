@@ -8,12 +8,11 @@ import (
 	"encoding/binary"
 	"syscall"
 
+	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/internal/varint"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/gate/snapshot/wasm"
-	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
 	"github.com/tsavola/wag/wa/opcode"
@@ -26,8 +25,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 ) (newProg *Program, err error) {
 	// Old program.
 	var (
-		man       = oldProg.Manifest()
-		oldRanges = man.Sections
+		oldRanges = oldProg.man.Sections
 		oldFD     = oldProg.file.Fd()
 	)
 
@@ -47,6 +45,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	var (
 		instStackMapping   = instMap[:inst.man.StackSize]
 		instGlobalsMapping = instMap[inst.man.StackSize:]
+		instGlobalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(oldProg.man.GlobalTypes)*8:]
 	)
 
 	err = inst.checkMutation(instStackMapping)
@@ -54,31 +53,21 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		return
 	}
 
-	// Stack, globals and memory contents without unused regions or padding.
 	var (
-		newInitRoutine uint32
-		newTextAddr    uint64
-		stackUsage     int
-		instStackData  []byte
-		globalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(man.GlobalTypes)*8:]
+		newTextAddr   uint64
+		stackUsage    int
+		instStackData []byte
 	)
-
 	if suspended {
-		if inst.man.StackUsage > 0 {
-			newInitRoutine = abi.TextAddrResume
+		if inst.man.StackUsage == 0 {
+			// Resume at virtual call site at beginning of enter routine.
+			// Stack data is synthesized later.
+			stackUsage = initStackSize
+		} else {
 			newTextAddr = inst.man.TextAddr
 			stackUsage = int(inst.man.StackUsage)
 			instStackData = instStackMapping[len(instStackMapping)-stackUsage:]
-		} else {
-			// Starting is equivalent to resuming at virtual call site at
-			// beginning of start routine.
-			newInitRoutine = abi.TextAddrStart
-			stackUsage = 16
 		}
-	} else {
-		// New program reuses old text segment which may invoke start function.
-		// Don't invoke it again.
-		newInitRoutine = abi.TextAddrEnter
 	}
 
 	// New module sections.
@@ -95,7 +84,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	memorySection := makeMemorySection(inst.man.MemorySize) // TODO: maximum value
 	off = mapNewSection(off, newRanges, len(memorySection), section.Memory)
 
-	globalSection := makeGlobalSection(man.GlobalTypes, globalsData)
+	globalSection := makeGlobalSection(oldProg.man.GlobalTypes, instGlobalsData)
 	off = mapNewSection(off, newRanges, len(globalSection), section.Global)
 
 	off = mapOldSection(off, newRanges, oldRanges, section.Export)
@@ -127,14 +116,14 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	off = mapNewSection(off, newRanges, dataSectionSize, section.Data)
 
 	// New module size.
-	newModuleSize := man.ModuleSize
-	newModuleSize -= man.Sections[section.Memory].Length
-	newModuleSize -= man.Sections[section.Global].Length
-	newModuleSize -= man.Sections[section.Start].Length
-	newModuleSize -= man.SnapshotSection.Length
-	newModuleSize -= man.BufferSection.Length
-	newModuleSize -= man.StackSection.Length
-	newModuleSize -= man.Sections[section.Data].Length
+	newModuleSize := oldProg.man.ModuleSize
+	newModuleSize -= oldProg.man.Sections[section.Memory].Length
+	newModuleSize -= oldProg.man.Sections[section.Global].Length
+	newModuleSize -= oldProg.man.Sections[section.Start].Length
+	newModuleSize -= oldProg.man.SnapshotSection.Length
+	newModuleSize -= oldProg.man.BufferSection.Length
+	newModuleSize -= oldProg.man.StackSection.Length
+	newModuleSize -= oldProg.man.Sections[section.Data].Length
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
 	newModuleSize += int64(len(snapshotSection))
@@ -210,7 +199,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		return
 	}
 	newOff += int64(n)
-	oldOff += man.SnapshotSection.Length
+	oldOff += oldProg.man.SnapshotSection.Length
 
 	// Write new buffer section, and skip old one.
 	if bufferSectionSize > 0 {
@@ -226,7 +215,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		}
 		newOff += int64(n)
 	}
-	oldOff += man.BufferSection.Length
+	oldOff += oldProg.man.BufferSection.Length
 
 	// Write new stack section, and skip old one.
 	if suspended {
@@ -236,12 +225,12 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		newStack := newStackSection[len(stackHeader):]
 
 		if instStackData != nil {
-			err = exportStack(newStack, instStackData, inst.man.TextAddr, oldProg.Map) // TODO: in-place?
+			err = exportStack(newStack, instStackData, inst.man.TextAddr, oldProg.Map)
 			if err != nil {
 				return
 			}
 		} else {
-			synthesizeStack(newStack, inst.man.EntryIndex)
+			putInitStack(newStack, inst.man.StartFunc.Index, inst.man.EntryFunc.Index)
 		}
 
 		n, err = newFile.WriteAt(newStackSection, newOff)
@@ -250,7 +239,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		}
 		newOff += int64(n)
 	}
-	oldOff += man.StackSection.Length
+	oldOff += oldProg.man.StackSection.Length
 
 	// Copy new data section from instance, and skip old one.
 	n, err = newFile.WriteAt(dataHeader, newOff)
@@ -271,7 +260,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	oldOff += oldRanges[section.Data].Length
 
 	// Copy remaining (custom) sections.
-	copyLen = int(man.ModuleSize - (oldOff - progModuleOffset))
+	copyLen = int(oldProg.man.ModuleSize - (oldOff - progModuleOffset))
 	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
 	if err != nil {
 		return
@@ -280,7 +269,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy object map from program.
 	newOff = align8(newOff)
 	oldOff = align8(oldOff)
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, int(man.CallSitesSize)+int(man.FuncAddrsSize))
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, int(oldProg.man.CallSitesSize)+int(oldProg.man.FuncAddrsSize))
 	if err != nil {
 		return
 	}
@@ -288,7 +277,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy text from program.
 	newOff = progTextOffset
 	oldOff = progTextOffset
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, alignPageSize32(man.TextSize))
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, alignPageSize32(oldProg.man.TextSize))
 	if err != nil {
 		return
 	}
@@ -318,34 +307,31 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		panic("TODO")
 	}
 
-	// New program manifest.
-	man.TextAddr = newTextAddr
-	man.StackUsage = uint32(stackUsage)
-	man.MemoryDataSize = inst.man.MemorySize
-	man.MemorySize = inst.man.MemorySize
-	man.InitRoutine = newInitRoutine
-	man.ModuleSize = newModuleSize
-	man.Sections = newRanges
-	man.SnapshotSection = manifest.ByteRange{
-		Offset: snapshotSectionOffset,
-		Length: int64(len(snapshotSection)),
-	}
-	man.BufferSection = manifest.ByteRange{
-		Offset: bufferSectionOffset,
-		Length: bufferSectionSize,
-	}
-	man.BufferSectionHeaderLength = int64(len(bufferHeader))
-	man.StackSection = manifest.ByteRange{
-		Offset: stackSectionOffset,
-		Length: int64(stackSectionSize),
-	}
-
 	newProg = &Program{
 		Map:     oldProg.Map,
 		storage: oldProg.storage,
-		man:     man,
+		man:     oldProg.man,
 		file:    newFile,
 		mem:     newProgMem,
+	}
+	newProg.man.TextAddr = newTextAddr
+	newProg.man.StackUsage = uint32(stackUsage)
+	newProg.man.MemoryDataSize = inst.man.MemorySize
+	newProg.man.MemorySize = inst.man.MemorySize
+	newProg.man.ModuleSize = newModuleSize
+	newProg.man.Sections = newRanges
+	newProg.man.SnapshotSection = manifest.ByteRange{
+		Offset: snapshotSectionOffset,
+		Length: int64(len(snapshotSection)),
+	}
+	newProg.man.BufferSection = manifest.ByteRange{
+		Offset: bufferSectionOffset,
+		Length: bufferSectionSize,
+	}
+	newProg.man.BufferSectionHeaderLength = int64(len(bufferHeader))
+	newProg.man.StackSection = manifest.ByteRange{
+		Offset: stackSectionOffset,
+		Length: int64(stackSectionSize),
 	}
 	return
 }

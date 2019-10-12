@@ -16,17 +16,17 @@ message Program {
 	uint32 text_size = 2;
 	uint32 stack_usage = 3; // Nonzero if suspended.
 	uint32 globals_size = 4;
-	uint32 memory_data_size = 5;
-	uint32 memory_size = 6;
-	uint32 memory_size_limit = 7;
-	uint32 init_routine = 8;
-	int64 module_size = 9;
-	repeated ByteRange sections = 10;
-	ByteRange snapshot_section = 11;
-	ByteRange buffer_section = 12;
-	int64 buffer_section_header_length = 13;
-	ByteRange stack_section = 14;
-	bytes global_types = 15;                // Limited by wag's maxGlobals check.
+	uint32 memory_size = 5;
+	sint64 memory_size_limit = 6;
+	uint32 memory_data_size = 7;
+	int64 module_size = 8;
+	repeated ByteRange sections = 9;
+	ByteRange snapshot_section = 10;
+	ByteRange buffer_section = 11;
+	int64 buffer_section_header_length = 12;
+	ByteRange stack_section = 13;
+	bytes global_types = 14; // Limited by wag's maxGlobals check.
+	Function start_func = 15;
 	map<string, uint32> entry_indexes = 16; // Limited by func name len and wag's maxExports check.
 	map<uint32, uint32> entry_addrs = 17;
 	uint32 call_sites_size = 18;
@@ -43,9 +43,14 @@ message Instance {
 	uint32 memory_size = 5;
 	uint32 max_memory_size = 6;
 	uint32 init_routine = 7;
-	uint32 entry_index = 8;
-	uint32 entry_addr = 9;
+	Function start_func = 8;
+	Function entry_func = 9;
 	Snapshot snapshot = 10;
+}
+
+message Function {
+	sint64 index = 1;
+	uint32 addr = 2;
 }
 
 message Snapshot {

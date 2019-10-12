@@ -407,7 +407,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 	funcSigs = b.Module.FuncTypes()
 
 	b.StackSize = c.Program.StackSize
-	b.MaxMemorySize = b.Module.MemorySizeLimit()
+	b.SetMaxMemorySize(compile.MaxMemorySize)
 
 	err = b.BindFunctions(c.Function)
 	if err != nil {
@@ -455,7 +455,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	inst, err = b.FinishInstanceImage()
+	inst, err = b.FinishInstanceImage(prog)
 	if err != nil {
 		return
 	}

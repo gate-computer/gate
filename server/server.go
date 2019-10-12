@@ -234,7 +234,7 @@ func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPol
 		return
 	}
 
-	if prog.image.Manifest().TextSize > uint32(pol.prog.MaxTextSize) {
+	if prog.image.TextSize() > pol.prog.MaxTextSize {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
@@ -325,14 +325,14 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHas
 		}
 	}()
 
-	entryIndex, entryAddr, err := prog.resolveEntry(function)
+	entryIndex, err := prog.image.ResolveEntryFunc(function)
 	if err != nil {
 		return
 	}
 
 	// TODO: check resource policy (text/stack/memory/max-memory size etc.)
 
-	instImage, err := image.NewInstance(prog.image, pol.inst.StackSize, entryIndex, entryAddr)
+	instImage, err := image.NewInstance(prog.image, pol.inst.MaxMemorySize, pol.inst.StackSize, entryIndex)
 	if err != nil {
 		return
 	}
@@ -491,14 +491,14 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 		return
 	}
 
-	if prog.image.Manifest().TextSize > uint32(pol.prog.MaxTextSize) {
+	if prog.image.TextSize() > pol.prog.MaxTextSize {
 		err = resourcelimit.New("program code size limit exceeded")
 		return
 	}
 
 	// TODO: check resource policy (stack/memory/max-memory size etc.)
 
-	entryIndex, entryAddr, err := prog.resolveEntry(function)
+	entryFunc, err := prog.image.ResolveEntryFunc(function)
 	if err != nil {
 		return
 	}
@@ -508,7 +508,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 		return
 	}
 
-	instImage, err := image.NewInstance(prog.image, pol.inst.StackSize, entryIndex, entryAddr)
+	instImage, err := image.NewInstance(prog.image, pol.inst.MaxMemorySize, pol.inst.StackSize, entryFunc)
 	if err != nil {
 		return
 	}
@@ -857,10 +857,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, functio
 		inst.lock.Lock()
 		defer inst.lock.Unlock()
 
-		var (
-			entryIndex uint32
-			entryAddr  uint32
-		)
+		entryIndex := -1
 
 		switch inst.status.State {
 		case StateSuspended:
@@ -875,7 +872,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, functio
 				return
 			}
 
-			entryIndex, entryAddr, err = inst.prog.resolveEntry(function)
+			entryIndex, err = inst.prog.image.ResolveEntryFunc(function)
 			if err != nil {
 				return
 			}
@@ -895,10 +892,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, functio
 			return
 		}
 
-		if entryAddr != 0 {
-			inst.image.ResetEntry(entryIndex, entryAddr)
-		}
-
+		inst.image.SetEntry(inst.prog.image, entryIndex)
 		inst.renew(function, proc, pol.inst.TimeResolution, services, debugStatus, debugOutput)
 		return
 	}()

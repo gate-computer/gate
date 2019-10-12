@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	"github.com/tsavola/gate/build"
-	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/snapshot"
@@ -37,10 +36,11 @@ func (filesystem *Filesystem) Close() error {
 }
 
 type ProgramImage struct {
-	image     *image.Program
-	buffers   snapshot.Buffers
-	funcTypes []wa.FuncType
-	objectMap object.CallMap
+	image           *image.Program
+	memorySizeLimit int
+	buffers         snapshot.Buffers
+	funcTypes       []wa.FuncType
+	objectMap       object.CallMap
 }
 
 func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImage, err error) {
@@ -64,7 +64,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 	}
 
 	b.StackSize = wa.PageSize
-	b.MaxMemorySize = b.Module.MemorySizeLimit()
+	b.SetMaxMemorySize(compile.MaxMemorySize)
 
 	err = b.BindFunctions("")
 	if err != nil {
@@ -105,7 +105,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	prog = &ProgramImage{progImage, b.Buffers, b.Module.FuncTypes(), objectMap}
+	prog = &ProgramImage{progImage, b.Module.MemorySizeLimit(), b.Buffers, b.Module.FuncTypes(), objectMap}
 	return
 }
 
@@ -119,21 +119,14 @@ type InstanceImage struct {
 }
 
 func NewInstanceImage(prog *ProgramImage, entryFunction string) (inst *InstanceImage, err error) {
-	var entryIndex uint32
-	var entryAddr uint32
-
-	if entryFunction != "" {
-		entryIndex, err = entry.MapFuncIndex(prog.image.Manifest().EntryIndexes, entryFunction)
-		if err != nil {
-			return
-		}
-
-		entryAddr = entry.MapFuncAddr(prog.image.Manifest().EntryAddrs, entryIndex)
-	}
-
 	stackSize := wa.PageSize
 
-	instImage, err := image.NewInstance(prog.image, stackSize, entryIndex, entryAddr)
+	entryFunc, err := prog.image.ResolveEntryFunc(entryFunction)
+	if err != nil {
+		return
+	}
+
+	instImage, err := image.NewInstance(prog.image, prog.memorySizeLimit, stackSize, entryFunc)
 	if err != nil {
 		return
 	}

@@ -10,5 +10,5 @@ const maxPacketSize = 65536
 
 const (
 	magicNumber1 = 0x19328f3a
-	magicNumber2 = 0x7e1c5d67
+	magicNumber2 = 0x975834d75125276c
 )

@@ -17,7 +17,6 @@ import (
 	"sync"
 
 	"github.com/tsavola/gate/build"
-	"github.com/tsavola/gate/entry"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
@@ -101,12 +100,12 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		return
 	}
 
-	if instPolicy == nil {
-		b.StackSize = progPolicy.MaxStackSize
-		b.MaxMemorySize = b.Module.MemorySizeLimit()
-	} else {
-		b.StackSize = instPolicy.StackSize
-		err = b.ConfigureMaxMemorySize(instPolicy.MaxMemorySize)
+	b.StackSize = progPolicy.MaxStackSize
+	if instPolicy != nil {
+		if b.StackSize > instPolicy.StackSize {
+			b.StackSize = instPolicy.StackSize
+		}
+		err = b.SetMaxMemorySize(instPolicy.MaxMemorySize)
 		if err != nil {
 			return
 		}
@@ -177,7 +176,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	}()
 
 	if instPolicy != nil {
-		inst, err = b.FinishInstanceImage()
+		inst, err = b.FinishInstanceImage(progImage)
 		if err != nil {
 			return
 		}
@@ -249,20 +248,6 @@ func (prog *program) ensureStorage() (err error) {
 	}
 
 	prog.stored = true
-	return
-}
-
-func (prog *program) resolveEntry(name string) (index, addr uint32, err error) {
-	if name == "" {
-		return
-	}
-
-	index, err = entry.MapFuncIndex(prog.image.Manifest().EntryIndexes, name)
-	if err != nil {
-		return
-	}
-
-	addr = entry.MapFuncAddr(prog.image.Manifest().EntryAddrs, index)
 	return
 }
 

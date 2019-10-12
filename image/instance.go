@@ -12,11 +12,11 @@ import (
 	"os"
 	"syscall"
 
+	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/wa"
@@ -59,9 +59,12 @@ type Instance struct {
 	name     string
 }
 
-func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
+func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex int,
 ) (inst *Instance, err error) {
-	man := prog.Manifest()
+	maxMemorySize, err = maxInstanceMemory(prog, maxMemorySize)
+	if err != nil {
+		return
+	}
 
 	var (
 		instStackSize  = alignPageSize(maxStackSize)
@@ -69,14 +72,14 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 		instTextAddr   uint64
 	)
 
-	if man.InitRoutine == abi.TextAddrResume {
-		if entryAddr != 0 {
+	if prog.man.StackUsage != 0 {
+		if entryFuncIndex >= 0 {
 			err = notfound.ErrSuspended
 			return
 		}
 
-		instStackUsage = int(man.StackUsage)
-		instTextAddr = man.TextAddr
+		instStackUsage = int(prog.man.StackUsage)
+		instTextAddr = prog.man.TextAddr
 	}
 
 	if instStackUsage > instStackSize-internal.StackUsageOffset {
@@ -96,8 +99,8 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 
 	var (
 		stackMapSize   = alignPageSize(instStackUsage)
-		globalsMapSize = alignPageSize32(man.GlobalsSize)
-		memoryMapSize  = alignPageSize32(man.MemoryDataSize)
+		globalsMapSize = alignPageSize32(prog.man.GlobalsSize)
+		memoryMapSize  = alignPageSize32(prog.man.MemoryDataSize)
 		copyLen        = stackMapSize + globalsMapSize + memoryMapSize
 
 		off1 = progGlobalsOffset - int64(stackMapSize)
@@ -139,16 +142,15 @@ func NewInstance(prog *Program, maxStackSize int, entryIndex, entryAddr uint32,
 
 	inst = &Instance{
 		man: manifest.Instance{
-			InitRoutine:   man.InitRoutine,
 			TextAddr:      instTextAddr,
 			StackSize:     uint32(instStackSize),
 			StackUsage:    uint32(instStackUsage),
-			GlobalsSize:   man.GlobalsSize,
-			MemorySize:    man.MemorySize,
-			MaxMemorySize: man.MemorySizeLimit,
-			EntryIndex:    entryIndex,
-			EntryAddr:     entryAddr,
-			Snapshot:      man.Snapshot,
+			GlobalsSize:   prog.man.GlobalsSize,
+			MemorySize:    prog.man.MemorySize,
+			MaxMemorySize: uint32(maxMemorySize),
+			StartFunc:     prog.man.StartFunc,
+			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
+			Snapshot:      prog.man.Snapshot,
 		},
 		file:     instFile,
 		coherent: true,
@@ -214,8 +216,8 @@ func (inst *Instance) StackUsage() int       { return int(inst.man.StackUsage) }
 func (inst *Instance) GlobalsSize() int      { return alignPageSize32(inst.man.GlobalsSize) }
 func (inst *Instance) MemorySize() int       { return int(inst.man.MemorySize) }
 func (inst *Instance) MaxMemorySize() int    { return int(inst.man.MaxMemorySize) }
-func (inst *Instance) InitRoutine() uint32   { return inst.man.InitRoutine }
-func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryAddr }
+func (inst *Instance) StartAddr() uint32     { return inst.man.StartFunc.Addr }
+func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryFunc.Addr }
 func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.MonotonicTime }
 
 // BeginMutation is invoked by a mutator when it takes exclusive ownership of
@@ -275,28 +277,28 @@ func (inst *Instance) checkMutation(stack []byte) (err error) {
 		return
 	}
 
-	if vars.StackUnused == 0 {
-		inst.man.InitRoutine = abi.TextAddrEnter
-		inst.man.StackUsage = 0
-		inst.man.TextAddr = 0
-	} else {
+	if vars.StackUnused != 0 {
+		if vars.StackUnused == inst.man.StackSize {
+			inst.man.TextAddr = 0
+			inst.man.StackUsage = 0
+			inst.man.InitRoutine = abi.TextAddrEnter
+		} else {
+			inst.man.TextAddr = vars.TextAddr
+			inst.man.StackUsage = inst.man.StackSize - vars.StackUnused
+			inst.man.InitRoutine = abi.TextAddrResume
+		}
+		inst.man.MemorySize = vars.CurrentMemoryPages << wa.PageBits
+		inst.man.StartFunc = manifest.NoFunction
+		inst.man.EntryFunc = manifest.NoFunction
 		inst.man.Snapshot.MonotonicTime = vars.MonotonicTimeSnapshot
-		inst.man.InitRoutine = abi.TextAddrResume
-		inst.man.StackUsage = inst.man.StackSize - vars.StackUnused
-		inst.man.TextAddr = vars.TextAddr
 	}
-
-	inst.man.MemorySize = vars.CurrentMemoryPages << wa.PageBits
 	inst.coherent = true
 	return
 }
 
-// ResetEntry prepares a halted instance for re-entry.
-func (inst *Instance) ResetEntry(entryIndex, entryAddr uint32) {
-	inst.man.EntryIndex = entryIndex
-	inst.man.EntryAddr = entryAddr
-	inst.man.InitRoutine = abi.TextAddrEnter
-	inst.man.StackUsage = 0
+// SetEntry prepares a halted instance for re-entry.
+func (inst *Instance) SetEntry(prog *Program, funcIndex int) {
+	inst.man.EntryFunc = prog.man.EntryFunc(funcIndex)
 }
 
 func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
@@ -376,6 +378,16 @@ func checkStackMagic(numbers []uint64) bool {
 		}
 	}
 	return true
+}
+
+func maxInstanceMemory(prog *Program, n int) (adjusted int, err error) {
+	if prog.man.MemorySizeLimit >= 0 && n > int(prog.man.MemorySizeLimit) {
+		n = int(prog.man.MemorySizeLimit)
+	}
+	if n < int(prog.man.MemorySize) {
+		return n, resourcelimit.New("out of memory")
+	}
+	return n, nil
 }
 
 var pageMask = int64(internal.PageSize - 1)

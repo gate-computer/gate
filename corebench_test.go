@@ -89,7 +89,7 @@ func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID 
 	}
 	defer proc.Kill()
 
-	inst, err := image.NewInstance(prog, stackSize, 0, 0)
+	inst, err := image.NewInstance(prog, 0x7fff0000, stackSize, -1)
 	if err != nil {
 		return
 	}

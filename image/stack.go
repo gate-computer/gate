@@ -12,22 +12,24 @@ import (
 	"math"
 	"sort"
 
-	"github.com/tsavola/gate/internal/entry"
+	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/wa"
 )
 
-// synthesizeStack state which represents an unstarted program.
-func synthesizeStack(portable []byte, entryFuncIndex uint32) {
-	if n := len(portable); n != 16 {
+const initStackSize = 24
+
+func putInitStack(portable []byte, startFuncIndex, entryFuncIndex int64) {
+	if n := len(portable); n != initStackSize {
 		panic(n)
 	}
 
-	const callIndex = 0   // Virtual call site at beginning of start routine.
-	const stackOffset = 8 // Entry function address is on the stack.
+	const callIndex = 0    // Virtual call site at beginning of enter routine.
+	const stackOffset = 16 // The function address are on the stack.
 
 	binary.LittleEndian.PutUint64(portable[0:], stackOffset<<32|callIndex)
-	binary.LittleEndian.PutUint64(portable[8:], uint64(entryFuncIndex))
+	binary.LittleEndian.PutUint64(portable[8:], uint64(startFuncIndex))
+	binary.LittleEndian.PutUint64(portable[16:], uint64(entryFuncIndex))
 }
 
 // exportStack from native source buffer to portable target buffer.
@@ -227,7 +229,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 			sigIndex := funcTypeIndexes[funcIndex]
 			sig := types[sigIndex]
-			if !entry.CheckType(sig) {
+			if !binding.IsEntryFuncType(sig) {
 				err = fmt.Errorf("entry function %d has invalid signature: %s", funcIndex, sig)
 				return
 			}

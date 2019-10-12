@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsavola/gate/entry"
+	"github.com/tsavola/gate/build/resolve"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
@@ -219,24 +219,12 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap
 
 	// dump.Text(os.Stderr, codeConfig.Text.Bytes(), 0, codeMap.FuncAddrs, nil)
 
-	maxMemorySize := mod.MemorySizeLimit()
-	if maxMemorySize > memorySizeLimit {
-		maxMemorySize = memorySizeLimit
+	entryIndex, err := resolve.EntryFunc(mod, function)
+	if err != nil {
+		panic(err)
 	}
 
-	var entryIndex uint32
-	var entryAddr uint32
-
-	if function != "" {
-		entryIndex, err = entry.ModuleFuncIndex(mod, function)
-		if err != nil {
-			panic(err)
-		}
-
-		entryAddr = codeMap.FuncAddrs[entryIndex]
-	}
-
-	if err := build.FinishText(stackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize(), maxMemorySize, nil); err != nil {
+	if err := build.FinishText(stackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize()); err != nil {
 		panic(err)
 	}
 
@@ -257,20 +245,22 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap
 		}
 	}
 
-	var (
-		entryIndexes map[string]uint32
-		entryAddrs   map[uint32]uint32
-	)
-	if persistent {
-		entryIndexes, entryAddrs = entry.Maps(mod, codeMap.FuncAddrs)
+	startIndex := -1
+	if index, found := mod.StartFunc(); found {
+		startIndex = int(index)
 	}
 
-	prog, err = build.FinishProgram(sectionMap, mod.GlobalTypes(), entryIndexes, entryAddrs)
+	prog, err = build.FinishProgram(sectionMap, mod, startIndex, persistent, 0)
 	if err != nil {
 		panic(err)
 	}
 
-	inst, err = build.FinishInstance(entryIndex, entryAddr)
+	memLimit := mod.MemorySizeLimit()
+	if memLimit < 0 || memLimit > memorySizeLimit {
+		memLimit = memorySizeLimit
+	}
+
+	inst, err = build.FinishInstance(prog, memLimit, entryIndex)
 	if err != nil {
 		panic(err)
 	}

@@ -175,10 +175,11 @@ struct image_info {
 	uint32_t init_memory_size;
 	uint32_t grow_memory_size;
 	uint32_t init_routine;
+	uint32_t start_addr;
 	uint32_t entry_addr;
-	uint64_t monotonic_time;
 	uint32_t time_mask;
-	uint32_t magic_number_2;
+	uint64_t monotonic_time;
+	uint64_t magic_number_2;
 } PACKED;
 
 // This is like stackVars in image/instance.go
@@ -423,6 +424,7 @@ clock_gettime_found:
 		// Synthesize initial stack frame for start or entry routine
 		// (checked in runtime/process.go).
 		*--stack_ptr = info.entry_addr;
+		*--stack_ptr = info.start_addr;
 	}
 
 	// Globals and memory

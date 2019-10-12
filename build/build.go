@@ -9,9 +9,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/tsavola/gate/entry"
+	"github.com/tsavola/gate/build/resolve"
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/image/manifest"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
@@ -34,9 +33,10 @@ type Build struct {
 	Config        compile.Config
 	Module        compile.Module
 	StackSize     int
-	MaxMemorySize int
-	entryIndex    int64
-	snapshot      *manifest.Snapshot
+	maxMemorySize int // For instance.
+	entryIndex    int
+	snapshot      bool
+	monotonicTime uint64
 	Buffers       snapshot.Buffers
 }
 
@@ -57,7 +57,6 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 	}
 
 	b.entryIndex = -1
-
 	return
 }
 
@@ -80,14 +79,10 @@ func (b *Build) InstallEarlySnapshotLoaders(newError func(string) error) {
 			return
 		}
 
-		monotime, n, err := readVaruint64(r, newError)
+		b.monotonicTime, n, err = readVaruint64(r, newError)
 		length -= uint32(n)
 		if err != nil {
 			return
-		}
-
-		b.snapshot = &manifest.Snapshot{
-			MonotonicTime: monotime,
 		}
 
 		_, err = io.CopyN(ioutil.Discard, r, int64(length))
@@ -95,6 +90,7 @@ func (b *Build) InstallEarlySnapshotLoaders(newError func(string) error) {
 			return
 		}
 
+		b.snapshot = true
 		return
 	}
 
@@ -113,14 +109,14 @@ func (b Build) ModuleConfig() *compile.ModuleConfig {
 	}
 }
 
-// ConfigureMaxMemorySize after initial module sections have been loaded.
-func (b *Build) ConfigureMaxMemorySize(maxMemorySizeLimit int) (err error) {
-	b.MaxMemorySize = b.Module.MemorySizeLimit()
-	if b.MaxMemorySize > maxMemorySizeLimit {
-		b.MaxMemorySize = alignMemorySize(maxMemorySizeLimit)
+// SetMaxMemorySize after initial module sections have been loaded.
+func (b *Build) SetMaxMemorySize(maxMemorySize int) (err error) {
+	if limit := b.Module.MemorySizeLimit(); limit >= 0 && maxMemorySize > limit {
+		maxMemorySize = limit
 	}
+	b.maxMemorySize = alignMemorySize(maxMemorySize)
 
-	if b.Module.InitialMemorySize() > b.MaxMemorySize {
+	if b.Module.InitialMemorySize() > b.maxMemorySize {
 		err = resourcelimit.New("initial program memory size exceeds instance memory size limit")
 		return
 	}
@@ -128,31 +124,17 @@ func (b *Build) ConfigureMaxMemorySize(maxMemorySizeLimit int) (err error) {
 	return
 }
 
-// BindFunctions (imports and optional entry function) after initial module
-// sections have been loaded.
+// BindFunctions (imports and optional start and entry functions) after initial
+// module sections have been loaded.
 func (b *Build) BindFunctions(entryName string) (err error) {
 	err = binding.BindImports(&b.Module, b.Image.ImportResolver())
 	if err != nil {
 		return
 	}
 
-	if _, startSection := b.Module.StartFunc(); !startSection {
-		if index, sig, found := b.Module.ExportFunc(entry.StartFuncName); found {
-			if sig.Equal(entry.StartFuncType) {
-				b.Module.SetStartFunc(index)
-			}
-		}
-	}
-
-	if entryName != "" {
-		var index uint32
-
-		index, err = entry.ModuleFuncIndex(b.Module, entryName)
-		if err != nil {
-			return
-		}
-
-		b.entryIndex = int64(index)
+	b.entryIndex, err = resolve.EntryFunc(b.Module, entryName)
+	if err != nil {
+		return
 	}
 
 	return
@@ -171,7 +153,7 @@ func (b *Build) InstallSnapshotDataLoaders(newError func(string) error) {
 		b.installLateSnapshotLoader(newError)
 		b.installDuplicateBufferLoader(newError)
 
-		if b.snapshot == nil {
+		if !b.snapshot {
 			err = newError("gate.buffer section without gate.snapshot section")
 			return
 		}
@@ -203,7 +185,7 @@ func (b *Build) InstallSnapshotDataLoaders(newError func(string) error) {
 		b.installLateBufferLoader(newError)
 		b.installDuplicateStackLoader(newError)
 
-		if b.snapshot == nil {
+		if !b.snapshot {
 			err = newError("gate.stack section without gate.snapshot section")
 			return
 		}
@@ -252,7 +234,7 @@ func (b *Build) installDuplicateStackLoader(newError func(string) error) {
 }
 
 func (b *Build) finishImageText(stackUsage int) error {
-	return b.Image.FinishText(b.StackSize, stackUsage, b.Module.GlobalsSize(), b.Module.InitialMemorySize(), b.MaxMemorySize, b.snapshot)
+	return b.Image.FinishText(b.StackSize, stackUsage, b.Module.GlobalsSize(), b.Module.InitialMemorySize())
 }
 
 // FinishImageText after code and snapshot sections have been loaded.
@@ -300,24 +282,21 @@ func (b Build) DataConfig() *compile.DataConfig {
 // FinishProgramImage after module, stack, globals and memory have been
 // populated.
 func (b *Build) FinishProgramImage() (*image.Program, error) {
-	indexes, addrs := entry.Maps(b.Module, b.Image.ObjectMap().FuncAddrs)
-	return b.Image.FinishProgram(b.SectionMap, b.Module.GlobalTypes(), indexes, addrs)
+	startIndex := -1
+	if index, found := b.Module.StartFunc(); found {
+		startIndex = int(index)
+	} else if index, sig, found := b.Module.ExportFunc("_start"); found {
+		if binding.IsStartFuncType(sig) {
+			startIndex = int(index)
+		}
+	}
+
+	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.monotonicTime)
 }
 
 // FinishInstanceImage after program image has been finished.
-func (b *Build) FinishInstanceImage() (inst *image.Instance, err error) {
-	var entryAddr uint32
-
-	if b.entryIndex >= 0 {
-		entryAddr = b.Image.ObjectMap().FuncAddrs[b.entryIndex]
-	}
-
-	inst, err = b.Image.FinishInstance(uint32(b.entryIndex), entryAddr)
-	if err != nil {
-		return
-	}
-
-	return
+func (b *Build) FinishInstanceImage(prog *image.Program) (*image.Instance, error) {
+	return b.Image.FinishInstance(prog, b.maxMemorySize, b.entryIndex)
 }
 
 func (b *Build) Close() error {

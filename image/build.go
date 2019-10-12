@@ -12,15 +12,15 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/internal/manifest"
 	runtimeabi "github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/wag/buffer"
+	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
-	objectabi "github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/wa"
 )
 
@@ -94,20 +94,17 @@ type instanceBuild struct {
 // Build a program and optionally an instance.  FinishText, FinishProgram and
 // (optionally) FinishInstance must be called in that order.
 type Build struct {
-	storage       Storage
-	prog          programBuild
-	inst          instanceBuild
-	imports       runtimeabi.ImportResolver
-	compileMem    []byte
-	textAddr      uint64
-	stack         []byte
-	stackUsage    int
-	data          buffer.Static
-	globalsSize   int
-	memorySize    int
-	maxMemorySize int
-	initRoutine   uint32
-	snapshot      manifest.Snapshot
+	storage     Storage
+	prog        programBuild
+	inst        instanceBuild
+	imports     runtimeabi.ImportResolver
+	compileMem  []byte
+	textAddr    uint64
+	stack       []byte
+	stackUsage  int
+	data        buffer.Static
+	globalsSize int
+	memorySize  int
 }
 
 // NewBuild for a program and optionally an instance.
@@ -121,7 +118,6 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 		inst: instanceBuild{
 			enabled: instance,
 		},
-		initRoutine: objectabi.TextAddrStart,
 	}
 
 	b.prog.file, err = b.storage.newProgramFile()
@@ -185,8 +181,7 @@ func (b *Build) TextBuffer() interface {
 }
 
 // FinishText after TextBuffer has been populated.
-func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMemorySize int, snapshot *manifest.Snapshot,
-) (err error) {
+func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) (err error) {
 	if stackSize < internal.StackUsageOffset+stackUsage {
 		err = resourcelimit.New("call stack size limit exceeded")
 		return
@@ -234,11 +229,6 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize, maxMe
 	b.data = buffer.MakeStatic(b.compileMem[stackMapSize:stackMapSize:mapSize])
 	b.globalsSize = globalsSize
 	b.memorySize = memorySize
-	b.maxMemorySize = maxMemorySize
-
-	if snapshot != nil {
-		b.snapshot = *snapshot
-	}
 
 	// Copy or write object map to program.
 	var (
@@ -275,7 +265,6 @@ func (b *Build) ReadStack(r io.Reader, types []wa.FuncType, funcTypeIndexes []ui
 		return
 	}
 
-	b.initRoutine = objectabi.TextAddrResume
 	b.textAddr = textAddr
 	b.stackUsage = len(b.stack)
 	return
@@ -296,7 +285,12 @@ func (*Build) MemoryAlignment() int {
 }
 
 // FinishProgram after module, stack, globals and memory have been populated.
-func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType, entryIndexes map[string]uint32, entryAddrs map[uint32]uint32,
+func (b *Build) FinishProgram(
+	sectionMap SectionMap,
+	mod compile.Module,
+	startFuncIndex int,
+	entryFuncs bool,
+	monotonicTime uint64,
 ) (prog *Program, err error) {
 	if b.stackUsage != len(b.stack) {
 		err = errors.New("stack was not populated")
@@ -337,21 +331,28 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 		TextSize:        uint32(b.prog.textSize),
 		StackUsage:      uint32(b.stackUsage),
 		GlobalsSize:     uint32(b.globalsSize),
-		MemoryDataSize:  uint32(b.data.Len() - alignPageSize(b.globalsSize)),
 		MemorySize:      uint32(b.memorySize),
-		MemorySizeLimit: uint32(b.maxMemorySize),
-		InitRoutine:     b.initRoutine,
+		MemorySizeLimit: int64(mod.MemorySizeLimit()),
+		MemoryDataSize:  uint32(b.data.Len() - alignPageSize(b.globalsSize)),
 		ModuleSize:      int64(b.prog.module.Cap()),
 		Sections:        sectionMap.manifestSections(),
 		BufferSection:   manifestByteRange(sectionMap.Buffer),
 		StackSection:    manifestByteRange(sectionMap.Stack),
-		GlobalTypes:     globalTypeBytes(globalTypes),
-		EntryIndexes:    entryIndexes,
-		EntryAddrs:      entryAddrs,
+		GlobalTypes:     globalTypeBytes(mod.GlobalTypes()),
+		StartFunc:       manifest.NoFunction,
 		CallSitesSize:   uint32(b.prog.callSitesSize()),
 		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
 		Random:          b.imports.Random,
-		Snapshot:        b.snapshot,
+		Snapshot:        manifest.Snapshot{MonotonicTime: monotonicTime},
+	}
+	if startFuncIndex >= 0 {
+		man.StartFunc = manifest.Function{
+			Index: int64(startFuncIndex),
+			Addr:  b.prog.objectMap.FuncAddrs[startFuncIndex],
+		}
+	}
+	if entryFuncs {
+		man.InitEntryFuncs(mod, b.prog.objectMap.FuncAddrs)
 	}
 
 	b.stack = nil
@@ -387,8 +388,14 @@ func (b *Build) FinishProgram(sectionMap SectionMap, globalTypes []wa.GlobalType
 
 // FinishInstance after FinishProgram.  Applicable only if an instance storage
 // was specified in NewBuild call.
-func (b *Build) FinishInstance(entryIndex, entryAddr uint32) (inst *Instance, err error) {
-	if entryAddr != 0 && b.stackUsage != 0 {
+func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int,
+) (inst *Instance, err error) {
+	maxMemorySize, err = maxInstanceMemory(prog, maxMemorySize)
+	if err != nil {
+		return
+	}
+
+	if entryFuncIndex >= 0 && b.stackUsage != 0 {
 		err = notfound.ErrSuspended
 		return
 	}
@@ -400,11 +407,10 @@ func (b *Build) FinishInstance(entryIndex, entryAddr uint32) (inst *Instance, er
 			StackUsage:    uint32(b.stackUsage),
 			GlobalsSize:   uint32(b.globalsSize),
 			MemorySize:    uint32(b.memorySize),
-			MaxMemorySize: uint32(b.maxMemorySize),
-			InitRoutine:   b.initRoutine,
-			EntryIndex:    entryIndex,
-			EntryAddr:     entryAddr,
-			Snapshot:      b.snapshot,
+			MaxMemorySize: uint32(maxMemorySize),
+			StartFunc:     prog.man.StartFunc,
+			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
+			Snapshot:      prog.man.Snapshot,
 		},
 		file:     b.inst.file,
 		coherent: true,
