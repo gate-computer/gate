@@ -9,7 +9,6 @@ import (
 	"bytes"
 	"context"
 	"debug/dwarf"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -397,7 +396,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 
 	reader := codeMap.Reader(bufio.NewReader(io.TeeReader(f, b.Image.ModuleWriter())))
 
-	b.InstallEarlySnapshotLoaders(errors.New)
+	b.InstallEarlySnapshotLoaders()
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
@@ -421,7 +420,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 
 	text := prepareTextDump(b.Image.TextBuffer().Bytes())
 
-	b.InstallSnapshotDataLoaders(errors.New)
+	b.InstallSnapshotDataLoaders()
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
@@ -433,7 +432,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	b.InstallLateSnapshotLoaders(errors.New)
+	b.InstallLateSnapshotLoaders()
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {

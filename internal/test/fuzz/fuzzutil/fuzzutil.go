@@ -10,11 +10,12 @@ import (
 	goruntime "runtime"
 	"time"
 
+	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/runtime"
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/service"
-	wagerrors "github.com/tsavola/wag/errors"
+	werrors "github.com/tsavola/wag/errors"
 	errors "golang.org/x/xerrors"
 )
 
@@ -51,7 +52,6 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 
 func IsFine(err error) bool {
 	for _, sentinel := range []error{
-		io.EOF,
 		io.ErrUnexpectedEOF,
 		context.DeadlineExceeded,
 	} {
@@ -60,8 +60,9 @@ func IsFine(err error) bool {
 		}
 	}
 
-	var moduleError *wagerrors.ModuleError
-	if errors.As(err, &moduleError) {
+	var moduleError werrors.ModuleError
+	var limitError resourcelimit.Error
+	if errors.As(err, &moduleError) || errors.As(err, &limitError) {
 		return true
 	}
 

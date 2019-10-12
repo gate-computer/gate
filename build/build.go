@@ -11,6 +11,7 @@ import (
 
 	"github.com/tsavola/gate/build/resolve"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
@@ -60,26 +61,26 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 	return
 }
 
-func (b *Build) InstallEarlySnapshotLoaders(newError func(string) error) {
+func (b *Build) InstallEarlySnapshotLoaders() {
 	b.Loaders[wasm.SectionSnapshot] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installDuplicateSnapshotLoader(newError)
+		b.installDuplicateSnapshotLoader()
 
 		if length == 0 {
-			err = newError("gate.snapshot section is empty")
+			err = badprogram.Err("gate.snapshot section is empty")
 			return
 		}
 
-		version, n, err := readVaruint64(r, newError)
+		version, n, err := readVaruint64(r)
 		length -= uint32(n)
 		if err != nil {
 			return
 		}
 		if version < minSnapshotVersion {
-			err = newError(fmt.Sprintf("unsupported snapshot version: %d", version))
+			err = badprogram.Err(fmt.Sprintf("unsupported snapshot version: %d", version))
 			return
 		}
 
-		b.monotonicTime, n, err = readVaruint64(r, newError)
+		b.monotonicTime, n, err = readVaruint64(r)
 		length -= uint32(n)
 		if err != nil {
 			return
@@ -95,11 +96,11 @@ func (b *Build) InstallEarlySnapshotLoaders(newError func(string) error) {
 	}
 
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
-		return newError("gate.buffer section appears too early in wasm module")
+		return badprogram.Err("gate.buffer section appears too early in wasm module")
 	}
 
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return newError("gate.stack section appears too early in wasm module")
+		return badprogram.Err("gate.stack section appears too early in wasm module")
 	}
 }
 
@@ -148,20 +149,20 @@ func (b Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
 	}
 }
 
-func (b *Build) InstallSnapshotDataLoaders(newError func(string) error) {
+func (b *Build) InstallSnapshotDataLoaders() {
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installLateSnapshotLoader(newError)
-		b.installDuplicateBufferLoader(newError)
+		b.installLateSnapshotLoader()
+		b.installDuplicateBufferLoader()
 
 		if !b.snapshot {
-			err = newError("gate.buffer section without gate.snapshot section")
+			err = badprogram.Err("gate.buffer section without gate.snapshot section")
 			return
 		}
 
 		var n int
 		var dataBuf []byte
 
-		b.Buffers, n, dataBuf, err = wasm.ReadBufferSectionHeader(r, length, newError)
+		b.Buffers, n, dataBuf, err = wasm.ReadBufferSectionHeader(r, length)
 		if err != nil {
 			return
 		}
@@ -181,12 +182,12 @@ func (b *Build) InstallSnapshotDataLoaders(newError func(string) error) {
 	}
 
 	b.Loaders[wasm.SectionStack] = func(_ string, r section.Reader, length uint32) (err error) {
-		b.installLateSnapshotLoader(newError)
-		b.installLateBufferLoader(newError)
-		b.installDuplicateStackLoader(newError)
+		b.installLateSnapshotLoader()
+		b.installLateBufferLoader()
+		b.installDuplicateStackLoader()
 
 		if !b.snapshot {
-			err = newError("gate.stack section without gate.snapshot section")
+			err = badprogram.Err("gate.stack section without gate.snapshot section")
 			return
 		}
 
@@ -196,7 +197,7 @@ func (b *Build) InstallSnapshotDataLoaders(newError func(string) error) {
 		}
 
 		if length > uint32(b.StackSize)-executable.StackUsageOffset {
-			err = newError("gate.stack section is too large")
+			err = badprogram.Err("gate.stack section is too large")
 			return
 		}
 
@@ -215,21 +216,21 @@ func (b *Build) InstallSnapshotDataLoaders(newError func(string) error) {
 	}
 }
 
-func (b *Build) installDuplicateSnapshotLoader(newError func(string) error) {
+func (b *Build) installDuplicateSnapshotLoader() {
 	b.Loaders[wasm.SectionSnapshot] = func(string, section.Reader, uint32) error {
-		return newError("multiple gate.snapshot sections in wasm module")
+		return badprogram.Err("multiple gate.snapshot sections in wasm module")
 	}
 }
 
-func (b *Build) installDuplicateBufferLoader(newError func(string) error) {
+func (b *Build) installDuplicateBufferLoader() {
 	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
-		return newError("multiple gate.buffer sections in wasm module")
+		return badprogram.Err("multiple gate.buffer sections in wasm module")
 	}
 }
 
-func (b *Build) installDuplicateStackLoader(newError func(string) error) {
+func (b *Build) installDuplicateStackLoader() {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return newError("multiple gate.stack sections in wasm module")
+		return badprogram.Err("multiple gate.stack sections in wasm module")
 	}
 }
 
@@ -246,27 +247,27 @@ func (b *Build) FinishImageText() (err error) {
 	return b.finishImageText(0)
 }
 
-func (b *Build) InstallLateSnapshotLoaders(newError func(string) error) {
-	b.installLateSnapshotLoader(newError)
-	b.installLateBufferLoader(newError)
-	b.installLateStackLoader(newError)
+func (b *Build) InstallLateSnapshotLoaders() {
+	b.installLateSnapshotLoader()
+	b.installLateBufferLoader()
+	b.installLateStackLoader()
 }
 
-func (b *Build) installLateSnapshotLoader(newError func(string) error) {
+func (b *Build) installLateSnapshotLoader() {
 	b.Loaders[wasm.SectionSnapshot] = func(string, section.Reader, uint32) error {
-		return newError("gate.snapshot section appears too late in wasm module")
+		return badprogram.Err("gate.snapshot section appears too late in wasm module")
 	}
 }
 
-func (b *Build) installLateBufferLoader(newError func(string) error) {
+func (b *Build) installLateBufferLoader() {
 	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
-		return newError("gate.buffer section appears too late in wasm module")
+		return badprogram.Err("gate.buffer section appears too late in wasm module")
 	}
 }
 
-func (b *Build) installLateStackLoader(newError func(string) error) {
+func (b *Build) installLateStackLoader() {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return newError("gate.stack section appears too late in wasm module")
+		return badprogram.Err("gate.stack section appears too late in wasm module")
 	}
 }
 
@@ -308,7 +309,7 @@ func alignMemorySize(size int) int {
 	return (size + mask) &^ mask
 }
 
-func readVaruint64(r section.Reader, newError func(string) error) (x uint64, n int, err error) {
+func readVaruint64(r section.Reader) (x uint64, n int, err error) {
 	var shift uint
 	for n = 1; ; n++ {
 		var b byte
@@ -318,7 +319,7 @@ func readVaruint64(r section.Reader, newError func(string) error) (x uint64, n i
 		}
 		if b < 0x80 {
 			if n > 9 || n == 9 && b > 1 {
-				err = newError("varuint64 is too large")
+				err = badprogram.Err("varuint64 is too large")
 				return
 			}
 			x |= uint64(b) << shift

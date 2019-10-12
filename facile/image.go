@@ -6,7 +6,6 @@ package facile
 
 import (
 	"bytes"
-	"errors"
 
 	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/image"
@@ -56,7 +55,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 
 	reader := bytes.NewReader(wasm)
 
-	b.InstallEarlySnapshotLoaders(errors.New)
+	b.InstallEarlySnapshotLoaders()
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
@@ -76,7 +75,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	b.InstallSnapshotDataLoaders(errors.New)
+	b.InstallSnapshotDataLoaders()
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
@@ -88,7 +87,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	b.InstallLateSnapshotLoaders(errors.New)
+	b.InstallLateSnapshotLoaders()
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {

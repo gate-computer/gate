@@ -7,6 +7,7 @@ package wasm
 import (
 	"io"
 
+	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/section"
 )
@@ -20,9 +21,9 @@ const (
 	SectionStack    = "gate.stack"    // May appear once between buffer and data sections.
 )
 
-func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(string) error,
+func ReadBufferSectionHeader(r section.Reader, length uint32,
 ) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
-	flags, n, err := readVaruint32(r, newError)
+	flags, n, err := readVaruint32(r)
 	if err != nil {
 		return
 	}
@@ -32,19 +33,19 @@ func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(stri
 
 	// TODO: limit sizes and count
 
-	inputSize, n, err := readVaruint32(r, newError)
+	inputSize, n, err := readVaruint32(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	outputSize, n, err := readVaruint32(r, newError)
+	outputSize, n, err := readVaruint32(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	serviceCount, n, err := readVaruint32(r, newError)
+	serviceCount, n, err := readVaruint32(r)
 	if err != nil {
 		return
 	}
@@ -65,7 +66,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(stri
 		readLen++
 
 		if nameLen == 0 || nameLen > maxServiceNameLen {
-			err = newError("service name length out of bounds")
+			err = badprogram.Err("service name length out of bounds")
 			return
 		}
 
@@ -77,7 +78,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(stri
 		readLen += n
 		bs.Services[i].Name = string(b)
 
-		serviceSizes[i], n, err = readVaruint32(r, newError)
+		serviceSizes[i], n, err = readVaruint32(r)
 		if err != nil {
 			return
 		}
@@ -89,7 +90,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(stri
 	}
 
 	if int64(readLen)+dataSize > int64(length) {
-		err = newError("invalid buffer section in wasm module")
+		err = badprogram.Err("invalid buffer section in wasm module")
 		return
 	}
 
@@ -110,7 +111,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32, newError func(stri
 	return
 }
 
-func readVaruint32(r section.Reader, newError func(string) error) (x uint32, n int, err error) {
+func readVaruint32(r section.Reader) (x uint32, n int, err error) {
 	var shift uint
 	for n = 1; ; n++ {
 		var b byte
@@ -120,7 +121,7 @@ func readVaruint32(r section.Reader, newError func(string) error) (x uint32, n i
 		}
 		if b < 0x80 {
 			if n > 5 || n == 5 && b > 0xf {
-				err = newError("varuint32 is too large")
+				err = badprogram.Err("varuint32 is too large")
 				return
 			}
 			x |= uint32(b) << shift

@@ -6,7 +6,6 @@ package image
 
 import (
 	"bytes"
-	"errors"
 	"io"
 
 	"github.com/tsavola/gate/image/internal/manifest"
@@ -67,7 +66,7 @@ func (prog *Program) LoadBuffers() (bs snapshot.Buffers, err error) {
 		return
 	}
 
-	bs, n, dataBuf, err := wasm.ReadBufferSectionHeader(bytes.NewReader(header), uint32(prog.man.BufferSection.Length), errors.New)
+	bs, n, dataBuf, err := wasm.ReadBufferSectionHeader(bytes.NewReader(header), uint32(prog.man.BufferSection.Length))
 	if err != nil {
 		return
 	}

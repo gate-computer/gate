@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tsavola/gate/internal/error/badmodule"
 	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/gate/internal/error/badrequest"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
@@ -226,16 +226,17 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 
 		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
 
+	case resourcelimit.Error:
+		status = http.StatusForbidden
+		text = "resource limit reached"
+		internal = false
+		request = event.FailResourceLimit
+
 	case server.Forbidden:
 		status = http.StatusForbidden
 		text = "forbidden"
 		internal = false
 		request = event.FailResourceDenied
-
-		switch err.(type) {
-		case resourcelimit.Error:
-			request = event.FailResourceLimit
-		}
 
 	case server.TooManyRequests:
 		status = http.StatusTooManyRequests
@@ -276,19 +277,23 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 			request = event.FailInstanceNotFound
 		}
 
-	case badrequest.Error:
+	case failrequest.Error:
 		status = http.StatusBadRequest
 		text = "bad request"
 		internal = false
+		request = x.FailRequestType()
 
-		switch x := err.(type) {
-		case badprogram.Error:
-			text = "bad module"
-			request = event.FailModuleError
+	case badprogram.Error:
+		status = http.StatusBadRequest
+		text = "bad program"
+		internal = false
+		request = event.FailProgramError
 
-		case failrequest.Error:
-			request = x.FailRequestType()
-		}
+	case badmodule.Error:
+		status = http.StatusBadRequest
+		text = "bad module"
+		internal = false
+		request = event.FailModuleError
 	}
 
 	if x, ok := err.(public.Error); ok {

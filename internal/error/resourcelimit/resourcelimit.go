@@ -7,22 +7,18 @@ package resourcelimit
 import (
 	"fmt"
 
-	"github.com/tsavola/gate/internal/error/public"
+	werrors "github.com/tsavola/wag/errors"
 )
 
-type Error interface {
-	public.Error
-	Forbidden()
-	ResourceLimit()
-}
+type Error = werrors.ResourceLimit
 
 // New error with public information.
-func New(s string) Error {
+func New(s string) error {
 	return simple(s)
 }
 
 // Errorf formats public information.
-func Errorf(format string, args ...interface{}) Error {
+func Errorf(format string, args ...interface{}) error {
 	return simple(fmt.Sprintf(format, args...))
 }
 
@@ -30,5 +26,4 @@ type simple string
 
 func (s simple) Error() string       { return string(s) }
 func (s simple) PublicError() string { return string(s) }
-func (s simple) Forbidden()          {}
 func (s simple) ResourceLimit()      {}

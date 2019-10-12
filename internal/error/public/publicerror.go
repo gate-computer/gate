@@ -4,7 +4,8 @@
 
 package public
 
-type Error interface {
-	error
-	PublicError() string
-}
+import (
+	werrors "github.com/tsavola/wag/errors"
+)
+
+type Error = werrors.PublicError

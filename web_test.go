@@ -1328,7 +1328,7 @@ func TestInstanceTerminated(t *testing.T) {
 
 		loaders := section.CustomLoaders{
 			wasm.SectionBuffer: func(_ string, r section.Reader, length uint32) (err error) {
-				bs, _, _, err := wasm.ReadBufferSectionHeader(r, length, errors.New)
+				bs, _, _, err := wasm.ReadBufferSectionHeader(r, length)
 				if err != nil {
 					return
 				}

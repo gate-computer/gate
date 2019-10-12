@@ -6,17 +6,15 @@ package badprogram
 
 import (
 	"fmt"
-
-	"github.com/tsavola/gate/internal/error/badrequest"
 )
 
 type Error interface {
-	badrequest.Error
-	BadProgram()
+	error
+	ProgramError()
 }
 
 // Errorf formats public information.
-func Errorf(format string, args ...interface{}) badrequest.Error {
+func Errorf(format string, args ...interface{}) error {
 	return Err(fmt.Sprintf(format, args...))
 }
 
@@ -25,5 +23,4 @@ type Err string
 
 func (s Err) Error() string       { return string(s) }
 func (s Err) PublicError() string { return string(s) }
-func (s Err) BadRequest()         {}
-func (s Err) BadProgram()         {}
+func (s Err) ProgramError()       {}

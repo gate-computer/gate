@@ -9,7 +9,6 @@ import (
 	"crypto/sha512"
 	"crypto/subtle"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/internal/error/badmodule"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -31,7 +31,10 @@ var (
 	hashEncoding = base64.RawURLEncoding
 )
 
-var errModuleSizeMismatch = failrequest.Wrap(event.FailModuleError, errors.New("content length does not match existing module size"), "invalid module content")
+var errModuleSizeMismatch = &badmodule.Dual{
+	Private: "content length does not match existing module size",
+	Public:  "invalid module content",
+}
 
 func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 	digest1, err := hashEncoding.DecodeString(hash1)
@@ -92,11 +95,10 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	hasher := newHash()
 	reader := bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher))
 
-	b.InstallEarlySnapshotLoaders(newModuleError)
+	b.InstallEarlySnapshotLoaders()
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
 	if err != nil {
-		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -118,15 +120,13 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library())
 	if err != nil {
-		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
-	b.InstallSnapshotDataLoaders(newModuleError)
+	b.InstallSnapshotDataLoaders()
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
-		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -135,17 +135,15 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		return
 	}
 
-	b.InstallLateSnapshotLoaders(newModuleError)
+	b.InstallLateSnapshotLoaders()
 
 	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
 	if err != nil {
-		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
 	err = compile.LoadCustomSections(&b.Config, reader)
 	if err != nil {
-		err = failrequest.Tag(event.FailModuleError, err)
 		return
 	}
 
@@ -249,8 +247,4 @@ func (prog *program) ensureStorage() (err error) {
 
 	prog.stored = true
 	return
-}
-
-func newModuleError(msg string) error {
-	return failrequest.New(event.FailModuleError, msg)
 }
