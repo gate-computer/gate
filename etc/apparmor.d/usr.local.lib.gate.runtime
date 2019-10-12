@@ -6,6 +6,7 @@
 
 /usr/local/lib/gate/runtime/gate-runtime-container.0 flags=(attach_disconnected) {
   #include <abstractions/base>
+  #include <abstractions/dbus-session>
 
   capability dac_override,
   capability dac_read_search,
