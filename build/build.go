@@ -80,6 +80,12 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 			return
 		}
 
+		_, n, err = readVaruint64(r) // Flags
+		length -= uint32(n)
+		if err != nil {
+			return
+		}
+
 		b.monotonicTime, n, err = readVaruint64(r)
 		length -= uint32(n)
 		if err != nil {

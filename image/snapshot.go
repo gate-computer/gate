@@ -433,8 +433,8 @@ func makeSnapshotSection(vars manifest.Snapshot) []byte {
 	// Section id, payload length.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
-	// Name length, name string, snapshot version length, monotonic time length.
-	var maxPayloadSize = 1 + len(wasm.SectionSnapshot) + 1 + binary.MaxVarintLen64
+	// Name length, name string, snapshot version length, flags, monotonic time length.
+	var maxPayloadSize = 1 + len(wasm.SectionSnapshot) + 1 + 1 + binary.MaxVarintLen64
 
 	b := make([]byte, maxSectionFrameSize+maxPayloadSize)
 	i := maxSectionFrameSize
@@ -442,6 +442,8 @@ func makeSnapshotSection(vars manifest.Snapshot) []byte {
 	i++
 	i += copy(b[i:], wasm.SectionSnapshot)
 	b[i] = snapshotVersion
+	i++
+	b[i] = 0 // Flags
 	i++
 	i += binary.PutUvarint(b[i:], vars.MonotonicTime)
 
