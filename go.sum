@@ -6,8 +6,8 @@ github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e h1:fY5BOSpyZCqRo5O
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 h1:q763qf9huN11kDQavWsoZXJNW3xEE4JJyHa5Q25/sd8=
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
-github.com/coreos/go-systemd v0.0.0-20180507124335-65cc0ad82617 h1:3P5T/P2O3Ugf1aPrrOi+NHZ6P8Q6iyyYuapUesYHqfA=
-github.com/coreos/go-systemd v0.0.0-20180507124335-65cc0ad82617/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
+github.com/coreos/go-systemd v0.0.0-20180509093606-65cc0ad82617 h1:0U4/mZpqXSKhBGi3mTznPLStpdKQ647Q7YKJu2NepGU=
+github.com/coreos/go-systemd v0.0.0-20180509093606-65cc0ad82617/go.mod h1:F5haX7vjVVG0kc13fIWeqUViNPyEJxv/OmvnBo0Yme4=
 github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf h1:ZGHfh0rx+KTmeUmoxP49g0SUAwIXOMlgDoQcrezPiAQ=
 github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/google/uuid v1.0.0 h1:b4Gk+7WdP/d3HZH8EJsZpvV7EtDOgaZLtnaNGIu1adA=
