@@ -221,8 +221,9 @@ type Instances struct {
 
 // An item in an Instances response.
 type InstanceStatus struct {
-	Instance string `json:"instance"`
-	Status   Status `json:"status"`
+	Instance  string `json:"instance"`
+	Status    Status `json:"status"`
+	Transient bool   `json:"transient,omitempty"`
 }
 
 // ActionCall websocket request message.

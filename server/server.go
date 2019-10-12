@@ -1063,8 +1063,9 @@ func (s *Server) Instances(ctx context.Context, pri *principal.Key) (is Instance
 	is = make(Instances, 0, len(list))
 	for _, i := range list {
 		is = append(is, InstanceStatus{
-			Instance: i.ID(),
-			Status:   i.Status(),
+			Instance:  i.ID(),
+			Status:    i.Status(),
+			Transient: i.persistent == nil,
 		})
 	}
 

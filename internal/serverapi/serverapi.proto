@@ -53,6 +53,7 @@ message Status {
 message InstanceStatus {
 	string instance = 1;
 	Status status = 2;
+	bool transient = 3;
 }
 
 message Instances {
