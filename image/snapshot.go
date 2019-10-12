@@ -71,8 +71,6 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 
 	// New module sections.
-	// TODO: align section contents to facilitate reflinking?
-	// TODO: stitch module together during download?
 	newRanges := make([]manifest.ByteRange, section.Data+1)
 
 	off := int64(wasmModuleHeaderSize)
@@ -81,7 +79,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	off = mapOldSection(off, newRanges, oldRanges, section.Function)
 	off = mapOldSection(off, newRanges, oldRanges, section.Table)
 
-	memorySection := makeMemorySection(inst.man.MemorySize) // TODO: maximum value
+	memorySection := makeMemorySection(inst.man.MemorySize, oldProg.man.MemorySizeLimit)
 	off = mapNewSection(off, newRanges, len(memorySection), section.Memory)
 
 	globalSection := makeGlobalSection(oldProg.man.GlobalTypes, instGlobalsData)
@@ -336,16 +334,27 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	return
 }
 
-func makeMemorySection(currentMemorySize uint32) []byte {
-	buf := make([]byte, 4+binary.MaxVarintLen32)
+func makeMemorySection(memorySize uint32, memorySizeLimit int64) []byte {
+	b := make([]byte, 4+binary.MaxVarintLen32*2)
+	n := len(b)
 
-	n := binary.PutUvarint(buf[4:], uint64(currentMemorySize>>wa.PageBits)) // Initial value
-	buf[3] = 0                                                              // Maximum flag
-	buf[2] = 1                                                              // Item count
-	buf[1] = byte(2 + n)                                                    // Payload length
-	buf[0] = byte(section.Memory)                                           // Section id
+	var maxFlag byte
+	if memorySizeLimit >= 0 {
+		n -= putVaruint32Before(b, n, uint32(memorySizeLimit>>wa.PageBits))
+		maxFlag = 1
+	}
 
-	return buf[:4+n]
+	n -= putVaruint32Before(b, n, uint32(memorySize>>wa.PageBits))
+	n--
+	b[n] = maxFlag
+	n--
+	b[n] = 1 // Item count.
+	n--
+	b[n] = byte(len(b) - n) // Payload length.
+	n--
+	b[n] = byte(section.Memory) // Section id.
+
+	return b[n:]
 }
 
 func makeGlobalSection(globalTypes []byte, segment []byte) []byte {
