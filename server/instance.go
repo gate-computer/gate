@@ -21,7 +21,6 @@ import (
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/snapshot"
-	"github.com/tsavola/wag/trap"
 )
 
 func makeInstanceID() string {
@@ -254,7 +253,7 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 	}
 
 	switch trapID {
-	case trap.Exit:
+	case runtime.TrapExit:
 		if inst.persistent == nil || inst.persistent.Terminated() {
 			result.State = StateTerminated
 		} else {
@@ -262,16 +261,12 @@ func (inst *Instance) Run(ctx context.Context, s *Server) {
 		}
 		result.Result = int32(exit)
 
-	case trap.Suspended:
+	case runtime.TrapSuspended:
 		result.State = StateSuspended
 
-	case trap.CallStackExhausted:
+	case runtime.TrapCallStackExhausted, runtime.TrapABIDeficiency:
 		result.State = StateSuspended
 		result.Cause = Cause(trapID)
-
-	case trap.ID(CauseABIDeficiency):
-		result.State = StateSuspended
-		result.Cause = CauseABIDeficiency
 
 	default:
 		result.State = StateKilled

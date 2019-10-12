@@ -63,7 +63,7 @@ func init() {
 }
 
 func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
-) (exit int, trapID trap.ID, err error) {
+) (exit int, trapID runtime.TrapID, err error) {
 	proc, err := benchExecutor.NewProcess(ctx)
 	if err != nil {
 		return
@@ -82,7 +82,7 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 	return proc.Serve(ctx, benchRegistry, nil)
 }
 
-func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID trap.ID, err error) {
+func executeProgram(ctx context.Context, prog *image.Program) (exit int, trapID runtime.TrapID, err error) {
 	proc, err := benchExecutor.NewProcess(ctx)
 	if err != nil {
 		return
@@ -196,7 +196,7 @@ func benchExecInst(b *testing.B, storage image.Storage) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		if trapID != trap.NoFunction {
+		if trapID >= runtime.TrapID(trap.NumTraps) || trap.ID(trapID) != trap.NoFunction {
 			b.Error(trapID)
 		}
 	}
@@ -252,7 +252,7 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 				if err != nil {
 					b.Fatal(err)
 				}
-				if trapID != trap.NoFunction {
+				if trapID >= runtime.TrapID(trap.NumTraps) || trap.ID(trapID) != trap.NoFunction {
 					b.Error(trapID)
 				}
 			}

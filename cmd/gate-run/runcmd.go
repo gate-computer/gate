@@ -38,7 +38,6 @@ import (
 	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/object/stack/stacktrace"
 	"github.com/tsavola/wag/section"
-	"github.com/tsavola/wag/trap"
 	"github.com/tsavola/wag/wa"
 )
 
@@ -324,7 +323,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 
 	case trapID != 0:
 		log.Printf("%v", trapID)
-		if trapID == trap.Suspended {
+		if trapID == runtime.TrapSuspended {
 			if !dump(prog, inst, buffers, true) {
 				exit = 4
 			}

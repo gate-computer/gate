@@ -77,6 +77,23 @@ type ProcessFactory interface {
 	NewProcess(context.Context) (*Process, error)
 }
 
+type TrapID trap.ID
+
+const (
+	TrapExit = TrapID(trap.Exit)
+
+	TrapSuspended                     = TrapID(trap.Suspended)
+	TrapUnreachable                   = TrapID(trap.Unreachable)
+	TrapCallStackExhausted            = TrapID(trap.CallStackExhausted)
+	TrapMemoryAccessOutOfBounds       = TrapID(trap.MemoryAccessOutOfBounds)
+	TrapIndirectCallIndexOutOfBounds  = TrapID(trap.IndirectCallIndexOutOfBounds)
+	TrapIndirectCallSignatureMismatch = TrapID(trap.IndirectCallSignatureMismatch)
+	TrapIntegerDivideByZero           = TrapID(trap.IntegerDivideByZero)
+	TrapIntegerOverflow               = TrapID(trap.IntegerOverflow)
+
+	TrapABIDeficiency = TrapID(26)
+)
+
 // Process is used to execute a single program image once.  Created via an
 // Executor or a derivative ProcessFactory.
 //
@@ -233,7 +250,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 //
 // Buffers will be mutated (unless nil).
 func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers,
-) (exit int, trapID trap.ID, err error) {
+) (exit int, trapID TrapID, err error) {
 	err = ioLoop(ctx, services, p, buffers)
 	if err != nil {
 		return
@@ -261,7 +278,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 		}
 
 		if code >= 100 && code <= 127 {
-			trapID = trap.ID(code - 100)
+			trapID = TrapID(code - 100)
 			return
 		}
 
@@ -270,7 +287,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 
 	case status.Signaled():
 		if status.Signal() == syscall.SIGXCPU {
-			trapID = trap.Suspended // During initialization (ok) or by force (stack is dirty).
+			trapID = TrapSuspended // During initialization (ok) or by force (stack is dirty).
 			return
 		}
 

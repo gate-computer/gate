@@ -17,7 +17,6 @@ import (
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/wag/object/stack/stacktrace"
-	"github.com/tsavola/wag/trap"
 	"golang.org/x/sys/unix"
 )
 
@@ -174,7 +173,7 @@ func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) (
 	if err != nil {
 		return
 	}
-	if trapID == trap.Exit {
+	if trapID == runtime.TrapExit {
 		return
 	}
 
