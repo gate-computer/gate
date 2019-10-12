@@ -32,8 +32,8 @@ func main() {
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 
-	flag.Var(confi.FileReader(c), "f", "read TOML configuration file")
-	flag.Var(confi.Assigner(c), "c", "set a configuration key (path.to.key=value)")
+	flag.Var(confi.FileReader(c), "f", "read a configuration file")
+	flag.Var(confi.Assigner(c), "o", "set a configuration option (path.to.key=value)")
 	flag.Usage = confi.FlagUsage(nil, c)
 	flag.Parse()
 

@@ -99,8 +99,8 @@ type Config struct {
 var c = new(Config)
 
 func parseConfig(flags *flag.FlagSet) {
-	flags.Var(confi.FileReader(c), "f", "read TOML configuration file")
-	flags.Var(confi.Assigner(c), "c", "set a configuration key (path.to.key=value)")
+	flags.Var(confi.FileReader(c), "f", "read a configuration file")
+	flags.Var(confi.Assigner(c), "o", "set a configuration option (path.to.key=value)")
 	flags.Parse(os.Args[1:])
 }
 
