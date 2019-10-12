@@ -29,7 +29,6 @@ enum State {
 enum Cause {
 	NORMAL = 0;
 
-	NO_FUNCTION = 1;
 	UNREACHABLE = 3;
 	CALL_STACK_EXHAUSTED = 4;
 	MEMORY_ACCESS_OUT_OF_BOUNDS = 5;
