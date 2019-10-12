@@ -17,7 +17,7 @@ require (
 	github.com/tsavola/confi v1.2.1
 	github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c
 	github.com/tsavola/wag v0.22.0
-	golang.org/x/crypto v0.0.0-20191001141032-4663e185863a
+	golang.org/x/crypto v0.0.0-20191011190513-0e8c3a9068a2
 	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
 	golang.org/x/sys v0.0.0-20190911201528-7ad0cfa0b7b5
 	golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7
