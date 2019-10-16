@@ -423,7 +423,8 @@ rt_time:
 .Ltime:
 	mov	w12, w0
 
-	sub	x1, x29, #16			// sizeof(struct timespec)
+	sub	x29, x29, #16			// sizeof(struct timespec)
+	mov	x1, x29				// tp
 
 	mov	x20, x30			// Save link register
 	ldr	x8, [x27, #-11*8]		// clock_gettime C ABI function
