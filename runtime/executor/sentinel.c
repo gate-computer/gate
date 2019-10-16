@@ -24,7 +24,7 @@ static void xclose(int fd)
 void sentinel(void)
 {
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
-		_exit(ERR_SENTINEL_PRCTL_PDEATHSIG);
+		_exit(ERR_SENTINEL_PDEATHSIG);
 
 	xclose(GATE_CONTROL_FD);
 	xclose(GATE_LOADER_FD);

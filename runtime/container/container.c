@@ -479,6 +479,8 @@ static int sync_pipe[2];
 
 int main(int argc, char **argv)
 {
+	xset_pdeathsig(SIGKILL);
+
 	if (argc == 2 && strcmp(argv[1], "--cgroup-backend") == 0) {
 		puts(cgroup_backend);
 		return 0;
@@ -605,12 +607,12 @@ static int child_main(void *dummy_arg)
 		xopen_proc("/proc");
 	}
 
-	xset_pdeathsig(SIGKILL);
-
 	xclear_caps();
 
 	if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0)
 		xerror("prctl: PR_CAP_AMBIENT_CLEAR_ALL");
+
+	xset_pdeathsig(SIGKILL); // Needs to be done after credential changes.
 
 	if (GATE_SANDBOX && !GATE_RUNTIME_DEBUG)
 		xdup2(STDOUT_FILENO, STDERR_FILENO); // /dev/null

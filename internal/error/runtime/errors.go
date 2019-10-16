@@ -2,7 +2,7 @@
 
 package runtime
 
-var ExecutorErrors = [72]Error{
+var ExecutorErrors = [73]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},
 	12: {"ERR_EXEC_SETRLIMIT_DATA", "runtime executor", "setrlimit: failed to set DATA limit"},
@@ -56,6 +56,7 @@ var ExecutorErrors = [72]Error{
 	69: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/PID/stat parse error"},
 	70: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
 	71: {"ERR_EXEC_SYSCONF_CLK_TCK", "runtime executor", "TODO: ERR_EXEC_SYSCONF_CLK_TCK"},
+	72: {"ERR_EXEC_PDEATHSIG", "runtime executor", "failed to set process death signal"},
 }
 
 var ProcessErrors = [48]Error{
@@ -66,12 +67,12 @@ var ProcessErrors = [48]Error{
 	8:  {"ERR_RT_MREMAP", "process runtime", "mremap call failed"},
 	9:  {"ERR_RT_CLOCK_GETTIME", "process runtime", "clock_gettime call failed"},
 	10: {"ERR_RT_POLL", "process runtime", "poll call failed"},
-	11: {"ERR_SENTINEL_PRCTL_PDEATHSIG", "sentinel process", "TODO: ERR_SENTINEL_PRCTL_PDEATHSIG"},
+	11: {"ERR_SENTINEL_PDEATHSIG", "sentinel process", "failed to set process death signal"},
 	12: {"ERR_SENTINEL_CLOSE", "sentinel process", "TODO: ERR_SENTINEL_CLOSE"},
 	13: {"ERR_SENTINEL_SIGSUSPEND", "sentinel process", "TODO: ERR_SENTINEL_SIGSUSPEND"},
 	14: {"ERR_EXECHILD_DUP2", "process executor", "child: dup2 call failed"},
 	15: {"ERR_EXECHILD_EXEC_LOADER", "process executor", "child: failed to execute loader"},
-	18: {"ERR_LOAD_PRCTL_PDEATHSIG", "process loader", "TODO: ERR_LOAD_PRCTL_PDEATHSIG"},
+	18: {"ERR_LOAD_PDEATHSIG", "process loader", "failed to set process death signal"},
 	19: {"ERR_LOAD_SETRLIMIT_NOFILE", "process loader", "child: setrlimit: failed to set NOFILE limit"},
 	20: {"ERR_LOAD_SETRLIMIT_NPROC", "process loader", "child: setrlimit: failed to set NPROC limit"},
 	21: {"ERR_LOAD_PRCTL_NOT_DUMPABLE", "process loader", "prctl: failed to set not dumpable"},

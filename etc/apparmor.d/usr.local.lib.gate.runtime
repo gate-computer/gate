@@ -18,6 +18,10 @@
   /usr/bin/newgidmap cx,
   @{PROC}/@{pid}/oom_score_adj w,
 
+  # Make PDEATHSIG work
+  signal peer=@{profile_name},
+  signal (send) peer=@{profile_name}///usr/local/lib/gate/runtime/gate-runtime-executor.0,
+
   # Mount namespace setup
   mount options=(rw, make-rprivate) -> /,
   mount fstype=tmpfs options=(rw, nosuid, nodev, noexec) -> /tmp/,
@@ -62,6 +66,7 @@
 
   profile /usr/local/lib/gate/runtime/gate-runtime-executor.0 flags=(attach_disconnected) {
     signal peer=@{profile_name},
+    signal (receive) peer=/usr/local/lib/gate/runtime/gate-runtime-container.0,  # PDEATHSIG
     /usr/local/lib/gate/runtime/gate-runtime-executor.0 rm,
     /usr/local/lib/gate/runtime/gate-runtime-loader.0 ix,  # Must inherit due to no-new-privs.
     /@{pid}/stat r,  # Unprefixed proc path due to openat.

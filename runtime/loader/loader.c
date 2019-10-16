@@ -270,7 +270,7 @@ static const char *elf_string(const Elf64_Ehdr *elf, unsigned strtab_index, unsi
 int main(int argc, char **argv, char **envp)
 {
 	if (sys_prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
-		return ERR_LOAD_PRCTL_PDEATHSIG;
+		return ERR_LOAD_PDEATHSIG;
 
 	// _start routine smuggles vDSO ELF address as argv pointer.
 	// Use it to lookup clock_gettime function.

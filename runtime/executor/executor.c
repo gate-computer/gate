@@ -367,6 +367,9 @@ static void xsetrlimit(int resource, rlim_t limit, int exitcode)
 
 int main(int argc, char **argv)
 {
+	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
+		_exit(ERR_EXEC_PDEATHSIG);
+
 	if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0)
 		die(ERR_EXEC_NO_NEW_PRIVS);
 
