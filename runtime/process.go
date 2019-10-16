@@ -94,6 +94,16 @@ const (
 	TrapABIDeficiency = TrapID(26)
 )
 
+func (id TrapID) String() string {
+	switch id {
+	case TrapABIDeficiency:
+		return "ABI deficiency"
+
+	default:
+		return trap.ID(id).String()
+	}
+}
+
 // Process is used to execute a single program image once.  Created via an
 // Executor or a derivative ProcessFactory.
 //
