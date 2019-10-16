@@ -361,7 +361,7 @@ rt_poll:
 	b.ne	.Lexit
 	orr	w0, w0, w4
 
-	tst	w5, #~POLLIN
+	tst	w5, #~POLLOUT
 	b.ne	.Lexit
 	orr	w0, w0, w5
 
