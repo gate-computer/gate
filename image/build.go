@@ -336,6 +336,7 @@ func (b *Build) FinishProgram(
 		MemoryDataSize:  uint32(b.data.Len() - alignPageSize(b.globalsSize)),
 		ModuleSize:      int64(b.prog.module.Cap()),
 		Sections:        sectionMap.manifestSections(),
+		SnapshotSection: manifestByteRange(sectionMap.Snapshot),
 		BufferSection:   manifestByteRange(sectionMap.Buffer),
 		StackSection:    manifestByteRange(sectionMap.Stack),
 		GlobalTypes:     globalTypeBytes(mod.GlobalTypes()),

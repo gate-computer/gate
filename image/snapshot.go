@@ -115,13 +115,13 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// New module size.
 	newModuleSize := oldProg.man.ModuleSize
-	newModuleSize -= oldProg.man.Sections[section.Memory].Length
-	newModuleSize -= oldProg.man.Sections[section.Global].Length
-	newModuleSize -= oldProg.man.Sections[section.Start].Length
+	newModuleSize -= oldRanges[section.Memory].Length
+	newModuleSize -= oldRanges[section.Global].Length
+	newModuleSize -= oldRanges[section.Start].Length
 	newModuleSize -= oldProg.man.SnapshotSection.Length
 	newModuleSize -= oldProg.man.BufferSection.Length
 	newModuleSize -= oldProg.man.StackSection.Length
-	newModuleSize -= oldProg.man.Sections[section.Data].Length
+	newModuleSize -= oldRanges[section.Data].Length
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
 	newModuleSize += int64(len(snapshotSection))
@@ -143,7 +143,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy module header and sections up to and including table section.
 	copyLen := int(wasmModuleHeaderSize)
 	for i := section.Table; i >= section.Type; i-- {
-		if newRanges[i].Offset != 0 {
+		if newRanges[i].Length > 0 {
 			copyLen = int(newRanges[i].Offset + newRanges[i].Length)
 			break
 		}
@@ -181,9 +181,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy sections up to and including code section.
 	copyLen = 0
 	for _, s := range oldRanges[nextSection : section.Code+1] {
-		if s.Length > 0 {
-			copyLen += int(s.Length)
-		}
+		copyLen += int(s.Length)
 	}
 
 	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
@@ -217,7 +215,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// Write new stack section, and skip old one.
 	if suspended {
-		newStackSection := make([]byte, len(stackHeader)+stackUsage)
+		newStackSection := make([]byte, stackSectionSize)
 		copy(newStackSection, stackHeader)
 
 		newStack := newStackSection[len(stackHeader):]
@@ -343,14 +341,16 @@ func makeMemorySection(memorySize uint32, memorySizeLimit int64) []byte {
 		n -= putVaruint32Before(b, n, uint32(memorySizeLimit>>wa.PageBits))
 		maxFlag = 1
 	}
-
 	n -= putVaruint32Before(b, n, uint32(memorySize>>wa.PageBits))
 	n--
 	b[n] = maxFlag
 	n--
 	b[n] = 1 // Item count.
+
+	payloadLen := len(b) - n
+
 	n--
-	b[n] = byte(len(b) - n) // Payload length.
+	b[n] = byte(payloadLen)
 	n--
 	b[n] = byte(section.Memory) // Section id.
 
