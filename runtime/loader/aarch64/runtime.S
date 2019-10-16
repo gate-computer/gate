@@ -93,6 +93,7 @@ runtime_code_begin:
 //      x27 = text address + init routine
 //      x28 = stack limit >> 4
 //      x29 = fake stack ptr
+//      x30 = link address
 runtime_init:
 
 	// Unmap loader .text and .rodata sections

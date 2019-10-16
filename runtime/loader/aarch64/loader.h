@@ -37,6 +37,12 @@ static inline void enter(
 	void *memory_ptr,
 	void *init_routine)
 {
+	uintptr_t link_ptr = 0;
+	if (((uintptr_t) init_routine & 0x7f) == 16) { // Resume routine
+		link_ptr = *(uintptr_t *) stack_ptr;
+		stack_ptr += sizeof(uintptr_t);
+	}
+
 	register uintptr_t r0 asm("r0") = loader_stack;   // munmap addr
 	register size_t r1 asm("r1") = loader_stack_size; // munmap length
 	register uint64_t r4 asm("r4") = signal_handler;
@@ -47,6 +53,7 @@ static inline void enter(
 	register void *r27 asm("r27") = init_routine;
 	register void *r28 asm("r28") = stack_limit;
 	register void *r29 asm("r29") = stack_ptr;
+	register uintptr_t r30 asm("r30") = link_ptr;
 
 	// clang-format off
 
@@ -98,7 +105,7 @@ static inline void enter(
 
 		"br   x7                                 \n"
 		:
-		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r7), "r"(r26), "r"(r27), "r"(r28), "r"(r29));
+		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r7), "r"(r26), "r"(r27), "r"(r28), "r"(r29), "r"(r30));
 
 	// clang-format on
 
