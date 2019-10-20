@@ -35,7 +35,7 @@
 
 // See wag/Stack.md.
 #define GATE_STACK_VARS_SIZE 64            // Variables at start of stack memory.
-#define GATE_STACK_SIGNAL_SPACE (5120 * 2) // For simultaneous SIGSEGV and SIGXCPU handling.
+#define GATE_STACK_SIGNAL_SPACE (4832 * 2) // For simultaneous SIGSEGV and SIGXCPU handling.
 #define GATE_STACK_USAGE_OFFSET (GATE_STACK_VARS_SIZE + GATE_STACK_SIGNAL_SPACE + 240)
 #define GATE_STACK_LIMIT_OFFSET (GATE_STACK_USAGE_OFFSET + 8 + 8)
 

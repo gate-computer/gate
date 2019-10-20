@@ -42,10 +42,12 @@
 //      rdx = buffer length
 //      r11 = absolute buffer end address
 //      r13 = current memory end address
+//      r14 = memory address
 // Clobbers rax.
 .macro	io_prologue
 	current_memory_pages %r13d
 	shl	$16, %r13d			// Current memory size
+	movq	-4*8(%r15), %r14		// Memory address
 	add	%r14, %r13			// Current memory end address
 
 	mov	16(%rsp), %esi			// Relative buffer address
@@ -84,7 +86,6 @@ runtime_code_begin:
 .type	runtime_init_no_sandbox,@function
 
 // In:  rbx = stack limit
-//      r14 = memory address
 //      r15 = text address + init routine
 runtime_init:
 
@@ -147,6 +148,7 @@ runtime_init_no_sandbox:
 	xor	%r11d, %r11d
 	xor	%r12d, %r12d
 	xor	%r13d, %r13d
+	xor	%r14d, %r14d
 
 	// Execute wag object ABI init routine
 
@@ -253,8 +255,10 @@ grow_memory:
 
 	current_memory_pages %edi
 	add	%rdi, %r12			// New memory pages
-	cmp	%r12, -2*8(%r15)		// grow_memory
+	cmp	%r12, -5*8(%r15)		// Memory grow limit in pages
 	jl	.Loom
+
+	movq	-4*8(%r15), %r14		// Memory address
 
 #ifdef __ANDROID__
 
@@ -449,7 +453,6 @@ rt_time:
 	orl	$0x2, 20(%rcx)			// suspend_bits
 
 	push	%rbx
-	push	%r14
 	push	%r15
 
 	mov	-11*8(%r15), %rcx		// clock_gettime C ABI function
@@ -457,7 +460,6 @@ rt_time:
 	mov	%eax, %r13d
 
 	pop	%r15
-	pop	%r14
 	pop	%rbx
 
 	stack_vars

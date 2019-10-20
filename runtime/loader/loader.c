@@ -355,30 +355,7 @@ clock_gettime_found:
 	uintptr_t runtime_size = (uintptr_t) &runtime_code_end - (uintptr_t) &runtime_code_begin;
 	memcpy(runtime_ptr + ((uintptr_t) &runtime_code_begin - GATE_LOADER_ADDR), &runtime_code_begin, runtime_size);
 
-	// TODO: check that runtime and vector contents don't overlap
-
 	uint64_t *vector_end = (uint64_t *) (runtime_ptr + info.page_size);
-
-	code *debug_func = debug_flag ? &rt_debug : &rt_nop;
-
-	// These assignments reflect the rtFunctions map in runtime/abi/abi.go
-	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_stop);
-	*(vector_end - 16) = runtime_func_addr(runtime_ptr, debug_func);
-	*(vector_end - 15) = runtime_func_addr(runtime_ptr, &rt_write);
-	*(vector_end - 14) = runtime_func_addr(runtime_ptr, &rt_read);
-	*(vector_end - 13) = runtime_func_addr(runtime_ptr, &rt_poll);
-	*(vector_end - 12) = runtime_func_addr(runtime_ptr, &rt_time);
-	*(vector_end - 11) = clock_gettime_addr;
-	*(vector_end - 10) = local_monotonic_time_base;
-	*(vector_end - 9) = info.time_mask;
-	*(vector_end - 8) = info.random[0];
-	*(vector_end - 7) = info.random[1];
-	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &rt_random);
-	*(vector_end - 5) = runtime_func_addr(runtime_ptr, &rt_nop);
-	*(vector_end - 4) = info.grow_memory_size >> 16;
-	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
-	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
-	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
 
 	// Text
 
@@ -395,11 +372,6 @@ clock_gettime_found:
 
 	if (sys_close(text_fd) != 0)
 		return ERR_LOAD_CLOSE_TEXT;
-
-	// Runtime (and maybe text)
-
-	if (sys_mprotect(runtime_ptr, runtime_map_size, PROT_READ | PROT_EXEC) != 0)
-		return ERR_LOAD_MPROTECT_VECTOR;
 
 	// Stack
 
@@ -461,10 +433,38 @@ clock_gettime_found:
 		}
 	}
 
-	void *memory_ptr = heap_ptr + info.globals_size;
+	uintptr_t memory_addr = (uintptr_t) heap_ptr + info.globals_size;
 
 	if (sys_close(state_fd) != 0)
 		return ERR_LOAD_CLOSE_STATE;
+
+	// Vector; runtime/text protection
+
+	code *debug_func = debug_flag ? &rt_debug : &rt_nop;
+
+	// These assignments reflect the rtFunctions map in runtime/abi/abi.go
+	// TODO: check that runtime and vector contents don't overlap
+	*(vector_end - 18) = runtime_func_addr(runtime_ptr, &rt_nop);
+	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_stop);
+	*(vector_end - 16) = runtime_func_addr(runtime_ptr, debug_func);
+	*(vector_end - 15) = runtime_func_addr(runtime_ptr, &rt_write);
+	*(vector_end - 14) = runtime_func_addr(runtime_ptr, &rt_read);
+	*(vector_end - 13) = runtime_func_addr(runtime_ptr, &rt_poll);
+	*(vector_end - 12) = runtime_func_addr(runtime_ptr, &rt_time);
+	*(vector_end - 11) = clock_gettime_addr;
+	*(vector_end - 10) = local_monotonic_time_base;
+	*(vector_end - 9) = info.time_mask;
+	*(vector_end - 8) = info.random[0];
+	*(vector_end - 7) = info.random[1];
+	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &rt_random);
+	*(vector_end - 5) = info.grow_memory_size >> 16;
+	*(vector_end - 4) = memory_addr;
+	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
+	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
+	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
+
+	if (sys_mprotect(runtime_ptr, runtime_map_size, PROT_READ | PROT_EXEC) != 0)
+		return ERR_LOAD_MPROTECT_VECTOR;
 
 	// Non-blocking I/O.
 
@@ -492,6 +492,5 @@ clock_gettime_found:
 	      loader_stack_size,
 	      runtime_func_addr(runtime_ptr, &signal_handler),
 	      runtime_func_addr(runtime_ptr, &signal_restorer),
-	      memory_ptr,
 	      text_ptr + (uintptr_t) info.init_routine);
 }

@@ -9,6 +9,6 @@ package executable
 // See wag/Stack.md.
 const (
 	StackVarsSize    = 64       // Variables at start of stack memory.
-	stackSignalSpace = 5120 * 2 // For simultaneous SIGSEGV and SIGXCPU handling.
+	stackSignalSpace = 4832 * 2 // For simultaneous SIGSEGV and SIGXCPU handling.
 	StackUsageOffset = StackVarsSize + stackSignalSpace + 240
 )

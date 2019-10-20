@@ -34,7 +34,6 @@ static inline void enter(
 	size_t loader_stack_size,
 	uint64_t signal_handler,
 	uint64_t signal_restorer,
-	void *memory_ptr,
 	void *init_routine)
 {
 	uintptr_t link_ptr = 0;
@@ -49,7 +48,6 @@ static inline void enter(
 	register uint64_t r5 asm("r5") = SIGACTION_FLAGS;
 	register uint64_t r6 asm("r6") = signal_restorer;
 	register uint64_t r7 asm("r7") = runtime_init;
-	register void *r26 asm("r26") = memory_ptr;
 	register void *r27 asm("r27") = init_routine;
 	register void *r28 asm("r28") = stack_limit;
 	register void *r29 asm("r29") = stack_ptr;
@@ -60,8 +58,8 @@ static inline void enter(
 	asm volatile(
 		// Replace stack.
 
-		"sub  sp, x28, #128+16                   \n" // Real stack pointer before red zone.
-		"lsr  x28, x28, #4                       \n" // Stack limit >> 4.
+		"sub  sp, x28, #256                      \n" // Signal stack pointer
+		"lsr  x28, x28, #4                       \n" // Stack limit >> 4
 
 		// Unmap old stack (ASLR breaks this).
 
@@ -71,8 +69,7 @@ static inline void enter(
 		"mov  w0, #"xstr(ERR_LOAD_MUNMAP_STACK)" \n"
 		"b.ne sys_exit                           \n"
 
-		// Build sigaction structure on stack.  Using 32 bytes of red
-		// zone.
+		// Build sigaction structure on rt function stack.
 
 		"mov  x1, sp                             \n" // sigaction act
 		"str  x4, [x1, #0]                       \n" // sa_handler
@@ -105,7 +102,7 @@ static inline void enter(
 
 		"br   x7                                 \n"
 		:
-		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r7), "r"(r26), "r"(r27), "r"(r28), "r"(r29), "r"(r30));
+		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r7), "r"(r27), "r"(r28), "r"(r29), "r"(r30));
 
 	// clang-format on
 

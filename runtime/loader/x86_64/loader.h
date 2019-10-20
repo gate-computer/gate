@@ -31,7 +31,6 @@ static inline void enter(
 	size_t loader_stack_size,
 	uint64_t signal_handler,
 	uint64_t signal_restorer,
-	void *memory_ptr,
 	void *init_routine)
 {
 	register void *rax asm("rax") = stack_ptr;
@@ -42,7 +41,6 @@ static inline void enter(
 	register uint64_t r9 asm("r9") = signal_handler;
 	register uint64_t r10 asm("r10") = signal_restorer;
 	register long r13 asm("r13") = SIGACTION_FLAGS;
-	register void *r14 asm("r14") = memory_ptr;
 	register void *r15 asm("r15") = init_routine;
 
 	// clang-format off
@@ -60,8 +58,7 @@ static inline void enter(
 		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
-		// Build sigaction structure on stack.  Using 32 bytes of red
-		// zone.
+		// Build sigaction structure on rt function stack.
 
 		"mov  %%rsp, %%rsi                          \n"
 		"sub  $32, %%rsi                            \n" // sigaction act
@@ -96,7 +93,7 @@ static inline void enter(
 		"mov  %%rbp, %%rcx                          \n"
 		"jmp  retpoline                             \n"
 		:
-		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r13), "r"(r14), "r"(r15));
+		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r13), "r"(r15));
 
 	// clang-format on
 

@@ -51,9 +51,11 @@
 //      x2  = buffer length
 //      x11 = absolute buffer end address
 //      x13 = current memory end address
+//      x26 = memory address
 // Clobbers x0.
 .macro	io_prologue
 	current_memory_pages w13
+	ldr	x26, [x27, #-4*8]		// Memory address
 	add	x13, x26, x13, lsl #16		// Current memory end address
 
 	ldr	w1, [x29, #8]			// Relative buffer address
@@ -89,8 +91,7 @@ runtime_code_begin:
 .globl	runtime_init_no_sandbox
 .type	runtime_init_no_sandbox,@function
 
-// In:  x26 = memory address
-//      x27 = text address + init routine
+// In:  x27 = text address + init routine
 //      x28 = stack limit >> 4
 //      x29 = fake stack ptr
 //      x30 = link address
@@ -170,6 +171,7 @@ runtime_init_no_sandbox:
 	mov	x23, #0
 	mov	x24, #0
 	mov	x25, #0
+	mov	x26, #0
 
 	// Execute wag object ABI init routine
 
@@ -261,9 +263,11 @@ grow_memory:
 
 	current_memory_pages w0
 	add	x13, x0, x12			// New memory pages
-	ldr	x1, [x27, #-4*8]		// Memory grow limit in pages
+	ldr	x1, [x27, #-5*8]		// Memory grow limit in pages
 	cmp	x1, x13
 	b.lt	.Loom
+
+	ldr	x26, [x27, #-4*8]		// Memory address
 
 #ifdef __ANDROID__
 
