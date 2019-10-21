@@ -379,7 +379,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	b, err := build.New(image.Memory, int(info.Size()), compile.DefaultMaxTextSize, &codeMap.CallMap, true)
+	b, err := build.New(image.Memory, int(info.Size()), compile.MaxTextSize, &codeMap.CallMap, true)
 	if err != nil {
 		return
 	}

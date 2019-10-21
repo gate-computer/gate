@@ -30,7 +30,7 @@ const minSnapshotVersion = 0
 type Build struct {
 	Image         *image.Build
 	SectionMap    image.SectionMap
-	Loaders       section.CustomLoaders
+	Loaders       map[string]section.CustomContentLoader
 	Config        compile.Config
 	Module        compile.Module
 	StackSize     int
@@ -50,11 +50,10 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 		return
 	}
 
-	b.Loaders = make(section.CustomLoaders)
+	b.Loaders = make(map[string]section.CustomContentLoader)
 
 	b.Config = compile.Config{
-		SectionMapper:       b.SectionMap.Mapper(),
-		CustomSectionLoader: b.Loaders.Load,
+		SectionMapper: b.SectionMap.Mapper(),
 	}
 
 	b.entryIndex = -1
@@ -109,6 +108,9 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
 		return badprogram.Err("gate.stack section appears too early in wasm module")
 	}
+
+	// Loaders keys should not change after this.
+	b.Config.CustomSectionLoader = section.CustomLoader(b.Loaders)
 }
 
 func (b Build) ModuleConfig() *compile.ModuleConfig {

@@ -47,7 +47,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 
 	var objectMap object.CallMap
 
-	b, err := build.New(storage, len(wasm), compile.DefaultMaxTextSize, &objectMap, false)
+	b, err := build.New(storage, len(wasm), compile.MaxTextSize, &objectMap, false)
 	if err != nil {
 		return
 	}

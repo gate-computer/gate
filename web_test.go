@@ -1326,7 +1326,7 @@ func TestInstanceTerminated(t *testing.T) {
 
 		var flagsOK bool
 
-		loaders := section.CustomLoaders{
+		loaders := map[string]section.CustomContentLoader{
 			wasm.SectionBuffer: func(_ string, r section.Reader, length uint32) (err error) {
 				bs, _, _, err := wasm.ReadBufferSectionHeader(r, length)
 				if err != nil {
@@ -1343,7 +1343,7 @@ func TestInstanceTerminated(t *testing.T) {
 			},
 		}
 
-		c := compile.Config{CustomSectionLoader: loaders.Load}
+		c := compile.Config{CustomSectionLoader: section.CustomLoader(loaders)}
 		r := bytes.NewReader(snapshot)
 
 		m, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: c}, r)
