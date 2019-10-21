@@ -70,26 +70,27 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		}
 
 		version, n, err := readVaruint64(r)
-		length -= uint32(n)
 		if err != nil {
 			return
 		}
+		length -= uint32(n)
+
 		if version < minSnapshotVersion {
 			err = badprogram.Err(fmt.Sprintf("unsupported snapshot version: %d", version))
 			return
 		}
 
-		_, n, err = readVaruint64(r) // Flags
-		length -= uint32(n)
+		_, err = r.ReadByte() // Flags
 		if err != nil {
 			return
 		}
+		length--
 
 		b.monotonicTime, n, err = readVaruint64(r)
-		length -= uint32(n)
 		if err != nil {
 			return
 		}
+		length -= uint32(n)
 
 		_, err = io.CopyN(ioutil.Discard, r, int64(length))
 		if err != nil {
