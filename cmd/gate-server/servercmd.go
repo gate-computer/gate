@@ -164,9 +164,9 @@ var c = new(struct {
 	}
 })
 
-func parseConfig(flags *flag.FlagSet) {
-	flags.Var(confi.FileReader(c), "f", "read a configuration file")
-	flags.Var(confi.Assigner(c), "o", "set a configuration option (path.to.key=value)")
+func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
+	flags.Var(confi.FlagReader(c, skipUnknown), "f", "read a configuration file")
+	flags.Var(confi.FlagSetter(c, skipUnknown), "o", "set a configuration option (path.to.key=value)")
 	flags.Parse(os.Args[1:])
 }
 
@@ -192,7 +192,7 @@ func main() {
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
-	parseConfig(flags)
+	parseConfig(flags, true)
 
 	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
 	if err != nil {
@@ -206,7 +206,7 @@ func main() {
 	c.Service["origin"] = &originConfig
 
 	flag.Usage = confi.FlagUsage(nil, c)
-	parseConfig(flag.CommandLine)
+	parseConfig(flag.CommandLine, false)
 
 	var (
 		critLog *log.Logger
