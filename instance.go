@@ -50,18 +50,19 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 		return
 	}
 
-	if len(snapshot) > inst.MaxPacketSize {
-		err = errors.New("snapshot is too large")
-		return
-	}
-
 	p, err := packet.ImportCall(snapshot, inst.Code)
 	if err != nil {
 		return
 	}
 
 	switch binary.LittleEndian.Uint32(p) {
-	case pendingIncoming, pendingOutgoing:
+	case pendingIncoming:
+
+	case pendingOutgoing:
+		if len(snapshot) > inst.MaxSendSize {
+			err = errors.New("snapshot of outgoing packet exceeds maximum send size")
+			return
+		}
 
 	default:
 		err = errors.New("snapshot is invalid")
@@ -194,7 +195,7 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 	var inlineBody flatbuffers.UOffsetT
 
 	if res.ContentLength > 0 {
-		bodySpace := inst.MaxPacketSize - int(build.Offset()) - maxFlatHTTPResponseSize
+		bodySpace := inst.MaxSendSize - int(build.Offset()) - maxFlatHTTPResponseSize
 		if res.ContentLength > int64(bodySpace) {
 			flat.HTTPResponseStart(build)
 			flat.HTTPResponseAddStatusCode(build, http.StatusNotImplemented)
