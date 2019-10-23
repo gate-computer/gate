@@ -102,6 +102,37 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		return
 	}
 
+	b.Loaders[wasm.SectionExport] = func(_ string, r section.Reader, length uint32) (err error) {
+		if !b.snapshot {
+			err = badprogram.Err("gate.export section without gate.snapshot section")
+			return
+		}
+
+		if length < 2 { // Minimum standard section frame size.
+			err = badprogram.Err("gate.export section is too short")
+			return
+		}
+
+		id, err := r.ReadByte()
+		if err != nil {
+			return
+		}
+		if id != byte(section.Export) {
+			err = badprogram.Err("gate.export section does not contain a standard export section")
+			return
+		}
+		err = r.UnreadByte()
+		if err != nil {
+			return
+		}
+
+		// Don't read payload; wag will load it as a standard section.
+		// Duplicate sections are checked automatically.
+
+		b.SectionMap.ExportWrap = b.SectionMap.Sections[section.Custom]
+		return
+	}
+
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
 		return badprogram.Err("gate.buffer section appears too early in wasm module")
 	}
@@ -138,14 +169,31 @@ func (b *Build) SetMaxMemorySize(maxMemorySize int) (err error) {
 // BindFunctions (imports and optional start and entry functions) after initial
 // module sections have been loaded.
 func (b *Build) BindFunctions(entryName string) (err error) {
+	if b.SectionMap.ExportWrap.Length > 0 {
+		// We didn't read the custom export section content, so offsets are off.
+		for i := int(section.Export); i < len(b.SectionMap.Sections); i++ {
+			b.SectionMap.Sections[i].Offset -= b.SectionMap.Sections[section.Export].Length
+		}
+
+		// Validate export wrapper payload length before accessing exports.
+		end := b.SectionMap.Sections[section.Export].Offset + b.SectionMap.Sections[section.Export].Length
+		wrapEnd := b.SectionMap.ExportWrap.Offset + b.SectionMap.ExportWrap.Length
+		if end != wrapEnd {
+			err = badprogram.Err("gate.export section length does not match wrapped export section length")
+			return
+		}
+	}
+
 	err = binding.BindImports(&b.Module, b.Image.ImportResolver())
 	if err != nil {
 		return
 	}
 
-	b.entryIndex, err = resolve.EntryFunc(b.Module, entryName)
-	if err != nil {
-		return
+	if !b.snapshot {
+		b.entryIndex, err = resolve.EntryFunc(b.Module, entryName)
+		if err != nil {
+			return
+		}
 	}
 
 	return
@@ -294,12 +342,8 @@ func (b Build) DataConfig() *compile.DataConfig {
 // populated.
 func (b *Build) FinishProgramImage() (*image.Program, error) {
 	startIndex := -1
-	if index, found := b.Module.StartFunc(); found {
-		startIndex = int(index)
-	} else if index, sig, found := b.Module.ExportFunc("_start"); found {
-		if binding.IsStartFuncType(sig) {
-			startIndex = int(index)
-		}
+	if i, ok := b.Module.StartFunc(); ok {
+		startIndex = int(i)
 	}
 
 	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.monotonicTime)

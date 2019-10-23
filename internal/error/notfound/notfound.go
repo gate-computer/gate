@@ -21,7 +21,8 @@ type FunctionError interface {
 // Public function errors.
 var (
 	ErrFunction  = function("function not exported or it cannot be used as entry function")
-	ErrSuspended = function("explicit entry function may not be specified for suspended program")
+	ErrStart     = function("entry function may not be specified for program with _start function")
+	ErrSuspended = function("entry function may not be specified for suspended program")
 )
 
 type function string

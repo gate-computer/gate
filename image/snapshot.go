@@ -85,13 +85,40 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	globalSection := makeGlobalSection(oldProg.man.GlobalTypes, instGlobalsData)
 	off = mapNewSection(off, newRanges, len(globalSection), section.Global)
 
-	off = mapOldSection(off, newRanges, oldRanges, section.Export)
-	off = mapOldSection(off, newRanges, oldRanges, section.Element)
-	off = mapOldSection(off, newRanges, oldRanges, section.Code)
-
 	snapshotSection := makeSnapshotSection(inst.man.Snapshot)
 	snapshotSectionOffset := off
 	off += int64(len(snapshotSection))
+
+	var (
+		exportSectionWrap      manifest.ByteRange
+		exportSectionWrapFrame []byte
+	)
+	if suspended || buffers.Terminated() {
+		if oldRanges[section.Export].Length > 0 {
+			if oldProg.man.ExportSectionWrap.Length > 0 {
+				exportSectionWrap = manifest.ByteRange{
+					Offset: off,
+					Length: oldProg.man.ExportSectionWrap.Length,
+				}
+			} else {
+				exportSectionWrapFrame = makeExportSectionWrapFrame(oldRanges[section.Export].Length)
+				exportSectionWrap = manifest.ByteRange{
+					Offset: off,
+					Length: int64(len(exportSectionWrapFrame)) + oldRanges[section.Export].Length,
+				}
+			}
+			off += exportSectionWrap.Length
+			newRanges[section.Export] = manifest.ByteRange{
+				Offset: off - oldRanges[section.Export].Length,
+				Length: oldRanges[section.Export].Length,
+			}
+		}
+	} else {
+		off = mapOldSection(off, newRanges, oldRanges, section.Export)
+	}
+
+	off = mapOldSection(off, newRanges, oldRanges, section.Element)
+	off = mapOldSection(off, newRanges, oldRanges, section.Code)
 
 	bufferHeader, bufferSectionSize := makeBufferSectionHeader(buffers)
 	bufferSectionOffset := off
@@ -115,16 +142,26 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// New module size.
 	newModuleSize := oldProg.man.ModuleSize
+
 	newModuleSize -= oldRanges[section.Memory].Length
 	newModuleSize -= oldRanges[section.Global].Length
-	newModuleSize -= oldRanges[section.Start].Length
 	newModuleSize -= oldProg.man.SnapshotSection.Length
+	newModuleSize -= oldProg.man.ExportSectionWrap.Length
+	if oldProg.man.ExportSectionWrap.Length == 0 {
+		newModuleSize -= oldRanges[section.Export].Length
+	}
+	newModuleSize -= oldRanges[section.Start].Length
 	newModuleSize -= oldProg.man.BufferSection.Length
 	newModuleSize -= oldProg.man.StackSection.Length
 	newModuleSize -= oldRanges[section.Data].Length
+
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
 	newModuleSize += int64(len(snapshotSection))
+	newModuleSize += exportSectionWrap.Length
+	if exportSectionWrap.Length == 0 {
+		newModuleSize += newRanges[section.Export].Length
+	}
 	newModuleSize += bufferSectionSize
 	newModuleSize += int64(stackSectionSize)
 	newModuleSize += int64(dataSectionSize)
@@ -164,31 +201,6 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	newOff += int64(n)
 	oldOff += oldRanges[section.Memory].Length + oldRanges[section.Global].Length
 
-	// If there is a start section, copy export section separately, and skip
-	// start section.
-	nextSection := section.Export
-
-	if oldRanges[section.Start].Length > 0 {
-		err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, int(oldRanges[section.Export].Length))
-		if err != nil {
-			return
-		}
-
-		oldOff += oldRanges[section.Start].Length
-		nextSection = section.Element
-	}
-
-	// Copy sections up to and including code section.
-	copyLen = 0
-	for _, s := range oldRanges[nextSection : section.Code+1] {
-		copyLen += int(s.Length)
-	}
-
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
-	if err != nil {
-		return
-	}
-
 	// Write new snapshot section, and skip old one.
 	n, err = newFile.WriteAt(snapshotSection, newOff)
 	if err != nil {
@@ -196,6 +208,38 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 	newOff += int64(n)
 	oldOff += oldProg.man.SnapshotSection.Length
+
+	// Copy export section, possibly writing or skipping wrapper.
+	copyLen = int(oldRanges[section.Export].Length)
+	if exportSectionWrap.Length > 0 {
+		if oldProg.man.ExportSectionWrap.Length > 0 {
+			copyLen = int(oldProg.man.ExportSectionWrap.Length)
+		} else {
+			n, err = newFile.WriteAt(exportSectionWrapFrame, newOff)
+			if err != nil {
+				return
+			}
+			newOff += int64(n)
+		}
+	} else {
+		if oldProg.man.ExportSectionWrap.Length > 0 {
+			oldOff += oldProg.man.ExportSectionWrap.Length - oldRanges[section.Export].Length
+		}
+	}
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
+	if err != nil {
+		return
+	}
+
+	// Skip start section.
+	oldOff += oldRanges[section.Start].Length
+
+	// Copy element and code sections.
+	copyLen = int(oldRanges[section.Element].Length + oldRanges[section.Code].Length)
+	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
+	if err != nil {
+		return
+	}
 
 	// Write new buffer section, and skip old one.
 	if bufferSectionSize > 0 {
@@ -320,6 +364,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		Offset: snapshotSectionOffset,
 		Length: int64(len(snapshotSection)),
 	}
+	newProg.man.ExportSectionWrap = exportSectionWrap
 	newProg.man.BufferSection = manifest.ByteRange{
 		Offset: bufferSectionOffset,
 		Length: bufferSectionSize,
@@ -448,6 +493,25 @@ func makeSnapshotSection(vars manifest.Snapshot) []byte {
 	i += binary.PutUvarint(b[i:], vars.MonotonicTime)
 
 	payloadLen := uint32(i - maxSectionFrameSize)
+	payloadLenSize := putVaruint32Before(b, maxSectionFrameSize, payloadLen)
+	b[maxSectionFrameSize-payloadLenSize-1] = byte(section.Custom)
+	return b[maxSectionFrameSize-payloadLenSize-1 : i]
+}
+
+func makeExportSectionWrapFrame(exportSectionSize int64) []byte {
+	// Section id, payload length.
+	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
+
+	// Name length, name string.
+	var nameHeaderSize = 1 + len(wasm.SectionExport)
+
+	b := make([]byte, maxSectionFrameSize+nameHeaderSize)
+	i := maxSectionFrameSize
+	b[i] = byte(len(wasm.SectionExport))
+	i++
+	i += copy(b[i:], wasm.SectionExport)
+
+	payloadLen := uint32(nameHeaderSize) + uint32(exportSectionSize)
 	payloadLenSize := putVaruint32Before(b, maxSectionFrameSize, payloadLen)
 	b[maxSectionFrameSize-payloadLenSize-1] = byte(section.Custom)
 	return b[maxSectionFrameSize-payloadLenSize-1 : i]

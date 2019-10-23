@@ -12,9 +12,10 @@ import (
 type SectionMap struct {
 	section.Map
 
-	Snapshot section.ByteRange
-	Buffer   section.ByteRange
-	Stack    section.ByteRange
+	Snapshot   section.ByteRange
+	ExportWrap section.ByteRange
+	Buffer     section.ByteRange
+	Stack      section.ByteRange
 }
 
 func (mappings *SectionMap) manifestSections() (sections []manifest.ByteRange) {

@@ -16,7 +16,8 @@ const maxServiceNameLen = 127
 
 // Custom WebAssembly sections.
 const (
-	SectionSnapshot = "gate.snapshot" // Must appear once somewhere before buffer section.
+	SectionSnapshot = "gate.snapshot" // Must appear once before gate.export or gate.buffer section.
+	SectionExport   = "gate.export"   // May appear in place of standard export section.
 	SectionBuffer   = "gate.buffer"   // May appear once between code and stack sections.
 	SectionStack    = "gate.stack"    // May appear once between buffer and data sections.
 )

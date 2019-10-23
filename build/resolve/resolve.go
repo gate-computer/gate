@@ -11,11 +11,18 @@ import (
 )
 
 func EntryFunc(mod compile.Module, exportName string) (index int, err error) {
+	startIndex, startSig, startFound := mod.ExportFunc("_start")
+
 	if exportName == "" {
-		return -1, nil
+		if startFound && binding.IsEntryFuncType(startSig) {
+			return int(startIndex), nil
+		} else {
+			return -1, nil
+		}
 	}
-	if exportName == "_start" {
-		return -1, notfound.ErrFunction
+
+	if startFound {
+		return -1, notfound.ErrStart
 	}
 
 	i, sig, ok := mod.ExportFunc(exportName)
