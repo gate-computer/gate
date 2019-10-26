@@ -94,8 +94,8 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		exportSectionWrapFrame []byte
 	)
 	if suspended || buffers.Terminated() {
-		if oldRanges[section.Export].Length > 0 {
-			if oldProg.man.ExportSectionWrap.Length > 0 {
+		if oldRanges[section.Export].Length != 0 {
+			if oldProg.man.ExportSectionWrap.Length != 0 {
 				exportSectionWrap = manifest.ByteRange{
 					Offset: off,
 					Length: oldProg.man.ExportSectionWrap.Length,
@@ -180,7 +180,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy module header and sections up to and including table section.
 	copyLen := int(wasmModuleHeaderSize)
 	for i := section.Table; i >= section.Type; i-- {
-		if newRanges[i].Length > 0 {
+		if newRanges[i].Length != 0 {
 			copyLen = int(newRanges[i].Offset + newRanges[i].Length)
 			break
 		}
@@ -211,8 +211,8 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// Copy export section, possibly writing or skipping wrapper.
 	copyLen = int(oldRanges[section.Export].Length)
-	if exportSectionWrap.Length > 0 {
-		if oldProg.man.ExportSectionWrap.Length > 0 {
+	if exportSectionWrap.Length != 0 {
+		if oldProg.man.ExportSectionWrap.Length != 0 {
 			copyLen = int(oldProg.man.ExportSectionWrap.Length)
 		} else {
 			n, err = newFile.WriteAt(exportSectionWrapFrame, newOff)
@@ -222,7 +222,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 			newOff += int64(n)
 		}
 	} else {
-		if oldProg.man.ExportSectionWrap.Length > 0 {
+		if oldProg.man.ExportSectionWrap.Length != 0 {
 			oldOff += oldProg.man.ExportSectionWrap.Length - oldRanges[section.Export].Length
 		}
 	}
@@ -656,7 +656,7 @@ func putVaruint32Before(dest []byte, offset int, x uint32) (n int) {
 }
 
 func mapOldSection(offset int64, dest, src []manifest.ByteRange, i section.ID) int64 {
-	if src[i].Length > 0 {
+	if src[i].Length != 0 {
 		dest[i] = manifest.ByteRange{
 			Offset: offset,
 			Length: src[i].Length,
@@ -667,7 +667,7 @@ func mapOldSection(offset int64, dest, src []manifest.ByteRange, i section.ID) i
 }
 
 func mapNewSection(offset int64, dest []manifest.ByteRange, length int, i section.ID) int64 {
-	if length > 0 {
+	if length != 0 {
 		dest[i] = manifest.ByteRange{
 			Offset: offset,
 			Length: int64(length),
