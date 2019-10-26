@@ -169,16 +169,25 @@ func (b *Build) SetMaxMemorySize(maxMemorySize int) (err error) {
 // BindFunctions (imports and optional start and entry functions) after initial
 // module sections have been loaded.
 func (b *Build) BindFunctions(entryName string) (err error) {
-	if b.SectionMap.ExportWrap.Length > 0 {
-		// We didn't read the custom export section content, so offsets are off.
-		for i := int(section.Export); i < len(b.SectionMap.Sections); i++ {
-			b.SectionMap.Sections[i].Offset -= b.SectionMap.Sections[section.Export].Length
+	if m := &b.SectionMap; m.ExportWrap.Length != 0 {
+		exportLen := m.Sections[section.Export].Length
+
+		// We didn't read the custom export section content, so offsets are
+		// off.  Fix them.
+		for i := int(section.Export); i < len(m.Sections); i++ {
+			m.Sections[i].Offset -= exportLen
+		}
+		if m.Buffer.Length != 0 {
+			m.Buffer.Offset -= exportLen
+		}
+		if m.Stack.Length != 0 {
+			m.Stack.Offset -= exportLen
 		}
 
 		// Validate export wrapper payload length before accessing exports.
-		end := b.SectionMap.Sections[section.Export].Offset + b.SectionMap.Sections[section.Export].Length
-		wrapEnd := b.SectionMap.ExportWrap.Offset + b.SectionMap.ExportWrap.Length
-		if end != wrapEnd {
+		exportEnd := m.Sections[section.Export].Offset + exportLen
+		wrapperEnd := m.ExportWrap.Offset + m.ExportWrap.Length
+		if exportEnd != wrapperEnd {
 			err = badprogram.Err("gate.export section length does not match wrapped export section length")
 			return
 		}
