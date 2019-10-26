@@ -26,10 +26,10 @@ type instance struct {
 	send   chan<- packet.Buf // Send packets to the user program.
 	inCall bool              // User program's call is missing a response.
 
-	sync.Mutex                   // Protects the fields below.
-	streams    map[int32]*stream // Don't mutate when shutting down.
-	pending    []int32           // Don't mutate when shutting down.
-	shutting   bool              // The user program is being shut down.
+	mu       sync.Mutex        // Protects the fields below.
+	streams  map[int32]*stream // Don't mutate when shutting down.
+	pending  []int32           // Don't mutate when shutting down.
+	shutting bool              // The user program is being shut down.
 }
 
 func makeInstance(config Config) instance {
@@ -146,14 +146,14 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		for i := 0; i < p.Num(); i++ {
 			id, readable := p.Get(i)
 
-			inst.Lock()
+			inst.mu.Lock()
 			s, exist := inst.streams[id]
 			if !exist {
 				s = newStream(inst.BufSize)
 				inst.streams[id] = s
 				inst.pending = append(inst.pending, id)
 			}
-			inst.Unlock()
+			inst.mu.Unlock()
 
 			s.Subscribe(readable)
 
@@ -168,9 +168,9 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	case packet.DomainData:
 		p := packet.DataBuf(p)
 
-		inst.Lock()
+		inst.mu.Lock()
 		s := inst.streams[p.ID()]
-		inst.Unlock()
+		inst.mu.Unlock()
 
 		if s != nil {
 			if p.DataLen() > 0 {
@@ -209,7 +209,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 	for s == nil {
 		select {
 		case <-inst.accept:
-			inst.Lock()
+			inst.mu.Lock()
 			shut := inst.shutting
 			pend = len(inst.pending)
 			if !shut && pend > 0 {
@@ -217,7 +217,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 				s = inst.streams[id]
 				inst.pending = inst.pending[1:]
 			}
-			inst.Unlock()
+			inst.mu.Unlock()
 			if shut {
 				return nil
 			}
@@ -242,11 +242,11 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		err = s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
 		if !s.state.IsMeaningful() {
-			inst.Lock()
+			inst.mu.Lock()
 			if !inst.shutting {
 				delete(inst.streams, id)
 			}
-			inst.Unlock()
+			inst.mu.Unlock()
 		}
 
 		return
@@ -260,18 +260,18 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	// exit immediately, so just loop through and collect the states.
 
 	for _, id := range restored {
-		inst.Lock()
+		inst.mu.Lock()
 		s := inst.streams[id]
-		inst.Unlock()
+		inst.mu.Unlock()
 
 		// Errors would be I/O errors, but there is no connection.
 		_ = s.transfer(ctx, inst.Service, id, nil, nil, inst.send)
 
-		inst.Lock()
+		inst.mu.Lock()
 		if !inst.shutting {
 			delete(inst.streams, id)
 		}
-		inst.Unlock()
+		inst.mu.Unlock()
 	}
 }
 
@@ -310,9 +310,9 @@ func (inst *instance) Suspend() (output []byte) {
 }
 
 func (inst *instance) Shutdown() {
-	inst.Lock()
+	inst.mu.Lock()
 	inst.shutting = true
-	inst.Unlock()
+	inst.mu.Unlock()
 
 	if len(inst.pending) > 0 {
 		ctx, cancel := context.WithCancel(context.Background())
