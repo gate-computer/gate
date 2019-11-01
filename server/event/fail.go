@@ -22,8 +22,8 @@ const (
 	FailFunctionNotFound   = FailRequest_FUNCTION_NOT_FOUND
 	FailProgramError       = FailRequest_PROGRAM_ERROR
 	FailInstanceNotFound   = FailRequest_INSTANCE_NOT_FOUND
-	FailInstanceIdInvalid  = FailRequest_INSTANCE_ID_INVALID
-	FailInstanceIdExists   = FailRequest_INSTANCE_ID_EXISTS
+	FailInstanceIDInvalid  = FailRequest_INSTANCE_ID_INVALID
+	FailInstanceIDExists   = FailRequest_INSTANCE_ID_EXISTS
 	FailInstanceStatus     = FailRequest_INSTANCE_STATUS
 	FailInstanceNoConnect  = FailRequest_INSTANCE_NO_CONNECT
 	FailInstanceTransient  = FailRequest_INSTANCE_TRANSIENT

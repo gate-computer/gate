@@ -73,7 +73,7 @@ func (acc *account) unrefProgram(prog *program) {
 // checkUniqueInstanceID must be called with Server.lock held.
 func (acc *account) checkUniqueInstanceID(instID string) (err error) {
 	if _, exists := acc.instances[instID]; exists {
-		err = failrequest.New(event.FailInstanceIdExists, "duplicate instance id")
+		err = failrequest.New(event.FailInstanceIDExists, "duplicate instance id")
 	}
 	return
 }

@@ -34,7 +34,7 @@ func validateInstanceID(s string) error {
 		}
 	}
 
-	return failrequest.New(event.FailInstanceIdInvalid, "instance id must be an RFC 4122 UUID version 4")
+	return failrequest.New(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4")
 }
 
 func instanceStorageKey(acc *account, instID string) string {
