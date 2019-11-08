@@ -322,6 +322,4 @@ func (d *discoverer) Shutdown() {
 			inst.Shutdown()
 		}
 	}
-
-	return
 }

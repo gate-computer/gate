@@ -229,7 +229,6 @@ func (prog *program) unref() {
 		prog.image = nil
 		goruntime.KeepAlive(prog)
 	}
-	return
 }
 
 func (prog *program) ensureStorage() (err error) {

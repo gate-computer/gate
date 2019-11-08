@@ -24,7 +24,6 @@ import (
 	"github.com/tsavola/wag/wa"
 )
 
-const maxPacketSize = 65536
 const minSnapshotVersion = 0
 
 type Build struct {

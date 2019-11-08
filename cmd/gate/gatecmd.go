@@ -119,7 +119,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), mainUsageHead, flag.CommandLine.Name())
 		flag.PrintDefaults()
-		fmt.Fprintf(flag.CommandLine.Output(), mainUsageTail)
+		fmt.Fprint(flag.CommandLine.Output(), mainUsageTail)
 	}
 	flag.Usage = confi.FlagUsage(nil, c)
 	parseConfig(flag.CommandLine, c)

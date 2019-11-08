@@ -57,20 +57,6 @@ const (
 
 const shutdownTimeout = 15 * time.Second
 
-const (
-	// stdio, syslog, runtime, listener, debug, autocert (guess)
-	serverFileOverhead = 3 + 3 + 1 + 1 + 1 + 2
-
-	// executable, process with debug
-	forkFileOverhead = 1 + 6
-
-	// guess
-	pluginFileOverhead = 2
-
-	// conn
-	connFileOverhead = 1 + forkFileOverhead
-)
-
 var c = new(struct {
 	Runtime struct {
 		runtime.Config

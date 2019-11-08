@@ -54,15 +54,6 @@ func IsValidData(b []byte, c Code) bool {
 	return DataBuf(b).ID() >= 0
 }
 
-func isZeros(b []byte) bool {
-	for _, x := range b {
-		if x != 0 {
-			return false
-		}
-	}
-	return true
-}
-
 // ImportCall packet, validating it leniently.  The buffer is NOT copied.
 func ImportCall(b []byte, c Code) (p Buf, err error) {
 	if !isValidHeader(b, HeaderSize, c, DomainCall) {
