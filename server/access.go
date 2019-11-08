@@ -275,4 +275,4 @@ func (p *PublicAccess) AuthorizeProgramInstanceSource(_ context.Context, _ *prin
 	return nil
 }
 
-func (*PublicAccess) authorizer() {}
+func (p *PublicAccess) authorizer() {}

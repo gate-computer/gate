@@ -38,19 +38,19 @@ func NewReadState() *ReadState {
 	return &s
 }
 
-func (s ReadState) isMeaningful() bool {
+func (s *ReadState) isMeaningful() bool {
 	return len(s.Buffer) > 0
 }
 
 // Size of marshaled state.
-func (s ReadState) Size() (n int) {
+func (s *ReadState) Size() (n int) {
 	n += commonStateSize(s.Subscribed, len(s.Buffer))
 	n += len(s.Buffer)
 	return
 }
 
 // Marshal the state into a buffer.  len(b) must be at least s.Size().
-func (s ReadState) Marshal(dest []byte) (tail []byte) {
+func (s *ReadState) Marshal(dest []byte) (tail []byte) {
 	tail = marshalCommonStateHeader(dest, 0, s.Subscribed, len(s.Buffer))
 
 	copy(tail, s.Buffer)
@@ -110,19 +110,19 @@ func NewWriteState() *WriteState {
 	return &s
 }
 
-func (s WriteState) bufferSize() (n int) {
+func (s *WriteState) bufferSize() (n int) {
 	for _, b := range s.Buffers {
 		n += len(b)
 	}
 	return
 }
 
-func (s WriteState) isMeaningful() bool {
+func (s *WriteState) isMeaningful() bool {
 	return s.bufferSize() > 0 || s.Receiving
 }
 
 // Size of marshaled state.
-func (s WriteState) Size() (n int) {
+func (s *WriteState) Size() (n int) {
 	n += commonStateSize(s.Subscribed, s.bufferSize())
 
 	for _, b := range s.Buffers {
@@ -133,7 +133,7 @@ func (s WriteState) Size() (n int) {
 }
 
 // Marshal the state into a buffer.  len(b) must be at least s.Size().
-func (s WriteState) Marshal(dest []byte) (tail []byte) {
+func (s *WriteState) Marshal(dest []byte) (tail []byte) {
 	var flags uint8
 	if s.Receiving {
 		flags |= writeStateFlagReceiving
@@ -210,12 +210,12 @@ func NewStreamState() *StreamState {
 
 // IsMeaningful returns false if restoring a stream with this state would be
 // practically equivalent to having no stream at all.
-func (s StreamState) IsMeaningful() bool {
+func (s *StreamState) IsMeaningful() bool {
 	return s.Write.isMeaningful() || s.Read.isMeaningful() || s.Sending
 }
 
 // Size of marshaled state.
-func (s StreamState) Size() (n int) {
+func (s *StreamState) Size() (n int) {
 	n += 1 // Flags.
 	n += s.Read.Size()
 	n += s.Write.Size()
@@ -223,7 +223,7 @@ func (s StreamState) Size() (n int) {
 }
 
 // Marshal the state into a buffer.  len(b) must be at least s.Size().
-func (s StreamState) Marshal(dest []byte) (tail []byte) {
+func (s *StreamState) Marshal(dest []byte) (tail []byte) {
 	var flags uint8
 	if s.Sending {
 		flags |= streamStateFlagSending

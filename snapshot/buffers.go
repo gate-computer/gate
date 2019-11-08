@@ -12,8 +12,8 @@ const (
 
 // Terminated indicates that the program should not be resumed - it should only
 // be inspected for debugging purposes.
-func (f Flags) Terminated() bool { return f&FlagTerminated != 0 }
-func (f *Flags) SetTerminated()  { *f |= FlagTerminated }
+func (f *Flags) Terminated() bool { return *f&FlagTerminated != 0 }
+func (f *Flags) SetTerminated()   { *f |= FlagTerminated }
 
 // Service state representation.
 type Service struct {

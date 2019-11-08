@@ -144,7 +144,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 	b.Config.CustomSectionLoader = section.CustomLoader(b.Loaders)
 }
 
-func (b Build) ModuleConfig() *compile.ModuleConfig {
+func (b *Build) ModuleConfig() *compile.ModuleConfig {
 	return &compile.ModuleConfig{
 		Config: b.Config,
 	}
@@ -207,7 +207,7 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 	return
 }
 
-func (b Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
+func (b *Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
 	return &compile.CodeConfig{
 		Text:   b.Image.TextBuffer(),
 		Mapper: mapper,
@@ -338,7 +338,7 @@ func (b *Build) installLateStackLoader() {
 }
 
 // DataConfig is valid after FinishText.
-func (b Build) DataConfig() *compile.DataConfig {
+func (b *Build) DataConfig() *compile.DataConfig {
 	return &compile.DataConfig{
 		GlobalsMemory:   b.Image.GlobalsMemoryBuffer(),
 		MemoryAlignment: b.Image.MemoryAlignment(),

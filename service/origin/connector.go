@@ -63,9 +63,9 @@ func (cr *Connector) Close() (err error) {
 	return
 }
 
-func (*Connector) ServiceName() string               { return ServiceName }
-func (*Connector) ServiceVersion() string            { return ServiceVersion }
-func (*Connector) Discoverable(context.Context) bool { return true }
+func (cr *Connector) ServiceName() string               { return ServiceName }
+func (cr *Connector) ServiceVersion() string            { return ServiceVersion }
+func (cr *Connector) Discoverable(context.Context) bool { return true }
 
 func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig,
 ) service.Instance {

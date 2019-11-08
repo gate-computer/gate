@@ -40,7 +40,7 @@ func newWebsocketWriter(conn *websocket.Conn) *websocketWriter {
 	return &websocketWriter{conn}
 }
 
-func (*websocketWriter) SetHeader(key, value string) {}
+func (w *websocketWriter) SetHeader(key, value string) {}
 
 func (w *websocketWriter) Write(buf []byte) (n int, err error) {
 	err = w.conn.WriteMessage(websocket.BinaryMessage, buf)

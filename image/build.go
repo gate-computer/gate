@@ -280,7 +280,7 @@ func (b *Build) GlobalsMemoryBuffer() interface {
 }
 
 // MemoryAlignment of GlobalsMemoryBuffer.
-func (*Build) MemoryAlignment() int {
+func (b *Build) MemoryAlignment() int {
 	return internal.PageSize
 }
 

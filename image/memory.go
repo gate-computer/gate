@@ -36,7 +36,7 @@ func (mem) protectProgramFile(f *file.File) error {
 	return protectFileMemory(f, syscall.PROT_READ|syscall.PROT_EXEC)
 }
 
-func (mem) storeProgram(*Program, string) (_ error)           { return }
+func (mem) storeProgram(*Program, string) error               { return nil }
 func (mem) loadProgram(Storage, string) (_ *Program, _ error) { return }
 func (mem) LoadProgram(string) (_ *Program, _ error)          { return }
 
@@ -70,11 +70,11 @@ type persistMem struct {
 
 // PersistentMemory supports instance persistence by copying data to and from a
 // Filesystem.
-func PersistentMemory(storage *Filesystem) InstanceStorage { return persistMem{storage} }
-func (pmem persistMem) instanceBackend() interface{}       { return pmem }
-func (persistMem) newInstanceFile() (*file.File, error)    { return Memory.newInstanceFile() }
-func (persistMem) instanceFileWriteSupported() bool        { return Memory.instanceFileWriteSupported() }
-func (persistMem) storeInstanceSupported() bool            { return true }
+func PersistentMemory(storage *Filesystem) InstanceStorage   { return persistMem{storage} }
+func (pmem persistMem) instanceBackend() interface{}         { return pmem }
+func (pmem persistMem) newInstanceFile() (*file.File, error) { return Memory.newInstanceFile() }
+func (pmem persistMem) instanceFileWriteSupported() bool     { return Memory.instanceFileWriteSupported() }
+func (pmem persistMem) storeInstanceSupported() bool         { return true }
 
 func (pmem persistMem) storeInstance(inst *Instance, name string) (man manifest.Instance, err error) {
 	if inst.name != "" {
@@ -159,7 +159,7 @@ func (pmem persistMem) LoadInstance(name string, man manifest.Instance) (inst *I
 	return
 }
 
-func (persistMem) copyInstance(dest, src *file.File, man manifest.Instance) (err error) {
+func (pmem persistMem) copyInstance(dest, src *file.File, man manifest.Instance) (err error) {
 	o := int64(man.StackSize - man.StackUsage)
 	l := int64(man.StackUsage)
 

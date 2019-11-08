@@ -56,13 +56,13 @@ func (t *Threshold) Finish() {
 }
 
 // nonatomic is producer-side Current.
-func (t Threshold) nonatomic() uint32 {
+func (t *Threshold) nonatomic() uint32 {
 	return t.n
 }
 
 // Changed channel is unblocked after the threshold has been raised.  It is
 // closed by Finish.
-func (t Threshold) Changed() <-chan struct{} {
+func (t *Threshold) Changed() <-chan struct{} {
 	return t.c
 }
 

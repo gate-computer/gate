@@ -55,7 +55,7 @@ func NewBuffer(size int) *Buffer {
 	return &b
 }
 
-func (b Buffer) size() int {
+func (b *Buffer) size() int {
 	return len(b.buf)
 }
 
@@ -89,12 +89,12 @@ func (b *Buffer) Finish() {
 
 // EOF status can be queried before writing has been started or after it has
 // been finished.
-func (b Buffer) EOF() bool {
+func (b *Buffer) EOF() bool {
 	return b.eof
 }
 
 // endMoved channel will be closed after Finish.
-func (b Buffer) endMoved() (c <-chan struct{}) {
+func (b *Buffer) endMoved() (c <-chan struct{}) {
 	return b.produced.Changed()
 }
 
@@ -102,7 +102,7 @@ func (b *Buffer) unwrappedEnd() uint32 {
 	return b.produced.Current()
 }
 
-func (b Buffer) wrapRange(unwrappedBegin, unwrappedEnd uint32) (off, end int) {
+func (b *Buffer) wrapRange(unwrappedBegin, unwrappedEnd uint32) (off, end int) {
 	mask := uint32(len(b.buf)) - 1
 	off = int(unwrappedBegin & mask)
 	end = int(unwrappedEnd & mask)

@@ -76,7 +76,7 @@ func (s *Stream) Finish() {
 
 // EOF status can be queried before writing has been started or after it has
 // been finished.
-func (s Stream) EOF() bool {
+func (s *Stream) EOF() bool {
 	return s.writeBuf.EOF()
 }
 
