@@ -101,6 +101,14 @@ func MakeFlow(code Code, id int32, increment int32) Buf {
 	return Buf(b)
 }
 
+func MakeFlowEOF(code Code, id int32) Buf {
+	return MakeFlow(code, id, 0)
+}
+
+func MakeDataEOF(code Code, id int32) Buf {
+	return Buf(MakeData(code, id, 0))
+}
+
 // Code is the program instance-specific service identifier.
 func (b Buf) Code() Code {
 	return Code(binary.LittleEndian.Uint16(b[OffsetCode:]))
