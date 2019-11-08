@@ -13,7 +13,6 @@ import (
 
 	"github.com/tsavola/gate/internal/varint"
 	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/gate/packet/packetio"
 )
 
 const flagInCall = 1 << 0
@@ -77,27 +76,8 @@ func (inst *instance) restore(input []byte) (err error) {
 			return
 		}
 
-		var state packetio.StreamState
-
-		input, err = state.Unmarshal(input, inst.Service, inst.BufSize)
-		if err != nil {
-			return
-		}
-
-		// Discard data sent by the program as we won't restore the connection.
-		state.Write.Discard()
-
-		if state.Write.Subscribed > int32(inst.MaxSendSize) {
-			err = errors.New("origin service resumed subscription size is too large")
-			return
-		}
-		if len(state.Read.Buffer) > inst.MaxSendSize {
-			err = errors.New("origin service resumed stream packet buffer size exceeds maximum packet size")
-			return
-		}
-
 		s := newStream(inst.BufSize)
-		err = s.Restore(state)
+		input, err = s.Unmarshal(input, inst.Service)
 		if err != nil {
 			return
 		}
@@ -155,7 +135,15 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 			}
 			inst.mu.Unlock()
 
-			s.Subscribe(readable)
+			if readable > 0 {
+				if err := s.Subscribe(readable); err != nil {
+					panic(fmt.Errorf("TODO (%v)", err))
+				}
+			} else {
+				if err := s.SubscribeEOF(); err != nil {
+					panic(fmt.Errorf("TODO (%v)", err))
+				}
+			}
 
 			if !exist {
 				select {
@@ -175,11 +163,12 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		if s != nil {
 			if p.DataLen() > 0 {
 				if _, err := s.Write(p.Data()); err != nil {
-					panic(fmt.Sprintf("TODO (%v)", err))
+					panic(fmt.Errorf("TODO (%v)", err))
 				}
 			} else {
-				s.WriteEOF()
-				s.Finish()
+				if err := s.WriteEOF(); err != nil {
+					panic(fmt.Errorf("TODO (%v)", err))
+				}
 			}
 		} else {
 			panic("TODO")
@@ -241,7 +230,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 	return func(ctx context.Context, r io.Reader, w io.Writer) (err error) {
 		err = s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
-		if !s.state.IsMeaningful() {
+		if !s.Live() {
 			inst.mu.Lock()
 			if !inst.shutting {
 				delete(inst.streams, id)
@@ -292,7 +281,7 @@ func (inst *instance) Suspend() (output []byte) {
 
 	for id, s := range inst.streams {
 		size += varint.Len(id)
-		size += s.state.Size()
+		size += s.MarshaledSize()
 	}
 
 	output = make([]byte, size)
@@ -303,7 +292,7 @@ func (inst *instance) Suspend() (output []byte) {
 
 	for id, s := range inst.streams {
 		b = varint.Put(b, id)
-		b = s.state.Marshal(b)
+		b = s.Marshal(b)
 	}
 
 	return
@@ -314,23 +303,18 @@ func (inst *instance) Shutdown() {
 	inst.shutting = true
 	inst.mu.Unlock()
 
+	for _, s := range inst.streams {
+		s.Stop()
+	}
+
 	if len(inst.pending) > 0 {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // No defer; make transfer calls exit immediately.
-
 		for _, id := range inst.pending {
-			s := inst.streams[id]
-
-			// Errors would be I/O errors, but there is no connection.
-			_ = s.transfer(ctx, inst.Service, id, nil, nil, inst.send)
+			// Any error would be an I/O error, but there is no connection.
+			_ = inst.streams[id].transfer(context.Background(), inst.Service, id, nil, nil, inst.send)
 		}
 	}
 
 	for _, s := range inst.streams {
-		if !s.EOF() {
-			s.Finish()
-		}
-
-		<-s.done
+		<-s.stopped
 	}
 }

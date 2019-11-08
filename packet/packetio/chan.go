@@ -4,11 +4,9 @@
 
 package packetio
 
-import (
-	"github.com/tsavola/gate/packet"
-)
-
-var (
-	testService        = packet.Service{MaxSendSize: 65536, Code: 1234}
-	testStreamID int32 = 56789
-)
+func poke(c chan<- struct{}) {
+	select {
+	case c <- struct{}{}:
+	default:
+	}
+}

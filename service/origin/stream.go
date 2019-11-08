@@ -14,21 +14,19 @@ import (
 
 type stream struct {
 	packetio.Stream
-	state packetio.StreamState // State after tranfer.
-	done  chan struct{}        // Closed when state is available.
+	stopped chan struct{}
 }
 
-func newStream(bufSize int) *stream {
+func newStream(bufsize int) *stream {
 	return &stream{
-		Stream: packetio.MakeStream(bufSize),
-		done:   make(chan struct{}),
+		Stream:  packetio.MakeStream(bufsize),
+		stopped: make(chan struct{}),
 	}
 }
 
-func (s *stream) transfer(ctx context.Context, config packet.Service, streamID int32, r io.Reader, w io.Writer, output chan<- packet.Buf,
-) (err error) {
-	defer close(s.done)
-	s.state, err = s.Transfer(ctx, config, streamID, r, w, output)
-	s.state.Write.Discard() // We don't conserve connections.
-	return
+func (s *stream) transfer(ctx context.Context, config packet.Service, streamID int32, r io.Reader, w io.Writer, send chan<- packet.Buf) error {
+	defer close(s.stopped)
+	err := packetio.RWError(s.Transfer(ctx, config, streamID, r, w, send))
+	s.WriteStream.State.Data = nil // Connections are not conserved.
+	return err
 }

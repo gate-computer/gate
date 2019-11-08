@@ -6,122 +6,230 @@ package packetio
 
 import (
 	"context"
+	"errors"
 	"io"
+	"sync/atomic"
 
+	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/packet"
 )
 
-// ReadTo a service's data stream according to its flow.  A previously buffered
-// data packet may be supplied.  Buffer size is limited by config.MaxSendSize.
-// nil reader acts like a closed connection.  An EOF packet will NOT be sent
-// automatically.
+const errNegativeSubscription = badprogram.Err("stream flow increment is negative")
+
+// ReadStream is a unidirectional stream between a reader and a channel.
 //
-// Buffered state is returned if context is done.  Any read error is returned
-// (including EOF).  Context error is not returned.
-func ReadTo(ctx context.Context, config packet.Service, streamID int32, output chan<- packet.Buf, bufpacket packet.DataBuf, flow *Threshold, r io.Reader,
-) (ReadState, error) {
+// The channel side calls Subscribe, SubscribeEOF, and Stop.  The reader side
+// calls Transfer.
+//
+// State can be unmarshaled before subscription and transfer, and it can be
+// marshaled afterwards.
+type ReadStream struct {
+	State  State
+	wakeup chan struct{}
+}
+
+// MakeReadStream is useful for initializing a field.  Don't use multiple
+// copies of the value.
+func MakeReadStream() ReadStream {
+	return ReadStream{
+		State:  InitialState(),
+		wakeup: make(chan struct{}, 1),
+	}
+}
+
+// NewReadStream object.  Use MakeReadStream when embedding ReadStream in a
+// struct.
+func NewReadStream() *ReadStream {
+	s := MakeReadStream()
+	return &s
+}
+
+// Live state?
+//
+// The state is undefined during subscription or transfer.
+func (s *ReadStream) Live() bool {
+	return s.State.Live()
+}
+
+// Reading state?  When the stream is no longer in the reading state, reader
+// may be specified as nil in Transfer invocation.
+//
+// The state is undefined during transfer.
+func (s *ReadStream) Reading() bool {
+	return s.State.Flags&FlagReadWriting != 0
+}
+
+// Subscribe to more data.  Causes the concurrent transfer to read and send
+// data.
+func (s *ReadStream) Subscribe(increment int32) error {
+	if s.State.Flags&FlagSubscribing == 0 {
+		return errors.New("read stream already closed")
+	}
+
+	if increment < 0 {
+		return errNegativeSubscription
+	}
+
+	// The final wakeup channel poking is matched by at least one wakeup
+	// channel receive by Transfer before it loads the final subscription
+	// position.
+	s.State.Subscribed += uint32(increment)
+	poke(s.wakeup)
+	return nil
+}
+
+// SubscribeEOF signals that no more data will be subscribed to.
+func (s *ReadStream) SubscribeEOF() error {
+	if s.State.Flags&FlagSubscribing == 0 {
+		return errors.New("read stream already closed")
+	}
+
+	// This is the only Flags storer during the Transfer loop.  The Transfer
+	// loop ends either after it sees this mutation or the channel closure.
+	atomic.StoreUint32(&s.State.Flags, s.State.Flags&^FlagSubscribing)
+	poke(s.wakeup)
+	return nil
+}
+
+// Stop the transfer.  The subscribe methods must not be called after this.
+func (s *ReadStream) Stop() {
+	close(s.wakeup)
+}
+
+// Transfer data from a reader to a service's data stream according to
+// subscription.  Buffer size is limited by config.MaxSendSize.
+//
+// Read or context error is returned, excluding EOF.
+func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, streamID int32, send chan<- packet.Buf, r io.Reader) error {
 	var (
-		wakeup   = flow.Changed()
-		limit    = flow.Current()
-		read     uint32
-		buflimit int
+		err     error
+		done    = ctx.Done() // Read side cancellation.
+		readpos uint32       // Relative to Subscribed.  Wraps around.
+		pkt     packet.Buf
 	)
 
-	if len(bufpacket) != 0 {
-		buflimit = len(bufpacket) - packet.DataHeaderSize
-		read = uint32(buflimit)
-	} else {
-		bufpacket = nil
+	if s.State.Flags&FlagReadWriting == 0 {
+		r = nil
+	}
+	if s.State.Flags&FlagSendReceiving == 0 {
+		send = nil
+	}
+	if send == nil && r != nil {
+		panic("reading without sending")
 	}
 
-	var err error
-	if r == nil {
-		err = io.EOF
+	if len(s.State.Data) != 0 {
+		b := packet.MakeData(config.Code, streamID, len(s.State.Data))
+		copy(b.Data(), s.State.Data)
+		pkt = packet.Buf(b)
+		s.State.Data = nil // Don't keep reference to snapshot buffer.
 	}
 
-loop:
-	for {
-		sendable := (len(bufpacket) > packet.DataHeaderSize)
-		if !sendable {
-			if r == nil {
-				break
-			}
-			if wakeup == nil && read == limit {
-				break
+	// The loop accesses Flags and Subscribed fields nonatomically, but wakeup
+	// channel reception makes sure that it sees mutations and makes progress.
+	for send != nil || s.State.Flags&FlagSubscribing != 0 {
+		var sending chan<- packet.Buf
+
+		if send != nil {
+			if len(pkt) > packet.DataHeaderSize {
+				sending = send
+			} else if r == nil {
+				if pkt == nil {
+					pkt = packet.MakeDataEOF(config.Code, streamID)
+				}
+				sending = send
 			}
 		}
 
-		if sendable || read == limit {
-			var outC chan<- packet.Buf
-			var outP packet.Buf
-
-			if sendable {
-				outP = packet.Buf(bufpacket)
-				outC = output
-			}
-
+		if sending != nil || r == nil || readpos == s.State.Subscribed {
 			select {
-			case outC <- outP:
-				bufpacket = nil
-
-			case _, ok := <-wakeup:
-				if !ok {
-					wakeup = nil
-					break
+			case sending <- pkt:
+				pkt = nil
+				if r == nil {
+					send = nil
 				}
 
-			case <-ctx.Done():
-				break loop
+			case _, ok := <-s.wakeup:
+				if !ok {
+					goto stopped
+				}
+
+			case <-done:
+				err = ctx.Err()
+				done = nil
+				r = nil
+			}
+
+			if sending != nil && pkt != nil {
+				continue // Try to send again.
+			}
+		} else {
+			select {
+			case _, ok := <-s.wakeup:
+				if !ok {
+					goto stopped
+				}
+
+			case <-done:
+				err = ctx.Err()
+				done = nil
+				r = nil
+
+			default: // No blocking.
 			}
 		}
 
 		if r != nil {
-			limit = flow.Current()
-
-			if recv := limit - read; recv != 0 {
-				off := len(bufpacket)
-				if off == 0 {
-					off = packet.DataHeaderSize
+			if subs := s.State.Subscribed - readpos; subs != 0 {
+				n := config.MaxSendSize - packet.DataHeaderSize
+				if uint32(n) > subs {
+					n = int(subs)
 				}
 
-				if space := config.MaxSendSize - off; recv > uint32(space) {
-					recv = uint32(space)
-				}
-
-				size := off + int(recv)
-
-				switch {
-				case bufpacket == nil:
-					if int(recv) > buflimit {
-						buflimit = int(recv)
-					}
-					bufpacket = packet.MakeData(config.Code, streamID, buflimit)[:packet.DataHeaderSize]
-
-				case cap(bufpacket) < size:
-					b := make(packet.DataBuf, off, size)
-					copy(b, bufpacket)
-					bufpacket = b
-				}
-
-				var n int
-				n, err = r.Read(bufpacket[off:size])
-				bufpacket = bufpacket[:off+n]
-				read += uint32(n)
+				b := packet.MakeData(config.Code, streamID, n)
+				n, err = r.Read(b.Data())
+				pkt, _ = b.Split(n)
+				readpos += uint32(n)
 				if err != nil {
 					r = nil
+					done = nil
+					if err == io.EOF {
+						err = nil
+					}
 				}
+			} else if s.State.Flags&FlagSubscribing == 0 {
+				// Subscriber side has requested read stream closure, and more
+				// data cannot be read.  Synthesize EOF to acknowledge.
+				r = nil
+				done = nil
 			}
 		}
 	}
 
-	if len(bufpacket) == packet.DataHeaderSize {
-		bufpacket = nil
+	// Make sure that the final Flags and Subscribed values are seen.
+	select {
+	case <-s.wakeup:
+	default:
 	}
 
-	suspended := ReadState{
-		Buffer:     bufpacket,
-		Subscribed: int32(limit - read),
+stopped:
+	// Update flags tracked by this side.
+	flags := s.State.Flags &^ (FlagReadWriting | FlagSendReceiving)
+	if r != nil {
+		flags |= FlagReadWriting
+	}
+	if send != nil {
+		flags |= FlagSendReceiving
+	}
+	s.State.Flags = flags
+
+	// Normalize subscription position.
+	s.State.Subscribed -= readpos
+
+	// Buffered data.
+	if len(pkt) > packet.DataHeaderSize {
+		s.State.Data = pkt[packet.DataHeaderSize:]
 	}
 
-	return suspended, err
+	return err
 }
