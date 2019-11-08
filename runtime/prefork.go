@@ -11,23 +11,23 @@ import (
 
 var errProcessChanClosed = errors.New("process preparation loop terminated")
 
-type ProcessErr struct {
-	Proc *Process
-	Err  error
+type ResultProcess struct {
+	Process *Process
+	Err     error
 }
 
-type ProcessChan <-chan ProcessErr
+type ProcessChan <-chan ResultProcess
 
 // PrepareProcesses in advance.
 func PrepareProcesses(ctx context.Context, f ProcessFactory, bufsize int) ProcessChan {
-	c := make(chan ProcessErr, bufsize-1)
+	c := make(chan ResultProcess, bufsize-1)
 
 	go func() {
 		defer func() {
 			close(c)
 			for x := range c {
 				if x.Err == nil {
-					x.Proc.Kill()
+					x.Process.Kill()
 				}
 			}
 		}()
@@ -36,7 +36,7 @@ func PrepareProcesses(ctx context.Context, f ProcessFactory, bufsize int) Proces
 			p, err := f.NewProcess(ctx)
 
 			select {
-			case c <- ProcessErr{p, err}:
+			case c <- ResultProcess{p, err}:
 
 			case <-ctx.Done():
 				if err == nil {
@@ -50,7 +50,7 @@ func PrepareProcesses(ctx context.Context, f ProcessFactory, bufsize int) Proces
 	return ProcessChan(c)
 }
 
-func (c ProcessChan) NewProcess(ctx context.Context) (proc *Process, err error) {
+func (c ProcessChan) NewProcess(ctx context.Context) (*Process, error) {
 	select {
 	case x, ok := <-c:
 		if !ok {
@@ -63,7 +63,7 @@ func (c ProcessChan) NewProcess(ctx context.Context) (proc *Process, err error) 
 			}
 		}
 
-		return x.Proc, x.Err
+		return x.Process, x.Err
 
 	case <-ctx.Done():
 		return nil, ctx.Err()

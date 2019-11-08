@@ -15,7 +15,7 @@ func DistributeProcesses(executors ...ProcessFactory) ProcessFactory {
 		return executors[0]
 	}
 
-	cs := chanSharder{make([]<-chan ProcessErr, 0, len(executors))}
+	cs := chanSharder{make([]<-chan ResultProcess, 0, len(executors))}
 
 	for _, x := range executors {
 		if c, ok := x.(ProcessChan); ok {
@@ -37,7 +37,7 @@ func (s sharder) NewProcess(ctx context.Context) (*Process, error) {
 }
 
 type chanSharder struct {
-	channels []<-chan ProcessErr
+	channels []<-chan ResultProcess
 }
 
 func (cs chanSharder) NewProcess(ctx context.Context) (*Process, error) {
@@ -66,7 +66,7 @@ func (cs chanSharder) NewProcess(ctx context.Context) (*Process, error) {
 				}
 			}
 
-			return x.Proc, x.Err
+			return x.Process, x.Err
 
 		default:
 			if unseen == nil {
