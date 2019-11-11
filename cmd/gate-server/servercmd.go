@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-systemd/daemon"
+	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/image"

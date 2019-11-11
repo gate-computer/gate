@@ -12,8 +12,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/coreos/go-systemd/activation"
-	"github.com/coreos/go-systemd/daemon"
+	"github.com/coreos/go-systemd/v22/activation"
+	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/internal/runtimeapi"
 	"github.com/tsavola/gate/runtime"

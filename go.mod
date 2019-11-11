@@ -6,7 +6,7 @@ require (
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
-	github.com/coreos/go-systemd v0.0.0-20180509093606-65cc0ad82617
+	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/handlers v1.2.1
