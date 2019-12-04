@@ -8,7 +8,8 @@ import (
 	"encoding/binary"
 )
 
-// Code represents the source or destination of a packet.
+// Code represents the source or destination of a packet.  It is specific to a
+// program instance.
 type Code int16
 
 const (
@@ -77,7 +78,7 @@ func Align(length int) int {
 	return (length + (Alignment - 1)) &^ (Alignment - 1)
 }
 
-// Buf holds a packet.
+// Buf holds a packet of at least HeaderSize bytes.
 type Buf []byte
 
 func Make(code Code, domain Domain, packetSize int) Buf {
@@ -109,7 +110,24 @@ func MakeDataEOF(code Code, id int32) Buf {
 	return Buf(MakeData(code, id, 0))
 }
 
-// Code is the program instance-specific service identifier.
+// MustBeCall panicks if b is not in the call domain.  The value is passed
+// through.
+func MustBeCall(b Buf) Buf {
+	if len(b) < HeaderSize || b.Domain() != DomainCall {
+		panic("not a call packet")
+	}
+	return b
+}
+
+// MustBeInfo panicks if b is not in the info domain.  The value is passed
+// through.
+func MustBeInfo(b Buf) Buf {
+	if len(b) < HeaderSize || b.Domain() != DomainInfo {
+		panic("not an info packet")
+	}
+	return b
+}
+
 func (b Buf) Code() Code {
 	return Code(binary.LittleEndian.Uint16(b[OffsetCode:]))
 }
@@ -146,38 +164,63 @@ func (b Buf) Split(headerSize, prefixLen int) (prefix, unused Buf) {
 	return
 }
 
-// FlowBuf holds a flow packet.
+// FlowBuf holds a flow packet of at least FlowHeaderSize bytes.
 type FlowBuf Buf
 
 func MakeFlows(code Code, count int) FlowBuf {
-	b := Make(code, DomainFlow, FlowHeaderSize+count*flowSize)
+	return FlowBuf(Make(code, DomainFlow, FlowHeaderSize+count*flowSize))
+}
+
+// MustBeFlow panicks if b is not in the flow domain.  The value is passed
+// through.
+func MustBeFlow(b Buf) FlowBuf {
+	if len(b) < FlowHeaderSize || b.Domain() != DomainFlow {
+		panic("not a flow packet")
+	}
 	return FlowBuf(b)
+}
+
+func (b FlowBuf) Code() Code {
+	return Buf(b).Code()
 }
 
 func (b FlowBuf) Num() int {
 	return (len(b) - FlowHeaderSize) / flowSize
 }
 
-func (b FlowBuf) Get(i int) (id int32, increment int32) {
+func (b FlowBuf) Get(i int) (id, increment int32) {
 	flow := b[FlowHeaderSize+i*flowSize:]
 	id = int32(binary.LittleEndian.Uint32(flow[flowOffsetID:]))
 	increment = int32(binary.LittleEndian.Uint32(flow[flowOffsetIncrement:]))
 	return
 }
 
-func (b FlowBuf) Set(i int, id int32, increment int32) {
+func (b FlowBuf) Set(i int, id, increment int32) {
 	flow := b[FlowHeaderSize+i*flowSize:]
 	binary.LittleEndian.PutUint32(flow[flowOffsetID:], uint32(id))
 	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], uint32(increment))
 }
 
-// DataBuf holds a data packet.
+// DataBuf holds a data packet of at least DataHeaderSize bytes.
 type DataBuf Buf
 
 func MakeData(code Code, id int32, dataSize int) DataBuf {
 	b := Make(code, DomainData, DataHeaderSize+dataSize)
 	binary.LittleEndian.PutUint32(b[OffsetDataID:], uint32(id))
 	return DataBuf(b)
+}
+
+// MustBeData panicks if b is not in the data domain.  The value is passed
+// through.
+func MustBeData(b Buf) DataBuf {
+	if len(b) < DataHeaderSize || b.Domain() != DomainData {
+		panic("not a data packet")
+	}
+	return DataBuf(b)
+}
+
+func (b DataBuf) Code() Code {
+	return Buf(b).Code()
 }
 
 func (b DataBuf) ID() int32 {
