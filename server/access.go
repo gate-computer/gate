@@ -18,7 +18,7 @@ const (
 	DefaultMaxProcs          = 4
 	DefaultTotalStorageSize  = 256 * 1024 * 1024
 	DefaultTotalResidentSize = 64 * 1024 * 1024
-	DefaultMaxModuleSize     = 16 * 1024 * 1024
+	DefaultMaxModuleSize     = 32 * 1024 * 1024
 	DefaultMaxTextSize       = 16 * 1024 * 1024
 	DefaultMaxMemorySize     = 32 * 1024 * 1024
 	DefaultStackSize         = wa.PageSize
