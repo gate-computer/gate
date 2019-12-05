@@ -3,7 +3,8 @@
 Run untrusted code from anonymous sources.  Instead of sending messages
 composed of passive data, send programs which can react to their environment.
 Migrate or duplicate running applications across hosts and computer
-architectures.  Gate is a toolkit which aims to enable such things.
+architectures.
+See [Introduction to Gate](https://savo.la/introduction-to-gate.html).
 
 - License: [3-clause BSD](LICENSE)
 - Author: Timo Savola <timo.savola@iki.fi>
