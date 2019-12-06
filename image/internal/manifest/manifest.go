@@ -21,18 +21,13 @@ func (man *Program) InitEntryFuncs(mod compile.Module, funcAddrs []uint32) {
 	sigIndexes := mod.FuncTypeIndexes()
 
 	for name, funcIndex := range mod.ExportFuncs() {
-		if name == "_start" {
-			continue
-		}
-
 		sigIndex := sigIndexes[funcIndex]
 		sig := sigs[sigIndex]
-		if !binding.IsEntryFuncType(sig) {
-			continue
-		}
 
-		man.EntryIndexes[name] = funcIndex
-		man.EntryAddrs[funcIndex] = funcAddrs[funcIndex]
+		if binding.IsEntryFuncType(sig) {
+			man.EntryIndexes[name] = funcIndex
+			man.EntryAddrs[funcIndex] = funcAddrs[funcIndex]
+		}
 	}
 }
 
