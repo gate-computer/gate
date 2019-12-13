@@ -86,8 +86,46 @@ static int discover(int16_t *origin_code, int16_t *test_code)
 	return 0;
 }
 
-static int accept_stream(int16_t origin_code, int32_t id, int32_t accept_flow)
+static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *send_flow)
 {
+	struct gate_packet accept = {
+		.size = sizeof accept,
+		.code = origin_code,
+		.domain = GATE_PACKET_DOMAIN_CALL,
+	};
+
+	send(&accept, sizeof accept);
+
+	int32_t id = -1;
+	while (1) {
+		struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
+
+		if (packet->code != origin_code) {
+			__gate_debug_str("error: expected packet from origin\n");
+			return -1;
+		}
+
+		if (packet->domain != GATE_PACKET_DOMAIN_CALL) {
+			__gate_debug_str("error: expected accept call reply from origin\n");
+			return -1;
+		}
+
+		struct GATE_PACKED {
+			struct gate_packet header;
+			int32_t id;
+			int32_t error;
+		} *reply;
+
+		if (packet->size != sizeof *reply) {
+			__gate_debug_str("error: accept call reply has unexpected size\n");
+			return -1;
+		}
+
+		reply = (void *) packet;
+		id = reply->id;
+		break;
+	}
+
 	struct {
 		struct gate_flow_packet header;
 		struct gate_flow flows[1];
@@ -102,7 +140,7 @@ static int accept_stream(int16_t origin_code, int32_t id, int32_t accept_flow)
 		.flows = {
 			{
 				.id = id,
-				.increment = accept_flow,
+				.increment = recv_flow,
 			},
 		},
 	};
@@ -139,8 +177,10 @@ static int accept_stream(int16_t origin_code, int32_t id, int32_t accept_flow)
 
 		for (int i = 0; i < count; i++) {
 			struct gate_flow *flow = &flow_packet->flows[i];
-			if (flow->id == id)
-				return flow->increment;
+			if (flow->id == id) {
+				*send_flow = flow->increment;
+				return id;
+			}
 		}
 
 		__gate_debug_str("stream not found in flow packet, waiting for another\n");
@@ -224,11 +264,12 @@ int greet(void)
 		return 1;
 	}
 
-	int flow = accept_stream(origin_code, 0, 0);
-	if (flow < 0)
+	int flow;
+	int32_t id = accept_stream(origin_code, 0, &flow);
+	if (id < 0)
 		return 1;
 
-	if (send_hello(origin_code, 0, &flow) == 0)
+	if (send_hello(origin_code, id, &flow) == 0)
 		return 0;
 
 	return 1;
@@ -247,12 +288,13 @@ int twice(void)
 		return 1;
 	}
 
-	int flow = accept_stream(origin_code, 0, 0);
-	if (flow < 0)
+	int flow;
+	int32_t id = accept_stream(origin_code, 0, &flow);
+	if (id < 0)
 		return 1;
 
-	if (send_hello(origin_code, 0, &flow) == 0)
-		if (send_hello(origin_code, 0, &flow) == 0)
+	if (send_hello(origin_code, id, &flow) == 0)
+		if (send_hello(origin_code, id, &flow) == 0)
 			return 0;
 
 	return 1;
@@ -271,11 +313,12 @@ void multi(void)
 		gate_exit(1);
 	}
 
-	for (int32_t id = 0;; id++) {
+	while (1) {
 		gate_debug("multi: accepting stream\n");
 
-		int flow = accept_stream(origin_code, id, 0);
-		if (flow < 0)
+		int flow;
+		int32_t id = accept_stream(origin_code, 0, &flow);
+		if (id < 0)
 			gate_exit(1);
 
 		gate_debug("multi: greeting connection\n");
@@ -300,14 +343,15 @@ int repl(void)
 		return 1;
 	}
 
-	int flow = accept_stream(origin_code, 0, 4096);
-	if (flow < 0)
+	int flow;
+	int32_t id = accept_stream(origin_code, 4096, &flow);
+	if (id < 0)
 		return 1;
 
 	gate_debug("repl: connection accepted\n");
 
 	while (1)
-		switch (read_command(origin_code, 0)) {
+		switch (read_command(origin_code, id)) {
 		case -1:
 			return 1;
 
@@ -316,7 +360,7 @@ int repl(void)
 
 		default:
 			gate_debug("repl: command\n");
-			if (send_hello(origin_code, 0, &flow) < 0)
+			if (send_hello(origin_code, id, &flow) < 0)
 				return 1;
 		}
 }

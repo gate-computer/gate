@@ -6,6 +6,7 @@ package origin
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -15,37 +16,37 @@ import (
 	"github.com/tsavola/gate/packet"
 )
 
-const flagInCall = 1 << 0
-
 type instance struct {
 	Config
 	packet.Service
 
-	accept chan struct{}     // Pending streams may have changed.
-	send   chan<- packet.Buf // Send packets to the user program.
-	inCall bool              // User program's call is missing a response.
-
-	mu       sync.Mutex        // Protects the fields below.
-	streams  map[int32]*stream // Don't mutate when shutting down.
-	pending  []int32           // Don't mutate when shutting down.
-	shutting bool              // The user program is being shut down.
+	send      chan<- packet.Buf // Send packets to the user program.
+	wakeup    chan struct{}     // accepting, replying or shutting changed.
+	mu        sync.Mutex        // Protects the fields below.
+	streams   map[int32]*stream
+	accepting int32
+	replying  bool
+	shutting  bool
+	notify    sync.Cond // replying unset while shutting.
 }
 
-func makeInstance(config Config) instance {
-	return instance{
-		Config: config,
-		accept: make(chan struct{}, 1),
+func makeInstance(config Config) (inst instance) {
+	inst = instance{
+		Config:  config,
+		Service: packet.Service{Code: -1},
+		wakeup:  make(chan struct{}, 1),
+		streams: make(map[int32]*stream),
 	}
+	inst.notify.L = &inst.mu
+	return
 }
 
 // init is invoked by Connector when the program instance is starting.
 func (inst *instance) init(service packet.Service) {
-	if inst.streams != nil {
+	if inst.Service.Code >= 0 {
 		panic("origin instance reused")
 	}
-
 	inst.Service = service
-	inst.streams = make(map[int32]*stream)
 }
 
 // restore is invoked by Connector when the program instance is being resumed.
@@ -54,12 +55,20 @@ func (inst *instance) restore(input []byte) (err error) {
 		return
 	}
 
-	flags, input, err := varint.Scan(input)
+	inst.accepting, input, err = varint.Scan(input)
 	if err != nil {
 		return
 	}
+	if inst.accepting < 0 {
+		// TODO
+	}
+	if inst.accepting > 0 {
+		poke(inst.wakeup)
+	}
 
-	inst.inCall = flags&flagInCall != 0
+	if len(input) == 0 {
+		return
+	}
 
 	numStreams, input, err := varint.Scan(input)
 	if err != nil {
@@ -98,15 +107,13 @@ func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
 	}
 
 	// All streams at this point are restored ones.
-	restored := make([]int32, 0, len(inst.streams))
-	for id := range inst.streams {
-		restored = append(restored, id)
-	}
+	if len(inst.streams) > 0 {
+		restored := make([]int32, 0, len(inst.streams))
+		for id := range inst.streams {
+			restored = append(restored, id)
+		}
 
-	go inst.drainRestored(ctx, restored)
-
-	if inst.inCall {
-		inst.respondToCall(ctx)
+		go inst.drainRestored(ctx, restored)
 	}
 }
 
@@ -117,38 +124,40 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 
 	switch p.Domain() {
 	case packet.DomainCall:
-		inst.inCall = true
-		inst.respondToCall(ctx)
+		var ok bool
+
+		inst.mu.Lock()
+		if n := inst.accepting + 1; n > 0 {
+			inst.accepting = n
+			ok = true
+		}
+		inst.mu.Unlock()
+		if !ok {
+			panic("TODO: too many simultaneous origin accept calls")
+		}
+
+		poke(inst.wakeup)
 
 	case packet.DomainFlow:
 		p := packet.FlowBuf(p)
 
 		for i := 0; i < p.Num(); i++ {
-			id, readable := p.Get(i)
+			id, increment := p.Get(i)
 
 			inst.mu.Lock()
-			s, exist := inst.streams[id]
-			if !exist {
-				s = newStream(inst.BufSize)
-				inst.streams[id] = s
-				inst.pending = append(inst.pending, id)
-			}
+			s := inst.streams[id]
 			inst.mu.Unlock()
+			if s == nil {
+				panic("TODO: stream not found")
+			}
 
-			if readable > 0 {
-				if err := s.Subscribe(readable); err != nil {
+			if increment != 0 {
+				if err := s.Subscribe(increment); err != nil {
 					panic(fmt.Errorf("TODO (%v)", err))
 				}
 			} else {
 				if err := s.SubscribeEOF(); err != nil {
 					panic(fmt.Errorf("TODO (%v)", err))
-				}
-			}
-
-			if !exist {
-				select {
-				case inst.accept <- struct{}{}:
-				default:
 				}
 			}
 		}
@@ -159,54 +168,43 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		inst.mu.Lock()
 		s := inst.streams[p.ID()]
 		inst.mu.Unlock()
-
-		if s != nil {
-			if p.DataLen() > 0 {
-				if _, err := s.Write(p.Data()); err != nil {
-					panic(fmt.Errorf("TODO (%v)", err))
-				}
-			} else {
-				if err := s.WriteEOF(); err != nil {
-					panic(fmt.Errorf("TODO (%v)", err))
-				}
-			}
-		} else {
-			panic("TODO")
+		if s == nil {
+			panic("TODO: stream not found")
 		}
 
-	default:
-		panic("TODO")
-	}
-}
-
-func (inst *instance) respondToCall(ctx context.Context) {
-	select {
-	case inst.send <- packet.MakeCall(inst.Code, 0):
-		inst.inCall = false
-
-	case <-ctx.Done():
-		return
+		if p.DataLen() != 0 {
+			if _, err := s.Write(p.Data()); err != nil {
+				panic(fmt.Errorf("TODO (%v)", err))
+			}
+		} else {
+			if err := s.WriteEOF(); err != nil {
+				panic(fmt.Errorf("TODO (%v)", err))
+			}
+		}
 	}
 }
 
 func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{},
 ) func(context.Context, io.Reader, io.Writer) error {
-	var pend int
-	var id int32
-	var s *stream
+	var (
+		id int32
+		s  *stream
+	)
 
 	for s == nil {
 		select {
-		case <-inst.accept:
+		case <-inst.wakeup:
 			inst.mu.Lock()
 			shut := inst.shutting
-			pend = len(inst.pending)
-			if !shut && pend > 0 {
-				id = inst.pending[0]
-				s = inst.streams[id]
-				inst.pending = inst.pending[1:]
+			if inst.accepting > 0 && !inst.replying && !shut {
+				for id = 0; inst.streams[id] != nil; id++ {
+				}
+				s = newStream(inst.BufSize)
+				inst.streams[id] = s
+				inst.replying = true
 			}
 			inst.mu.Unlock()
+
 			if shut {
 				return nil
 			}
@@ -219,16 +217,49 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		}
 	}
 
-	// Pay it forward in case there was more.
-	if pend > 1 {
+	reply := packet.MakeCall(inst.Code, 8)
+	binary.LittleEndian.PutUint32(reply.Content(), uint32(id))
+
+	var cancel bool
+
+	for reply != nil && !cancel {
 		select {
-		case inst.accept <- struct{}{}:
-		default:
+		case inst.send <- reply:
+			reply = nil
+
+		case <-inst.wakeup:
+			inst.mu.Lock()
+			cancel = inst.shutting
+			inst.mu.Unlock()
+
+		case <-connectorClosed:
+			cancel = true
+
+		case <-ctx.Done():
+			cancel = true
 		}
 	}
 
-	return func(ctx context.Context, r io.Reader, w io.Writer) (err error) {
-		err = s.transfer(ctx, inst.Service, id, r, w, inst.send)
+	inst.mu.Lock()
+	if cancel {
+		delete(inst.streams, id)
+	} else {
+		inst.accepting--
+	}
+	inst.replying = false
+	if inst.shutting {
+		inst.notify.Broadcast()
+	}
+	inst.mu.Unlock()
+
+	poke(inst.wakeup)
+
+	if cancel {
+		return nil
+	}
+
+	return func(ctx context.Context, r io.Reader, w io.Writer) error {
+		err := s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
 		if !s.Live() {
 			inst.mu.Lock()
@@ -238,7 +269,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 			inst.mu.Unlock()
 		}
 
-		return
+		return err
 	}
 }
 
@@ -267,32 +298,28 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 func (inst *instance) Suspend() (output []byte) {
 	inst.Shutdown()
 
-	var flags int32
-	if inst.inCall {
-		flags |= flagInCall
-	}
-
-	if flags == 0 && len(inst.streams) == 0 {
+	numStreams := int32(len(inst.streams))
+	if inst.accepting == 0 && numStreams == 0 {
 		return
 	}
 
-	size := 1 // Flags.
-	size += varint.Len(int32(len(inst.streams)))
-
-	for id, s := range inst.streams {
-		size += varint.Len(id)
-		size += s.MarshaledSize()
+	size := varint.Len(inst.accepting)
+	if numStreams > 0 {
+		size += varint.Len(numStreams)
+		for id, s := range inst.streams {
+			size += varint.Len(id)
+			size += s.MarshaledSize()
+		}
 	}
 
 	output = make([]byte, size)
-
-	b := output
-	b = varint.Put(b, flags)
-	b = varint.Put(b, int32(len(inst.streams)))
-
-	for id, s := range inst.streams {
-		b = varint.Put(b, id)
-		b = s.Marshal(b)
+	b := varint.Put(output, inst.accepting)
+	if numStreams > 0 {
+		b = varint.Put(b, numStreams)
+		for id, s := range inst.streams {
+			b = varint.Put(b, id)
+			b = s.Marshal(b)
+		}
 	}
 
 	return
@@ -301,19 +328,16 @@ func (inst *instance) Suspend() (output []byte) {
 func (inst *instance) Shutdown() {
 	inst.mu.Lock()
 	inst.shutting = true
+	for inst.replying {
+		inst.notify.Wait()
+	}
 	inst.mu.Unlock()
+
+	poke(inst.wakeup)
 
 	for _, s := range inst.streams {
 		s.Stop()
 	}
-
-	if len(inst.pending) > 0 {
-		for _, id := range inst.pending {
-			// Any error would be an I/O error, but there is no connection.
-			_ = inst.streams[id].transfer(context.Background(), inst.Service, id, nil, nil, inst.send)
-		}
-	}
-
 	for _, s := range inst.streams {
 		<-s.stopped
 	}

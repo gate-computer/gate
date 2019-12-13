@@ -23,6 +23,8 @@ import (
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
+	"github.com/tsavola/gate/service"
+	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
@@ -80,28 +82,34 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 	d := new(serviceDiscoverer)
 
 	go func() {
-		var originInit bool
+		var originInstance service.Instance
 
-		for op := range recv {
-			code := op.Code()
-
+		for p := range recv {
 			d.nameLock.Lock()
-			name := d.names[code]
+			name := d.names[p.Code()]
 			d.nameLock.Unlock()
 
 			switch name {
 			case "origin":
-				if !originInit {
-					send <- packet.MakeFlow(op.Code(), 0, 100000)
-					originInit = true
+				if originInstance == nil {
+					connector := origin.New(origin.Config{})
+					go func() {
+						defer connector.Close()
+						if f := connector.Connect(context.Background()); f != nil {
+							f(context.Background(), bytes.NewReader(nil), services.origin)
+						}
+					}()
+
+					originInstance = connector.CreateInstance(ctx, service.InstanceConfig{
+						Service: packet.Service{
+							Code:        p.Code(),
+							MaxSendSize: config.MaxSendSize,
+						},
+					})
+					defer originInstance.Shutdown()
 				}
 
-				switch op.Domain() {
-				case packet.DomainData:
-					if _, err := services.origin.Write(packet.DataBuf(op).Data()); err != nil {
-						panic(err)
-					}
-				}
+				originInstance.Handle(ctx, send, p)
 			}
 		}
 	}()
