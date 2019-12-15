@@ -539,7 +539,7 @@ func loadModule(filename string) (b *bytes.Buffer, key string, err error) {
 }
 
 func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Status, resp *http.Response, err error) {
-	u, err := makeURL(uri, params)
+	u, err := makeURL(uri, params, req.Body != nil)
 	if err != nil {
 		return
 	}
@@ -584,15 +584,29 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	return
 }
 
-func makeURL(uri string, params url.Values) (u *url.URL, err error) {
+func makeURL(uri string, params url.Values, prelocate bool,
+) (u *url.URL, err error) {
 	addr := c.Address
 	if !strings.Contains(addr, "://") {
 		addr = "https://" + addr
 	}
 
-	u, err = url.Parse(addr + uri)
-	if err != nil {
-		return
+	if prelocate {
+		var resp *http.Response
+
+		resp, err = http.Head(addr + webapi.Path)
+		if err != nil {
+			return
+		}
+		resp.Body.Close()
+
+		u = resp.Request.URL
+		u.Path = u.Path + strings.Replace(uri, webapi.Path, "", 1)
+	} else {
+		u, err = url.Parse(addr + uri)
+		if err != nil {
+			return
+		}
 	}
 
 	u.RawQuery = params.Encode()
@@ -600,7 +614,7 @@ func makeURL(uri string, params url.Values) (u *url.URL, err error) {
 }
 
 func makeWebsocketURL(uri string, params url.Values) (u *url.URL, err error) {
-	u, err = makeURL(uri, params)
+	u, err = makeURL(uri, params, true)
 	if err != nil {
 		return
 	}
