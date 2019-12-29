@@ -37,8 +37,8 @@ func NewRuntimeConfig() (c *RuntimeConfig) {
 	return
 }
 
-func (c *RuntimeConfig) GetMaxProcesses() int32  { return int32(c.c.MaxProcesses) }
-func (c *RuntimeConfig) SetMaxProcesses(n int32) { c.c.MaxProcesses = int(n) }
+func (c *RuntimeConfig) GetMaxProcs() int32      { return int32(c.c.MaxProcs) }
+func (c *RuntimeConfig) SetMaxProcs(n int32)     { c.c.MaxProcs = int(n) }
 func (c *RuntimeConfig) GetNoNamespaces() bool   { return c.c.NoNamespaces }
 func (c *RuntimeConfig) SetNoNamespaces(b bool)  { c.c.NoNamespaces = b }
 func (c *RuntimeConfig) GetContainerUID() int64  { return int64(c.c.Container.Cred.UID) }
@@ -58,7 +58,7 @@ type RuntimeContainer struct {
 
 // NewRuntimeContainer.
 //
-// The MaxProcesses config value has no effect here.
+// The MaxProcs config value has no effect here.
 func NewRuntimeContainer(binary string, config *RuntimeConfig) (container *RuntimeContainer, err error) {
 	args, err := runtimeapi.ContainerArgs(binary, config.c.NoNamespaces, config.c.Container.Cred, config.c.Executor.Cred, config.c.Cgroup.Title, config.c.Cgroup.Parent)
 	if err != nil {

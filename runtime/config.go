@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	MaxProcesses       = 16384 // Per Executor.
+	MaxProcs           = 16384 // Per Executor.
 	DefaultCgroupTitle = "gate-runtime"
 )
 
 type Cred = runtimeapi.Cred
 
 type Config struct {
-	MaxProcesses int
+	MaxProcs     int
 	ConnFile     *os.File
 	DaemonSocket string // Applicable if ConnFile is not set.
 	ErrorLog     Logger
@@ -31,12 +31,12 @@ type Config struct {
 	Cgroup       CgroupConfig
 }
 
-func (c Config) maxProcesses() int {
-	if c.MaxProcesses == 0 {
-		return MaxProcesses
+func (c Config) maxProcs() int {
+	if c.MaxProcs == 0 {
+		return MaxProcs
 	}
 
-	return c.MaxProcesses
+	return c.MaxProcs
 }
 
 // CgroupConfig is effective if gate-runtime-container was compiled with cgroup

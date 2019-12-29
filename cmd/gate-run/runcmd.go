@@ -42,8 +42,8 @@ import (
 )
 
 const (
-	DefaultMaxProcesses = 100
-	DefaultStackSize    = wa.PageSize
+	DefaultMaxProcs  = 100
+	DefaultStackSize = wa.PageSize
 )
 
 type ProgramConfig struct {
@@ -103,7 +103,7 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 }
 
 func main() {
-	c.Runtime.MaxProcesses = DefaultMaxProcesses
+	c.Runtime.MaxProcs = DefaultMaxProcs
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 	c.Program.StackSize = DefaultStackSize
 	c.Benchmark.Repeat = 1

@@ -79,7 +79,7 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 }
 
 func mainResult() int {
-	c.Runtime.MaxProcesses = runtime.MaxProcesses
+	c.Runtime.MaxProcs = runtime.MaxProcs
 	c.Runtime.LibDir = "lib/gate/runtime"
 	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
 	c.Image.Filesystem = "var/gate/image"
