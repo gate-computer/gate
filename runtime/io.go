@@ -58,7 +58,7 @@ type read struct {
 	err error
 }
 
-// ioLoop mutates Process and IOState (if any).
+// ioLoop mutates Process and Buffers (if any).
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers,
 ) (err error) {
 	ctx, cancel := context.WithCancel(ctx)
@@ -70,6 +70,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	}
 
 	var (
+		dead      = subject.execution.dead
 		suspended = subject.suspended
 		done      = ctx.Done()
 	)
@@ -92,7 +93,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		}
 	}()
 
-	pendingMsg, initialRead, err := splitBufferedPackets(popOutputBuffer(frozen), discoverer)
+	pendingMsgs, initialRead, err := splitBufferedPackets(popOutputBuffer(frozen), discoverer)
 	if err != nil {
 		return
 	}
@@ -109,9 +110,10 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 	subjectInput := subjectReadLoop(subject.reader, initialRead)
 	defer func() {
-		if subjectInput != nil {
-			for range subjectInput {
-			}
+		subject.reader.Close()
+		subject.reader = nil
+
+		for range subjectInput {
 		}
 	}()
 
@@ -123,39 +125,34 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		}
 	}()
 
-	doSuspend := func() {
-		suspended = nil
-		done = nil
-
-		subject.killSuspend()
-
-		close(subjectOutput)
-		subjectOutput = nil
-	}
-
-	for (subjectInput != nil || pendingMsg != nil) && subjectOutput != nil {
+	for {
 		var (
-			doEv            packet.Buf
+			nextMsg packet.Buf
+			nextEv  packet.Buf
+		)
+		if len(pendingMsgs) > 0 {
+			nextMsg = pendingMsgs[0]
+		}
+		if len(pendingEvs) > 0 {
+			nextEv = pendingEvs[0]
+		}
+
+		var (
 			doMessageInput  <-chan packet.Buf
 			doMessageOutput chan<- packet.Buf
 			doSubjectInput  <-chan read
 			doSubjectOutput chan<- packet.Buf
 		)
-
-		if len(pendingEvs) > 0 {
-			doEv = pendingEvs[0]
+		if nextEv == nil {
+			doMessageInput = messageInput
 		}
-
-		if pendingMsg != nil {
+		if nextMsg != nil {
 			doMessageOutput = messageOutput
 		}
-
-		if doEv == nil {
-			doMessageInput = messageInput
-			if pendingMsg == nil {
-				doSubjectInput = subjectInput
-			}
-		} else {
+		if (nextMsg == nil && nextEv == nil) || dead == nil {
+			doSubjectInput = subjectInput
+		}
+		if nextEv != nil {
 			doSubjectOutput = subjectOutput
 		}
 
@@ -165,44 +162,26 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 		case read, ok := <-doSubjectInput:
 			if !ok {
-				err = errors.New("read loop terminated unexpectedly")
-				return
+				panic("gate runtime process read goroutine panicked")
 			}
 
-			switch {
-			case read.err == nil:
-				msg, ev, opErr := handlePacket(ctx, read.buf, discoverer)
-				if opErr != nil {
-					err = opErr
-					return
-				}
-
-				if msg != nil {
-					pendingMsg = msg
-				}
-				if ev != nil {
-					pendingEvs = append(pendingEvs, ev)
-				}
-
-			case read.err == io.EOF:
-				subjectInput = nil
-
+			if read.err != nil {
 				if subjectOutput != nil {
 					close(subjectOutput)
 					subjectOutput = nil
 				}
 
 				if frozen != nil {
-					if len(read.buf) == 0 {
-						frozen.Output = pendingMsg
-					} else {
-						// pendingMsg might be part of the original
-						// Buffers.Output, so don't mutate it.
-						frozen.Output = append(append([]byte{}, pendingMsg...), read.buf...)
+					// Messages may be part of the original Buffers.Output
+					// array, so don't mutate them.
+					for _, msg := range pendingMsgs {
+						frozen.Output = append(frozen.Output, msg...)
 					}
-					pendingMsg = nil
+					frozen.Output = append(frozen.Output, read.buf...)
 
 					frozen.Input, err = ioutil.ReadAll(subject.writerOut)
+					subject.writerOut.Close()
+					subject.writerOut = nil
 					if err != nil {
 						return
 					}
@@ -211,41 +190,50 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 					for _, ev := range pendingEvs {
 						pendingLen += len(ev)
 					}
-
 					if n := len(frozen.Input) + pendingLen; cap(frozen.Input) < n {
 						frozen.Input = append(make([]byte, 0, n), frozen.Input...)
 					}
-
 					for _, ev := range pendingEvs {
 						frozen.Input = append(frozen.Input, ev...)
 					}
-
-					subject.writerOut.Close()
-					subject.writerOut = nil
 				}
 
-			case read.err != nil:
-				err = read.err
+				if read.err != io.EOF {
+					err = read.err
+				}
 				return
 			}
 
-		case doMessageOutput <- pendingMsg:
-			pendingMsg = nil
-
-		case doSubjectOutput <- doEv:
-			if len(pendingEvs) > 0 {
-				pendingEvs = pendingEvs[1:]
+			msg, ev, opErr := handlePacket(ctx, read.buf, discoverer)
+			if opErr != nil {
+				err = opErr
+				return
+			}
+			if msg != nil {
+				pendingMsgs = append(pendingMsgs, msg)
+			}
+			if ev != nil {
+				pendingEvs = append(pendingEvs, ev)
 			}
 
+		case doMessageOutput <- nextMsg:
+			pendingMsgs = pendingMsgs[1:]
+
+		case doSubjectOutput <- nextEv:
+			pendingEvs = pendingEvs[1:]
+
+		case <-dead:
+			dead = nil
+
 		case <-suspended:
-			doSuspend()
+			suspended = nil
+			subject.killSuspend()
 
 		case <-done:
-			doSuspend()
+			done = nil
+			subject.killSuspend()
 		}
 	}
-
-	return
 }
 
 func subjectReadLoop(r *os.File, partial []byte) <-chan read {
@@ -368,39 +356,39 @@ func handlePacket(ctx context.Context, p packet.Buf, discoverer ServiceDiscovere
 }
 
 func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer,
-) (msg packet.Buf, tail []byte, err error) {
-	if len(buf) < packet.HeaderSize {
-		tail = buf
-		return
-	}
+) (msgs []packet.Buf, tail []byte, err error) {
+	for {
+		if len(buf) < packet.HeaderSize {
+			tail = buf
+			return
+		}
 
-	size := binary.LittleEndian.Uint32(buf[packet.OffsetSize:])
-	if size < packet.HeaderSize || size > maxPacketSize {
-		err = badprogram.Errorf("buffered packet has invalid size: %d", size)
-		return
-	}
+		size := binary.LittleEndian.Uint32(buf[packet.OffsetSize:])
+		if size < packet.HeaderSize || size > maxPacketSize {
+			err = badprogram.Errorf("buffered packet has invalid size: %d", size)
+			return
+		}
 
-	if uint32(len(buf)) < size {
-		tail = buf
-		return
-	}
+		if uint32(len(buf)) < size {
+			tail = buf
+			return
+		}
 
-	p := packet.Buf(buf[:size])
+		p := packet.Buf(buf[:size])
 
-	switch code := p.Code(); {
-	case code >= 0:
-		msg, err = checkServicePacket(p, discoverer)
+		if code := p.Code(); code < 0 {
+			err = badprogram.Errorf("invalid code in buffered packet: %d", code)
+			return
+		}
+
+		p, err = checkServicePacket(p, discoverer)
 		if err != nil {
 			return
 		}
 
-	default:
-		err = badprogram.Errorf("invalid code in buffered packet: %d", code)
-		return
+		msgs = append(msgs, p)
+		buf = buf[size:]
 	}
-
-	tail = buf[size:]
-	return
 }
 
 func checkServicePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg packet.Buf, err error) {

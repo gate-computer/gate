@@ -37,8 +37,8 @@ type Executor struct {
 	doneSending   chan struct{}
 	doneReceiving chan struct{}
 
-	lock    sync.Mutex
-	waiters map[int16]chan<- syscall.WaitStatus
+	lock  sync.Mutex
+	procs map[int16]*execProcess
 }
 
 func NewExecutor(config Config) (e *Executor, err error) {
@@ -83,7 +83,7 @@ func NewExecutor(config Config) (e *Executor, err error) {
 		killRequests:  make(chan int16, 16),   // TODO: how much buffering?
 		doneSending:   make(chan struct{}),
 		doneReceiving: make(chan struct{}),
-		waiters:       make(map[int16]chan<- syscall.WaitStatus),
+		procs:         make(map[int16]*execProcess),
 	}
 
 	for i := 0; i < maxProcs; i++ {
@@ -183,7 +183,7 @@ func (e *Executor) sender(errorLog Logger) {
 		select {
 		case req = <-e.execRequests:
 			e.lock.Lock()
-			e.waiters[req.proc.id] = req.proc.waiter
+			e.procs[req.proc.id] = req.proc
 			e.lock.Unlock()
 
 			// This is like exec_request in runtime/executor/executor.h
@@ -250,8 +250,10 @@ func (e *Executor) receiver(errorLog Logger) {
 				status = int32(binary.LittleEndian.Uint32(b[4:]))
 			)
 
-			e.waiters[id] <- syscall.WaitStatus(status)
-			delete(e.waiters, id)
+			p := e.procs[id]
+			delete(e.procs, id)
+			p.status = syscall.WaitStatus(status)
+			close(p.dead)
 		}
 
 		e.lock.Unlock()
@@ -270,14 +272,15 @@ func (e *Executor) Dead() <-chan struct{} {
 // high-level Process type.
 type execProcess struct {
 	executor *Executor
-	waiter   chan syscall.WaitStatus
 	id       int16
+	dead     chan struct{}
+	status   syscall.WaitStatus // Valid after dead is closed.
 }
 
 func (p *execProcess) init(e *Executor, id int16) {
 	p.executor = e
-	p.waiter = make(chan syscall.WaitStatus, 1)
 	p.id = id
+	p.dead = make(chan struct{})
 }
 
 func (p *execProcess) kill(suspend bool) {
@@ -318,7 +321,8 @@ func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
 			// No way to kill it anymore.
 			killRequests = nil
 
-		case status = <-p.waiter:
+		case <-p.dead:
+			status = p.status
 			return
 
 		case <-p.executor.doneReceiving:

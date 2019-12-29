@@ -327,14 +327,12 @@ func (p *Process) Suspend() {
 //
 // This function can be called multiple times.
 func (p *Process) Kill() {
-	if p.reader == nil {
-		return
-	}
-
 	p.execution.kill(false)
 
-	p.reader.Close()
-	p.reader = nil
+	if p.reader != nil {
+		p.reader.Close()
+		p.reader = nil
+	}
 
 	if p.writer != nil {
 		p.writer.Close()

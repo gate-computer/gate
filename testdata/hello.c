@@ -106,15 +106,15 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 		}
 
 		if (packet->domain != GATE_PACKET_DOMAIN_CALL) {
-			__gate_debug_str("error: expected accept call reply from origin\n");
-			return -1;
+			gate_debug3("received origin packet with domain ", packet->domain, " while accepting stream\n");
+			continue;
 		}
 
-		struct GATE_PACKED {
+		struct {
 			struct gate_packet header;
 			int32_t id;
 			int32_t error;
-		} *reply;
+		} GATE_PACKED *reply;
 
 		if (packet->size != sizeof *reply) {
 			__gate_debug_str("error: accept call reply has unexpected size\n");
