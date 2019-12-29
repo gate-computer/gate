@@ -179,6 +179,23 @@ func main() {
 		flag.PrintDefaults()
 	}
 	flag.CommandLine.Usage = flag.Usage
+	flag.Parse()
+
+	req := command.usage
+	if i := strings.Index(req, "["); i >= 0 {
+		req = req[:i]
+	}
+	if flag.NArg() < len(strings.Fields(strings.TrimSpace(req))) {
+		flag.Usage()
+		os.Exit(2)
+	}
+	if !strings.Contains(command.usage, "...") {
+		if flag.NArg() > len(strings.Fields(strings.TrimSpace(command.usage))) {
+			flag.Usage()
+			os.Exit(2)
+		}
+	}
 
 	command.do()
+	os.Exit(0)
 }

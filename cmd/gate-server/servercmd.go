@@ -97,9 +97,7 @@ var c = new(struct {
 		Debug bool
 	}
 
-	Principal struct {
-		server.AccessConfig
-	}
+	Principal server.AccessConfig
 
 	Source struct {
 		IPFS struct {
@@ -165,7 +163,7 @@ func main() {
 	c.Plugin.LibDir = "lib/gate/plugin"
 	c.Image.ProgramStorage = DefaultProgramStorage
 	c.Image.InstanceStorage = DefaultInstanceStorage
-	c.Principal.AccessConfig = server.DefaultAccessConfig
+	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
 	c.HTTP.TLS.Domains = []string{"example.invalid"}
@@ -189,7 +187,7 @@ func main() {
 	c.DB = database.DefaultConfig
 
 	originConfig := origin.DefaultConfig
-	c.Service["origin"] = &originConfig
+	c.Service[origin.ServiceName] = &originConfig
 
 	flag.Usage = confi.FlagUsage(nil, c)
 	parseConfig(flag.CommandLine, false)
@@ -242,7 +240,7 @@ func main() {
 		critLog.Fatal(err)
 	}
 
-	c.Principal.AccessConfig.Services = func(ctx context.Context) server.InstanceServices {
+	c.Principal.Services = func(ctx context.Context) server.InstanceServices {
 		o := origin.New(originConfig)
 		r := serviceRegistry.Clone()
 		r.Register(o)
@@ -352,14 +350,10 @@ func main2(critLog *log.Logger) (err error) {
 
 	switch c.Access.Policy {
 	case "public":
-		c.Server.AccessPolicy = &server.PublicAccess{
-			AccessConfig: c.Principal.AccessConfig,
-		}
+		c.Server.AccessPolicy = &server.PublicAccess{AccessConfig: c.Principal}
 
 	case "ssh":
-		accessKeys := &sshkeys.AuthorizedKeys{
-			AccessConfig: c.Principal.AccessConfig,
-		}
+		accessKeys := &sshkeys.AuthorizedKeys{AccessConfig: c.Principal}
 
 		uid := strconv.Itoa(os.Getuid())
 

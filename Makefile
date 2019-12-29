@@ -39,6 +39,7 @@ bin: $(GEN_BIN_SOURCES)
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-run ./cmd/gate-run
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtimed ./cmd/gate-runtimed
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
+	$(GO) build $(GOBUILDFLAGS) -o bin/gated ./cmd/gated
 
 generate: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
 
@@ -71,7 +72,7 @@ install-lib-capabilities: install-lib
 
 install-bin:
 	install -m 755 -d $(DESTDIR)$(BINDIR)
-	install -m 755 bin/gate bin/gate-runtimed bin/gate-run bin/gate-server $(DESTDIR)$(BINDIR)
+	install -m 755 bin/gate bin/gate-runtimed bin/gate-run bin/gate-server bin/gated $(DESTDIR)$(BINDIR)
 
 install: install-lib install-bin
 install-apparmor: install-lib-apparmor

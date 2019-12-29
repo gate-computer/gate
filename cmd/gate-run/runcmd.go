@@ -144,8 +144,9 @@ func main() {
 
 	c.Service = plugins.ServiceConfig
 
-	originConfig := origin.Config{MaxConns: 1}
-	c.Service["origin"] = &originConfig
+	originConfig := origin.DefaultConfig
+	originConfig.MaxConns = 1
+	c.Service[origin.ServiceName] = &originConfig
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] wasmfile...\n\nOptions:\n", flag.CommandLine.Name())

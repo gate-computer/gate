@@ -32,16 +32,8 @@ var remoteCommands = map[string]command{
 	"call": {
 		usage: "module [function]",
 		do: func() {
-			flag.Parse()
-			switch flag.NArg() {
-			case 1:
-
-			case 2:
+			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
-
-			default:
-				flag.Usage()
-				os.Exit(2)
 			}
 
 			params := url.Values{
@@ -94,12 +86,6 @@ var remoteCommands = map[string]command{
 		do: func() {
 			// TODO: output file option
 
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{Method: http.MethodGet}
 
 			_, resp, err := doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), nil)
@@ -116,12 +102,6 @@ var remoteCommands = map[string]command{
 
 	"instances": {
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 0 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{Method: http.MethodGet}
 
 			_, resp, err := doHTTP(req, webapi.PathInstances, nil)
@@ -145,12 +125,6 @@ var remoteCommands = map[string]command{
 	"io": {
 		usage: "instance",
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{
 				Method: http.MethodPost,
 				Body:   os.Stdin,
@@ -173,16 +147,8 @@ var remoteCommands = map[string]command{
 	"launch": {
 		usage: "module [function]",
 		do: func() {
-			flag.Parse()
-			switch flag.NArg() {
-			case 1:
-
-			case 2:
+			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
-
-			default:
-				flag.Usage()
-				os.Exit(2)
 			}
 
 			params := url.Values{
@@ -245,12 +211,6 @@ var remoteCommands = map[string]command{
 
 	"modules": {
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 0 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{Method: http.MethodGet}
 
 			_, resp, err := doHTTP(req, webapi.PathModuleRefs, nil)
@@ -274,12 +234,6 @@ var remoteCommands = map[string]command{
 	"repl": {
 		usage: "instance",
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			repl(flag.Arg(0))
 		},
 	},
@@ -287,12 +241,6 @@ var remoteCommands = map[string]command{
 	"resume": {
 		usage: "instance",
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{Method: http.MethodPost}
 
 			params := url.Values{
@@ -312,12 +260,6 @@ var remoteCommands = map[string]command{
 	"snapshot": {
 		usage: "instance",
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{webapi.ParamAction: []string{webapi.ActionSnapshot}}
 
@@ -352,12 +294,6 @@ var remoteCommands = map[string]command{
 	"unref": {
 		usage: "module",
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{webapi.ParamAction: []string{webapi.ActionUnref}}
 
@@ -371,12 +307,6 @@ var remoteCommands = map[string]command{
 	"upload": {
 		usage: "module",
 		do: func() {
-			flag.Parse()
-			if flag.NArg() != 1 {
-				flag.Usage()
-				os.Exit(2)
-			}
-
 			module, key, err := loadModule(flag.Arg(0))
 			if err != nil {
 				log.Fatal(err)
@@ -501,13 +431,6 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 }
 
 func commandInstance(action string) {
-	flag.Parse()
-
-	if flag.NArg() != 1 {
-		flag.Usage()
-		os.Exit(2)
-	}
-
 	req := &http.Request{Method: http.MethodPost}
 	params := url.Values{webapi.ParamAction: []string{action}}
 
