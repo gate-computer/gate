@@ -18,12 +18,15 @@ const (
 	SymbolInitServices  = "InitServices"  // Required func(*service.Registry) error
 )
 
+var DefaultLibDir = plugin.DefaultLibDir
+
 type ServicePlugins struct {
 	plugin.Plugins
 	ServiceConfig map[string]interface{}
 }
 
-// OpenAll generic and service plugins found under libdir.
+// OpenAll generic and service plugins found under libdir.  Empty libdir string
+// causes nothing to be opened.
 func OpenAll(libdir string) (result ServicePlugins, err error) {
 	result.Plugins, err = plugin.OpenAll(libdir)
 	if err != nil {

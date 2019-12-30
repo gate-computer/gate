@@ -40,7 +40,7 @@ func BenchmarkCall(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	executor := newExecutor(runtime.Config{})
+	executor := newExecutor()
 	defer executor.Close()
 
 	benchCall(ctx, b, executor)
@@ -61,7 +61,7 @@ func benchCallExecutors(b *testing.B, count int) {
 	var executors []runtime.ProcessFactory
 
 	for i := 0; i < count; i++ {
-		e := newExecutor(runtime.Config{})
+		e := newExecutor()
 		defer e.Close()
 
 		executors = append(executors, e)

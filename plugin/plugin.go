@@ -6,6 +6,7 @@ package plugin
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"plugin"
 	"strings"
@@ -13,6 +14,14 @@ import (
 
 // Plugin file names suffix.  Used by the OpenAll function to collect files.
 const Suffix = ".so"
+
+var DefaultLibDir string = func() string {
+	var parent string
+	if filename, err := os.Executable(); err == nil {
+		parent = path.Join(path.Dir(filename), "..")
+	}
+	return path.Join(parent, "lib", "gate", "plugin")
+}()
 
 type Plugin struct {
 	*plugin.Plugin
@@ -28,7 +37,8 @@ type Plugins struct {
 	Plugins []Plugin
 }
 
-// OpenAll plugins found under libdir.
+// OpenAll plugins found under libdir.  Empty libdir string causes nothing to
+// be opened.
 func OpenAll(libdir string) (result Plugins, err error) {
 	if libdir == "" {
 		return

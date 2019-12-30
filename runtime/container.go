@@ -13,7 +13,7 @@ import (
 )
 
 func startContainer(config Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
-	binary, err := runtimeapi.ContainerBinary(config.LibDir)
+	binary, err := runtimeapi.ContainerBinary(config.libDir())
 	if err != nil {
 		return
 	}

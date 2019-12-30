@@ -24,7 +24,6 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/database"
@@ -195,7 +194,7 @@ func newServer() *server.Server {
 	access.Debug = debugPolicy
 
 	config := server.Config{
-		ProcessFactory: newExecutor(runtime.Config{}),
+		ProcessFactory: newExecutor(),
 		AccessPolicy:   access,
 	}
 

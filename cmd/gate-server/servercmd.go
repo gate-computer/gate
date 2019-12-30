@@ -157,10 +157,9 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 func main() {
 	log.SetFlags(0)
 
-	c.Runtime.LibDir = "lib/gate/runtime"
-	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
+	c.Runtime.Config = runtime.DefaultConfig
 	c.Runtime.ExecutorCount = DefaultExecutorCount
-	c.Plugin.LibDir = "lib/gate/plugin"
+	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Image.ProgramStorage = DefaultProgramStorage
 	c.Image.InstanceStorage = DefaultInstanceStorage
 	c.Principal = server.DefaultAccessConfig

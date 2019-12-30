@@ -51,12 +51,8 @@ func (test *executor) Close() error {
 	return test.Executor.Close()
 }
 
-func newExecutor(config runtime.Config) (tester *executor) {
-	if config.LibDir == "" {
-		config.LibDir = "lib/gate/runtime"
-	}
-
-	actual, err := runtime.NewExecutor(config)
+func newExecutor() (tester *executor) {
+	actual, err := runtime.NewExecutor(runtime.Config{LibDir: "lib/gate/runtime"})
 	if err != nil {
 		panic(err)
 	}
@@ -279,7 +275,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 ) (*executor, *image.Program, *image.Instance, *runtime.Process, debug.TrapMap, compile.Module) {
 	var err error
 
-	executor := newExecutor(runtime.Config{})
+	executor := newExecutor()
 	defer func() {
 		if err != nil {
 			executor.Close()

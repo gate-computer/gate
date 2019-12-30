@@ -29,8 +29,7 @@ type Config struct {
 
 func main() {
 	c := new(Config)
-	c.Runtime.LibDir = "lib/gate/runtime"
-	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
+	c.Runtime = runtime.DefaultConfig
 
 	flag.Var(confi.FileReader(c), "f", "read a configuration file")
 	flag.Var(confi.Assigner(c), "o", "set a configuration option (path.to.key=value)")

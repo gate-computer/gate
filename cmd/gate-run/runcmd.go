@@ -16,7 +16,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path"
 	"strconv"
 	"syscall"
 	"time"
@@ -103,8 +102,9 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 }
 
 func main() {
+	c.Runtime = runtime.DefaultConfig
 	c.Runtime.MaxProcs = DefaultMaxProcs
-	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
+	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Program.StackSize = DefaultStackSize
 	c.Benchmark.Repeat = 1
 
@@ -121,21 +121,6 @@ func main() {
 		for range signals {
 		}
 	}()
-
-	if c.Runtime.LibDir == "" || c.Plugin.LibDir == "" {
-		filename, err := os.Executable()
-		if err != nil {
-			log.Fatalf("%s: %v", os.Args[0], err)
-		}
-		bindir := path.Dir(filename)
-		libdir := path.Join(bindir, "..", "lib", "gate")
-		if c.Runtime.LibDir == "" {
-			c.Runtime.LibDir = path.Join(libdir, "runtime")
-		}
-		if c.Plugin.LibDir == "" {
-			c.Plugin.LibDir = path.Join(libdir, "plugin")
-		}
-	}
 
 	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
 	if err != nil {

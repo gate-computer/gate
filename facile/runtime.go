@@ -28,12 +28,11 @@ func NewRuntimeConfig() (c *RuntimeConfig) {
 	uid := uint(os.Getuid())
 	gid := uint(os.Getgid())
 
-	c = new(RuntimeConfig)
+	c = &RuntimeConfig{runtime.DefaultConfig}
 	c.c.Container.Cred.UID = uid
 	c.c.Container.Cred.GID = gid
 	c.c.Executor.Cred.UID = uid
 	c.c.Executor.Cred.GID = gid
-	c.c.Cgroup.Title = runtime.DefaultCgroupTitle
 	return
 }
 

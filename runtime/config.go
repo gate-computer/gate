@@ -6,14 +6,20 @@ package runtime
 
 import (
 	"os"
+	"path"
 
 	"github.com/tsavola/gate/internal/runtimeapi"
 )
 
-const (
-	MaxProcs           = 16384 // Per Executor.
-	DefaultCgroupTitle = "gate-runtime"
-)
+const MaxProcs = 16384 // Per Executor.
+
+var DefaultLibDir string = func() string {
+	var parent string
+	if filename, err := os.Executable(); err == nil {
+		parent = path.Join(path.Dir(filename), "..")
+	}
+	return path.Join(parent, "lib", "gate", "runtime")
+}()
 
 type Cred = runtimeapi.Cred
 
@@ -35,9 +41,17 @@ func (c Config) maxProcs() int {
 	if c.MaxProcs == 0 {
 		return MaxProcs
 	}
-
 	return c.MaxProcs
 }
+
+func (c Config) libDir() string {
+	if c.LibDir == "" {
+		return DefaultLibDir
+	}
+	return c.LibDir
+}
+
+const DefaultCgroupTitle = "gate-runtime"
 
 // CgroupConfig is effective if gate-runtime-container was compiled with cgroup
 // support.
@@ -52,4 +66,12 @@ func (c CgroupConfig) title() (s string) {
 		s = DefaultCgroupTitle
 	}
 	return
+}
+
+var DefaultConfig = Config{
+	MaxProcs: MaxProcs,
+	LibDir:   DefaultLibDir,
+	Cgroup: CgroupConfig{
+		Title: DefaultCgroupTitle,
+	},
 }

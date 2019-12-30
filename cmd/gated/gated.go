@@ -77,11 +77,9 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 }
 
 func mainResult() int {
-	c.Runtime.MaxProcs = runtime.MaxProcs
-	c.Runtime.LibDir = "lib/gate/runtime"
-	c.Runtime.Cgroup.Title = runtime.DefaultCgroupTitle
+	c.Runtime = runtime.DefaultConfig
 	c.Image.Filesystem = "var/gate/image"
-	c.Plugin.LibDir = "lib/gate/plugin"
+	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9
 	c.Principal.MaxProcs = 1e9
