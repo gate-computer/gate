@@ -205,13 +205,20 @@ func closeFiles(files ...*os.File) {
 }
 
 func statusString(s server.Status) string {
-	return webapi.Status{
+	t := webapi.Status{
 		State:  s.State.String(),
 		Cause:  s.Cause.String(),
 		Result: int(s.Result),
 		Error:  s.Error,
 		Debug:  s.Debug,
-	}.String()
+	}
+	if s.State == 0 {
+		t.State = ""
+	}
+	if s.Cause == 0 {
+		t.Cause = ""
+	}
+	return t.String()
 }
 
 func check(err error) {
