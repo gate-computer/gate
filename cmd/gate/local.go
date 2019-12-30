@@ -130,6 +130,20 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"resume": {
+		usage: "instance",
+		do: func() {
+			debug := openDebugFile()
+			debugFD := dbus.UnixFD(debug.Fd())
+
+			call := daemonCall("Resume", flag.Arg(0), debugFD)
+
+			closeFiles(debug)
+
+			check(call.Store())
+		},
+	},
+
 	"status": {
 		usage: "instance",
 		do: func() {

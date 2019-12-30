@@ -198,7 +198,7 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 
 		"IO": func(instID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ok = handleConnect(ctx, pri, s, instID, rFD, wFD)
+			ok = handleInstanceConnect(ctx, pri, s, instID, rFD, wFD)
 			return
 		},
 
@@ -215,6 +215,12 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
 			instID = handleLaunch(ctx, pri, s, module, "", function, ref, debugFD)
+			return
+		},
+
+		"Resume": func(instID string, debugFD dbus.UnixFD) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			handleInstanceResume(ctx, pri, s, instID, debugFD)
 			return
 		},
 	}
@@ -306,7 +312,26 @@ func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, mod
 	return inst.ID()
 }
 
-func handleConnect(ctx context.Context, pri *principal.Key, s *server.Server, instID string, rFD, wFD dbus.UnixFD) bool {
+func handleInstance(ctx context.Context, pri *principal.Key, f instanceFunc, instID string,
+) (state server.State, cause server.Cause, result int32) {
+	status, err := f(ctx, pri, instID)
+	check(err)
+	return status.State, status.Cause, status.Result
+}
+
+func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Server, instID string, debugFD dbus.UnixFD) {
+	debug := newFileCell(debugFD, "debug")
+	defer debug.Close()
+
+	ctx = context.WithValue(ctx, debugKey{}, debug)
+
+	inst, err := s.ResumeInstance(ctx, pri, "", instID, "1")
+	check(err)
+
+	go inst.Run(server.DetachedContext(ctx, pri), s)
+}
+
+func handleInstanceConnect(ctx context.Context, pri *principal.Key, s *server.Server, instID string, rFD, wFD dbus.UnixFD) bool {
 	var err error
 	if err == nil {
 		err = syscall.SetNonblock(int(rFD), true)
@@ -331,13 +356,6 @@ func handleConnect(ctx context.Context, pri *principal.Key, s *server.Server, in
 	_, err = connIO(ctx, r, w)
 	check(err)
 	return true
-}
-
-func handleInstance(ctx context.Context, pri *principal.Key, f instanceFunc, instID string,
-) (state server.State, cause server.Cause, result int32) {
-	status, err := f(ctx, pri, instID)
-	check(err)
-	return status.State, status.Cause, status.Result
 }
 
 func getReaderWithLength(f *os.File) (io.Reader, int64) {
