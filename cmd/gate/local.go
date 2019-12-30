@@ -72,6 +72,13 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"delete": {
+		usage: "instance",
+		do: func() {
+			daemonCallInstance("Delete")
+		},
+	},
+
 	"io": {
 		usage: "instance",
 		do: func() {
@@ -123,17 +130,35 @@ var localCommands = map[string]command{
 		},
 	},
 
-	"wait": {
+	"status": {
 		usage: "instance",
 		do: func() {
-			call := daemonCall("Wait", flag.Arg(0))
-
-			var status server.Status
-			check(call.Store(&status.State, &status.Cause, &status.Result))
-
+			status := daemonCallInstance("Status")
 			fmt.Println(statusString(status))
 		},
 	},
+
+	"suspend": {
+		usage: "instance",
+		do: func() {
+			status := daemonCallInstance("Suspend")
+			fmt.Println(statusString(status))
+		},
+	},
+
+	"wait": {
+		usage: "instance",
+		do: func() {
+			status := daemonCallInstance("Wait")
+			fmt.Println(statusString(status))
+		},
+	},
+}
+
+func daemonCallInstance(name string) (status server.Status) {
+	call := daemonCall(name, flag.Arg(0))
+	check(call.Store(&status.State, &status.Cause, &status.Result))
+	return
 }
 
 func openFile(name string) *os.File {
