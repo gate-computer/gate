@@ -7,6 +7,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"github.com/tsavola/gate/internal/bus"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/webapi"
+	"golang.org/x/sys/unix"
 )
 
 var daemon dbus.BusObject
@@ -39,25 +41,26 @@ var localCommands = map[string]command{
 				c.Function = flag.Arg(1)
 			}
 
-			// TODO: copy data if TTY
+			r, w := openStdio()
+			rFD := dbus.UnixFD(r.Fd())
+			wFD := dbus.UnixFD(w.Fd())
+
+			debug := openDebugFile()
+			debugFD := dbus.UnixFD(debug.Fd())
+
 			var (
-				rFD = dbus.UnixFD(os.Stdin.Fd())
-				wFD = dbus.UnixFD(os.Stdout.Fd())
+				module *os.File
+				call   *dbus.Call
 			)
-
-			f := openDebugFile()
-			defer runtime.KeepAlive(f)
-			debugFD := dbus.UnixFD(f.Fd())
-
-			var call *dbus.Call
-			if module := flag.Arg(0); !strings.Contains(module, "/") {
-				call = daemonCall("CallKey", module, c.Function, rFD, wFD, debugFD)
+			if !strings.Contains(flag.Arg(0), "/") {
+				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, debugFD)
 			} else {
-				f, err := os.Open(module)
-				check(err)
-				defer runtime.KeepAlive(f)
-				call = daemonCall("CallFile", dbus.UnixFD(f.Fd()), c.Function, c.Ref, rFD, wFD, debugFD)
+				module = openFile(flag.Arg(0))
+				moduleFD := dbus.UnixFD(module.Fd())
+				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, debugFD)
 			}
+
+			closeFiles(module, r, w, debug)
 
 			var status server.Status
 			check(call.Store(&status.State, &status.Cause, &status.Result))
@@ -72,8 +75,13 @@ var localCommands = map[string]command{
 	"io": {
 		usage: "instance",
 		do: func() {
-			// TODO: copy data if TTY
-			call := daemonCall("IO", flag.Arg(0), dbus.UnixFD(os.Stdin.Fd()), dbus.UnixFD(os.Stdout.Fd()))
+			r, w := openStdio()
+			rFD := dbus.UnixFD(r.Fd())
+			wFD := dbus.UnixFD(w.Fd())
+
+			call := daemonCall("IO", flag.Arg(0), rFD, wFD)
+
+			closeFiles(r, w)
 
 			var ok bool
 			check(call.Store(&ok))
@@ -91,19 +99,22 @@ var localCommands = map[string]command{
 				c.Function = flag.Arg(1)
 			}
 
-			f := openDebugFile()
-			defer runtime.KeepAlive(f)
-			debugFD := dbus.UnixFD(f.Fd())
+			debug := openDebugFile()
+			debugFD := dbus.UnixFD(debug.Fd())
 
-			var call *dbus.Call
-			if module := flag.Arg(0); !strings.Contains(module, "/") {
-				call = daemonCall("LaunchKey", module, c.Function, debugFD)
+			var (
+				module *os.File
+				call   *dbus.Call
+			)
+			if !strings.Contains(flag.Arg(0), "/") {
+				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, debugFD)
 			} else {
-				f, err := os.Open(module)
-				check(err)
-				defer runtime.KeepAlive(f)
-				call = daemonCall("LaunchFile", dbus.UnixFD(f.Fd()), c.Function, c.Ref, debugFD)
+				module = openFile(flag.Arg(0))
+				moduleFD := dbus.UnixFD(module.Fd())
+				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, debugFD)
 			}
+
+			closeFiles(module, debug)
 
 			var instance string
 			check(call.Store(&instance))
@@ -125,6 +136,50 @@ var localCommands = map[string]command{
 	},
 }
 
+func openFile(name string) *os.File {
+	f, err := os.Open(name)
+	check(err)
+	return f
+}
+
+func openStdio() (r *os.File, w *os.File) {
+	r = os.Stdin
+	if _, err := unix.IoctlGetTermios(int(r.Fd()), unix.TCGETS); err == nil {
+		r = copyStdin()
+	}
+
+	w = os.Stdout
+	if _, err := unix.IoctlGetTermios(int(w.Fd()), unix.TCGETS); err == nil {
+		w = copyStdout()
+	}
+
+	return
+}
+
+func copyStdin() *os.File {
+	r, w, err := os.Pipe()
+	check(err)
+
+	go func() {
+		defer w.Close()
+		io.Copy(w, os.Stdin)
+	}()
+
+	return r
+}
+
+func copyStdout() *os.File {
+	r, w, err := os.Pipe()
+	check(err)
+
+	go func() {
+		defer r.Close()
+		io.Copy(os.Stdout, r)
+	}()
+
+	return w
+}
+
 func openDebugFile() *os.File {
 	var name string
 	if c.Debug == "" {
@@ -135,6 +190,18 @@ func openDebugFile() *os.File {
 	f, err := os.OpenFile(name, os.O_WRONLY, 0)
 	check(err)
 	return f
+}
+
+func closeFiles(files ...*os.File) {
+	for _, f := range files {
+		// Avoid the object from being garbage-collected while its file
+		// descriptor is being handled directly.
+		runtime.KeepAlive(f)
+
+		if f != nil {
+			f.Close()
+		}
+	}
 }
 
 func statusString(s server.Status) string {
