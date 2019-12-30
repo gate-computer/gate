@@ -78,7 +78,6 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 
 func mainResult() int {
 	c.Runtime = runtime.DefaultConfig
-	c.Image.Filesystem = "var/gate/image"
 	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9
@@ -126,9 +125,13 @@ func mainResult() int {
 
 	c.Principal.Debug = debugHandler
 
-	fs, err := image.NewFilesystem(c.Image.Filesystem)
-	check(err)
-	defer fs.Close()
+	var storage image.Storage = image.Memory
+	if c.Image.Filesystem != "" {
+		fs, err := image.NewFilesystem(c.Image.Filesystem)
+		check(err)
+		defer fs.Close()
+		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
+	}
 
 	exec, err := runtime.NewExecutor(c.Runtime)
 	check(err)
@@ -156,7 +159,7 @@ func mainResult() int {
 	}
 
 	s := server.New(server.Config{
-		ImageStorage:   image.CombinedStorage(fs, image.PersistentMemory(fs)),
+		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &server.PublicAccess{AccessConfig: c.Principal},
 	})
