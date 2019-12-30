@@ -199,3 +199,15 @@ func main() {
 	command.do()
 	os.Exit(0)
 }
+
+func openFile(name string) *os.File {
+	f, err := os.Open(name)
+	check(err)
+	return f
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}

@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -56,14 +55,12 @@ var remoteCommands = map[string]command{
 				if c.Ref {
 					params.Add(webapi.ParamAction, webapi.ActionRef)
 				}
-
 				status = callPost(webapi.PathModule+arg, params)
 
 			default:
 				if c.Ref {
 					params.Add(webapi.ParamAction, webapi.ActionRef)
 				}
-
 				status = callWebsocket(arg, params)
 			}
 
@@ -86,36 +83,17 @@ var remoteCommands = map[string]command{
 		do: func() {
 			// TODO: output file option
 
-			req := &http.Request{Method: http.MethodGet}
-
-			_, resp, err := doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), nil)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			_, err = io.Copy(os.Stdout, resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
+			_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(0), nil)
+			checkCopy(os.Stdout, resp.Body)
 		},
 	},
 
 	"instances": {
 		do: func() {
-			req := &http.Request{Method: http.MethodGet}
-
-			_, resp, err := doHTTP(req, webapi.PathInstances, nil)
-			if err != nil {
-				log.Fatal(err)
-			}
+			_, resp := doHTTP(nil, webapi.PathInstances, nil)
 
 			var is webapi.Instances
-
-			err = json.NewDecoder(resp.Body).Decode(&is)
-			if err != nil {
-				log.Fatal(err)
-			}
-
+			check(json.NewDecoder(resp.Body).Decode(&is))
 			for _, inst := range is.Instances {
 				fmt.Printf("%-36s %s\n", inst.Instance, inst.Status)
 			}
@@ -129,18 +107,12 @@ var remoteCommands = map[string]command{
 				Method: http.MethodPost,
 				Body:   os.Stdin,
 			}
-
-			params := url.Values{webapi.ParamAction: []string{webapi.ActionIO}}
-
-			_, resp, err := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
-			if err != nil {
-				log.Fatal(err)
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionIO},
 			}
 
-			_, err = io.Copy(os.Stdout, resp.Body)
-			if err != nil {
-				log.Fatal(err)
-			}
+			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			checkCopy(os.Stdout, resp.Body)
 		},
 	},
 
@@ -164,9 +136,10 @@ var remoteCommands = map[string]command{
 				params.Set(webapi.ParamDebug, c.Debug)
 			}
 
-			var req = new(http.Request)
-			var uri string
-
+			var (
+				req = new(http.Request)
+				uri string
+			)
 			switch arg := flag.Arg(0); {
 			case !strings.Contains(arg, "/"):
 				req.Method = http.MethodPost
@@ -181,10 +154,7 @@ var remoteCommands = map[string]command{
 				}
 
 			default:
-				module, key, err := loadModule(arg)
-				if err != nil {
-					log.Fatal(err)
-				}
+				module, key := loadModule(arg)
 
 				req.Method = http.MethodPut
 				uri = webapi.PathModuleRefs + key
@@ -200,31 +170,17 @@ var remoteCommands = map[string]command{
 				req.ContentLength = int64(module.Len())
 			}
 
-			_, resp, err := doHTTP(req, uri, params)
-			if err != nil {
-				log.Fatal(err)
-			}
-
+			_, resp := doHTTP(req, uri, params)
 			fmt.Println(resp.Header.Get(webapi.HeaderInstance))
 		},
 	},
 
 	"modules": {
 		do: func() {
-			req := &http.Request{Method: http.MethodGet}
-
-			_, resp, err := doHTTP(req, webapi.PathModuleRefs, nil)
-			if err != nil {
-				log.Fatal(err)
-			}
+			_, resp := doHTTP(nil, webapi.PathModuleRefs, nil)
 
 			var refs webapi.ModuleRefs
-
-			err = json.NewDecoder(resp.Body).Decode(&refs)
-			if err != nil {
-				log.Fatal(err)
-			}
-
+			check(json.NewDecoder(resp.Body).Decode(&refs))
 			for _, m := range refs.Modules {
 				fmt.Println(m.Key)
 			}
@@ -234,14 +190,25 @@ var remoteCommands = map[string]command{
 	"repl": {
 		usage: "instance",
 		do: func() {
-			repl(flag.Arg(0))
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionIO},
+			}
+
+			ok, err := remoteREPL(webapi.PathInstances+flag.Arg(0), params)
+			check(err)
+
+			if !ok {
+				os.Exit(1)
+			}
 		},
 	},
 
 	"resume": {
 		usage: "instance",
 		do: func() {
-			req := &http.Request{Method: http.MethodPost}
+			req := &http.Request{
+				Method: http.MethodPost,
+			}
 
 			params := url.Values{
 				webapi.ParamAction: []string{webapi.ActionResume},
@@ -250,29 +217,26 @@ var remoteCommands = map[string]command{
 				params.Set(webapi.ParamDebug, c.Debug)
 			}
 
-			_, _, err := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
-			if err != nil {
-				log.Fatal(err)
-			}
+			doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
 		},
 	},
 
 	"snapshot": {
 		usage: "instance",
 		do: func() {
-			req := &http.Request{Method: http.MethodPost}
-			params := url.Values{webapi.ParamAction: []string{webapi.ActionSnapshot}}
-
-			_, resp, err := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
-			if err != nil {
-				log.Fatal(err)
+			req := &http.Request{
+				Method: http.MethodPost,
 			}
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionSnapshot},
+			}
+
+			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
 
 			location := resp.Header.Get(webapi.HeaderLocation)
 			if location == "" {
 				log.Fatal("no Location header in response")
 			}
-
 			fmt.Println(path.Base(location))
 		},
 	},
@@ -280,37 +244,37 @@ var remoteCommands = map[string]command{
 	"status": {
 		usage: "instance",
 		do: func() {
-			commandInstance(webapi.ActionStatus)
+			status := commandInstance(webapi.ActionStatus)
+			fmt.Println(status)
 		},
 	},
 
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			commandInstance(webapi.ActionSuspend)
+			status := commandInstance(webapi.ActionSuspend)
+			fmt.Println(status)
 		},
 	},
 
 	"unref": {
 		usage: "module",
 		do: func() {
-			req := &http.Request{Method: http.MethodPost}
-			params := url.Values{webapi.ParamAction: []string{webapi.ActionUnref}}
-
-			_, _, err := doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), params)
-			if err != nil {
-				log.Fatal(err)
+			req := &http.Request{
+				Method: http.MethodPost,
 			}
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionUnref},
+			}
+
+			doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), params)
 		},
 	},
 
 	"upload": {
 		usage: "module",
 		do: func() {
-			module, key, err := loadModule(flag.Arg(0))
-			if err != nil {
-				log.Fatal(err)
-			}
+			module, key := loadModule(flag.Arg(0))
 
 			req := &http.Request{
 				Method: http.MethodPut,
@@ -326,11 +290,7 @@ var remoteCommands = map[string]command{
 				params = url.Values{webapi.ParamAction: []string{webapi.ActionRef}}
 			}
 
-			_, _, err = doHTTP(req, webapi.PathModuleRefs+key, params)
-			if err != nil {
-				log.Fatal(err)
-			}
-
+			doHTTP(req, webapi.PathModuleRefs+key, params)
 			fmt.Println(key)
 		},
 	},
@@ -338,7 +298,8 @@ var remoteCommands = map[string]command{
 	"wait": {
 		usage: "instance",
 		do: func() {
-			commandInstance(webapi.ActionWait)
+			status := commandInstance(webapi.ActionWait)
+			fmt.Println(status)
 		},
 	},
 }
@@ -349,70 +310,33 @@ func callPost(uri string, params url.Values) webapi.Status {
 		Body:   os.Stdin,
 	}
 
-	_, resp, err := doHTTP(req, uri, params)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	_, err = io.Copy(os.Stdout, resp.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	status, err := unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return status
+	_, resp := doHTTP(req, uri, params)
+	checkCopy(os.Stdout, resp.Body)
+	return unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
 }
 
 func callWebsocket(filename string, params url.Values) webapi.Status {
-	module, key, err := loadModule(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
+	module, key := loadModule(filename)
 
-	u, err := makeWebsocketURL(webapi.PathModuleRefs+key, params)
-	if err != nil {
-		log.Fatal(err)
-	}
+	url := makeWebsocketURL(webapi.PathModuleRefs+key, params)
 
-	conn, _, err := new(websocket.Dialer).Dial(u.String(), nil)
-	if err != nil {
-		log.Fatal(err)
-	}
+	conn, _, err := new(websocket.Dialer).Dial(url, nil)
+	check(err)
 	defer conn.Close()
 
-	call := &webapi.Call{
+	check(conn.WriteJSON(webapi.Call{
+		Authorization: makeAuthorization(),
 		ContentType:   webapi.ContentTypeWebAssembly,
 		ContentLength: int64(module.Len()),
-	}
-
-	call.Authorization, err = makeAuthorization()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := conn.WriteJSON(call); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := conn.WriteMessage(websocket.BinaryMessage, module.Bytes()); err != nil {
-		log.Fatal(err)
-	}
-
-	if err := conn.ReadJSON(new(webapi.CallConnection)); err != nil {
-		log.Fatal(err)
-	}
+	}))
+	check(conn.WriteMessage(websocket.BinaryMessage, module.Bytes()))
+	check(conn.ReadJSON(new(webapi.CallConnection)))
 
 	// TODO: input
 
 	for {
 		msgType, data, err := conn.ReadMessage()
-		if err != nil {
-			log.Fatal(err)
-		}
+		check(err)
 
 		switch msgType {
 		case websocket.BinaryMessage:
@@ -420,61 +344,45 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 
 		case websocket.TextMessage:
 			var status webapi.ConnectionStatus
-
-			if err := json.Unmarshal(data, &status); err != nil {
-				log.Fatal(err)
-			}
-
+			check(json.Unmarshal(data, &status))
 			return status.Status
 		}
 	}
 }
 
-func commandInstance(action string) {
-	req := &http.Request{Method: http.MethodPost}
-	params := url.Values{webapi.ParamAction: []string{action}}
-
-	status, _, err := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
-	if err != nil {
-		log.Fatal(err)
+func commandInstance(action string) webapi.Status {
+	req := &http.Request{
+		Method: http.MethodPost,
+	}
+	params := url.Values{
+		webapi.ParamAction: []string{action},
 	}
 
-	fmt.Println(status)
+	status, _ := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+	return status
 }
 
-func loadModule(filename string) (b *bytes.Buffer, key string, err error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		return
-	}
+func loadModule(filename string) (b *bytes.Buffer, key string) {
+	f := openFile(filename)
 	defer f.Close()
 
 	b = new(bytes.Buffer)
 	h := webapi.ModuleRefHash.New()
-
-	_, err = io.Copy(h, io.TeeReader(f, b))
-	if err != nil {
-		return
-	}
-
+	checkCopy(h, io.TeeReader(f, b))
 	key = base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 	return
 }
 
-func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Status, resp *http.Response, err error) {
-	u, err := makeURL(uri, params, req.Body != nil)
-	if err != nil {
-		return
+func doHTTP(req *http.Request, uri string, params url.Values,
+) (status webapi.Status, resp *http.Response) {
+	if req == nil {
+		req = new(http.Request)
 	}
-
-	req.URL = u
+	req.URL = makeURL(uri, params, req.Body != nil)
 	req.Close = true
-	req.Host = u.Host
+	req.Host = req.URL.Host
 
-	auth, err := makeAuthorization()
-	if err != nil {
-		return
-	}
+	auth := makeAuthorization()
 	if auth != "" {
 		if req.Header == nil {
 			req.Header = make(http.Header)
@@ -482,50 +390,45 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 		req.Header.Set(webapi.HeaderAuthorization, auth)
 	}
 
-	resp, err = http.DefaultClient.Do(req)
-	if err != nil {
-		return
-	}
+	resp, err := http.DefaultClient.Do(req)
+	check(err)
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent, http.StatusCreated:
+		// ok
 
 	default:
-		if resp.Body == nil {
-			err = errors.New(resp.Status)
-		} else if text, e := ioutil.ReadAll(resp.Body); e != nil {
-			err = fmt.Errorf("%s: %q", resp.Status, text)
-		} else {
-			err = errors.New(string(text))
+		msg := resp.Status
+		if x := strings.SplitN(resp.Header.Get(webapi.HeaderContentType), ";", 2); x[0] == "text/plain" {
+			if text, _ := ioutil.ReadAll(resp.Body); len(text) > 0 {
+				msg = string(text)
+			}
 		}
-		return
+		log.Fatal(msg)
 	}
 
 	if serialized := resp.Header.Get(webapi.HeaderStatus); serialized != "" {
-		status, err = unmarshalStatus(serialized)
+		status = unmarshalStatus(serialized)
 	}
 	return
 }
 
-func makeURL(uri string, params url.Values, prelocate bool,
-) (u *url.URL, err error) {
+func makeURL(uri string, params url.Values, prelocate bool) (u *url.URL) {
 	addr := c.Address
 	if !strings.Contains(addr, "://") {
 		addr = "https://" + addr
 	}
 
 	if prelocate {
-		var resp *http.Response
-
-		resp, err = http.Head(addr + webapi.Path)
-		if err != nil {
-			return
-		}
+		resp, err := http.Head(addr + webapi.Path)
+		check(err)
 		resp.Body.Close()
 
 		u = resp.Request.URL
 		u.Path = u.Path + strings.Replace(uri, webapi.Path, "", 1)
 	} else {
+		var err error
+
 		u, err = url.Parse(addr + uri)
 		if err != nil {
 			return
@@ -536,11 +439,8 @@ func makeURL(uri string, params url.Values, prelocate bool,
 	return
 }
 
-func makeWebsocketURL(uri string, params url.Values) (u *url.URL, err error) {
-	u, err = makeURL(uri, params, true)
-	if err != nil {
-		return
-	}
+func makeWebsocketURL(uri string, params url.Values) string {
+	u := makeURL(uri, params, true)
 
 	switch u.Scheme {
 	case "http":
@@ -548,32 +448,26 @@ func makeWebsocketURL(uri string, params url.Values) (u *url.URL, err error) {
 	case "https":
 		u.Scheme = "wss"
 	default:
-		err = fmt.Errorf("address has unsupported scheme: %q", u.Scheme)
-		return
+		log.Fatalf("address has unsupported scheme: %q", u.Scheme)
 	}
 
-	return
+	return u.String()
 }
 
-func makeAuthorization() (auth string, err error) {
+func makeAuthorization() string {
 	if c.IdentityFile == "" {
-		return
+		return ""
 	}
 
 	data, err := ioutil.ReadFile(c.IdentityFile)
-	if err != nil {
-		return
-	}
+	check(err)
 
 	x, err := ssh.ParseRawPrivateKey(data)
-	if err != nil {
-		return
-	}
+	check(err)
 
 	privateKey, ok := x.(*ed25519.PrivateKey)
 	if !ok {
-		err = fmt.Errorf("%s: not an ed25519 private key", c.IdentityFile)
-		return
+		log.Fatalf("%s: not an ed25519 private key", c.IdentityFile)
 	}
 
 	publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
@@ -584,28 +478,21 @@ func makeAuthorization() (auth string, err error) {
 		Aud: []string{"https://" + c.Address + webapi.Path},
 	}
 
-	auth, err = authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
-	if err != nil {
-		return
-	}
+	auth, err := authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
+	check(err)
 
+	return auth
+}
+
+func unmarshalStatus(serialized string) (status webapi.Status) {
+	check(json.Unmarshal([]byte(serialized), &status))
+	if status.Error != "" {
+		log.Fatal(status.String())
+	}
 	return
 }
 
-func unmarshalStatus(serialized string) (status webapi.Status, err error) {
-	err = json.Unmarshal([]byte(serialized), &status)
-	if err != nil {
-		return
-	}
-
-	if status.State == "" {
-		err = errors.New(status.Error)
-		return
-	}
-	if status.Error != "" {
-		err = errors.New(status.String())
-		return
-	}
-
-	return
+func checkCopy(w io.Writer, r io.Reader) {
+	_, err := io.Copy(w, r)
+	check(err)
 }

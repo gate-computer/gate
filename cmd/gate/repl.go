@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -24,36 +23,14 @@ type REPLConfig struct {
 	HistoryLimit int
 }
 
-func repl(instanceID string) {
-	success, err := doREPL(instanceID)
-	if err != nil {
-		log.Print(err)
-	}
-	if !success {
-		os.Exit(1)
-	}
-}
-
-func doREPL(instanceID string) (success bool, err error) {
-	params := url.Values{webapi.ParamAction: []string{webapi.ActionIO}}
-
-	u, err := makeWebsocketURL(webapi.PathInstances+instanceID, params)
-	if err != nil {
-		return
-	}
-
-	conn, _, err := new(websocket.Dialer).Dial(u.String(), nil)
+func remoteREPL(uri string, params url.Values) (ok bool, err error) {
+	conn, _, err := new(websocket.Dialer).Dial(makeWebsocketURL(uri, params), nil)
 	if err != nil {
 		return
 	}
 	defer conn.Close()
 
-	req := new(webapi.IO)
-	req.Authorization, err = makeAuthorization()
-	if err != nil {
-		return
-	}
-	err = conn.WriteJSON(req)
+	err = conn.WriteJSON(webapi.IO{Authorization: makeAuthorization()})
 	if err != nil {
 		return
 	}
@@ -124,10 +101,10 @@ func doREPL(instanceID string) (success bool, err error) {
 
 				switch res.Status.State {
 				case webapi.StateHalted, webapi.StateTerminated:
-					success = (res.Status.Result == 0)
+					ok = (res.Status.Result == 0)
 
 				default:
-					success = false
+					ok = false
 				}
 
 				if res.Status.Cause == "" {
@@ -149,7 +126,7 @@ func doREPL(instanceID string) (success bool, err error) {
 		line, err = rl.Readline()
 		if err != nil {
 			if err == io.EOF {
-				success = true
+				ok = true
 				err = nil
 			}
 			closemsg = websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")

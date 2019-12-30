@@ -175,12 +175,6 @@ func daemonCallInstance(name string) (status server.Status) {
 	return
 }
 
-func openFile(name string) *os.File {
-	f, err := os.Open(name)
-	check(err)
-	return f
-}
-
 func openStdio() (r *os.File, w *os.File) {
 	r = os.Stdin
 	if _, err := unix.IoctlGetTermios(int(r.Fd()), unix.TCGETS); err == nil {
@@ -258,10 +252,4 @@ func statusString(s server.Status) string {
 		t.Cause = ""
 	}
 	return t.String()
-}
-
-func check(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
 }
