@@ -132,6 +132,26 @@ func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
 	return
 }
 
+func (fs *Filesystem) Programs() (names []string, err error) {
+	dir, err := openAsOSFile(fs.progDir.Fd())
+	if err != nil {
+		return
+	}
+	defer dir.Close()
+
+	infos, err := dir.Readdir(-1)
+	if err != nil {
+		return
+	}
+
+	for _, info := range infos {
+		if info.Mode().IsRegular() {
+			names = append(names, info.Name())
+		}
+	}
+	return
+}
+
 func (fs *Filesystem) LoadProgram(name string) (prog *Program, err error) {
 	return fs.loadProgram(fs, name)
 }

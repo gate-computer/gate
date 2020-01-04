@@ -37,8 +37,9 @@ func (mem) protectProgramFile(f *file.File) error {
 }
 
 func (mem) storeProgram(*Program, string) error               { return nil }
-func (mem) loadProgram(Storage, string) (_ *Program, _ error) { return }
+func (mem) Programs() (_ []string, _ error)                   { return }
 func (mem) LoadProgram(string) (_ *Program, _ error)          { return }
+func (mem) loadProgram(Storage, string) (_ *Program, _ error) { return }
 
 func (mem) newInstanceFile() (f *file.File, err error) {
 	f, err = newMemoryFile(memInstanceName, instMaxOffset)

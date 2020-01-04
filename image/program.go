@@ -95,6 +95,8 @@ func (prog *Program) Close() (err error) {
 }
 
 type ProgramStorage interface {
+	Programs() (names []string, err error)
+
 	newProgramFile() (*file.File, error)
 	protectProgramFile(*file.File) error
 	storeProgram(prog *Program, name string) error
