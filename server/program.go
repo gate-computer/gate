@@ -180,15 +180,16 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		}
 	}
 
-	prog = newProgram(hashEncoding.EncodeToString(actualHash), progImage, b.Buffers)
+	prog = newProgram(hashEncoding.EncodeToString(actualHash), progImage, b.Buffers, false)
 	return
 }
 
-func newProgram(key string, image *image.Program, buffers snapshot.Buffers) *program {
+func newProgram(key string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
 	prog := &program{
 		key:      key,
 		image:    image,
 		buffers:  buffers,
+		stored:   stored,
 		refCount: 1,
 	}
 	goruntime.SetFinalizer(prog, finalizeProgram)

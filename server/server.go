@@ -1023,7 +1023,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 		return
 	}
 
-	_, err = s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage, buffers))
+	_, err = s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage, buffers, true))
 	if err != nil {
 		return
 	}
@@ -1129,7 +1129,7 @@ func (s *Server) refProgram(ctx context.Context, hash string, length int64) (pro
 		return
 	}
 
-	prog = newProgram(hash, progImage, buffers)
+	prog = newProgram(hash, progImage, buffers, true)
 	progImage = nil
 
 	s.lock.Lock()
