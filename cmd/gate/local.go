@@ -80,6 +80,19 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"instances": {
+		do: func() {
+			call := daemonCall("Instances")
+
+			var is []server.InstanceStatus
+			check(call.Store(&is))
+
+			for _, inst := range is {
+				fmt.Printf("%-36s %s\n", inst.Instance, statusString(inst.Status))
+			}
+		},
+	},
+
 	"io": {
 		usage: "instance",
 		do: func() {
@@ -126,6 +139,19 @@ var localCommands = map[string]command{
 			check(call.Store(&instance))
 
 			fmt.Println(instance)
+		},
+	},
+
+	"modules": {
+		do: func() {
+			call := daemonCall("Modules")
+
+			var refs []server.ModuleRef
+			check(call.Store(&refs))
+
+			for _, m := range refs {
+				fmt.Println(m.Key)
+			}
 		},
 	},
 

@@ -94,6 +94,7 @@ var remoteCommands = map[string]command{
 
 			var is webapi.Instances
 			check(json.NewDecoder(resp.Body).Decode(&is))
+
 			for _, inst := range is.Instances {
 				fmt.Printf("%-36s %s\n", inst.Instance, inst.Status)
 			}
@@ -181,6 +182,7 @@ var remoteCommands = map[string]command{
 
 			var refs webapi.ModuleRefs
 			check(json.NewDecoder(resp.Body).Decode(&refs))
+
 			for _, m := range refs.Modules {
 				fmt.Println(m.Key)
 			}

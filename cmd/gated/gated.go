@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path"
 	goruntime "runtime"
+	"sort"
 	"syscall"
 
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -220,6 +221,12 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			return
 		},
 
+		"Instances": func() (list []server.InstanceStatus, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			list = handleInstanceList(ctx, pri, s)
+			return
+		},
+
 		"IO": func(instID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			ok = handleInstanceConnect(ctx, pri, s, instID, rFD, wFD)
@@ -239,6 +246,12 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
 			instID = handleLaunch(ctx, pri, s, module, "", function, ref, debugFD, debugName)
+			return
+		},
+
+		"Modules": func() (list []server.ModuleRef, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			list = handleModuleList(ctx, pri, s)
 			return
 		},
 
@@ -283,6 +296,13 @@ func debugHandler(ctx context.Context, option string,
 		output = ctx.Value(debugKey{}).(*fileCell).steal()
 	}
 	return
+}
+
+func handleModuleList(ctx context.Context, pri *principal.Key, s *server.Server) server.ModuleRefs {
+	refs, err := s.ModuleRefs(ctx, pri)
+	check(err)
+	sort.Sort(refs)
+	return refs
 }
 
 func handleModuleDownload(ctx context.Context, pri *principal.Key, s *server.Server, key string,
@@ -355,6 +375,13 @@ func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, mod
 	go inst.Run(server.DetachedContext(ctx, pri), s)
 
 	return inst.ID()
+}
+
+func handleInstanceList(ctx context.Context, pri *principal.Key, s *server.Server) server.Instances {
+	instances, err := s.Instances(ctx, pri)
+	check(err)
+	sort.Sort(instances)
+	return instances
 }
 
 func handleInstance(ctx context.Context, pri *principal.Key, f instanceFunc, instID string,
