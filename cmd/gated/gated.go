@@ -112,7 +112,7 @@ func mainResult() int {
 	c.Service[origin.ServiceName] = &originConfig
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] wasmfile...\n\nOptions:\n", flag.CommandLine.Name())
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n\nOptions:\n", flag.CommandLine.Name())
 		flag.PrintDefaults()
 	}
 	flag.Usage = confi.FlagUsage(nil, c)
@@ -165,15 +165,18 @@ func mainResult() int {
 		panic(fmt.Errorf("D-Bus name already taken: %s", bus.DaemonIface))
 	}
 
+	pri := new(principal.Key)
+
 	s, err := server.New(server.Config{
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &server.PublicAccess{AccessConfig: c.Principal},
+		XXX_Owner:      pri,
 	})
 	check(err)
 	defer s.Shutdown(ctx)
 
-	check(conn.ExportMethodTable(methods(ctx, s), bus.DaemonPath, bus.DaemonIface))
+	check(conn.ExportMethodTable(methods(ctx, pri, s), bus.DaemonPath, bus.DaemonIface))
 	check(conn.Export(introspect.Introspectable(intro), bus.DaemonPath,
 		"org.freedesktop.DBus.Introspectable"))
 
@@ -185,9 +188,7 @@ func mainResult() int {
 	return 0
 }
 
-func methods(ctx context.Context, s *server.Server) map[string]interface{} {
-	pri := new(principal.Key)
-
+func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[string]interface{} {
 	methods := map[string]interface{}{
 		"CallKey": func(key, function string, rFD, wFD, debugFD dbus.UnixFD, debugName string,
 		) (state server.State, cause server.Cause, result int32, err *dbus.Error) {

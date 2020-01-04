@@ -12,6 +12,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/packet"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/snapshot"
@@ -64,6 +65,9 @@ type Config struct {
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
 	Monitor        func(Event, error)
+
+	// TODO: remove this after there is some kind of ownership database
+	XXX_Owner *principal.Key
 }
 
 func (c Config) Configured() bool {

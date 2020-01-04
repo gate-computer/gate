@@ -115,6 +115,12 @@ func (s *Server) loadProgramDuringInit(hash string) error {
 	prog := newProgram(hash, image, buffers, true)
 	s.programs[hash] = prog
 	image = nil
+
+	if s.XXX_Owner != nil {
+		acc, _ := s.ensureAccount(s.XXX_Owner)
+		acc.ensureRefProgram(prog)
+	}
+
 	return nil
 }
 
