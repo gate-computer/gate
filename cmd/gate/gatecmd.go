@@ -35,22 +35,28 @@ var c = new(Config)
 
 const mainUsageHead = `Usage: %s [options] [address] command [arguments]
 
-Commands:
+Common commands:
   call      execute a wasm module with I/O
   delete    delete an instance
-  download  download a wasm module
-  instances list instances
   io        connect to a running instance
   launch    create an instance from a wasm module
-  modules   list wasm module references
-  repl      connect to a running instance in interactive mode
   resume    resume a suspended instance
-  snapshot  create a wasm snapshot of an instance
   status    query current status of an instance
   suspend   suspend a running instance
+  wait      wait until an instance is suspended, halted or terminated
+
+Local commands (no address before command):
+  pull      copy a module from a server to local storage
+  push      copy a module from local storage to a server
+
+Remote commands (server address must be specified before command):
+  download  download a wasm module
+  instances list instances
+  modules   list wasm module references
+  repl      connect to a running instance in interactive mode
+  snapshot  create a wasm snapshot of an instance
   unref     remove a wasm module reference
   upload    upload a wasm module
-  wait      wait until an instance is suspended, halted or terminated
 
 Address examples:
   example.net           (scheme defaults to https)
@@ -58,6 +64,11 @@ Address examples:
   http://localhost:8080
 
 Options:
+`
+
+const altAddressUsage = `Usage: %s %s %s
+
+For %s, the server address must be specified after the command.
 `
 
 const moduleUsage = `
@@ -144,8 +155,12 @@ func main() {
 
 	command, ok := commands[flag.CommandLine.Name()]
 	if !ok {
-		if _, exist := otherCommands[flag.CommandLine.Name()]; exist {
-			fmt.Fprintln(flag.CommandLine.Output(), "Command not supported for specified address.")
+		if command, exist := otherCommands[flag.CommandLine.Name()]; exist {
+			if strings.HasPrefix(command.usage, "address") {
+				fmt.Fprintf(flag.CommandLine.Output(), altAddressUsage, progname, flag.CommandLine.Name(), command.usage, flag.CommandLine.Name())
+			} else {
+				fmt.Fprintln(flag.CommandLine.Output(), "Command not supported for specified address.")
+			}
 		} else {
 			flag.Usage()
 		}
@@ -168,7 +183,7 @@ func main() {
 			usageFmt += " "
 		}
 		usageFmt += "%s\n"
-		if strings.Contains(command.usage, "module") {
+		if strings.HasPrefix(command.usage, "module") {
 			usageFmt += moduleUsage
 		}
 		if options {

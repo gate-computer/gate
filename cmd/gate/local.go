@@ -130,6 +130,35 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"pull": {
+		usage: "address module",
+		do: func() {
+			c.Address = flag.Arg(0)
+
+			_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(1), nil)
+			if resp.ContentLength < 0 {
+				log.Fatal("server did not specify content length")
+			}
+
+			r, w, err := os.Pipe()
+			check(err)
+
+			copied := make(chan error, 1)
+			go func() {
+				defer w.Close()
+				_, err := io.Copy(w, resp.Body)
+				copied <- err
+			}()
+
+			rFD := dbus.UnixFD(r.Fd())
+			call := daemonCall("Upload", rFD, resp.ContentLength, flag.Arg(1))
+			closeFiles(r)
+			check(call.Store())
+
+			check(<-copied)
+		},
+	},
+
 	"resume": {
 		usage: "instance",
 		do: func() {
