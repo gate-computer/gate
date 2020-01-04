@@ -91,7 +91,7 @@ type command struct {
 func parseConfig(flags *flag.FlagSet, c *Config) {
 	var defaults string
 	if home != "" {
-		defaults = path.Join(home, ".config/gate/gate.toml")
+		defaults = path.Join(home, ".config", "gate", "gate.toml")
 	}
 
 	b := confi.NewBuffer(defaults)
@@ -111,7 +111,7 @@ func main() {
 	log.SetFlags(0)
 
 	if home != "" {
-		c.IdentityFile = path.Join(home, ".ssh/id_ed25519")
+		c.IdentityFile = path.Join(home, ".ssh", "id_ed25519")
 	}
 
 	c.Ref = DefaultRef
