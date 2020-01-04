@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"strings"
@@ -59,7 +61,6 @@ var localCommands = map[string]command{
 				moduleFD := dbus.UnixFD(module.Fd())
 				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, debugFD)
 			}
-
 			closeFiles(module, r, w, debug)
 
 			var status server.Status
@@ -87,7 +88,6 @@ var localCommands = map[string]command{
 			wFD := dbus.UnixFD(w.Fd())
 
 			call := daemonCall("IO", flag.Arg(0), rFD, wFD)
-
 			closeFiles(r, w)
 
 			var ok bool
@@ -120,7 +120,6 @@ var localCommands = map[string]command{
 				moduleFD := dbus.UnixFD(module.Fd())
 				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, debugFD)
 			}
-
 			closeFiles(module, debug)
 
 			var instance string
@@ -159,6 +158,37 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"push": {
+		usage: "address module",
+		do: func() {
+			c.Address = flag.Arg(0)
+
+			r, w, err := os.Pipe()
+			check(err)
+
+			wFD := dbus.UnixFD(w.Fd())
+			call := daemonCall("Download", wFD, flag.Arg(1))
+			closeFiles(w)
+
+			var moduleLen int64
+			check(call.Store(&moduleLen))
+
+			req := &http.Request{
+				Method: http.MethodPut,
+				Header: http.Header{
+					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
+				},
+				Body:          r,
+				ContentLength: moduleLen,
+			}
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionRef},
+			}
+
+			doHTTP(req, webapi.PathModuleRefs+flag.Arg(1), params)
+		},
+	},
+
 	"resume": {
 		usage: "instance",
 		do: func() {
@@ -166,9 +196,7 @@ var localCommands = map[string]command{
 			debugFD := dbus.UnixFD(debug.Fd())
 
 			call := daemonCall("Resume", flag.Arg(0), debugFD)
-
 			closeFiles(debug)
-
 			check(call.Store())
 		},
 	},

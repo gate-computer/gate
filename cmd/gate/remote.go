@@ -284,10 +284,8 @@ var remoteCommands = map[string]command{
 				Body:          ioutil.NopCloser(module),
 				ContentLength: int64(module.Len()),
 			}
-
-			var params url.Values
-			if c.Ref {
-				params = url.Values{webapi.ParamAction: []string{webapi.ActionRef}}
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionRef},
 			}
 
 			doHTTP(req, webapi.PathModuleRefs+key, params)

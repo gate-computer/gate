@@ -197,6 +197,19 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			return
 		},
 
+		"Download": func(moduleFD dbus.UnixFD, key string,
+		) (moduleLen int64, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			module := os.NewFile(uintptr(moduleFD), "module")
+			r, moduleLen := handleModuleDownload(ctx, pri, s, key)
+			go func() {
+				defer module.Close()
+				defer r.Close()
+				io.Copy(module, r)
+			}()
+			return
+		},
+
 		"IO": func(instID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			ok = handleInstanceConnect(ctx, pri, s, instID, rFD, wFD)
@@ -258,6 +271,13 @@ func debugHandler(ctx context.Context, option string,
 		status = option
 		output = ctx.Value(debugKey{}).(*fileCell).steal()
 	}
+	return
+}
+
+func handleModuleDownload(ctx context.Context, pri *principal.Key, s *server.Server, key string,
+) (content io.ReadCloser, contentLen int64) {
+	content, contentLen, err := s.ModuleContent(ctx, pri, key)
+	check(err)
 	return
 }
 
