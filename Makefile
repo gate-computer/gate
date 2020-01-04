@@ -78,6 +78,10 @@ install: install-lib install-bin
 install-apparmor: install-lib-apparmor
 install-capabilities: install-lib-capabilities install-bin
 
+install-bash:
+	install -m 755 -d $(DESTDIR)/etc/bash_completion.d
+	install -m 644 etc/bash_completion.d/gate.bash $(DESTDIR)/etc/bash_completion.d/gate
+
 internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
 	mkdir -p tmp
 	$(GO) run internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S) | $(GOFMT) > tmp/errors.go
@@ -108,4 +112,4 @@ clean:
 	$(MAKE) -C runtime/loader clean
 	$(MAKE) -C runtime/loader/test clean
 
-.PHONY: lib bin generate all check benchmark install-lib install-lib-apparmor install-lib-capabilities install-bin install install-apparmor install-capabilities clean
+.PHONY: lib bin generate all check benchmark install-lib install-lib-apparmor install-lib-capabilities install-bin install install-apparmor install-capabilities install-bash clean

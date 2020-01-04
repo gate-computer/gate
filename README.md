@@ -143,7 +143,7 @@ Additional requirements for `make check`:
   - python
 
 Other make targets: `benchmark` `install` `install-apparmor` `install-lib` `install-bin`
-`install-capabilities` `install-lib-apparmor` `install-lib-capabilities`
+`install-capabilities` `install-lib-apparmor` `install-lib-capabilities` `install-bash`
 
 The capabilities targets grant [capabilities](Capabilities.md) for the
 installed container binary (lib).  That requires:
