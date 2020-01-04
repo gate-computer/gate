@@ -55,11 +55,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !strings.Contains(flag.Arg(0), "/") {
-				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, debugFD)
+				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, debugFD, c.Debug)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, debugFD)
+				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, debugFD, c.Debug)
 			}
 			closeFiles(module, r, w, debug)
 
@@ -114,11 +114,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !strings.Contains(flag.Arg(0), "/") {
-				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, debugFD)
+				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, debugFD, c.Debug)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, debugFD)
+				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, debugFD, c.Debug)
 			}
 			closeFiles(module, debug)
 
@@ -195,7 +195,7 @@ var localCommands = map[string]command{
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
 
-			call := daemonCall("Resume", flag.Arg(0), debugFD)
+			call := daemonCall("Resume", flag.Arg(0), debugFD, c.Debug)
 			closeFiles(debug)
 			check(call.Store())
 		},

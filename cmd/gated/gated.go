@@ -188,19 +188,19 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 	pri := new(principal.Key)
 
 	methods := map[string]interface{}{
-		"CallKey": func(key, function string, rFD, wFD, debugFD dbus.UnixFD,
+		"CallKey": func(key, function string, rFD, wFD, debugFD dbus.UnixFD, debugName string,
 		) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			state, cause, result = handleCall(ctx, pri, s, nil, key, function, false, rFD, wFD, debugFD)
+			state, cause, result = handleCall(ctx, pri, s, nil, key, function, false, rFD, wFD, debugFD, debugName)
 			return
 		},
 
-		"CallFile": func(moduleFD dbus.UnixFD, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD,
+		"CallFile": func(moduleFD dbus.UnixFD, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string,
 		) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			state, cause, result = handleCall(ctx, pri, s, module, "", function, ref, rFD, wFD, debugFD)
+			state, cause, result = handleCall(ctx, pri, s, module, "", function, ref, rFD, wFD, debugFD, debugName)
 			return
 		},
 
@@ -223,25 +223,26 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			return
 		},
 
-		"LaunchKey": func(key, function string, debugFD dbus.UnixFD,
+		"LaunchKey": func(key, function string, debugFD dbus.UnixFD, debugName string,
 		) (instID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			instID = handleLaunch(ctx, pri, s, nil, key, function, false, debugFD)
+			instID = handleLaunch(ctx, pri, s, nil, key, function, false, debugFD, debugName)
 			return
 		},
 
-		"LaunchFile": func(moduleFD dbus.UnixFD, function string, ref bool, debugFD dbus.UnixFD,
+		"LaunchFile": func(moduleFD dbus.UnixFD, function string, ref bool, debugFD dbus.UnixFD, debugName string,
 		) (instID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			instID = handleLaunch(ctx, pri, s, module, "", function, ref, debugFD)
+			instID = handleLaunch(ctx, pri, s, module, "", function, ref, debugFD, debugName)
 			return
 		},
 
-		"Resume": func(instID string, debugFD dbus.UnixFD) (err *dbus.Error) {
+		"Resume": func(instID string, debugFD dbus.UnixFD, debugName string,
+		) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceResume(ctx, pri, s, instID, debugFD)
+			handleInstanceResume(ctx, pri, s, instID, debugFD, debugName)
 			return
 		},
 
@@ -292,7 +293,7 @@ func handleModuleUpload(ctx context.Context, pri *principal.Key, s *server.Serve
 	check(s.UploadModule(ctx, pri, true, key, module, moduleLen))
 }
 
-func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD,
+func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string,
 ) (state server.State, cause server.Cause, result int32) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
@@ -317,9 +318,9 @@ func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, modul
 	var inst *server.Instance
 	if module != nil {
 		moduleR, moduleLen := getReaderWithLength(module)
-		inst, err = s.UploadModuleInstance(ctx, pri, ref, "", ioutil.NopCloser(moduleR), moduleLen, false, function, "", "1")
+		inst, err = s.UploadModuleInstance(ctx, pri, ref, "", ioutil.NopCloser(moduleR), moduleLen, false, function, "", debugName)
 	} else {
-		inst, err = s.CreateInstance(ctx, pri, key, false, function, "", "1")
+		inst, err = s.CreateInstance(ctx, pri, key, false, function, "", debugName)
 	}
 	check(err)
 	defer inst.Kill(s)
@@ -330,7 +331,7 @@ func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, modul
 	return status.State, status.Cause, status.Result
 }
 
-func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, debugFD dbus.UnixFD) string {
+func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, debugFD dbus.UnixFD, debugName string) string {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
@@ -342,9 +343,9 @@ func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, mod
 	)
 	if module != nil {
 		moduleR, moduleLen := getReaderWithLength(module)
-		inst, err = s.UploadModuleInstance(ctx, pri, ref, "", ioutil.NopCloser(moduleR), moduleLen, true, function, "", "1")
+		inst, err = s.UploadModuleInstance(ctx, pri, ref, "", ioutil.NopCloser(moduleR), moduleLen, true, function, "", debugName)
 	} else {
-		inst, err = s.CreateInstance(ctx, pri, key, true, function, "", "1")
+		inst, err = s.CreateInstance(ctx, pri, key, true, function, "", debugName)
 	}
 	check(err)
 
@@ -360,13 +361,13 @@ func handleInstance(ctx context.Context, pri *principal.Key, f instanceFunc, ins
 	return status.State, status.Cause, status.Result
 }
 
-func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Server, instID string, debugFD dbus.UnixFD) {
+func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Server, instID string, debugFD dbus.UnixFD, debugName string) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
 	ctx = context.WithValue(ctx, debugKey{}, debug)
 
-	inst, err := s.ResumeInstance(ctx, pri, "", instID, "1")
+	inst, err := s.ResumeInstance(ctx, pri, "", instID, debugName)
 	check(err)
 
 	go inst.Run(server.DetachedContext(ctx, pri), s)
