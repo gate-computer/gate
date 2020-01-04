@@ -42,49 +42,6 @@ type programBuild struct {
 	objectMap *object.CallMap
 }
 
-func (prog *programBuild) callSitesSize() int {
-	return len(prog.objectMap.CallSites) * 8
-}
-
-func (prog *programBuild) callSitesBytes() []byte {
-	n := prog.callSitesSize()
-	if n == 0 {
-		return nil
-	}
-
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  n,
-		Cap:  n,
-		Data: (uintptr)(unsafe.Pointer(&prog.objectMap.CallSites[0])),
-	}))
-}
-
-func (prog *programBuild) funcAddrsSize() int {
-	return len(prog.objectMap.FuncAddrs) * 4
-}
-
-func (prog *programBuild) funcAddrsBytes() []byte {
-	n := prog.funcAddrsSize()
-	if n == 0 {
-		return nil
-	}
-
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  n,
-		Cap:  n,
-		Data: (uintptr)(unsafe.Pointer(&prog.objectMap.FuncAddrs[0])),
-	}))
-}
-
-func (prog *programBuild) copyObjectMapTo(dest []byte) {
-	copy(dest, prog.callSitesBytes())
-	copy(dest[prog.callSitesSize():], prog.funcAddrsBytes())
-}
-
-func (prog *programBuild) writeObjectMapAt(offset int64) (err error) {
-	return prog.file.WriteVecAt([2][]byte{prog.callSitesBytes(), prog.funcAddrsBytes()}, offset)
-}
-
 type instanceBuild struct {
 	enabled   bool
 	file      *file.File
@@ -233,14 +190,14 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) (
 	// Copy or write object map to program.
 	var (
 		progCallSitesOffset = progModuleOffset + align8(int64(b.prog.module.Cap()))
-		progFuncAddrsOffset = progCallSitesOffset + int64(b.prog.callSitesSize())
-		progObjectMapEnd    = alignPageOffset(progFuncAddrsOffset + int64(b.prog.funcAddrsSize()))
+		progFuncAddrsOffset = progCallSitesOffset + int64(callSitesSize(b.prog.objectMap))
+		progObjectMapEnd    = alignPageOffset(progFuncAddrsOffset + int64(funcAddrsSize(b.prog.objectMap)))
 	)
 
 	if progObjectMapEnd-progModuleOffset <= int64(len(b.prog.moduleMem)) {
-		b.prog.copyObjectMapTo(b.prog.moduleMem[progCallSitesOffset-progModuleOffset:])
+		copyObjectMapTo(b.prog.moduleMem[progCallSitesOffset-progModuleOffset:], b.prog.objectMap)
 	} else {
-		b.prog.writeObjectMapAt(progCallSitesOffset)
+		writeObjectMapAt(b.prog.file, b.prog.objectMap, progCallSitesOffset)
 	}
 
 	return
@@ -341,8 +298,8 @@ func (b *Build) FinishProgram(
 		StackSection:    manifestByteRange(sectionMap.Stack),
 		GlobalTypes:     globalTypeBytes(mod.GlobalTypes()),
 		StartFunc:       manifest.NoFunction,
-		CallSitesSize:   uint32(b.prog.callSitesSize()),
-		FuncAddrsSize:   uint32(b.prog.funcAddrsSize()),
+		CallSitesSize:   uint32(callSitesSize(b.prog.objectMap)),
+		FuncAddrsSize:   uint32(funcAddrsSize(b.prog.objectMap)),
 		Random:          b.imports.Random,
 		Snapshot:        manifest.Snapshot{MonotonicTime: monotonicTime},
 	}

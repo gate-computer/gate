@@ -9,7 +9,7 @@ import (
 	"github.com/tsavola/wag/compile"
 )
 
-const MaxSize = 4096
+const MaxSize = 4096 // Including header.
 
 var NoFunction = Function{Index: -1}
 

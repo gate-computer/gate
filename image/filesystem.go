@@ -7,12 +7,14 @@ package image
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"syscall"
 
 	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/wag/object"
 	"golang.org/x/sys/unix"
 )
 
@@ -91,22 +93,17 @@ func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 func (fs *Filesystem) protectProgramFile(*file.File) error { return nil }
 
 func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
-	err = func() (err error) {
-		b, err := mmap(prog.file.Fd(), progManifestOffset, manifestHeaderSize+manifest.MaxSize, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
-		if err != nil {
-			return
-		}
-		defer mustMunmap(b)
+	manSize := manifestHeaderSize + prog.man.Size()
+	b := make([]byte, manSize)
+	binary.LittleEndian.PutUint32(b, programFileTag)
+	binary.LittleEndian.PutUint32(b[4:], uint32(manSize))
 
-		n, err := prog.man.MarshalTo(b[manifestHeaderSize:])
-		if err != nil {
-			return
-		}
-
-		binary.LittleEndian.PutUint32(b[4:], uint32(n))
-		binary.LittleEndian.PutUint32(b, programFileTag)
+	_, err = prog.man.MarshalTo(b[manifestHeaderSize:])
+	if err != nil {
 		return
-	}()
+	}
+
+	_, err = prog.file.WriteAt(b, progManifestOffset)
 	if err != nil {
 		return
 	}
@@ -170,11 +167,16 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 		}
 	}()
 
-	b, err := mmap(f.Fd(), progManifestOffset, manifestHeaderSize+manifest.MaxSize, syscall.PROT_READ, syscall.MAP_SHARED)
+	prog = &Program{
+		storage: storage,
+		file:    f,
+	}
+
+	b := make([]byte, manifest.MaxSize)
+	_, err = io.ReadFull(io.NewSectionReader(f, progManifestOffset, manifest.MaxSize), b)
 	if err != nil {
 		return
 	}
-	defer mustMunmap(b)
 
 	if tag := binary.LittleEndian.Uint32(b); tag != programFileTag {
 		err = fmt.Errorf("unknown program file tag: %#x", programFileTag)
@@ -182,24 +184,44 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 	}
 
 	manSize := binary.LittleEndian.Uint32(b[4:])
-	if manSize > manifest.MaxSize {
+	if manSize < manifestHeaderSize || manSize > manifest.MaxSize {
 		err = fmt.Errorf("program manifest size out of bounds: %d", manSize)
 		return
 	}
 
-	var man manifest.Program
-
-	err = man.Unmarshal(b[manifestHeaderSize : manifestHeaderSize+int(manSize)])
+	err = prog.man.Unmarshal(b[manifestHeaderSize:manSize])
 	if err != nil {
 		return
 	}
 
-	// TODO: load object map
+	var (
+		progCallSitesOffset = progModuleOffset + align8(int64(prog.man.ModuleSize))
+		progFuncAddrsOffset = progCallSitesOffset + int64(prog.man.CallSitesSize)
+	)
 
-	prog = &Program{
-		storage: storage,
-		man:     man,
-		file:    f,
+	prog.Map.CallSites = make([]object.CallSite, prog.man.CallSitesSize/callSiteSize)
+	prog.Map.FuncAddrs = make([]uint32, prog.man.FuncAddrsSize/4)
+
+	// TODO: preadv
+
+	_, err = io.ReadFull(io.NewSectionReader(f, progCallSitesOffset, int64(prog.man.CallSitesSize)), callSitesBytes(&prog.Map))
+	if err != nil {
+		return
+	}
+
+	_, err = io.ReadFull(io.NewSectionReader(f, progFuncAddrsOffset, int64(prog.man.FuncAddrsSize)), funcAddrsBytes(&prog.Map))
+	if err != nil {
+		return
+	}
+
+	if !storage.singleBackend() {
+		var (
+			stackMapSize   = alignPageSize32(prog.man.StackUsage)
+			globalsMapSize = alignPageSize32(prog.man.GlobalsSize)
+			mapSize        = alignPageSize(stackMapSize + globalsMapSize + int(prog.man.MemoryDataSize))
+		)
+
+		prog.mem, err = mmap(prog.file.Fd(), progGlobalsOffset-int64(stackMapSize), mapSize, syscall.PROT_READ, syscall.MAP_SHARED)
 	}
 	return
 }
