@@ -17,12 +17,6 @@ import (
 )
 
 const (
-	fsRootDir     = "v0"
-	fsProgramDir  = fsRootDir + "/program"
-	fsInstanceDir = fsRootDir + "/instance"
-)
-
-const (
 	programFileTag     = 0x4a5274bd
 	manifestHeaderSize = 8
 )
@@ -35,11 +29,16 @@ type Filesystem struct {
 }
 
 func NewFilesystem(root string) (fs *Filesystem, err error) {
-	progPath := path.Join(root, fsProgramDir)
-	instPath := path.Join(root, fsInstanceDir)
+	progPath := path.Join(root, "program")
+	instPath := path.Join(root, "instance")
 
-	os.Mkdir(path.Join(root, fsRootDir), 0700)
-	os.Mkdir(progPath, 0700)
+	// Don't use MkdirAll to get an error if root doesn't exist.
+	for _, p := range []string{progPath, instPath} {
+		if e := os.Mkdir(p, 0700); e != nil && !os.IsExist(e) {
+			err = e
+			return
+		}
+	}
 
 	progDir, err := openat(unix.AT_FDCWD, progPath, syscall.O_DIRECTORY, 0)
 	if err != nil {
@@ -50,8 +49,6 @@ func NewFilesystem(root string) (fs *Filesystem, err error) {
 			progDir.Close()
 		}
 	}()
-
-	os.Mkdir(instPath, 0700)
 
 	instDir, err := openat(unix.AT_FDCWD, instPath, syscall.O_DIRECTORY, 0)
 	if err != nil {

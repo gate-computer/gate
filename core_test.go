@@ -156,10 +156,10 @@ func init() {
 	}
 
 	if dir != "" {
-		if err := os.RemoveAll(path.Join(dir, "v0", "program")); err != nil {
+		if err := os.RemoveAll(path.Join(dir, "program")); err != nil {
 			panic(err)
 		}
-		if err := os.RemoveAll(path.Join(dir, "v0", "instance")); err != nil {
+		if err := os.RemoveAll(path.Join(dir, "instance")); err != nil {
 			panic(err)
 		}
 		fs, err := image.NewFilesystem(dir)
