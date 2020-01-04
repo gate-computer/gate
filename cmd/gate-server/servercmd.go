@@ -52,6 +52,7 @@ const (
 	DefaultExecutorCount   = 1
 	DefaultProgramStorage  = "memory"
 	DefaultInstanceStorage = "memory"
+	DefaultVarImageDir     = "/var/gate/image"
 	DefaultIndexStatus     = http.StatusNotFound
 )
 
@@ -69,7 +70,7 @@ var c = new(struct {
 		PreparePrograms  int
 		InstanceStorage  string
 		PrepareInstances int
-		Filesystem       string
+		VarDir           string
 	}
 
 	Plugin struct {
@@ -159,9 +160,10 @@ func main() {
 
 	c.Runtime.Config = runtime.DefaultConfig
 	c.Runtime.ExecutorCount = DefaultExecutorCount
-	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Image.ProgramStorage = DefaultProgramStorage
 	c.Image.InstanceStorage = DefaultInstanceStorage
+	c.Image.VarDir = DefaultVarImageDir
+	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
@@ -295,8 +297,8 @@ func main2(critLog *log.Logger) (err error) {
 	c.Server.ProcessFactory = runtime.DistributeProcesses(factories...)
 
 	var fs *image.Filesystem
-	if c.Image.Filesystem != "" {
-		fs, err = image.NewFilesystem(c.Image.Filesystem)
+	if c.Image.VarDir != "" {
+		fs, err = image.NewFilesystem(c.Image.VarDir)
 		if err != nil {
 			return fmt.Errorf("filesystem: %v", err)
 		}

@@ -15,6 +15,7 @@ import (
 	"math"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -39,11 +40,13 @@ type instanceFunc func(ctx context.Context, pri *principal.Key, instance string)
 
 const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
 
+var home = os.Getenv("HOME")
+
 var c struct {
 	Runtime runtime.Config
 
 	Image struct {
-		Filesystem string
+		VarDir string
 	}
 
 	Plugin struct {
@@ -78,6 +81,9 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 
 func mainResult() int {
 	c.Runtime = runtime.DefaultConfig
+	if home != "" {
+		c.Image.VarDir = path.Join(home, ".gate", "image")
+	}
 	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9
@@ -126,8 +132,9 @@ func mainResult() int {
 	c.Principal.Debug = debugHandler
 
 	var storage image.Storage = image.Memory
-	if c.Image.Filesystem != "" {
-		fs, err := image.NewFilesystem(c.Image.Filesystem)
+	if c.Image.VarDir != "" {
+		check(os.MkdirAll(c.Image.VarDir, 0755))
+		fs, err := image.NewFilesystem(c.Image.VarDir)
 		check(err)
 		defer fs.Close()
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
