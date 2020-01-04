@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	goruntime "runtime"
 	"syscall"
 
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -25,7 +26,7 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/bus"
 	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/runtime"
+	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/catalog"
@@ -43,7 +44,7 @@ const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + i
 var home = os.Getenv("HOME")
 
 var c struct {
-	Runtime runtime.Config
+	Runtime gateruntime.Config
 
 	Image struct {
 		VarDir string
@@ -80,7 +81,7 @@ func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
 }
 
 func mainResult() int {
-	c.Runtime = runtime.DefaultConfig
+	c.Runtime = gateruntime.DefaultConfig
 	if home != "" {
 		c.Image.VarDir = path.Join(home, ".gate", "image")
 	}
@@ -140,7 +141,7 @@ func mainResult() int {
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
 	}
 
-	exec, err := runtime.NewExecutor(c.Runtime)
+	exec, err := gateruntime.NewExecutor(c.Runtime)
 	check(err)
 	defer exec.Close()
 
@@ -415,6 +416,9 @@ func getReaderWithLength(f *os.File) (io.Reader, int64) {
 func asBusError(x interface{}) *dbus.Error {
 	if x != nil {
 		if err, ok := x.(error); ok {
+			if _, ok := err.(goruntime.Error); ok {
+				panic(x)
+			}
 			return dbus.MakeFailedError(err)
 		}
 		panic(x)
