@@ -252,7 +252,9 @@ func main() {
 	critLog.Fatal(main2(critLog))
 }
 
-func main2(critLog *log.Logger) (err error) {
+func main2(critLog *log.Logger) error {
+	var err error
+
 	ctx := context.Background()
 
 	if c.Monitor.HTTP.Addr != "" {
@@ -380,7 +382,7 @@ func main2(critLog *log.Logger) (err error) {
 	if c.HTTP.Authority == "" {
 		c.HTTP.Authority, _, err = net.SplitHostPort(c.HTTP.Addr)
 		if err != nil {
-			return
+			return err
 		}
 	}
 
@@ -405,7 +407,10 @@ func main2(critLog *log.Logger) (err error) {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server = server.New(c.Server.Config)
+	c.HTTP.Server, err = server.New(c.Server.Config)
+	if err != nil {
+		return err
+	}
 	handler := newHTTPSHandler(webserver.NewHandler("/", c.HTTP.Config))
 
 	if c.HTTP.AccessLog != "" {

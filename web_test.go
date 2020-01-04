@@ -189,7 +189,7 @@ func debugPolicy(ctx context.Context, option string) (status string, output io.W
 	}
 }
 
-func newServer() *server.Server {
+func newServer() (*server.Server, error) {
 	access := server.NewPublicAccess(newServices())
 	access.Debug = debugPolicy
 
@@ -201,9 +201,16 @@ func newServer() *server.Server {
 	return server.New(config)
 }
 
-func newHandler() http.Handler {
+func newHandler(t *testing.T) http.Handler {
+	t.Helper()
+
+	s, err := newServer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	config := webserver.Config{
-		Server:        newServer(),
+		Server:        s,
 		Authority:     "test",
 		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
@@ -294,14 +301,14 @@ func TestMethodNotAllowed(t *testing.T) {
 	} {
 		for _, method := range methods {
 			req := httptest.NewRequest(method, path, nil)
-			checkResponse(t, newHandler(), req, http.StatusMethodNotAllowed)
+			checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
 		}
 	}
 }
 
 func TestModuleSourceList(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, webapi.PathModules, nil)
-	resp, content := checkResponse(t, newHandler(), req, http.StatusOK)
+	resp, content := checkResponse(t, newHandler(t), req, http.StatusOK)
 
 	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
@@ -343,7 +350,7 @@ func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expec
 }
 
 func TestModuleRef(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
@@ -698,7 +705,7 @@ func TestModuleRef(t *testing.T) {
 }
 
 func TestModuleSource(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	t.Run("Post", func(t *testing.T) {
@@ -937,7 +944,7 @@ func TestModuleSource(t *testing.T) {
 }
 
 func TestInstanceDebug(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(t)
 
 	t.Run("Output", func(t *testing.T) {
 		debugOutput.Reset()
@@ -1004,7 +1011,7 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 }
 
 func TestInstance(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
@@ -1099,7 +1106,7 @@ func TestInstance(t *testing.T) {
 }
 
 func TestInstanceMultiIO(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	var instID string
@@ -1155,7 +1162,7 @@ func TestInstanceSuspend(t *testing.T) {
 		debugLog.logf = nil
 	}()
 
-	handler := newHandler()
+	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	var instID string
@@ -1251,7 +1258,7 @@ func TestInstanceSuspend(t *testing.T) {
 		})
 	})
 
-	handler2 := newHandler()
+	handler2 := newHandler(t)
 
 	t.Run("Restore", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
@@ -1276,7 +1283,7 @@ func TestInstanceSuspend(t *testing.T) {
 }
 
 func TestInstanceTerminated(t *testing.T) {
-	handler := newHandler()
+	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	var instID string

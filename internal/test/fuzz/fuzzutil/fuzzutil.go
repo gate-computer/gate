@@ -44,10 +44,14 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 
 	services := server.NewInstanceServices(connector{}, new(service.Registry))
 
-	return server.New(server.Config{
+	s, err := server.New(server.Config{
 		ProcessFactory: runtime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
 		AccessPolicy:   server.NewPublicAccess(func(context.Context) server.InstanceServices { return services }),
 	})
+	if err != nil {
+		panic(err)
+	}
+	return s
 }
 
 func IsFine(err error) bool {

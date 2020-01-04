@@ -165,11 +165,12 @@ func mainResult() int {
 		panic(fmt.Errorf("D-Bus name already taken: %s", bus.DaemonIface))
 	}
 
-	s := server.New(server.Config{
+	s, err := server.New(server.Config{
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &server.PublicAccess{AccessConfig: c.Principal},
 	})
+	check(err)
 	defer s.Shutdown(ctx)
 
 	check(conn.ExportMethodTable(methods(ctx, s), bus.DaemonPath, bus.DaemonIface))

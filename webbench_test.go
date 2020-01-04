@@ -18,7 +18,7 @@ import (
 	"github.com/tsavola/gate/webapi"
 )
 
-func newBenchServer(factory runtime.ProcessFactory) *server.Server {
+func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
 	config := server.Config{
 		ProcessFactory: factory,
 		AccessPolicy:   server.NewPublicAccess(newServices()),
@@ -71,7 +71,10 @@ func benchCallExecutors(b *testing.B, count int) {
 }
 
 func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory) {
-	server := newBenchServer(factory)
+	server, err := newBenchServer(factory)
+	if err != nil {
+		b.Fatal(err)
+	}
 	defer server.Shutdown(ctx)
 
 	handler := newBenchHandler(server)

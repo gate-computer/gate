@@ -48,7 +48,7 @@ type Server struct {
 	programs map[string]*program
 }
 
-func New(config Config) *Server {
+func New(config Config) (s *Server, err error) {
 	if config.ImageStorage == nil {
 		config.ImageStorage = image.Memory
 	}
@@ -59,14 +59,63 @@ func New(config Config) *Server {
 		panic("incomplete server configuration")
 	}
 
-	s := &Server{
-		Config: config,
+	s = &Server{
+		Config:   config,
+		accounts: make(map[principalKeyArray]*account),
+		programs: make(map[string]*program),
+	}
+	defer func() {
+		if err != nil {
+			s.Shutdown(context.TODO())
+		}
+	}()
+
+	err = s.initPrograms()
+	if err != nil {
+		return
 	}
 
-	s.accounts = make(map[principalKeyArray]*account)
-	s.programs = make(map[string]*program)
+	return
+}
 
-	return s
+func (s *Server) initPrograms() error {
+	list, err := s.ImageStorage.Programs()
+	if err != nil {
+		return err
+	}
+
+	for _, hash := range list {
+		if err := s.loadProgramDuringInit(hash); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) loadProgramDuringInit(hash string) error {
+	image, err := s.ImageStorage.LoadProgram(hash)
+	if err != nil {
+		return err
+	}
+	if image == nil { // Race condition with human?
+		return nil
+	}
+	defer func() {
+		if image != nil {
+			image.Close()
+		}
+	}()
+
+	buffers, err := image.LoadBuffers()
+	if err != nil {
+		return err
+	}
+
+	prog := newProgram(hash, image, buffers, true)
+	s.programs[hash] = prog
+	image = nil
+	return nil
 }
 
 func (s *Server) Shutdown(ctx context.Context) (err error) {
@@ -1094,49 +1143,10 @@ func (s *Server) ensureAccount(pri *principal.Key) (acc *account, err error) {
 
 func (s *Server) refProgram(ctx context.Context, hash string, length int64) (prog *program, err error) {
 	s.lock.Lock()
-	prog = s.programs[hash]
-	if prog != nil {
-		if length == prog.image.ModuleSize() {
-			prog.ref()
-		} else {
-			err = errModuleSizeMismatch
-		}
-	}
-	s.lock.Unlock()
-	if prog != nil || err != nil {
-		return
-	}
-
-	progImage, err := s.ImageStorage.LoadProgram(hash)
-	if err != nil {
-		s.Monitor(&event.FailInternal{
-			Ctx:    Context(ctx, nil),
-			Module: hash,
-		}, err)
-		return
-	}
-	if progImage == nil {
-		return
-	}
-	defer func() {
-		if progImage != nil {
-			progImage.Close()
-		}
-	}()
-
-	buffers, err := progImage.LoadBuffers()
-	if err != nil {
-		return
-	}
-
-	prog = newProgram(hash, progImage, buffers, true)
-	progImage = nil
-
-	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	prog, _, err = s.mergeProgramRef(prog)
-	if err != nil {
+	prog = s.programs[hash]
+	if prog == nil {
 		return
 	}
 
