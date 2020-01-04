@@ -19,21 +19,19 @@ func linkat(olddirfd int, oldpath string, newdirfd int, newpath string, flags in
 			err = os.ErrExist
 			return
 		}
+		if err == syscall.ENOENT {
+			err = os.ErrNotExist
+			return
+		}
 
-		err = fmt.Errorf("linkat %d %q %d %q: %v", olddirfd, oldpath, newdirfd, newpath, err)
+		err = fmt.Errorf("linkat %d %q %d %q %#x: %v", olddirfd, oldpath, newdirfd, newpath, flags, err)
 		return
 	}
 
 	return
 }
 
-func linkTempFile(fd, newdirfd uintptr, newpath string) (err error) {
-	oldPath := fmt.Sprintf("/proc/self/fd/%d", fd)
-
-	err = linkat(unix.AT_FDCWD, oldPath, int(newdirfd), newpath, unix.AT_SYMLINK_FOLLOW)
-	if err != nil {
-		return
-	}
-
-	return
+func linkTempFile(fd, newdirfd uintptr, newpath string) error {
+	oldpath := fmt.Sprintf("/proc/self/fd/%d", fd)
+	return linkat(unix.AT_FDCWD, oldpath, int(newdirfd), newpath, unix.AT_SYMLINK_FOLLOW)
 }
