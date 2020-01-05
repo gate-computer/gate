@@ -733,7 +733,7 @@ func (s *Server) UnrefModule(ctx context.Context, pri *principal.Key, hash strin
 		prog *program
 	)
 
-	func() {
+	err = func() (err error) {
 		s.lock.Lock()
 		defer s.lock.Unlock()
 
@@ -751,6 +751,8 @@ func (s *Server) UnrefModule(ctx context.Context, pri *principal.Key, hash strin
 			delete(s.programs, prog.key)
 			prog.unref()
 		}
+
+		return
 	}()
 	if err != nil {
 		return
