@@ -1017,11 +1017,13 @@ func (s *Server) Instances(ctx context.Context, pri *principal.Key) (statuses In
 	// Get instance statuses.  Each instance has its own lock.
 	statuses = make(Instances, 0, len(is))
 	for _, inst := range is {
-		statuses = append(statuses, InstanceStatus{
-			Instance:  inst.ID(),
-			Status:    inst.Status(),
-			Transient: inst.persistent == nil,
-		})
+		if s := inst.Status(); s.State != StateNonexistent {
+			statuses = append(statuses, InstanceStatus{
+				Instance:  inst.ID(),
+				Status:    s,
+				Transient: inst.persistent == nil,
+			})
+		}
 	}
 
 	return
