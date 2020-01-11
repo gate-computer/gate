@@ -18,7 +18,6 @@ message ModuleRefs {
 
 enum State {
 	NONEXISTENT = 0;
-
 	RUNNING = 1;
 	SUSPENDED = 2;
 	HALTED = 3;
@@ -28,7 +27,6 @@ enum State {
 
 enum Cause {
 	NORMAL = 0;
-
 	UNREACHABLE = 3;
 	CALL_STACK_EXHAUSTED = 4;
 	MEMORY_ACCESS_OUT_OF_BOUNDS = 5;
@@ -36,7 +34,6 @@ enum Cause {
 	INDIRECT_CALL_SIGNATURE_MISMATCH = 7;
 	INTEGER_DIVIDE_BY_ZERO = 8;
 	INTEGER_OVERFLOW = 9;
-
 	ABI_DEFICIENCY = 26;
 	ABI_VIOLATION = 27;
 }

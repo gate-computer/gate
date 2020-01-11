@@ -66,7 +66,7 @@ var localCommands = map[string]command{
 			var status server.Status
 			check(call.Store(&status.State, &status.Cause, &status.Result))
 
-			if status.State != server.StateTerminated || status.Cause != 0 {
+			if status.State != server.StateTerminated || status.Cause != server.CauseNormal {
 				log.Fatal(statusString(status))
 			}
 			os.Exit(int(status.Result))
@@ -328,10 +328,10 @@ func statusString(s server.Status) string {
 		Error:  s.Error,
 		Debug:  s.Debug,
 	}
-	if s.State == 0 {
+	if s.State == server.StateNonexistent {
 		t.State = ""
 	}
-	if s.Cause == 0 {
+	if s.Cause == server.CauseNormal {
 		t.Cause = ""
 	}
 	return t.String()
