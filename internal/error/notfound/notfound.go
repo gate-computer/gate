@@ -5,11 +5,11 @@
 package notfound
 
 import (
-	"github.com/tsavola/gate/internal/error/public"
+	werrors "github.com/tsavola/wag/errors"
 )
 
 type Error interface {
-	public.Error
+	werrors.PublicError
 	NotFound()
 }
 

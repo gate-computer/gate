@@ -806,16 +806,12 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *principal.Key, instID 
 		return
 	}
 
-	status = inst.Status()
-	if status.State == StateNonexistent {
-		err = resourcenotfound.ErrInstance
-		return
-	}
-
 	s.monitor(&event.InstanceStatus{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
 	})
+
+	status = inst.Status()
 	return
 }
 
@@ -842,18 +838,18 @@ func (s *Server) WaitInstance(ctx context.Context, pri *principal.Key, instID st
 }
 
 func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID string,
-) (status Status, err error) {
+) (inst *Instance, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
 	}
 
-	inst, _ := s.getInstance(pri, instID)
+	inst, _ = s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
-	if inst.persistent == nil {
+	if inst.transient {
 		err = notapplicable.ErrInstanceTransient
 		return
 	}
@@ -864,7 +860,6 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 	})
 
 	inst.suspend()
-	status = inst.Wait(ctx)
 	return
 }
 
@@ -919,19 +914,19 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, functio
 }
 
 func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID string,
-) (status Status, err error) {
+) (err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
 	}
 
-	inst, prog := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
-	status, err = inst.annihilate()
+	err = inst.annihilate()
 	if err != nil {
 		return
 	}
@@ -941,7 +936,7 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID 
 		Instance: inst.id,
 	})
 
-	s.deleteNonexistentInstance(inst, prog)
+	s.deleteNonexistentInstance(inst)
 	return
 }
 
@@ -1028,13 +1023,11 @@ func (s *Server) Instances(ctx context.Context, pri *principal.Key) (statuses In
 	// Get instance statuses.  Each instance has its own lock.
 	statuses = make(Instances, 0, len(is))
 	for _, inst := range is {
-		if s := inst.Status(); s.State != StateNonexistent {
-			statuses = append(statuses, InstanceStatus{
-				Instance:  inst.ID(),
-				Status:    s,
-				Transient: inst.persistent == nil,
-			})
-		}
+		statuses = append(statuses, InstanceStatus{
+			Instance:  inst.id,
+			Status:    inst.Status(),
+			Transient: inst.transient,
+		})
 	}
 
 	return
@@ -1185,8 +1178,12 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.Key, instID stri
 
 // runOrDeleteInstance steals the program reference (except on error).
 func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *program) error {
+	defer func() {
+		s.unrefProgram(&prog)
+	}()
+
 	if err := inst.startOrAnnihilate(prog); err != nil {
-		s.deleteNonexistentInstance(inst, prog)
+		s.deleteNonexistentInstance(inst)
 		return err
 	}
 
@@ -1196,18 +1193,30 @@ func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *
 	}
 
 	go s.driveInstance(detachedContext(ctx, pri), inst, prog)
+	prog = nil
+
 	return nil
 }
 
 // driveInstance steals the program reference.
 func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *program) {
-	// TODO: remove instance from server and unref program if instance was not persistent
+	defer func() {
+		s.unrefProgram(&prog)
+	}()
 
 	if event, err := inst.drive(ctx, prog); event != nil {
 		s.Monitor(event, err)
 	}
+
+	if inst.transient {
+		if inst.annihilate() == nil {
+			s.deleteNonexistentInstance(inst)
+		}
+	}
 }
 
+// getInstance and a program reference which is valid until the instance
+// deleted.
 func (s *Server) getInstance(pri *principal.Key, instID string) (*Instance, *program) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1311,16 +1320,13 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 	return
 }
 
-// deleteNonexistentInstance and the associate program reference.
-func (s *Server) deleteNonexistentInstance(inst *Instance, prog *program) {
-	lock := s.mu.Lock()
-	defer s.mu.Unlock()
-
-	prog.unref(lock)
-
+func (s *Server) deleteNonexistentInstance(inst *Instance) {
 	if inst.acc == nil {
 		return
 	}
+
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if x := inst.acc.instances[inst.id]; x.inst == inst {
 		delete(inst.acc.instances, inst.id)

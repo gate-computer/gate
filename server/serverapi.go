@@ -18,12 +18,11 @@ func (a ModuleRefs) Less(i, j int) bool { return a[i].Key < a[j].Key }
 type State = serverapi.State
 
 const (
-	StateNonexistent = serverapi.State_NONEXISTENT
-	StateRunning     = serverapi.State_RUNNING
-	StateSuspended   = serverapi.State_SUSPENDED
-	StateHalted      = serverapi.State_HALTED
-	StateTerminated  = serverapi.State_TERMINATED
-	StateKilled      = serverapi.State_KILLED
+	StateRunning    = serverapi.State_RUNNING
+	StateSuspended  = serverapi.State_SUSPENDED
+	StateHalted     = serverapi.State_HALTED
+	StateTerminated = serverapi.State_TERMINATED
+	StateKilled     = serverapi.State_KILLED
 )
 
 type Cause = serverapi.Cause
@@ -39,6 +38,7 @@ const (
 	CauseIntegerOverflow               = serverapi.Cause_INTEGER_OVERFLOW
 	CauseABIDeficiency                 = serverapi.Cause_ABI_DEFICIENCY
 	CauseABIViolation                  = serverapi.Cause_ABI_VIOLATION
+	CauseInternal                      = serverapi.Cause_INTERNAL
 )
 
 type Status = serverapi.Status

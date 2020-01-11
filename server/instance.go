@@ -20,6 +20,7 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"github.com/tsavola/gate/server/internal/error/notapplicable"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	"github.com/tsavola/gate/snapshot"
 )
@@ -51,39 +52,42 @@ func (m *instanceMutex) Lock() instanceLock {
 }
 
 type Instance struct {
-	acc *account
-	id  string
+	acc       *account
+	id        string
+	transient bool
 
-	mu         instanceMutex // Guards the fields below.
-	status     Status
-	function   string
-	image      *image.Instance
-	persistent *snapshot.Buffers // Exclusive to Run while status is RUNNING.
-	process    *runtime.Process
-	services   InstanceServices
-	timeReso   time.Duration
-	debug      io.WriteCloser
-	stopped    chan struct{}
+	mu       instanceMutex // Guards the fields below.
+	exists   bool
+	status   Status
+	function string
+	image    *image.Instance
+	buffers  snapshot.Buffers
+	process  *runtime.Process
+	services InstanceServices
+	timeReso time.Duration
+	debug    io.WriteCloser
+	stopped  chan struct{}
 }
 
-// newInstance steals instance image, persistent buffers, process, and services.
+// newInstance steals instance image, process, and services.
 func newInstance(acc *account, id string, function string, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugOutput io.WriteCloser) *Instance {
-	return &Instance{
-		acc: acc,
-		id:  id,
-		status: Status{
-			State: StateRunning,
-			Debug: debugStatus,
-		},
-		function:   function,
-		image:      image,
-		persistent: persistent,
-		process:    proc,
-		services:   services,
-		timeReso:   timeReso,
-		debug:      debugOutput,
-		stopped:    make(chan struct{}),
+	inst := &Instance{
+		acc:       acc,
+		id:        id,
+		transient: persistent == nil,
+		status:    Status{Debug: debugStatus},
+		function:  function,
+		image:     image,
+		process:   proc,
+		services:  services,
+		timeReso:  timeReso,
+		debug:     debugOutput,
+		stopped:   make(chan struct{}),
 	}
+	if persistent != nil {
+		inst.buffers = *persistent
+	}
+	return inst
 }
 
 func (inst *Instance) startOrAnnihilate(prog *program) (err error) {
@@ -97,11 +101,14 @@ func (inst *Instance) startOrAnnihilate(prog *program) (err error) {
 
 	err = inst.process.Start(prog.image, inst.image, policy)
 	if err != nil {
-		inst.status.State = StateNonexistent
 		inst.stop(lock)
 		inst.image.Close()
 		inst.image = nil
+		return
 	}
+
+	inst.status.State = StateRunning
+	inst.exists = true
 	return
 }
 
@@ -176,11 +183,12 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 ) (entryIndex int, err error) {
 	entryIndex = -1
 
-	switch inst.status.State {
-	case StateNonexistent:
+	if !inst.exists {
 		err = resourcenotfound.ErrInstance
 		return
+	}
 
+	switch inst.status.State {
 	case StateSuspended:
 		if function != "" {
 			err = failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance")
@@ -206,7 +214,7 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 	return
 }
 
-// doResume steals services, proc and debugOutput.
+// doResume steals proc, services and debugOutput.
 func (inst *Instance) doResume(prog *program, function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugOutput io.WriteCloser,
 ) (err error) {
 	lock := inst.mu.Lock()
@@ -235,7 +243,7 @@ func (inst *Instance) doResume(prog *program, function string, proc *runtime.Pro
 }
 
 // Connect to a running instance.  Disconnection happens when context is
-// canceled, the process terminates, or the program closes the connection.
+// canceled, the instance stops running, or the program closes the connection.
 func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) error {
 	conn := inst.connect(ctx)
 	if conn == nil {
@@ -262,11 +270,16 @@ func (inst *Instance) snapshot(prog *program,
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	switch inst.status.State {
-	case StateNonexistent:
+	if !inst.exists {
 		err = resourcenotfound.ErrInstance
 		return
+	}
+	if inst.transient {
+		err = notapplicable.ErrInstanceTransient
+		return
+	}
 
+	switch inst.status.State {
 	case StateSuspended, StateHalted, StateTerminated:
 		// ok
 
@@ -275,36 +288,31 @@ func (inst *Instance) snapshot(prog *program,
 		return
 	}
 
-	if inst.persistent == nil {
-		err = resourcenotfound.ErrInstance
-		return
-	}
-
-	buffers = *inst.persistent
+	buffers = inst.buffers
 	progImage, err = image.Snapshot(prog.image, inst.image, buffers, inst.status.State == StateSuspended)
 	return
 }
 
 // annihilate a stopped instance into nonexistence.
-func (inst *Instance) annihilate() (status Status, err error) {
+func (inst *Instance) annihilate() (err error) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	switch inst.status.State {
-	case StateNonexistent:
+	if !inst.exists {
 		err = resourcenotfound.ErrInstance
 		return
+	}
 
+	switch inst.status.State {
 	case StateSuspended, StateHalted, StateTerminated, StateKilled:
 		// ok
 
 	default:
-		status = inst.status
 		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted, terminated or killed")
 		return
 	}
 
-	inst.status = Status{Debug: inst.status.Debug}
+	inst.exists = false
 	inst.image.Unstore()
 	inst.image.Close()
 	inst.image = nil
@@ -312,47 +320,57 @@ func (inst *Instance) annihilate() (status Status, err error) {
 }
 
 func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
-	res := Status{Error: "internal server error"}
+	res := Status{
+		State: StateKilled,
+		Cause: CauseInternal,
+		Debug: inst.status.Debug,
+	}
 	defer func() {
 		lock := inst.mu.Lock()
 		defer inst.mu.Unlock()
 
-		res.Debug = inst.status.Debug
 		inst.status = res
 		inst.stop(lock)
 	}()
 
-	exit, trap, err := inst.process.Serve(ctx, inst.services, inst.persistent)
+	exit, trap, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
 	if err != nil {
-		switch err.(type) {
-		case badprogram.Error:
-			res.State = StateKilled
+		res.Error = public.Error(err, res.Error)
+		if _, ok := err.(badprogram.Error); ok {
 			res.Cause = CauseABIViolation
-			if x, ok := err.(public.Error); ok {
-				res.Error = x.PublicError()
-			} else {
-				res.Error = ""
-			}
 			return programFailure(ctx, inst.acc, prog.hash, inst.function, inst.id), err
-
-		default:
-			if x, ok := err.(public.Error); ok {
-				res.Error = x.PublicError()
-			}
+		} else {
 			return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.id, "service io", err), err
+		}
+	}
+
+	if !inst.transient {
+		switch trap {
+		case runtime.TrapExit, runtime.TrapSuspended, runtime.TrapCallStackExhausted, runtime.TrapABIDeficiency:
+			err = prog.ensureStorage()
+			if err == nil {
+				_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.id), prog.image)
+			}
+			if err != nil {
+				res.Error = public.Error(err, res.Error)
+				return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.id, "", err), err
+			}
 		}
 	}
 
 	switch trap {
 	case runtime.TrapExit:
-		if inst.persistent == nil || inst.persistent.Terminated() {
+		if inst.transient || inst.buffers.Terminated() {
 			res.State = StateTerminated
 		} else {
 			res.State = StateHalted
 		}
+		res.Cause = CauseNormal
+		res.Result = int32(exit)
 
 	case runtime.TrapSuspended:
 		res.State = StateSuspended
+		res.Cause = CauseNormal
 
 	case runtime.TrapCallStackExhausted, runtime.TrapABIDeficiency:
 		res.State = StateSuspended
@@ -360,32 +378,13 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 
 	case runtime.TrapKilled:
 		res.State = StateKilled
+		res.Cause = CauseNormal
 
 	default:
 		res.State = StateKilled
 		res.Cause = Cause(trap)
 	}
 
-	if inst.persistent != nil && (res.State == StateSuspended || res.State == StateHalted || res.State == StateTerminated) {
-		err = prog.ensureStorage()
-		if err == nil {
-			_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.id), prog.image)
-		}
-		if err != nil {
-			res.State = StateNonexistent
-			res.Cause = CauseNormal
-			if x, ok := err.(public.Error); ok {
-				res.Error = x.PublicError()
-			}
-			return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.id, "", err), err
-		}
-	}
-
-	if res.State == StateHalted || res.State == StateTerminated {
-		res.Result = int32(exit)
-	}
-
-	res.Error = ""
 	return nil, nil
 }
 

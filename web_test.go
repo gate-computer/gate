@@ -1093,9 +1093,7 @@ func TestInstance(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=delete", nil)
-		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
-
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{})
+		checkResponse(t, handler, req, http.StatusNoContent)
 	})
 
 	t.Run("ListEmptyAgain", func(t *testing.T) {
@@ -1179,8 +1177,8 @@ func TestInstanceSuspend(t *testing.T) {
 		time.Sleep(time.Second / 3)
 	}
 
-	t.Run("Suspend", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+	t.Run("SuspendAndWait", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend&action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{

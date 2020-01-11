@@ -26,16 +26,14 @@ import (
 
 const maxWebsocketRequestSize = 4096
 
-var statusInternalServerErrorJSON = string(mustMarshalJSON(&webapi.Status{
-	Error: "internal server error",
-}))
-
 type errorWriter interface {
 	SetHeader(key, value string)
 	WriteError(status int, text string)
 }
 
-type instanceMethod func(s *server.Server, ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
+type instanceMethod func(s *server.Server, ctx context.Context, pri *principal.Key, instance string) error
+type instanceStatusMethod func(s *server.Server, ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
+type instanceWaiterMethod func(s *server.Server, ctx context.Context, pri *principal.Key, instance string) (*server.Instance, error)
 
 type webserver struct {
 	Config
@@ -337,7 +335,7 @@ func handleGetModuleRefs(w http.ResponseWriter, r *http.Request, s *webserver) {
 
 func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	query := mustParseOptionalQuery(w, r, s)
-	ref := popOptionalRefActionParam(w, r, s, query)
+	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
 
 	if _, found := query[webapi.ParamAction]; found {
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
@@ -364,7 +362,7 @@ func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	mustHaveWebAssemblyContent(w, r, s)
 	query := mustParseOptionalQuery(w, r, s)
-	ref := popOptionalRefActionParam(w, r, s, query)
+	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
 
 	if _, found := query[webapi.ParamAction]; found {
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
@@ -421,7 +419,7 @@ func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, k
 
 func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
 	query := mustParseQuery(w, r, s)
-	ref := popOptionalRefActionParam(w, r, s, query)
+	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
 
 	switch popLastParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
@@ -437,7 +435,7 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 
 func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
 	query := mustParseQuery(w, r, s)
-	ref := popOptionalRefActionParam(w, r, s, query)
+	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
 
 	if _, found := query[webapi.ParamAction]; found {
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
@@ -488,6 +486,12 @@ func handleGetInstance(w http.ResponseWriter, r *http.Request, s *webserver, ins
 
 func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, instance string) {
 	query := mustParseQuery(w, r, s)
+	wait := popOptionalActionParam(w, r, s, query, webapi.ActionWait)
+
+	if wait && len(query[webapi.ParamAction]) == 0 {
+		handleInstanceStatus(w, r, s, server.OpInstanceWait, (*server.Server).WaitInstance, instance)
+		return
+	}
 
 	switch popLastParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionIO:
@@ -496,15 +500,11 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 	case webapi.ActionStatus:
 		mustNotHaveParams(w, r, s, query)
-		handleInstance(w, r, s, server.OpInstanceStatus, (*server.Server).InstanceStatus, instance)
-
-	case webapi.ActionWait:
-		mustNotHaveParams(w, r, s, query)
-		handleInstance(w, r, s, server.OpInstanceWait, (*server.Server).WaitInstance, instance)
+		handleInstanceStatus(w, r, s, server.OpInstanceStatus, (*server.Server).InstanceStatus, instance)
 
 	case webapi.ActionSuspend:
 		mustNotHaveParams(w, r, s, query)
-		handleInstance(w, r, s, server.OpInstanceSuspend, (*server.Server).SuspendInstance, instance)
+		handleInstanceWaiter(w, r, s, server.OpInstanceSuspend, (*server.Server).SuspendInstance, instance, wait)
 
 	case webapi.ActionResume:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
@@ -701,15 +701,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	inst.Connect(ctx, r.Body, w)
 	status := inst.Wait(ctx)
-
-	statusJSON := statusInternalServerErrorJSON
-	if data, err := serverapi.MarshalJSON(&status); err == nil {
-		statusJSON = string(data)
-	} else {
-		reportInternalError(ctx, s, pri, "", "", "", inst.ID(), err)
-	}
-
-	w.Header().Set(webapi.HeaderStatus, statusJSON)
+	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
 }
 
 func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function, debug string) {
@@ -847,14 +839,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
 	status := inst.Wait(ctx)
-
-	// TODO: send ConnectionStatus
-	statusJSON, err := serverapi.MarshalJSON(&status)
-	if err != nil {
-		reportInternalError(ctx, s, pri, "", "", "", inst.ID(), err)
-		statusJSON = []byte(statusInternalServerErrorJSON)
-	}
-
+	statusJSON := serverapi.MustMarshalJSON(&status) // TODO: send ConnectionStatus
 	if conn.WriteMessage(websocket.TextMessage, statusJSON) == nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 	}
@@ -959,28 +944,49 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
 	ctx = principal.ContextWithIDFrom(ctx, pri)
 
-	status, instanceErr := method(s.Server, ctx, pri, instID)
-
-	statusJSON := statusInternalServerErrorJSON
-	data, statusErr := serverapi.MarshalJSON(&status)
-	if statusErr == nil {
-		statusJSON = string(data)
-	}
-
-	if instanceErr == nil || status.State != server.StateNonexistent {
-		w.Header().Set(webapi.HeaderStatus, string(statusJSON))
-	}
-
-	if instanceErr != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, instanceErr)
+	err := method(s.Server, ctx, pri, instID)
+	if err != nil {
+		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
 
-	if statusErr != nil {
-		reportInternalError(ctx, s, pri, "", "", "", instID, statusErr)
+func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceStatusMethod, instID string) {
+	ctx := server.ContextWithOp(r.Context(), op)
+	wr := &requestResponseWriter{w, r}
+	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
+
+	status, err := method(s.Server, ctx, pri, instID)
+	if err != nil {
+		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		return
 	}
+
+	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceWaiterMethod, instID string, wait bool) {
+	ctx := server.ContextWithOp(r.Context(), op)
+	wr := &requestResponseWriter{w, r}
+	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
+	ctx = principal.ContextWithIDFrom(ctx, pri)
+
+	inst, err := method(s.Server, ctx, pri, instID)
+	if err != nil {
+		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		return
+	}
+
+	if wait {
+		status := inst.Wait(ctx)
+		w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID, debug string) {
@@ -1031,14 +1037,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	status := inst.Status()
-	statusJSON := statusInternalServerErrorJSON
-	if data, err := serverapi.MarshalJSON(&status); err == nil {
-		statusJSON = string(data)
-	} else {
-		reportInternalError(ctx, s, pri, "", "", "", instID, err)
-	}
-
-	w.Header().Set(webapi.HeaderStatus, statusJSON)
+	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
 }
 
 func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, instID string) {
@@ -1078,10 +1077,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	reply := &server.IOConnection{
-		Connected: connIO != nil,
-	}
-
+	reply := &server.IOConnection{Connected: connIO != nil}
 	err = conn.WriteMessage(websocket.TextMessage, serverapi.MustMarshalJSON(reply))
 	if err != nil {
 		reportNetworkError(ctx, s, err)

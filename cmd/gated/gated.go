@@ -37,7 +37,7 @@ import (
 
 type debugKey struct{}
 
-type instanceFunc func(ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
+type instanceStatusFunc func(ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
 
 const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
 
@@ -205,6 +205,12 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			return
 		},
 
+		"Delete": func(instID string) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			handleInstanceDelete(ctx, pri, s, instID)
+			return
+		},
+
 		"Download": func(moduleFD dbus.UnixFD, key string,
 		) (moduleLen int64, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
@@ -259,6 +265,12 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			return
 		},
 
+		"Suspend": func(instID string) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			handleInstanceSuspend(ctx, pri, s, instID)
+			return
+		},
+
 		"Upload": func(moduleFD dbus.UnixFD, moduleLen int64, key string,
 		) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
@@ -269,16 +281,14 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 		},
 	}
 
-	for name, f := range map[string]instanceFunc{
-		"Delete":  s.DeleteInstance,
-		"Status":  s.InstanceStatus,
-		"Suspend": s.SuspendInstance,
-		"Wait":    s.WaitInstance,
+	for name, f := range map[string]instanceStatusFunc{
+		"Status": s.InstanceStatus,
+		"Wait":   s.WaitInstance,
 	} {
 		f := f // Closure needs a local copy of the iterator's current value.
 		methods[name] = func(instID string) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			state, cause, result = handleInstance(ctx, pri, f, instID)
+			state, cause, result = handleInstanceStatus(ctx, pri, f, instID)
 			return
 		}
 	}
@@ -378,11 +388,20 @@ func handleInstanceList(ctx context.Context, pri *principal.Key, s *server.Serve
 	return instances
 }
 
-func handleInstance(ctx context.Context, pri *principal.Key, f instanceFunc, instID string,
+func handleInstanceStatus(ctx context.Context, pri *principal.Key, f instanceStatusFunc, instID string,
 ) (state server.State, cause server.Cause, result int32) {
 	status, err := f(ctx, pri, instID)
 	check(err)
 	return status.State, status.Cause, status.Result
+}
+
+func handleInstanceDelete(ctx context.Context, pri *principal.Key, s *server.Server, instID string) {
+	check(s.DeleteInstance(ctx, pri, instID))
+}
+
+func handleInstanceSuspend(ctx context.Context, pri *principal.Key, s *server.Server, instID string) {
+	_, err := s.SuspendInstance(ctx, pri, instID)
+	check(err)
 }
 
 func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Server, instID string, debugFD dbus.UnixFD, debugName string) {

@@ -76,7 +76,7 @@ var localCommands = map[string]command{
 	"delete": {
 		usage: "instance",
 		do: func() {
-			daemonCallInstance("Delete")
+			check(daemonCall("Delete", flag.Arg(0)).Store())
 		},
 	},
 
@@ -230,7 +230,7 @@ var localCommands = map[string]command{
 	"status": {
 		usage: "instance",
 		do: func() {
-			status := daemonCallInstance("Status")
+			status := daemonCallInstanceStatus("Status")
 			fmt.Println(statusString(status))
 		},
 	},
@@ -238,21 +238,25 @@ var localCommands = map[string]command{
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			status := daemonCallInstance("Suspend")
-			fmt.Println(statusString(status))
+			check(daemonCall("Suspend", flag.Arg(0)).Store())
+
+			if c.Wait {
+				status := daemonCallInstanceStatus("Wait")
+				fmt.Println(statusString(status))
+			}
 		},
 	},
 
 	"wait": {
 		usage: "instance",
 		do: func() {
-			status := daemonCallInstance("Wait")
+			status := daemonCallInstanceStatus("Wait")
 			fmt.Println(statusString(status))
 		},
 	},
 }
 
-func daemonCallInstance(name string) (status server.Status) {
+func daemonCallInstanceStatus(name string) (status server.Status) {
 	call := daemonCall(name, flag.Arg(0))
 	check(call.Store(&status.State, &status.Cause, &status.Result))
 	return
@@ -327,9 +331,6 @@ func statusString(s server.Status) string {
 		Result: int(s.Result),
 		Error:  s.Error,
 		Debug:  s.Debug,
-	}
-	if s.State == server.StateNonexistent {
-		t.State = ""
 	}
 	if s.Cause == server.CauseNormal {
 		t.Cause = ""

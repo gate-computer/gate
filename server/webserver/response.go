@@ -296,11 +296,7 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *
 		request = event.FailModuleError
 	}
 
-	if x, ok := err.(public.Error); ok {
-		text = x.PublicError()
-	}
-
-	ew.WriteError(status, text)
+	ew.WriteError(status, public.Error(err, text)) // May replace text with error.
 
 	if internal {
 		reportInternalError(ctx, s, pri, sourceURI, progHash, function, instID, err)

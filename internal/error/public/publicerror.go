@@ -8,4 +8,11 @@ import (
 	werrors "github.com/tsavola/wag/errors"
 )
 
-type Error = werrors.PublicError
+// Error returns err.PublicError() if err is an Error.  Otherwise the
+// alternative is returned.
+func Error(err error, alternative string) string {
+	if x, ok := err.(werrors.PublicError); ok {
+		return x.PublicError()
+	}
+	return alternative
+}

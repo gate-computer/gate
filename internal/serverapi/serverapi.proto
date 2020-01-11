@@ -36,6 +36,7 @@ enum Cause {
 	INTEGER_OVERFLOW = 9;
 	ABI_DEFICIENCY = 26;
 	ABI_VIOLATION = 27;
+	INTERNAL = 29;
 }
 
 message Status {

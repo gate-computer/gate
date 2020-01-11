@@ -254,8 +254,15 @@ var remoteCommands = map[string]command{
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			status := commandInstance(webapi.ActionSuspend)
-			fmt.Println(status)
+			actions := []string{webapi.ActionSuspend}
+			if c.Wait {
+				actions = append(actions, webapi.ActionWait)
+			}
+
+			status := commandInstance(actions...)
+			if c.Wait {
+				fmt.Println(status)
+			}
 		},
 	},
 
@@ -350,12 +357,12 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 	}
 }
 
-func commandInstance(action string) webapi.Status {
+func commandInstance(actions ...string) webapi.Status {
 	req := &http.Request{
 		Method: http.MethodPost,
 	}
 	params := url.Values{
-		webapi.ParamAction: []string{action},
+		webapi.ParamAction: actions,
 	}
 
 	status, _ := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)

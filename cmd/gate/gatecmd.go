@@ -17,13 +17,15 @@ import (
 )
 
 const (
-	DefaultRef = true
+	DefaultRef  = true
+	DefaultWait = true
 )
 
 type Config struct {
 	Address      string
 	IdentityFile string
 	Ref          bool
+	Wait         bool
 	Function     string
 	Instance     string
 	Debug        string
@@ -115,6 +117,7 @@ func main() {
 	}
 
 	c.Ref = DefaultRef
+	c.Wait = DefaultWait
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)

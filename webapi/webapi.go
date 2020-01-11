@@ -41,8 +41,8 @@ const (
 	ParamDebug    = "debug"    // For call, launch or resume action.
 )
 
-// Actions on modules.  Ref action can be combined with call or launch in a
-// single request (action parameter appears twice).
+// Actions on modules.  ActionRef can be combined with ActionCall or
+// ActionLaunch in a single request (ParamAction appears twice in the URL).
 const (
 	ActionRef    = "ref"    // Put (reference), post (source) or websocket (call/launch).
 	ActionUnref  = "unref"  // Post (reference).
@@ -50,7 +50,8 @@ const (
 	ActionLaunch = "launch" // Put (reference), post (any).
 )
 
-// Actions on instances.
+// Actions on instances.  ActionWait can be combined with ActionSuspend in a
+// single request (ParamAction appears twice in the URL).
 const (
 	ActionIO       = "io"       // Post or websocket.
 	ActionStatus   = "status"   // Post.
@@ -158,6 +159,8 @@ const (
 //
 // The cause enumeration is open-ended: new values may appear in the future.
 const (
+	CauseNormal = ""
+
 	// Abnormal causes for StateSuspended:
 	CauseCallStackExhausted = "CALL_STACK_EXHAUSTED"
 	CauseABIDeficiency      = "ABI_DEFICIENCY"
@@ -170,15 +173,15 @@ const (
 	CauseIntegerDivideByZero           = "INTEGER_DIVIDE_BY_ZERO"
 	CauseIntegerOverflow               = "INTEGER_OVERFLOW"
 	CauseABIViolation                  = "ABI_VIOLATION"
+	CauseInternal                      = "INTERNAL"
 )
 
-// Status response header.  Error without State means that the state is unknown
-// due to an internal server error.
+// Status response header.
 type Status struct {
 	State  string `json:"state,omitempty"`
 	Cause  string `json:"cause,omitempty"`
 	Result int    `json:"result,omitempty"` // Meaningful if StateHalted or StateTerminated.
-	Error  string `json:"error,omitempty"`
+	Error  string `json:"error,omitempty"`  // Optional details for abnormal causes.
 	Debug  string `json:"debug,omitempty"`
 }
 

@@ -121,10 +121,10 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
-func popOptionalRefActionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) bool {
+func popOptionalActionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) bool {
 	values := query[webapi.ParamAction]
 	for i, s := range values {
-		if s == webapi.ActionRef {
+		if s == key {
 			if len(values) > 1 {
 				query[webapi.ParamAction] = append(values[:i], values[i+1:]...)
 			} else {
