@@ -27,17 +27,18 @@ import (
 const minSnapshotVersion = 0
 
 type Build struct {
-	Image         *image.Build
-	SectionMap    image.SectionMap
-	Loaders       map[string]section.CustomContentLoader
-	Config        compile.Config
-	Module        compile.Module
-	StackSize     int
-	maxMemorySize int // For instance.
-	entryIndex    int
-	snapshot      bool
-	monotonicTime uint64
-	Buffers       snapshot.Buffers
+	Image                     *image.Build
+	SectionMap                image.SectionMap
+	Loaders                   map[string]section.CustomContentLoader
+	Config                    compile.Config
+	Module                    compile.Module
+	StackSize                 int
+	maxMemorySize             int // For instance.
+	entryIndex                int
+	snapshot                  bool
+	monotonicTime             uint64
+	Buffers                   snapshot.Buffers
+	bufferSectionHeaderLength int
 }
 
 func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool,
@@ -225,10 +226,9 @@ func (b *Build) InstallSnapshotDataLoaders() {
 			return
 		}
 
-		var n int
 		var dataBuf []byte
 
-		b.Buffers, n, dataBuf, err = wasm.ReadBufferSectionHeader(r, length)
+		b.Buffers, b.bufferSectionHeaderLength, dataBuf, err = wasm.ReadBufferSectionHeader(r, length)
 		if err != nil {
 			return
 		}
@@ -238,7 +238,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 			return
 		}
 
-		_, err = io.CopyN(ioutil.Discard, r, int64(length)-int64(n)-int64(len(dataBuf)))
+		_, err = io.CopyN(ioutil.Discard, r, int64(length)-int64(b.bufferSectionHeaderLength)-int64(len(dataBuf)))
 		if err != nil {
 			return
 		}
@@ -354,7 +354,7 @@ func (b *Build) FinishProgramImage() (*image.Program, error) {
 		startIndex = int(i)
 	}
 
-	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.monotonicTime)
+	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.monotonicTime, b.bufferSectionHeaderLength)
 }
 
 // FinishInstanceImage after program image has been finished.

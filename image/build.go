@@ -248,6 +248,7 @@ func (b *Build) FinishProgram(
 	startFuncIndex int,
 	entryFuncs bool,
 	monotonicTime uint64,
+	bufferSectionHeaderLength int,
 ) (prog *Program, err error) {
 	if b.stackUsage != len(b.stack) {
 		err = errors.New("stack was not populated")
@@ -284,24 +285,25 @@ func (b *Build) FinishProgram(
 	}
 
 	man := manifest.Program{
-		TextAddr:        b.textAddr,
-		TextSize:        uint32(b.prog.textSize),
-		StackUsage:      uint32(b.stackUsage),
-		GlobalsSize:     uint32(b.globalsSize),
-		MemorySize:      uint32(b.memorySize),
-		MemorySizeLimit: int64(mod.MemorySizeLimit()),
-		MemoryDataSize:  uint32(b.data.Len() - alignPageSize(b.globalsSize)),
-		ModuleSize:      int64(b.prog.module.Cap()),
-		Sections:        sectionMap.manifestSections(),
-		SnapshotSection: manifestByteRange(sectionMap.Snapshot),
-		BufferSection:   manifestByteRange(sectionMap.Buffer),
-		StackSection:    manifestByteRange(sectionMap.Stack),
-		GlobalTypes:     globalTypeBytes(mod.GlobalTypes()),
-		StartFunc:       manifest.NoFunction,
-		CallSitesSize:   uint32(callSitesSize(b.prog.objectMap)),
-		FuncAddrsSize:   uint32(funcAddrsSize(b.prog.objectMap)),
-		Random:          b.imports.Random,
-		Snapshot:        manifest.Snapshot{MonotonicTime: monotonicTime},
+		TextAddr:                  b.textAddr,
+		TextSize:                  uint32(b.prog.textSize),
+		StackUsage:                uint32(b.stackUsage),
+		GlobalsSize:               uint32(b.globalsSize),
+		MemorySize:                uint32(b.memorySize),
+		MemorySizeLimit:           int64(mod.MemorySizeLimit()),
+		MemoryDataSize:            uint32(b.data.Len() - alignPageSize(b.globalsSize)),
+		ModuleSize:                int64(b.prog.module.Cap()),
+		Sections:                  sectionMap.manifestSections(),
+		SnapshotSection:           manifestByteRange(sectionMap.Snapshot),
+		BufferSection:             manifestByteRange(sectionMap.Buffer),
+		BufferSectionHeaderLength: int64(bufferSectionHeaderLength),
+		StackSection:              manifestByteRange(sectionMap.Stack),
+		GlobalTypes:               globalTypeBytes(mod.GlobalTypes()),
+		StartFunc:                 manifest.NoFunction,
+		CallSitesSize:             uint32(callSitesSize(b.prog.objectMap)),
+		FuncAddrsSize:             uint32(funcAddrsSize(b.prog.objectMap)),
+		Random:                    b.imports.Random,
+		Snapshot:                  manifest.Snapshot{MonotonicTime: monotonicTime},
 	}
 	if startFuncIndex >= 0 {
 		man.StartFunc = manifest.Function{
