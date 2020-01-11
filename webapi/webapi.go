@@ -50,12 +50,13 @@ const (
 	ActionLaunch = "launch" // Put (reference), post (any).
 )
 
-// Actions on instances.  ActionWait can be combined with ActionSuspend in a
-// single request (ParamAction appears twice in the URL).
+// Actions on instances.  ActionWait can be combined with ActionKill or
+// ActionSuspend in a single request (ParamAction appears twice in the URL).
 const (
 	ActionIO       = "io"       // Post or websocket.
 	ActionStatus   = "status"   // Post.
 	ActionWait     = "wait"     // Post.
+	ActionKill     = "kill"     // Post.
 	ActionSuspend  = "suspend"  // Post.
 	ActionResume   = "resume"   // Post.
 	ActionSnapshot = "snapshot" // Post.

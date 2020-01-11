@@ -38,6 +38,7 @@ import (
 type debugKey struct{}
 
 type instanceStatusFunc func(ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
+type instanceObjectFunc func(ctx context.Context, pri *principal.Key, instance string) (*server.Instance, error)
 
 const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
 
@@ -265,12 +266,6 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			return
 		},
 
-		"Suspend": func(instID string) (err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			handleInstanceSuspend(ctx, pri, s, instID)
-			return
-		},
-
 		"Upload": func(moduleFD dbus.UnixFD, moduleLen int64, key string,
 		) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
@@ -289,6 +284,18 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 		methods[name] = func(instID string) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			state, cause, result = handleInstanceStatus(ctx, pri, f, instID)
+			return
+		}
+	}
+
+	for name, f := range map[string]instanceObjectFunc{
+		"Kill":    s.KillInstance,
+		"Suspend": s.SuspendInstance,
+	} {
+		f := f // Closure needs a local copy of the iterator's current value.
+		methods[name] = func(instID string) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			handleInstanceObject(ctx, pri, f, instID)
 			return
 		}
 	}
@@ -395,13 +402,13 @@ func handleInstanceStatus(ctx context.Context, pri *principal.Key, f instanceSta
 	return status.State, status.Cause, status.Result
 }
 
-func handleInstanceDelete(ctx context.Context, pri *principal.Key, s *server.Server, instID string) {
-	check(s.DeleteInstance(ctx, pri, instID))
+func handleInstanceObject(ctx context.Context, pri *principal.Key, f instanceObjectFunc, instID string) {
+	_, err := f(ctx, pri, instID)
+	check(err)
 }
 
-func handleInstanceSuspend(ctx context.Context, pri *principal.Key, s *server.Server, instID string) {
-	_, err := s.SuspendInstance(ctx, pri, instID)
-	check(err)
+func handleInstanceDelete(ctx context.Context, pri *principal.Key, s *server.Server, instID string) {
+	check(s.DeleteInstance(ctx, pri, instID))
 }
 
 func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Server, instID string, debugFD dbus.UnixFD, debugName string) {

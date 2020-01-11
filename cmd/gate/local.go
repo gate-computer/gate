@@ -112,6 +112,13 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"kill": {
+		usage: "instance",
+		do: func() {
+			daemonCallInstanceWaiter("Kill")
+		},
+	},
+
 	"launch": {
 		usage: "module [function]",
 		do: func() {
@@ -230,36 +237,39 @@ var localCommands = map[string]command{
 	"status": {
 		usage: "instance",
 		do: func() {
-			status := daemonCallInstanceStatus("Status")
-			fmt.Println(statusString(status))
+			daemonCallInstanceStatus("Status")
 		},
 	},
 
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			check(daemonCall("Suspend", flag.Arg(0)).Store())
-
-			if c.Wait {
-				status := daemonCallInstanceStatus("Wait")
-				fmt.Println(statusString(status))
-			}
+			daemonCallInstanceWaiter("Suspend")
 		},
 	},
 
 	"wait": {
 		usage: "instance",
 		do: func() {
-			status := daemonCallInstanceStatus("Wait")
-			fmt.Println(statusString(status))
+			daemonCallInstanceStatus("Wait")
 		},
 	},
 }
 
-func daemonCallInstanceStatus(name string) (status server.Status) {
+func daemonCallInstanceStatus(name string) {
 	call := daemonCall(name, flag.Arg(0))
+
+	var status server.Status
 	check(call.Store(&status.State, &status.Cause, &status.Result))
-	return
+	fmt.Println(statusString(status))
+}
+
+func daemonCallInstanceWaiter(name string) {
+	check(daemonCall(name, flag.Arg(0)).Store())
+
+	if c.Wait {
+		daemonCallInstanceStatus("Wait")
+	}
 }
 
 func openStdio() (r *os.File, w *os.File) {

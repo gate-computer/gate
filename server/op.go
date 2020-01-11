@@ -25,6 +25,7 @@ const (
 	OpInstanceConnect  = detail.Op_INSTANCE_CONNECT
 	OpInstanceStatus   = detail.Op_INSTANCE_STATUS
 	OpInstanceWait     = detail.Op_INSTANCE_WAIT
+	OpInstanceKill     = detail.Op_INSTANCE_KILL
 	OpInstanceSuspend  = detail.Op_INSTANCE_SUSPEND
 	OpInstanceResume   = detail.Op_INSTANCE_RESUME
 	OpInstanceSnapshot = detail.Op_INSTANCE_SNAPSHOT

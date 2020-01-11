@@ -31,9 +31,10 @@ enum Type {
 	INSTANCE_DISCONNECT = 17;
 	INSTANCE_STATUS = 18;
 	INSTANCE_WAIT = 19;
-	INSTANCE_SUSPEND = 20;
-	INSTANCE_RESUME = 21;
-	INSTANCE_SNAPSHOT = 22;
+	INSTANCE_KILL = 20;
+	INSTANCE_SUSPEND = 21;
+	INSTANCE_RESUME = 22;
+	INSTANCE_SNAPSHOT = 23;
 }
 
 message FailInternal {
@@ -172,6 +173,11 @@ message InstanceStatus {
 }
 
 message InstanceWait {
+	detail.Context ctx = 1;
+	string instance = 2;
+}
+
+message InstanceKill {
 	detail.Context ctx = 1;
 	string instance = 2;
 }

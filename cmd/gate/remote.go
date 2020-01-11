@@ -117,6 +117,13 @@ var remoteCommands = map[string]command{
 		},
 	},
 
+	"kill": {
+		usage: "instance",
+		do: func() {
+			commandInstanceWaiter(webapi.ActionKill)
+		},
+	},
+
 	"launch": {
 		usage: "module [function]",
 		do: func() {
@@ -246,23 +253,14 @@ var remoteCommands = map[string]command{
 	"status": {
 		usage: "instance",
 		do: func() {
-			status := commandInstance(webapi.ActionStatus)
-			fmt.Println(status)
+			fmt.Println(commandInstance(webapi.ActionStatus))
 		},
 	},
 
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			actions := []string{webapi.ActionSuspend}
-			if c.Wait {
-				actions = append(actions, webapi.ActionWait)
-			}
-
-			status := commandInstance(actions...)
-			if c.Wait {
-				fmt.Println(status)
-			}
+			commandInstanceWaiter(webapi.ActionSuspend)
 		},
 	},
 
@@ -305,8 +303,7 @@ var remoteCommands = map[string]command{
 	"wait": {
 		usage: "instance",
 		do: func() {
-			status := commandInstance(webapi.ActionWait)
-			fmt.Println(status)
+			fmt.Println(commandInstance(webapi.ActionWait))
 		},
 	},
 }
@@ -367,6 +364,18 @@ func commandInstance(actions ...string) webapi.Status {
 
 	status, _ := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
 	return status
+}
+
+func commandInstanceWaiter(action string) {
+	actions := []string{action}
+	if c.Wait {
+		actions = append(actions, webapi.ActionWait)
+	}
+
+	status := commandInstance(actions...)
+	if c.Wait {
+		fmt.Println(status)
+	}
 }
 
 func loadModule(filename string) (b *bytes.Buffer, key string) {

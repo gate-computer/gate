@@ -12,6 +12,7 @@ func (x *InstanceCreateLocal) EventName() string  { return "INSTANCE_CREATE_LOCA
 func (x *InstanceCreateStream) EventName() string { return "INSTANCE_CREATE_STREAM" }
 func (x *InstanceDelete) EventName() string       { return "INSTANCE_DELETE" }
 func (x *InstanceDisconnect) EventName() string   { return "INSTANCE_DISCONNECT" }
+func (x *InstanceKill) EventName() string         { return "INSTANCE_KILL" }
 func (x *InstanceList) EventName() string         { return "INSTANCE_LIST" }
 func (x *InstanceResume) EventName() string       { return "INSTANCE_RESUME" }
 func (x *InstanceSnapshot) EventName() string     { return "INSTANCE_SNAPSHOT" }
@@ -36,6 +37,7 @@ func (*InstanceCreateLocal) EventType() int32  { return int32(Type_INSTANCE_CREA
 func (*InstanceCreateStream) EventType() int32 { return int32(Type_INSTANCE_CREATE_STREAM) }
 func (*InstanceDelete) EventType() int32       { return int32(Type_INSTANCE_DELETE) }
 func (*InstanceDisconnect) EventType() int32   { return int32(Type_INSTANCE_DISCONNECT) }
+func (*InstanceKill) EventType() int32         { return int32(Type_INSTANCE_KILL) }
 func (*InstanceList) EventType() int32         { return int32(Type_INSTANCE_LIST) }
 func (*InstanceResume) EventType() int32       { return int32(Type_INSTANCE_RESUME) }
 func (*InstanceSnapshot) EventType() int32     { return int32(Type_INSTANCE_SNAPSHOT) }

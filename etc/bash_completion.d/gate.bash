@@ -64,7 +64,7 @@ __gate_completion()
 						cmd="$cur"
 						case "$cmd" in
 							call|launch) kind=module ;;
-							delete|io|resume|status|suspend|wait) kind=instance ;;
+							delete|io|kill|resume|status|suspend|wait) kind=instance ;;
 							pull|push) kind=address2 ;;
 							*) return ;;
 						esac
@@ -75,7 +75,7 @@ __gate_completion()
 					cmd="$cur"
 					case "$cmd" in
 						call|download|launch|unref) kind=module ;;
-						delete|io|repl|resume|snapshot|status|suspend|wait) kind=instance ;;
+						delete|io|kill|repl|resume|snapshot|status|suspend|wait) kind=instance ;;
 						*) return ;;
 					esac
 					;;

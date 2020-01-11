@@ -41,6 +41,7 @@ Common commands:
   call      execute a wasm module with I/O
   delete    delete an instance
   io        connect to a running instance
+  kill      kill a running instance
   launch    create an instance from a wasm module
   resume    resume a suspended instance
   status    query current status of an instance

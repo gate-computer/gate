@@ -1149,6 +1149,36 @@ func TestInstanceMultiIO(t *testing.T) {
 	}
 }
 
+func TestInstanceKill(t *testing.T) {
+	handler := newHandler(t)
+	pri := newPrincipalKey()
+
+	var instID string
+
+	{
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&function=multi", wasmHello)
+		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		instID = resp.Header.Get(webapi.HeaderInstance)
+	}
+
+	t.Run("KillWait", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=kill&action=wait", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
+			State: webapi.StateKilled,
+		})
+	})
+
+	t.Run("Status", func(t *testing.T) {
+		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
+			State: webapi.StateKilled,
+		})
+	})
+}
+
 func TestInstanceSuspend(t *testing.T) {
 	debugLog.logf = t.Logf
 	defer func() {
@@ -1177,17 +1207,20 @@ func TestInstanceSuspend(t *testing.T) {
 		time.Sleep(time.Second / 3)
 	}
 
-	t.Run("SuspendAndWait", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend&action=wait", nil)
+	t.Run("Suspend", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+
+		if x := resp.Header[webapi.HeaderStatus]; x != nil {
+			t.Error(x)
+		}
+	})
+
+	t.Run("Wait", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
 		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateSuspended,
-		})
-	})
-
-	t.Run("StatusSuspended", func(t *testing.T) {
-		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
 			State: webapi.StateSuspended,
 		})
 	})

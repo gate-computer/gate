@@ -837,6 +837,28 @@ func (s *Server) WaitInstance(ctx context.Context, pri *principal.Key, instID st
 	return
 }
 
+func (s *Server) KillInstance(ctx context.Context, pri *principal.Key, instID string,
+) (inst *Instance, err error) {
+	err = s.AccessPolicy.Authorize(ctx, pri)
+	if err != nil {
+		return
+	}
+
+	inst, _ = s.getInstance(pri, instID)
+	if inst == nil {
+		err = resourcenotfound.ErrInstance
+		return
+	}
+
+	s.monitor(&event.InstanceKill{
+		Ctx:      Context(ctx, pri),
+		Instance: inst.id,
+	})
+
+	inst.Kill()
+	return
+}
+
 func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID string,
 ) (inst *Instance, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
