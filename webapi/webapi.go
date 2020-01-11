@@ -172,7 +172,8 @@ const (
 	CauseABIViolation                  = "ABI_VIOLATION"
 )
 
-// Status response header.  If Error is set, other fields are not meaningful.
+// Status response header.  Error without State means that the state is unknown
+// due to an internal server error.
 type Status struct {
 	State  string `json:"state,omitempty"`
 	Cause  string `json:"cause,omitempty"`
