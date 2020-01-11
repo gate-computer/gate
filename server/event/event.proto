@@ -126,6 +126,8 @@ message ModuleSourceExist {
 message ModuleDownload {
 	detail.Context ctx = 1;
 	string module = 2;
+	uint64 module_length = 3;
+	uint64 length_read = 4;
 }
 
 message ModuleUnref {

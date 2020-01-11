@@ -80,8 +80,7 @@ type ProcessFactory interface {
 type TrapID trap.ID
 
 const (
-	TrapExit = TrapID(trap.Exit)
-
+	TrapExit                          = TrapID(trap.Exit)
 	TrapSuspended                     = TrapID(trap.Suspended)
 	TrapUnreachable                   = TrapID(trap.Unreachable)
 	TrapCallStackExhausted            = TrapID(trap.CallStackExhausted)
@@ -90,14 +89,17 @@ const (
 	TrapIndirectCallSignatureMismatch = TrapID(trap.IndirectCallSignatureMismatch)
 	TrapIntegerDivideByZero           = TrapID(trap.IntegerDivideByZero)
 	TrapIntegerOverflow               = TrapID(trap.IntegerOverflow)
-
-	TrapABIDeficiency = TrapID(26)
+	TrapABIDeficiency                 = TrapID(26)
+	TrapKilled                        = TrapID(29)
 )
 
 func (id TrapID) String() string {
 	switch id {
 	case TrapABIDeficiency:
 		return "ABI deficiency"
+
+	case TrapKilled:
+		return "killed"
 
 	default:
 		return trap.ID(id).String()
@@ -107,8 +109,8 @@ func (id TrapID) String() string {
 // Process is used to execute a single program image once.  Created via an
 // Executor or a derivative ProcessFactory.
 //
-// A process is idle until its Start method is called.  Kill must eventually be
-// called to release resources.
+// A process is idle until its Start method is called.  Close must eventually
+// be called to release resources.
 type Process struct {
 	execution execProcess // Executor's low-level process state.
 	writer    *file.File
@@ -160,8 +162,7 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 // Start the program.  The program state will be undergoing mutation until the
 // process terminates.
 //
-// This function must be called before Serve, and must not be called after
-// Kill.
+// This function must be called before Serve.
 func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPolicy) (err error) {
 	textAddr, heapAddr, stackAddr, random, err := getRand(state.TextAddr(), code.Random())
 	if err != nil {
@@ -255,18 +256,17 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 // Serve the user program until the process terminates.  Canceling the context
 // suspends the program.
 //
-// Start must have been called before this.  This must not be called after
-// Kill.
+// Start must have been called before this.
 //
 // Buffers will be mutated (unless nil).
 func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers,
-) (exit int, trapID TrapID, err error) {
+) (exit int, trap TrapID, err error) {
 	err = ioLoop(ctx, services, p, buffers)
 	if err != nil {
 		return
 	}
 
-	status, err := p.killWait()
+	status, err := p.execution.finalize()
 	if err != nil {
 		return
 	}
@@ -277,44 +277,53 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 
 	switch {
 	case status.Exited():
-		code := status.ExitStatus()
-
-		if code >= 0 && code <= 3 {
-			exit = code & 1
-			if code&2 != 0 && buffers != nil {
+		switch n := status.ExitStatus(); {
+		case n >= 0 && n <= 3:
+			exit = n & 1
+			if n&2 != 0 && buffers != nil {
 				buffers.SetTerminated()
 			}
+
+		case n >= 100 && n <= 127:
+			trap = TrapID(n - 100)
+
+		default:
+			err = internal.ProcessError(n)
 			return
 		}
 
-		if code >= 100 && code <= 127 {
-			trapID = TrapID(code - 100)
-			return
+		if (trap == TrapExit || trap == TrapABIDeficiency) && p.execution.killRequested() {
+			trap = TrapKilled
 		}
-
-		err = internal.ProcessError(code)
-		return
 
 	case status.Signaled():
-		if status.Signal() == syscall.SIGXCPU {
-			trapID = TrapSuspended // During initialization (ok) or by force (stack is dirty).
+		switch s := status.Signal(); {
+		case s == os.Kill && p.execution.killRequested():
+			trap = TrapKilled
+
+		case s == syscall.SIGXCPU:
+			// During initialization (ok) or by force (instance stack is dirty).
+			trap = TrapSuspended
+
+		default:
+			err = fmt.Errorf("process termination signal: %s", s)
 			return
 		}
-
-		err = fmt.Errorf("process termination signal: %v", status.Signal())
-		return
 
 	default:
 		err = fmt.Errorf("unknown process status: %d", status)
 		return
 	}
+
+	return
 }
 
-// Suspend the program unless the process has already been terminated.  Serve
-// call will return with github.com/tsavola/wag/trap.Suspended error.  This is
-// a no-op if the process has already been killed or suspended.
+// Suspend the program if it is still running.  If suspended, Serve call will
+// return with TrapSuspended.  (The program may get suspended also through
+// other means.)
 //
-// This can be called concurrently with Start, Serve and Kill.
+// This can be called multiple times, concurrently with Start, Serve, Kill,
+// Close and itself.
 func (p *Process) Suspend() {
 	select {
 	case p.suspended <- struct{}{}:
@@ -322,12 +331,18 @@ func (p *Process) Suspend() {
 	}
 }
 
-// Kill the process and release resources.  If the program has been suspended
-// successfully, this only releases resources.
+// Kill the process if it is still alive.  If killed, Serve call will return
+// with TrapKilled.
 //
-// This function can be called multiple times.
+// This can be called multiple times, concurrently with Start, Serve, Suspend,
+// Close and itself.
 func (p *Process) Kill() {
-	p.execution.kill(false)
+	p.execution.kill()
+}
+
+// Close must not be called concurrently with Start or Serve.
+func (p *Process) Close() (err error) {
+	p.execution.kill()
 
 	if p.reader != nil {
 		p.reader.Close()
@@ -348,14 +363,8 @@ func (p *Process) Kill() {
 		p.debugFile.Close()
 		p.debugFile = nil
 	}
-}
 
-func (p *Process) killSuspend() {
-	p.execution.kill(true)
-}
-
-func (p *Process) killWait() (syscall.WaitStatus, error) {
-	return p.execution.killWait()
+	return
 }
 
 func getRand(fixedTextAddr uint64, needData bool,

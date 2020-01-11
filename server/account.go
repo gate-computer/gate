@@ -21,29 +21,33 @@ func accountContext(ctx context.Context, acc *account) detail.Context {
 	return Context(ctx, pri)
 }
 
+type accountInstance struct {
+	inst *Instance
+	prog *program
+}
+
 type account struct {
 	*principal.Key
 
-	// Protected by Server.lock:
+	// Protected by server mutex:
 	programRefs map[*program]struct{}
-	instances   map[string]*Instance
+	instances   map[string]accountInstance
 }
 
 func newAccount(pri *principal.Key) *account {
 	return &account{
 		Key:         pri,
 		programRefs: make(map[*program]struct{}),
-		instances:   make(map[string]*Instance),
+		instances:   make(map[string]accountInstance),
 	}
 }
 
-// cleanup must be called with Server.lock held.
-func (acc *account) cleanup() (is map[string]*Instance) {
+func (acc *account) cleanup(lock serverLock) (is map[string]accountInstance) {
 	ps := acc.programRefs
 	acc.programRefs = nil
 
 	for prog := range ps {
-		prog.unref()
+		prog.unref(lock)
 	}
 
 	is = acc.instances
@@ -51,27 +55,24 @@ func (acc *account) cleanup() (is map[string]*Instance) {
 	return
 }
 
-// ensureRefProgram must be called with Server.lock held.  It's safe to call
-// for an already referenced program.  It must not be called while the server
-// is shutting down.
-func (acc *account) ensureRefProgram(prog *program) {
+// ensureRefProgram is safe to call for an already referenced program.  It must
+// not be called while the server is shutting down.
+func (acc *account) ensureRefProgram(lock serverLock, prog *program) {
 	if _, exists := acc.programRefs[prog]; !exists {
-		prog.ref()
+		prog.ref(lock)
 		acc.programRefs[prog] = struct{}{}
 	}
 }
 
-// unrefProgram must be called with Server.lock held.
-func (acc *account) unrefProgram(prog *program) {
+func (acc *account) unrefProgram(lock serverLock, prog *program) {
 	if _, ok := acc.programRefs[prog]; !ok {
 		panic("account does not reference program")
 	}
 	delete(acc.programRefs, prog)
-	prog.unref()
+	prog.unref(lock)
 }
 
-// checkUniqueInstanceID must be called with Server.lock held.
-func (acc *account) checkUniqueInstanceID(instID string) (err error) {
+func (acc *account) checkUniqueInstanceID(_ serverLock, instID string) (err error) {
 	if _, exists := acc.instances[instID]; exists {
 		err = failrequest.New(event.FailInstanceIDExists, "duplicate instance id")
 	}

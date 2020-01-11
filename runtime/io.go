@@ -227,11 +227,11 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 		case <-suspended:
 			suspended = nil
-			subject.killSuspend()
+			subject.execution.suspend()
 
 		case <-done:
 			done = nil
-			subject.killSuspend()
+			subject.execution.suspend()
 		}
 	}
 }

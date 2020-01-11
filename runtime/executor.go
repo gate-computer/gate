@@ -13,6 +13,7 @@ import (
 	"net"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/tsavola/gate/internal/defaultlog"
@@ -131,7 +132,7 @@ func (e *Executor) execute(ctx context.Context, proc *execProcess, input *file.R
 	}()
 
 	select {
-	case e.execRequests <- execRequest{proc, input, output}:
+	case e.execRequests <- execRequest{int16(proc.id), proc, input, output}:
 		return
 
 	case <-e.doneSending:
@@ -183,7 +184,7 @@ func (e *Executor) sender(errorLog Logger) {
 		select {
 		case req = <-e.execRequests:
 			e.lock.Lock()
-			e.procs[req.proc.id] = req.proc
+			e.procs[req.pid] = req.proc
 			e.lock.Unlock()
 
 			// This is like exec_request in runtime/executor/executor.h
@@ -268,60 +269,83 @@ func (e *Executor) Dead() <-chan struct{} {
 	return e.doneReceiving
 }
 
+const (
+	execProcessIDFinalized int32 = -1
+	execProcessIDKilled    int32 = -2
+	execProcessIDSuspended int32 = -3
+)
+
 // Low-level process, tightly coupled with Executor.  See process.go for the
 // high-level Process type.
 type execProcess struct {
 	executor *Executor
-	id       int16
+	id       int32 // Atomic.
 	dead     chan struct{}
 	status   syscall.WaitStatus // Valid after dead is closed.
 }
 
 func (p *execProcess) init(e *Executor, id int16) {
 	p.executor = e
-	p.id = id
+	p.id = int32(id)
 	p.dead = make(chan struct{})
 }
 
-func (p *execProcess) kill(suspend bool) {
-	if p.id < 0 {
+func (p *execProcess) killRequested() bool {
+	return atomic.LoadInt32(&p.id) == execProcessIDKilled
+}
+
+func (p *execProcess) kill()    { p.killSuspend(false, execProcessIDKilled) }
+func (p *execProcess) suspend() { p.killSuspend(true, execProcessIDSuspended) }
+
+func (p *execProcess) killSuspend(suspend bool, replacement int32) {
+	n := atomic.LoadInt32(&p.id)
+	if n < 0 || !atomic.CompareAndSwapInt32(&p.id, n, replacement) {
 		return
 	}
+	id := int16(n)
 
-	value := p.id
+	value := id
 	if suspend {
 		value = ^value
 	}
 
 	select {
 	case p.executor.killRequests <- value:
-		p.executor.ids <- p.id
-		p.id = -1
+		p.executor.ids <- id
 
 	case <-p.executor.doneSending:
-
 	case <-p.executor.doneReceiving:
 	}
 }
 
-func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
-	var killRequests chan<- int16
-	if p.id >= 0 {
-		killRequests = p.executor.killRequests
+func (p *execProcess) finalize() (status syscall.WaitStatus, err error) {
+	var (
+		id           int16 = -1
+		killRequests chan<- int16
+	)
+
+	if n := atomic.LoadInt32(&p.id); n >= 0 {
+		if atomic.CompareAndSwapInt32(&p.id, n, execProcessIDFinalized) {
+			id = int16(n)
+			killRequests = p.executor.killRequests
+		}
 	}
 
 	for {
 		select {
-		case killRequests <- p.id:
+		case killRequests <- id:
 			killRequests = nil
-			p.executor.ids <- p.id
-			p.id = -1
+			p.executor.ids <- id
+			id = -1
 
 		case <-p.executor.doneSending:
 			// No way to kill it anymore.
 			killRequests = nil
 
 		case <-p.dead:
+			if id >= 0 {
+				p.executor.ids <- id
+			}
 			status = p.status
 			return
 
@@ -333,6 +357,7 @@ func (p *execProcess) killWait() (status syscall.WaitStatus, err error) {
 }
 
 type execRequest struct {
+	pid    int16
 	proc   *execProcess
 	input  *file.Ref
 	output *file.File

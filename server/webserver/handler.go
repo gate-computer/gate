@@ -678,7 +678,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 			return
 		}
 	}
-	defer inst.Kill(s.Server)
+	defer inst.Kill()
 
 	w.Header().Set("Trailer", webapi.HeaderStatus)
 
@@ -699,7 +699,6 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		w.WriteHeader(http.StatusOK)
 	}
 
-	go inst.Run(ctx, s.Server)
 	inst.Connect(ctx, r.Body, w)
 	status := inst.Wait(ctx)
 
@@ -825,7 +824,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			return
 		}
 	}
-	defer inst.Kill(s.Server)
+	defer inst.Kill()
 
 	var reply webapi.CallConnection
 
@@ -846,7 +845,6 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		return
 	}
 
-	go inst.Run(ctx, s.Server)
 	inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
 	status := inst.Wait(ctx)
 
@@ -890,8 +888,6 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 		}
 	}
 
-	go runDetachedInstance(ctx, pri, inst, s)
-
 	if debug != "" {
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
@@ -917,8 +913,6 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 		respondServerError(ctx, wr, s, pri, "", key, function, "", err)
 		return
 	}
-
-	go runDetachedInstance(ctx, pri, inst, s)
 
 	if debug != "" {
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
@@ -965,21 +959,28 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
 	ctx = principal.ContextWithIDFrom(ctx, pri)
 
-	status, err := method(s.Server, ctx, pri, instID)
-	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+	status, instanceErr := method(s.Server, ctx, pri, instID)
+
+	statusJSON := statusInternalServerErrorJSON
+	data, statusErr := serverapi.MarshalJSON(&status)
+	if statusErr == nil {
+		statusJSON = string(data)
+	}
+
+	if instanceErr == nil || status.State != server.StateNonexistent {
+		w.Header().Set(webapi.HeaderStatus, string(statusJSON))
+	}
+
+	if instanceErr != nil {
+		respondServerError(ctx, wr, s, pri, "", "", "", instID, instanceErr)
 		return
 	}
 
-	statusJSON := statusInternalServerErrorJSON
-	if data, err := serverapi.MarshalJSON(&status); err == nil {
-		statusJSON = string(data)
-	} else {
-		reportInternalError(ctx, s, pri, "", "", "", instID, err)
-	}
-
-	w.Header().Set(webapi.HeaderStatus, statusJSON)
 	w.WriteHeader(http.StatusNoContent)
+
+	if statusErr != nil {
+		reportInternalError(ctx, s, pri, "", "", "", instID, statusErr)
+	}
 }
 
 func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID, debug string) {
@@ -999,8 +1000,6 @@ func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-
-	go runDetachedInstance(ctx, pri, inst, s)
 }
 
 func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
@@ -1012,7 +1011,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	content := mustDecodeContent(ctx, wr, s, pri)
 	defer content.Close()
 
-	connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
+	inst, connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
 	if err != nil {
 		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
 		return
@@ -1025,12 +1024,13 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	w.Header().Set("Trailer", webapi.HeaderStatus)
 	w.WriteHeader(http.StatusOK)
 
-	status, err := connIO(ctx, content, w)
+	err = connIO(ctx, content, w)
 	if err != nil {
 		// Network error has already been reported by connIO.
 		return
 	}
 
+	status := inst.Status()
 	statusJSON := statusInternalServerErrorJSON
 	if data, err := serverapi.MarshalJSON(&status); err == nil {
 		statusJSON = string(data)
@@ -1071,7 +1071,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 	pri := mustParseAuthorization(ctx, w, s, r.Authorization, true)
 	ctx = principal.ContextWithIDFrom(ctx, pri)
 
-	connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
+	inst, connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
 	if err != nil {
 		respondServerError(ctx, w, s, pri, "", "", "", instID, err)
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
@@ -1093,15 +1093,13 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	goodbye := &server.ConnectionStatus{}
-
-	goodbye.Status, err = connIO(ctx, newWebsocketReader(conn), newWebsocketWriter(conn))
+	err = connIO(ctx, newWebsocketReader(conn), newWebsocketWriter(conn))
 	if err != nil {
 		// Network error has already been reported by connIO.
 		return
 	}
 
-	data, err := serverapi.MarshalJSON(goodbye)
+	data, err := serverapi.MarshalJSON(&server.ConnectionStatus{Status: inst.Status()})
 	if err != nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		reportInternalError(ctx, s, pri, "", "", "", "", err)
@@ -1131,8 +1129,4 @@ func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver
 
 	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+moduleKey)
 	w.WriteHeader(http.StatusCreated)
-}
-
-func runDetachedInstance(ctx context.Context, pri *principal.Key, inst *server.Instance, s *webserver) {
-	inst.Run(server.DetachedContext(ctx, pri), s.Server)
 }

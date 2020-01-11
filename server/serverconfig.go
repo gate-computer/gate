@@ -70,8 +70,12 @@ type Config struct {
 	XXX_Owner *principal.Key
 }
 
-func (c Config) Configured() bool {
+func (c *Config) Configured() bool {
 	return c.ProcessFactory != nil && c.AccessPolicy != nil
+}
+
+func (c *Config) monitor(e Event) {
+	c.Monitor(e, nil)
 }
 
 func AllocateIface(name string) detail.Iface {

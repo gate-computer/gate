@@ -50,27 +50,32 @@ func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 	return
 }
 
-func validateHashContent(hash1 string, r io.Reader) (err error) {
+// validateHashContent might close the reader and set it to nil.
+func validateHashContent(hash1 string, r *io.ReadCloser) error {
 	hash2 := newHash()
 
-	_, err = io.Copy(hash2, r)
+	if _, err := io.Copy(hash2, *r); err != nil {
+		return wrapContentError(err)
+	}
+
+	err := (*r).Close()
+	*r = nil
 	if err != nil {
-		err = wrapContentError(err)
-		return
+		return wrapContentError(err)
 	}
 
 	return validateHashBytes(hash1, hash2.Sum(nil))
 }
 
 type program struct {
-	key     string
+	hash    string
 	image   *image.Program
 	buffers snapshot.Buffers
 
-	storeLock sync.Mutex
-	stored    bool
+	storeMu sync.Mutex
+	stored  bool
 
-	// Protected by Server.lock:
+	// Protected by server mutex:
 	refCount int
 }
 
@@ -184,9 +189,9 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	return
 }
 
-func newProgram(key string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
+func newProgram(hash string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
 	prog := &program{
-		key:      key,
+		hash:     hash,
 		image:    image,
 		buffers:  buffers,
 		stored:   stored,
@@ -199,29 +204,29 @@ func newProgram(key string, image *image.Program, buffers snapshot.Buffers, stor
 func finalizeProgram(prog *program) {
 	if prog.refCount != 0 {
 		if prog.refCount > 0 {
-			log.Printf("closing unreachable program %q with reference count %d", prog.key, prog.refCount)
+			log.Printf("closing unreachable program %q with reference count %d", prog.hash, prog.refCount)
 			prog.image.Close()
 			prog.image = nil
 		} else {
-			log.Printf("unreachable program %q with reference count %d", prog.key, prog.refCount)
+			log.Printf("unreachable program %q with reference count %d", prog.hash, prog.refCount)
 		}
 	}
 }
 
-// ref must be called with Server.lock held.
-func (prog *program) ref() *program {
+// ref must be called with server mutex held.
+func (prog *program) ref(serverLock) *program {
 	if prog.refCount <= 0 {
-		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.key, prog.refCount))
+		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.hash, prog.refCount))
 	}
 
 	prog.refCount++
 	return prog
 }
 
-// unref must be called with Server.lock held.
-func (prog *program) unref() {
+// unref must be called with server mutex held.
+func (prog *program) unref(serverLock) {
 	if prog.refCount <= 0 {
-		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.key, prog.refCount))
+		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.hash, prog.refCount))
 	}
 
 	prog.refCount--
@@ -233,14 +238,14 @@ func (prog *program) unref() {
 }
 
 func (prog *program) ensureStorage() (err error) {
-	prog.storeLock.Lock()
-	defer prog.storeLock.Unlock()
+	prog.storeMu.Lock()
+	defer prog.storeMu.Unlock()
 
 	if prog.stored {
 		return
 	}
 
-	err = prog.image.Store(prog.key)
+	err = prog.image.Store(prog.hash)
 	if err != nil {
 		return
 	}

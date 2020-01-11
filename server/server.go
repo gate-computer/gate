@@ -15,8 +15,8 @@ import (
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
+	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/notapplicable"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	"github.com/tsavola/gate/snapshot"
@@ -40,15 +40,23 @@ type instProgPolicy struct {
 	inst InstancePolicy
 }
 
+type serverLock struct{}
+type serverMutex struct{ sync.Mutex }
+
+func (m *serverMutex) Lock() serverLock {
+	m.Mutex.Lock()
+	return serverLock{}
+}
+
 type Server struct {
 	Config
 
-	lock     sync.Mutex
+	mu       serverMutex
 	accounts map[principalKeyArray]*account
 	programs map[string]*program
 }
 
-func New(config Config) (s *Server, err error) {
+func New(config Config) (*Server, error) {
 	if config.ImageStorage == nil {
 		config.ImageStorage = image.Memory
 	}
@@ -59,41 +67,44 @@ func New(config Config) (s *Server, err error) {
 		panic("incomplete server configuration")
 	}
 
-	s = &Server{
+	s := &Server{
 		Config:   config,
 		accounts: make(map[principalKeyArray]*account),
 		programs: make(map[string]*program),
 	}
+
+	list, err := s.ImageStorage.Programs()
+	if err != nil {
+		return nil, err
+	}
+
+	shutdown := s.Shutdown
 	defer func() {
-		if err != nil {
-			s.Shutdown(context.TODO())
+		if shutdown != nil {
+			shutdown(context.Background())
 		}
 	}()
 
-	err = s.initPrograms()
-	if err != nil {
-		return
-	}
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return
-}
-
-func (s *Server) initPrograms() error {
-	list, err := s.ImageStorage.Programs()
-	if err != nil {
-		return err
+	var owner *account
+	if s.XXX_Owner != nil {
+		owner = newAccount(s.XXX_Owner)
+		s.accounts[inprincipal.RawKey(s.XXX_Owner)] = owner
 	}
 
 	for _, hash := range list {
-		if err := s.loadProgramDuringInit(hash); err != nil {
-			return err
+		if err := s.loadProgramDuringInit(lock, owner, hash); err != nil {
+			return nil, err
 		}
 	}
 
-	return nil
+	shutdown = nil
+	return s, nil
 }
 
-func (s *Server) loadProgramDuringInit(hash string) error {
+func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash string) error {
 	image, err := s.ImageStorage.LoadProgram(hash)
 	if err != nil {
 		return err
@@ -102,9 +113,7 @@ func (s *Server) loadProgramDuringInit(hash string) error {
 		return nil
 	}
 	defer func() {
-		if image != nil {
-			image.Close()
-		}
+		closeProgramImage(&image)
 	}()
 
 	buffers, err := image.LoadBuffers()
@@ -113,61 +122,47 @@ func (s *Server) loadProgramDuringInit(hash string) error {
 	}
 
 	prog := newProgram(hash, image, buffers, true)
-	s.programs[hash] = prog
 	image = nil
 
-	if s.XXX_Owner != nil {
-		acc, _ := s.ensureAccount(s.XXX_Owner)
-		acc.ensureRefProgram(prog)
+	s.programs[hash] = prog
+
+	if owner != nil {
+		owner.ensureRefProgram(lock, prog)
 	}
 
 	return nil
 }
 
-func (s *Server) Shutdown(ctx context.Context) (err error) {
+func (s *Server) Shutdown(ctx context.Context) error {
 	var is []*Instance
 
 	func() {
-		s.lock.Lock()
-		defer s.lock.Unlock()
+		lock := s.mu.Lock()
+		defer s.mu.Unlock()
 
 		ps := s.programs
 		s.programs = nil
 
 		for _, prog := range ps {
-			prog.unref()
+			prog.unref(lock)
 		}
 
 		as := s.accounts
 		s.accounts = nil
 
 		for _, acc := range as {
-			for _, inst := range acc.cleanup() {
-				is = append(is, inst)
+			for _, x := range acc.cleanup(lock) {
+				is = append(is, x.inst)
 			}
 		}
 	}()
 
 	for _, inst := range is {
-		wait := func() <-chan struct{} {
-			inst.lock.Lock()
-			defer inst.lock.Unlock()
-
-			if inst.status.State == StateRunning {
-				return inst.stopped
-			} else {
-				return nil
-			}
-		}()
-
-		if wait != nil {
-			<-wait
-		}
-
-		inst.Kill(s)
+		inst.Wait(ctx)
+		inst.Kill()
 	}
 
-	return
+	return nil
 }
 
 // UploadModule creates a new module reference if refModule is true.  Caller
@@ -175,9 +170,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 func (s *Server) UploadModule(ctx context.Context, pri *principal.Key, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
 ) (err error) {
 	defer func() {
-		if content != nil {
-			content.Close()
-		}
+		closeReader(&content)
 	}()
 
 	if pri == nil && refModule {
@@ -206,24 +199,13 @@ func (s *Server) UploadModule(ctx context.Context, pri *principal.Key, refModule
 
 	// TODO: check resource policy
 
-	found, err := s.loadKnownModule(ctx, acc, &pol, allegedHash, content, contentLength)
-	if err != nil {
+	found, err := s.loadKnownModule(ctx, acc, &pol, allegedHash, &content, contentLength)
+	if found || err != nil {
 		return
 	}
 
-	if found {
-		err = content.Close()
-		content = nil
-		if err != nil {
-			err = wrapContentError(err)
-			return
-		}
-	} else {
-		_, err = s.loadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
-		if err != nil {
-			return
-		}
-	}
+	_, err = s.loadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
+	content = nil
 	return
 }
 
@@ -263,26 +245,20 @@ func (s *Server) SourceModule(ctx context.Context, pri *principal.Key, refModule
 		return
 	}
 
-	progHash, err = s.loadUnknownModule(ctx, acc, &pol, "", content, int(size))
-	if err != nil {
-		return
-	}
-
-	return
+	return s.loadUnknownModule(ctx, acc, &pol, "", content, int(size))
 }
 
-func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.Reader, contentLength int64,
+// loadKnownModule might close the content reader and set it to nil.
+func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content *io.ReadCloser, contentLength int64,
 ) (found bool, err error) {
 	prog, err := s.refProgram(ctx, allegedHash, contentLength)
-	if err != nil || prog == nil {
+	if prog == nil || err != nil {
 		return
 	}
 	defer func() {
-		if err != nil {
-			s.unrefProgram(prog)
-		}
+		s.unrefProgram(&prog)
 	}()
-
+	progHash := prog.hash
 	found = true
 
 	err = validateHashContent(allegedHash, content)
@@ -306,14 +282,16 @@ func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPol
 	if err != nil {
 		return
 	}
+	prog = nil
 
-	s.Monitor(&event.ModuleUploadExist{
+	s.monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
-		Module: prog.key,
-	}, nil)
+		Module: progHash,
+	})
 	return
 }
 
+// loadUnknownModule always closes the content reader.
 func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progPolicy, allegedHash string, content io.ReadCloser, contentSize int,
 ) (progHash string, err error) {
 	prog, _, err := buildProgram(s.ImageStorage, &pol.prog, nil, allegedHash, content, contentSize, "")
@@ -321,10 +299,9 @@ func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progP
 		return
 	}
 	defer func() {
-		if err != nil {
-			prog.unref()
-		}
+		s.unrefProgram(&prog)
 	}()
+	progHash = prog.hash
 
 	if acc != nil {
 		err = prog.ensureStorage()
@@ -337,21 +314,20 @@ func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progP
 	if err != nil {
 		return
 	}
+	prog = nil
 
 	if redundant {
-		s.Monitor(&event.ModuleUploadExist{
+		s.monitor(&event.ModuleUploadExist{
 			Ctx:      accountContext(ctx, acc),
-			Module:   prog.key,
+			Module:   progHash,
 			Compiled: true,
-		}, nil)
+		})
 	} else {
-		s.Monitor(&event.ModuleUploadNew{
+		s.monitor(&event.ModuleUploadNew{
 			Ctx:    accountContext(ctx, acc),
-			Module: prog.key,
-		}, nil)
+			Module: progHash,
+		})
 	}
-
-	progHash = prog.key
 	return
 }
 
@@ -376,10 +352,9 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHas
 		return
 	}
 	defer func() {
-		if err != nil {
-			s.unrefProgram(prog)
-		}
+		s.unrefProgram(&prog)
 	}()
+	progHash = prog.hash // Canonical string.
 
 	entryIndex, err := prog.image.ResolveEntryFunc(function)
 	if err != nil {
@@ -393,21 +368,26 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHas
 		return
 	}
 	defer func() {
-		if err != nil {
-			instImage.Close()
-		}
+		closeInstanceImage(&instImage)
 	}()
 
-	inst, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, persistInst, function, instID, debug)
+	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, persistInst, function, instID, debug)
 	if err != nil {
 		return
 	}
+	instImage = nil
 
-	s.Monitor(&event.InstanceCreateLocal{
+	err = s.runOrDeleteInstance(ctx, inst, prog)
+	if err != nil {
+		return
+	}
+	prog = nil
+
+	s.monitor(&event.InstanceCreateLocal{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-		Module:   prog.key,
-	}, nil)
+		Module:   progHash,
+	})
 	return
 }
 
@@ -417,9 +397,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHas
 func (s *Server) UploadModuleInstance(ctx context.Context, pri *principal.Key, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
 ) (inst *Instance, err error) {
 	defer func() {
-		if content != nil {
-			content.Close()
-		}
+		closeReader(&content)
 	}()
 
 	if pri == nil && refModule {
@@ -438,12 +416,8 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *principal.Key, r
 		return
 	}
 
-	inst, err = s.loadModuleInstance(ctx, acc, refModule, &pol, allegedHash, content, contentLength, persistInst, function, instID, debug)
+	_, inst, err = s.loadModuleInstance(ctx, acc, refModule, &pol, allegedHash, content, contentLength, persistInst, function, instID, debug)
 	content = nil
-	if err != nil {
-		return
-	}
-
 	return
 }
 
@@ -481,21 +455,14 @@ func (s *Server) SourceModuleInstance(ctx context.Context, pri *principal.Key, r
 		return
 	}
 
-	inst, err = s.loadModuleInstance(ctx, acc, refModule, &pol, "", content, int64(size), persistInst, function, instID, debug)
-	if err != nil {
-		return
-	}
-
-	progHash = inst.prog.key
+	progHash, inst, err = s.loadModuleInstance(ctx, acc, refModule, &pol, "", content, int64(size), persistInst, function, instID, debug)
 	return
 }
 
 func (s *Server) loadModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
-) (inst *Instance, err error) {
+) (progHash string, inst *Instance, err error) {
 	defer func() {
-		if content != nil {
-			content.Close()
-		}
+		closeReader(&content)
 	}()
 
 	if contentLength > int64(pol.prog.MaxModuleSize) {
@@ -505,44 +472,35 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, refModule
 
 	// TODO: check resource policy
 
-	inst, err = s.loadKnownModuleInstance(ctx, acc, refModule, pol, allegedHash, content, contentLength, persistInst, function, instID, debug)
-	if err != nil {
-		return
+	if allegedHash != "" {
+		inst, err = s.loadKnownModuleInstance(ctx, acc, refModule, pol, allegedHash, &content, contentLength, persistInst, function, instID, debug)
+		if err != nil {
+			return
+		}
+		if inst != nil {
+			progHash = allegedHash
+			return
+		}
 	}
 
-	if inst != nil {
-		err = content.Close()
-		content = nil
-		if err != nil {
-			err = wrapContentError(err)
-			return
-		}
-	} else {
-		inst, err = s.loadUnknownModuleInstance(ctx, acc, refModule, pol, allegedHash, content, int(contentLength), persistInst, function, instID, debug)
-		if err != nil {
-			return
-		}
-	}
+	progHash, inst, err = s.loadUnknownModuleInstance(ctx, acc, refModule, pol, allegedHash, content, int(contentLength), persistInst, function, instID, debug)
+	content = nil
 	return
 }
 
-func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content io.Reader, contentLength int64, persistInst bool, function, instID, debug string,
+// loadKnownModuleInstance might close the content reader and set it to nil.
+func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content *io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
 ) (inst *Instance, err error) {
-	if allegedHash == "" {
-		return
-	}
-
 	prog, err := s.refProgram(ctx, allegedHash, contentLength)
-	if err != nil || prog == nil {
+	if prog == nil || err != nil {
 		return
 	}
 	defer func() {
-		if err != nil {
-			s.unrefProgram(prog)
-		}
+		s.unrefProgram(&prog)
 	}()
+	progHash := prog.hash
 
-	err = validateHashContent(prog.key, content)
+	err = validateHashContent(prog.hash, content)
 	if err != nil {
 		return
 	}
@@ -569,87 +527,99 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 		return
 	}
 	defer func() {
-		if err != nil {
-			instImage.Close()
-		}
+		closeInstanceImage(&instImage)
 	}()
 
-	inst, _, err = s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, persistInst, function, instID, debug)
+	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, persistInst, function, instID, debug)
 	if err != nil {
 		return
 	}
+	instImage = nil
 
-	s.Monitor(&event.ModuleUploadExist{
+	s.monitor(&event.ModuleUploadExist{
 		Ctx:    accountContext(ctx, acc),
-		Module: prog.key,
-	}, nil)
+		Module: progHash,
+	})
 
-	s.Monitor(&event.InstanceCreateLocal{
+	err = s.runOrDeleteInstance(ctx, inst, prog)
+	if err != nil {
+		return
+	}
+	prog = nil
+
+	s.monitor(&event.InstanceCreateLocal{
 		Ctx:      accountContext(ctx, acc),
 		Instance: inst.id,
-		Module:   prog.key,
-	}, nil)
+		Module:   progHash,
+	})
 	return
 }
 
+// loadUnknownModuleInstance always closes the content reader.
 func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, refModule bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, persistInst bool, function, instID, debug string,
-) (inst *Instance, err error) {
+) (progHash string, inst *Instance, err error) {
 	prog, instImage, err := buildProgram(s.ImageStorage, &pol.prog, &pol.inst, allegedHash, content, contentSize, function)
 	if err != nil {
 		return
 	}
 	defer func() {
-		if err != nil {
-			instImage.Close()
-			prog.unref()
-		}
+		closeInstanceImage(&instImage)
+		s.unrefProgram(&prog)
 	}()
+	progHash = prog.hash
 
 	err = prog.ensureStorage()
 	if err != nil {
 		return
 	}
 
-	inst, redundant, err := s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, persistInst, function, instID, debug)
+	inst, prog, redundantProg, err := s.registerProgramRefInstance(ctx, acc, refModule, prog, instImage, &pol.inst, persistInst, function, instID, debug)
 	if err != nil {
 		return
 	}
+	instImage = nil
 
 	if allegedHash != "" {
-		if redundant {
-			s.Monitor(&event.ModuleUploadExist{
+		if redundantProg {
+			s.monitor(&event.ModuleUploadExist{
 				Ctx:      accountContext(ctx, acc),
-				Module:   prog.key,
+				Module:   progHash,
 				Compiled: true,
-			}, nil)
+			})
 		} else {
-			s.Monitor(&event.ModuleUploadNew{
+			s.monitor(&event.ModuleUploadNew{
 				Ctx:    accountContext(ctx, acc),
-				Module: prog.key,
-			}, nil)
+				Module: progHash,
+			})
 		}
 	} else {
-		if redundant {
-			s.Monitor(&event.ModuleSourceExist{
+		if redundantProg {
+			s.monitor(&event.ModuleSourceExist{
 				Ctx:    accountContext(ctx, acc),
-				Module: prog.key,
+				Module: progHash,
 				// TODO: source URI
 				Compiled: true,
-			}, nil)
+			})
 		} else {
-			s.Monitor(&event.ModuleSourceNew{
+			s.monitor(&event.ModuleSourceNew{
 				Ctx:    accountContext(ctx, acc),
-				Module: prog.key,
+				Module: progHash,
 				// TODO: source URI
-			}, nil)
+			})
 		}
 	}
 
-	s.Monitor(&event.InstanceCreateStream{
+	err = s.runOrDeleteInstance(ctx, inst, prog)
+	if err != nil {
+		return
+	}
+	prog = nil
+
+	s.monitor(&event.InstanceCreateStream{
 		Ctx:      accountContext(ctx, acc),
 		Instance: inst.id,
-		Module:   prog.key,
-	}, nil)
+		Module:   progHash,
+	})
 	return
 }
 
@@ -659,28 +629,25 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *principal.Key) (refs Modul
 		return
 	}
 
-	refs = func() ModuleRefs {
-		s.lock.Lock()
-		defer s.lock.Unlock()
-
-		acc := s.accounts[inprincipal.RawKey(pri)]
-		if acc == nil {
-			return nil
-		}
-
-		refs := make(ModuleRefs, 0, len(acc.programRefs))
-		for prog := range acc.programRefs {
-			refs = append(refs, ModuleRef{
-				Key: prog.key,
-			})
-		}
-
-		return refs
-	}()
-
-	s.Monitor(&event.ModuleList{
+	s.monitor(&event.ModuleList{
 		Ctx: Context(ctx, pri),
-	}, nil)
+	})
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	acc := s.accounts[inprincipal.RawKey(pri)]
+	if acc == nil {
+		return
+	}
+
+	refs = make(ModuleRefs, 0, len(acc.programRefs))
+	for prog := range acc.programRefs {
+		refs = append(refs, ModuleRef{
+			Key: prog.hash,
+		})
+	}
+
 	return
 }
 
@@ -698,27 +665,41 @@ func (s *Server) ModuleContent(ctx context.Context, pri *principal.Key, hash str
 		return
 	}
 
-	content = moduleContent{
-		Reader: prog.image.NewModuleReader(),
-		done: func() {
-			defer s.unrefProgram(prog)
-			s.Monitor(&event.ModuleDownload{
-				Ctx:    Context(ctx, pri),
-				Module: prog.key,
-			}, nil)
-		},
-	}
 	length = prog.image.ModuleSize()
+	content = &moduleContent{
+		ctx:   Context(ctx, pri),
+		r:     prog.image.NewModuleReader(),
+		s:     s,
+		prog:  prog,
+		total: length,
+	}
 	return
 }
 
 type moduleContent struct {
-	io.Reader
-	done func()
+	ctx   detail.Context
+	r     io.Reader
+	s     *Server
+	prog  *program
+	total int64
+	read  int64
 }
 
-func (mc moduleContent) Close() (err error) {
-	mc.done()
+func (x *moduleContent) Read(b []byte) (n int, err error) {
+	n, err = x.r.Read(b)
+	x.read += int64(n)
+	return
+}
+
+func (x *moduleContent) Close() (err error) {
+	x.s.monitor(&event.ModuleDownload{
+		Ctx:          x.ctx,
+		Module:       x.prog.hash,
+		ModuleLength: uint64(x.total),
+		LengthRead:   uint64(x.read),
+	})
+
+	x.s.unrefProgram(&x.prog)
 	return
 }
 
@@ -728,28 +709,23 @@ func (s *Server) UnrefModule(ctx context.Context, pri *principal.Key, hash strin
 		return
 	}
 
-	var (
-		acc  *account
-		prog *program
-	)
-
 	err = func() (err error) {
-		s.lock.Lock()
-		defer s.lock.Unlock()
+		lock := s.mu.Lock()
+		defer s.mu.Unlock()
 
-		acc, prog = s.getAccountAndPrincipalProgramWithCallerLock(pri, hash)
+		acc, prog := s.getAccountAndPrincipalProgram(lock, pri, hash)
 		if prog == nil {
 			err = resourcenotfound.ErrModule
 			return
 		}
 
-		acc.unrefProgram(prog)
+		acc.unrefProgram(lock, prog)
 		if prog.refCount == 1 {
-			if _, ok := s.programs[prog.key]; !ok {
-				panic(fmt.Sprintf("account program %q reference is unknown to server", prog.key))
+			if _, ok := s.programs[prog.hash]; !ok {
+				panic(fmt.Sprintf("account program %q reference is unknown to server", prog.hash))
 			}
-			delete(s.programs, prog.key)
-			prog.unref()
+			delete(s.programs, prog.hash)
+			prog.unref(lock)
 		}
 
 		return
@@ -758,55 +734,48 @@ func (s *Server) UnrefModule(ctx context.Context, pri *principal.Key, hash strin
 		return
 	}
 
-	s.Monitor(&event.ModuleUnref{
+	s.monitor(&event.ModuleUnref{
 		Ctx:    Context(ctx, pri),
 		Module: hash,
-	}, nil)
+	})
 	return
 }
 
 func (s *Server) InstanceConnection(ctx context.Context, pri *principal.Key, instID string,
-) (connIO func(context.Context, io.Reader, io.Writer) (Status, error), err error) {
+) (inst *Instance, connIO func(context.Context, io.Reader, io.Writer) error, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
 	}
 
-	inst := s.getInstance(pri, instID)
+	inst, _ = s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
-	conn := inst.services.Connect(ctx)
+	conn := inst.connect(ctx)
 	if conn == nil {
-		s.Monitor(&event.FailRequest{
+		s.monitor(&event.FailRequest{
 			Ctx:      Context(ctx, pri),
 			Failure:  event.FailInstanceNoConnect,
 			Instance: inst.id,
-		}, nil)
+		})
 		return
 	}
 
-	connIO = func(ctx context.Context, r io.Reader, w io.Writer) (status Status, err error) {
-		s.Monitor(&event.InstanceConnect{
+	connIO = func(ctx context.Context, r io.Reader, w io.Writer) (err error) {
+		s.monitor(&event.InstanceConnect{
 			Ctx:      Context(ctx, pri),
 			Instance: inst.id,
-		}, nil)
-
-		defer func() {
-			s.Monitor(&event.InstanceDisconnect{
-				Ctx:      Context(ctx, pri),
-				Instance: inst.id,
-			}, err)
-		}()
+		})
 
 		err = conn(ctx, r, w)
-		if err != nil {
-			return
-		}
 
-		status = inst.Status()
+		s.Monitor(&event.InstanceDisconnect{
+			Ctx:      Context(ctx, pri),
+			Instance: inst.id,
+		}, err)
 		return
 	}
 	return
@@ -820,18 +789,22 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *principal.Key, instID 
 		return
 	}
 
-	inst := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
 	status = inst.Status()
+	if status.State == StateNonexistent {
+		err = resourcenotfound.ErrInstance
+		return
+	}
 
-	s.Monitor(&event.InstanceStatus{
+	s.monitor(&event.InstanceStatus{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-	}, nil)
+	})
 	return
 }
 
@@ -842,27 +815,18 @@ func (s *Server) WaitInstance(ctx context.Context, pri *principal.Key, instID st
 		return
 	}
 
-	inst := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
-	select {
-	case <-inst.stopped:
-		// ok
-
-	case <-ctx.Done():
-		err = ctx.Err()
-		return
-	}
-
-	status = inst.Status()
-
-	s.Monitor(&event.InstanceWait{
+	s.monitor(&event.InstanceWait{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-	}, nil)
+	})
+
+	status = inst.Wait(ctx)
 	return
 }
 
@@ -873,7 +837,7 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 		return
 	}
 
-	inst := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
@@ -883,20 +847,13 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 		return
 	}
 
-	inst.suspend(s)
-
-	s.Monitor(&event.InstanceSuspend{
+	s.monitor(&event.InstanceSuspend{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-	}, nil)
+	})
 
-	select {
-	case <-inst.stopped:
-		status = inst.Status()
-
-	case <-ctx.Done():
-		err = ctx.Err()
-	}
+	inst.suspend()
+	status = inst.Wait(ctx)
 	return
 }
 
@@ -909,65 +866,44 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, functio
 		return
 	}
 
-	inst = s.getInstance(pri, instID)
+	inst, prog := s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
-	err = func() (err error) {
-		inst.lock.Lock()
-		defer inst.lock.Unlock()
-
-		entryIndex := -1
-
-		switch inst.status.State {
-		case StateSuspended:
-			if function != "" {
-				err = failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance")
-				return
-			}
-
-		case StateHalted:
-			if function == "" {
-				err = failrequest.Errorf(event.FailInstanceStatus, "no function specified for halted instance")
-				return
-			}
-
-			entryIndex, err = inst.prog.image.ResolveEntryFunc(function)
-			if err != nil {
-				return
-			}
-
-		default:
-			err = failrequest.Errorf(event.FailInstanceStatus, fmt.Sprintf("instance is %s", inst.status.State))
-			return
-		}
-
-		err = inst.image.CheckMutation()
-		if err != nil {
-			return
-		}
-
-		proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pri, &pol.inst, debug)
-		if err != nil {
-			return
-		}
-
-		inst.image.SetEntry(inst.prog.image, entryIndex)
-		inst.renew(function, proc, pol.inst.TimeResolution, services, debugStatus, debugOutput)
-		return
-	}()
+	err = inst.checkResume(prog, function)
 	if err != nil {
-		inst = nil
 		return
 	}
 
-	s.Monitor(&event.InstanceResume{
+	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pri, &pol.inst, debug)
+	if err != nil {
+		return
+	}
+	defer func() {
+		closeInstanceResources(&proc, &services, &debugOutput)
+	}()
+
+	err = inst.doResume(prog, function, proc, services, pol.inst.TimeResolution, debugStatus, debugOutput)
+	if err != nil {
+		return
+	}
+	proc = nil
+	services = nil
+	debugOutput = nil
+
+	err = s.runOrDeleteInstance(ctx, inst, prog)
+	if err != nil {
+		return
+	}
+	prog = nil
+
+	s.monitor(&event.InstanceResume{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
 		Function: function,
-	}, nil)
+	})
 	return
 }
 
@@ -978,41 +914,23 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID 
 		return
 	}
 
-	inst := s.getInstance(pri, instID)
+	inst, prog := s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
-	switch inst.Status().State {
-	case StateSuspended, StateHalted, StateTerminated:
-		// ok
-
-	default:
-		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted or terminated")
+	status, err = inst.annihilate()
+	if err != nil {
 		return
 	}
 
-	func() {
-		s.lock.Lock()
-		defer s.lock.Unlock()
-
-		acc := s.accounts[inprincipal.RawKey(pri)]
-		if acc == nil {
-			return
-		}
-
-		if acc.instances[instID] == inst {
-			delete(acc.instances, instID)
-		}
-	}()
-
-	inst.Kill(s)
-
-	s.Monitor(&event.InstanceDelete{
+	s.monitor(&event.InstanceDelete{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
-	}, nil)
+	})
+
+	s.deleteNonexistentInstance(inst, prog)
 	return
 }
 
@@ -1025,47 +943,18 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 
 	// TODO: check module storage limits
 
-	oldProg, inst := s.refInstanceProgram(pri, instID)
-	if oldProg == nil {
+	inst, oldProg := s.getInstance(pri, instID)
+	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
-	defer s.unrefProgram(oldProg)
 
-	newImage, buffers, err := func() (newImage *image.Program, buffers snapshot.Buffers, err error) {
-		inst.lock.Lock()
-		defer inst.lock.Unlock()
-
-		var suspended bool
-
-		switch inst.status.State {
-		case StateSuspended:
-			suspended = true
-
-		case StateHalted, StateTerminated:
-			suspended = false
-
-		default:
-			err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted or terminated")
-			return
-		}
-
-		if inst.persistent == nil {
-			err = resourcenotfound.ErrInstance
-			return
-		}
-
-		buffers = *inst.persistent
-		newImage, err = image.Snapshot(oldProg.image, inst.image, buffers, suspended)
-		return
-	}()
+	newImage, buffers, err := inst.snapshot(oldProg)
 	if err != nil {
 		return
 	}
 	defer func() {
-		if err != nil {
-			newImage.Close()
-		}
+		closeProgramImage(&newImage)
 	}()
 
 	h := newHash()
@@ -1080,61 +969,67 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 		return
 	}
 
-	_, err = s.registerProgramRef(inst.acc, newProgram(moduleKey, newImage, buffers, true))
+	newProg := newProgram(moduleKey, newImage, buffers, true)
+	newImage = nil
+	defer func() {
+		s.unrefProgram(&newProg)
+	}()
+
+	_, err = s.registerProgramRef(inst.acc, newProg)
 	if err != nil {
 		return
 	}
+	newProg = nil
 
-	s.Monitor(&event.InstanceSnapshot{
+	s.monitor(&event.InstanceSnapshot{
 		Ctx:      Context(ctx, pri),
 		Instance: inst.id,
 		Module:   moduleKey,
-	}, nil)
+	})
 	return
 }
 
-func (s *Server) Instances(ctx context.Context, pri *principal.Key) (is Instances, err error) {
+func (s *Server) Instances(ctx context.Context, pri *principal.Key) (statuses Instances, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
 	}
 
+	s.monitor(&event.InstanceList{
+		Ctx: Context(ctx, pri),
+	})
+
 	// Get instance references while holding server lock.
-	list := func() (list []*Instance) {
-		s.lock.Lock()
-		defer s.lock.Unlock()
+	is := func() (is []*Instance) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-		acc := s.accounts[inprincipal.RawKey(pri)]
-		if acc == nil {
-			return
+		if acc := s.accounts[inprincipal.RawKey(pri)]; acc != nil {
+			is = make([]*Instance, 0, len(acc.instances))
+			for _, x := range acc.instances {
+				is = append(is, x.inst)
+			}
 		}
 
-		list = make([]*Instance, 0, len(acc.instances))
-		for _, i := range acc.instances {
-			list = append(list, i)
-		}
 		return
 	}()
 
 	// Get instance statuses.  Each instance has its own lock.
-	is = make(Instances, 0, len(list))
-	for _, i := range list {
-		is = append(is, InstanceStatus{
-			Instance:  i.ID(),
-			Status:    i.Status(),
-			Transient: i.persistent == nil,
+	statuses = make(Instances, 0, len(is))
+	for _, inst := range is {
+		statuses = append(statuses, InstanceStatus{
+			Instance:  inst.ID(),
+			Status:    inst.Status(),
+			Transient: inst.persistent == nil,
 		})
 	}
 
-	s.Monitor(&event.InstanceList{
-		Ctx: Context(ctx, pri),
-	}, nil)
 	return
 }
 
 func (s *Server) ensureAccount(pri *principal.Key) (acc *account, err error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if s.accounts == nil {
 		err = context.Canceled
@@ -1146,41 +1041,46 @@ func (s *Server) ensureAccount(pri *principal.Key) (acc *account, err error) {
 		acc = newAccount(pri)
 		s.accounts[inprincipal.RawKey(pri)] = acc
 	}
+
 	return
 }
 
-func (s *Server) refProgram(ctx context.Context, hash string, length int64) (prog *program, err error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+func (s *Server) refProgram(ctx context.Context, hash string, length int64) (*program, error) {
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
-	prog = s.programs[hash]
+	prog := s.programs[hash]
+	if prog == nil {
+		return nil, nil
+	}
+
+	if length != prog.image.ModuleSize() {
+		return nil, errModuleSizeMismatch
+	}
+
+	return prog.ref(lock), nil
+}
+
+func (s *Server) unrefProgram(p **program) {
+	prog := *p
+	*p = nil
 	if prog == nil {
 		return
 	}
 
-	if length != prog.image.ModuleSize() {
-		err = errModuleSizeMismatch
-		return
-	}
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
-	prog.ref()
-	return
-}
-
-func (s *Server) unrefProgram(prog *program) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	prog.unref()
+	prog.unref(lock)
 }
 
 func (s *Server) refAccountProgram(acc *account, hash string) *program {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if prog := s.programs[hash]; prog != nil {
 		if _, own := acc.programRefs[prog]; own {
-			return prog.ref()
+			return prog.ref(lock)
 		}
 	}
 
@@ -1188,13 +1088,13 @@ func (s *Server) refAccountProgram(acc *account, hash string) *program {
 }
 
 func (s *Server) refPrincipalProgram(pri *principal.Key, hash string) *program {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if acc := s.accounts[inprincipal.RawKey(pri)]; acc != nil {
 		if prog := s.programs[hash]; prog != nil {
 			if _, own := acc.programRefs[prog]; own {
-				return prog.ref()
+				return prog.ref(lock)
 			}
 		}
 	}
@@ -1202,7 +1102,7 @@ func (s *Server) refPrincipalProgram(pri *principal.Key, hash string) *program {
 	return nil
 }
 
-func (s *Server) getAccountAndPrincipalProgramWithCallerLock(pri *principal.Key, hash string,
+func (s *Server) getAccountAndPrincipalProgram(_ serverLock, pri *principal.Key, hash string,
 ) (*account, *program) {
 	acc := s.accounts[inprincipal.RawKey(pri)]
 	if acc != nil {
@@ -1217,19 +1117,20 @@ func (s *Server) getAccountAndPrincipalProgramWithCallerLock(pri *principal.Key,
 }
 
 // registerProgramRef with the server and an account.  Caller's program
-// reference is stolen.
+// reference is stolen (except on error).
 func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool, err error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
-	prog, redundant, err = s.mergeProgramRef(prog)
+	prog, redundant, err = s.mergeProgramRef(lock, prog)
 	if err != nil {
 		return
 	}
 
 	if acc != nil {
-		acc.ensureRefProgram(prog)
+		acc.ensureRefProgram(lock, prog)
 	}
+
 	return
 }
 
@@ -1244,8 +1145,8 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.Key, instID stri
 	}
 
 	if pri != nil {
-		s.lock.Lock()
-		defer s.lock.Unlock()
+		lock := s.mu.Lock()
+		defer s.mu.Unlock()
 
 		if s.accounts == nil {
 			err = context.Canceled
@@ -1259,46 +1160,62 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.Key, instID stri
 		}
 
 		if instID != "" {
-			err = acc.checkUniqueInstanceID(instID)
+			err = acc.checkUniqueInstanceID(lock, instID)
 			if err != nil {
 				return
 			}
 		}
 	}
+
 	return
 }
 
-func (s *Server) getInstance(pri *principal.Key, instID string) *Instance {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	acc := s.accounts[inprincipal.RawKey(pri)]
-	if acc == nil {
-		return nil
+// runOrDeleteInstance steals the program reference (except on error).
+func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *program) error {
+	if err := inst.startOrAnnihilate(prog); err != nil {
+		s.deleteNonexistentInstance(inst, prog)
+		return err
 	}
 
-	return acc.instances[instID]
+	var pri *principal.Key
+	if inst.acc != nil {
+		pri = inst.acc.Key
+	}
+
+	go s.driveInstance(detachedContext(ctx, pri), inst, prog)
+	return nil
 }
 
-func (s *Server) refInstanceProgram(pri *principal.Key, instID string) (*program, *Instance) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+// driveInstance steals the program reference.
+func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *program) {
+	// TODO: remove instance from server and unref program if instance was not persistent
+
+	if event, err := inst.drive(ctx, prog); event != nil {
+		s.Monitor(event, err)
+	}
+}
+
+func (s *Server) getInstance(pri *principal.Key, instID string) (*Instance, *program) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	acc := s.accounts[inprincipal.RawKey(pri)]
 	if acc == nil {
 		return nil, nil
 	}
 
-	inst := acc.instances[instID]
-	if inst == nil {
-		return nil, nil
-	}
-
-	return inst.prog.ref(), inst
+	x := acc.instances[instID]
+	return x.inst, x.prog
 }
 
 func (s *Server) allocateInstanceResources(ctx context.Context, pri *principal.Key, pol *InstancePolicy, debugOption string,
 ) (proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser, err error) {
+	defer func() {
+		if err != nil {
+			closeInstanceResources(&proc, &services, &debugOutput)
+		}
+	}()
+
 	ctx = inprincipal.ContextWithIDFrom(ctx, pri)
 
 	if debugOption != "" {
@@ -1310,11 +1227,6 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pri *principal.K
 		if err != nil {
 			return
 		}
-		defer func() {
-			if err != nil {
-				debugOutput.Close()
-			}
-		}()
 	}
 
 	if pol.Services == nil {
@@ -1322,24 +1234,16 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pri *principal.K
 		return
 	}
 	services = pol.Services(ctx)
-	defer func() {
-		if err != nil {
-			services.Close()
-		}
-	}()
 
 	proc, err = s.ProcessFactory.NewProcess(ctx)
-	if err != nil {
-		return
-	}
-
 	return
 }
 
 // registerProgramRefInstance with server, and an account if refModule is true.
-// Caller's program reference and instance image are stolen (except on error).
+// Caller's instance image is stolen (except on error).  Caller's program
+// reference is replaced with a reference to the canonical program object.
 func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, refModule bool, prog *program, instImage *image.Instance, pol *InstancePolicy, persistInst bool, function, instID, debug string,
-) (inst *Instance, redundant bool, err error) {
+) (inst *Instance, canonicalProg *program, redundantProg bool, err error) {
 	var pri *principal.Key
 	if acc != nil {
 		pri = acc.Key
@@ -1350,64 +1254,123 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		return
 	}
 	defer func() {
-		if err != nil {
-			debugOutput.Close()
-			proc.Kill()
-			services.Close()
-		}
+		closeInstanceResources(&proc, &services, &debugOutput)
 	}()
 
 	if instID == "" {
 		instID = makeInstanceID()
 	}
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if acc != nil {
-		err = acc.checkUniqueInstanceID(instID)
+		err = acc.checkUniqueInstanceID(lock, instID)
 		if err != nil {
 			return
 		}
 	}
 
-	prog, redundant, err = s.mergeProgramRef(prog)
+	prog, redundantProg, err = s.mergeProgramRef(lock, prog)
 	if err != nil {
 		return
 	}
 
-	inst = newInstance(acc, instID, prog.ref(), persistInst, function, instImage, proc, pol.TimeResolution, services, debugStatus, debugOutput)
+	var persistent *snapshot.Buffers
+	if persistInst {
+		clone := prog.buffers
+		persistent = &clone
+	}
+
+	inst = newInstance(acc, instID, function, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugOutput)
+	proc = nil
+	services = nil
+	debugOutput = nil
 
 	if acc != nil {
 		if refModule {
-			acc.ensureRefProgram(prog)
+			acc.ensureRefProgram(lock, prog)
 		}
-		acc.instances[instID] = inst
+		acc.instances[instID] = accountInstance{inst, prog.ref(lock)}
 	}
 
+	canonicalProg = prog.ref(lock)
 	return
 }
 
-// mergeProgramRef must be called with Server.lock held.  The returned program
-// pointer is valid until the end of the critical section.
-func (s *Server) mergeProgramRef(prog *program) (canonical *program, redundant bool, err error) {
-	switch existing := s.programs[prog.key]; existing {
+// deleteNonexistentInstance and the associate program reference.
+func (s *Server) deleteNonexistentInstance(inst *Instance, prog *program) {
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prog.unref(lock)
+
+	if inst.acc == nil {
+		return
+	}
+
+	if x := inst.acc.instances[inst.id]; x.inst == inst {
+		delete(inst.acc.instances, inst.id)
+		x.prog.unref(lock)
+	}
+}
+
+// mergeProgramRef returns a borrowed program reference which valid until the
+// server mutex is unlocked.
+func (s *Server) mergeProgramRef(lock serverLock, prog *program) (canonical *program, redundant bool, err error) {
+	switch existing := s.programs[prog.hash]; existing {
 	case nil:
 		if s.programs == nil {
 			return nil, false, context.Canceled
 		}
-		s.programs[prog.key] = prog // Pass reference to map.
+		s.programs[prog.hash] = prog // Pass reference to map.
 		return prog, false, nil
 
 	case prog:
 		if prog.refCount < 2 {
 			panic("unexpected program reference count")
 		}
-		prog.unref() // Map has reference; safe to drop temporary reference.
+		prog.unref(lock) // Map has reference; safe to drop temporary reference.
 		return prog, false, nil
 
 	default:
-		prog.unref()
+		prog.unref(lock)
 		return existing, true, nil
+	}
+}
+
+func closeReader(p *io.ReadCloser) {
+	if *p != nil {
+		(*p).Close()
+		*p = nil
+	}
+}
+
+func closeProgramImage(p **image.Program) {
+	if *p != nil {
+		(*p).Close()
+		*p = nil
+	}
+}
+
+func closeInstanceImage(p **image.Instance) {
+	if *p != nil {
+		(*p).Close()
+		*p = nil
+	}
+}
+
+func closeInstanceResources(proc **runtime.Process, services *InstanceServices, w *io.WriteCloser) {
+	if *proc != nil {
+		(*proc).Close()
+		*proc = nil
+	}
+	if *services != nil {
+		(*services).Close()
+		*services = nil
+	}
+	if *w != nil {
+		(*w).Close()
+		*w = nil
 	}
 }

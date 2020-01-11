@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -103,9 +102,7 @@ func mainResult() int {
 	parseConfig(flags, true)
 
 	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err)
 	c.Service = plugins.ServiceConfig
 
 	originConfig := origin.DefaultConfig
@@ -346,9 +343,8 @@ func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, modul
 		inst, err = s.CreateInstance(ctx, pri, key, false, function, "", debugName)
 	}
 	check(err)
-	defer inst.Kill(s)
+	defer inst.Kill()
 
-	go inst.Run(ctx, s)
 	inst.Connect(ctx, r, w)
 	status := inst.Wait(ctx)
 	return status.State, status.Cause, status.Result
@@ -371,8 +367,6 @@ func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, mod
 		inst, err = s.CreateInstance(ctx, pri, key, true, function, "", debugName)
 	}
 	check(err)
-
-	go inst.Run(server.DetachedContext(ctx, pri), s)
 
 	return inst.ID()
 }
@@ -397,10 +391,8 @@ func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Ser
 
 	ctx = context.WithValue(ctx, debugKey{}, debug)
 
-	inst, err := s.ResumeInstance(ctx, pri, "", instID, debugName)
+	_, err := s.ResumeInstance(ctx, pri, "", instID, debugName)
 	check(err)
-
-	go inst.Run(server.DetachedContext(ctx, pri), s)
 }
 
 func handleInstanceConnect(ctx context.Context, pri *principal.Key, s *server.Server, instID string, rFD, wFD dbus.UnixFD) bool {
@@ -419,14 +411,13 @@ func handleInstanceConnect(ctx context.Context, pri *principal.Key, s *server.Se
 		panic(err) // First SetNonblock error.
 	}
 
-	connIO, err := s.InstanceConnection(ctx, pri, instID)
+	_, connIO, err := s.InstanceConnection(ctx, pri, instID)
 	check(err)
 	if connIO == nil {
 		return false
 	}
 
-	_, err = connIO(ctx, r, w)
-	check(err)
+	check(connIO(ctx, r, w))
 	return true
 }
 

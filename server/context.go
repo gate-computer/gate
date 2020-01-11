@@ -32,7 +32,7 @@ func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
 	return context.WithValue(ctx, contextKey{}, c)
 }
 
-func DetachedContext(ctx context.Context, pri *principal.Key) context.Context {
+func detachedContext(ctx context.Context, pri *principal.Key) context.Context {
 	c := Context(ctx, pri)
 	c.Addr = ""
 	return context.WithValue(context.Background(), contextKey{}, c)
