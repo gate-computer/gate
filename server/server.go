@@ -133,19 +133,12 @@ func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash str
 	return nil
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *Server) Shutdown(ctx context.Context) (err error) {
 	var is []*Instance
 
 	func() {
 		lock := s.mu.Lock()
 		defer s.mu.Unlock()
-
-		ps := s.programs
-		s.programs = nil
-
-		for _, prog := range ps {
-			prog.unref(lock)
-		}
 
 		as := s.accounts
 		s.accounts = nil
@@ -153,16 +146,34 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		for _, acc := range as {
 			for _, x := range acc.cleanup(lock) {
 				is = append(is, x.inst)
+				x.prog.unref(lock)
 			}
+		}
+
+		ps := s.programs
+		s.programs = nil
+
+		for _, prog := range ps {
+			prog.unref(lock)
 		}
 	}()
 
 	for _, inst := range is {
-		inst.Wait(ctx)
-		inst.Kill()
+		inst.suspend()
 	}
 
-	return nil
+	var aborted bool
+
+	for _, inst := range is {
+		if inst.Wait(ctx).State == StateRunning {
+			aborted = true
+		}
+	}
+
+	if aborted {
+		err = ctx.Err()
+	}
+	return
 }
 
 // UploadModule creates a new module reference if refModule is true.  Caller
