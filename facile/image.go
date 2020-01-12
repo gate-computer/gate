@@ -120,7 +120,7 @@ type InstanceImage struct {
 func NewInstanceImage(prog *ProgramImage, entryFunction string) (inst *InstanceImage, err error) {
 	stackSize := wa.PageSize
 
-	entryFunc, err := prog.image.ResolveEntryFunc(entryFunction)
+	entryFunc, err := prog.image.ResolveEntryFunc(entryFunction, false)
 	if err != nil {
 		return
 	}

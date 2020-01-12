@@ -2,17 +2,29 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package resolve
+package build
 
 import (
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
+	"github.com/tsavola/wag/wa"
 )
 
-// EntryFunc is like image.Program.ResolveEntryFunc.
-func EntryFunc(mod compile.Module, exportName string) (index int, err error) {
-	startIndex, startSig, startFound := mod.ExportFunc("_start")
+// ResolveEntryFunc or the implicit _start function.  This function doesn't
+// know if the module is a snapshot: the started argument must be true for
+// snapshots.
+func ResolveEntryFunc(mod compile.Module, exportName string, started bool) (index int, err error) {
+	// image.Program.ResolveEntryFunc must be kept in sync with this.
+
+	var (
+		startIndex uint32
+		startSig   wa.FuncType
+		startFound bool
+	)
+	if !started {
+		startIndex, startSig, startFound = mod.ExportFunc("_start")
+	}
 
 	if exportName == "" {
 		if startFound && binding.IsEntryFuncType(startSig) {

@@ -200,7 +200,7 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 			err = failrequest.Errorf(event.FailInstanceStatus, "function must be specified when resuming halted instance")
 			return
 		}
-		entryIndex, err = prog.image.ResolveEntryFunc(function)
+		entryIndex, err = prog.image.ResolveEntryFunc(function, true)
 		if err != nil {
 			return
 		}

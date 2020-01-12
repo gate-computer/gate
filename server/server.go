@@ -367,7 +367,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHas
 	}()
 	progHash = prog.hash // Canonical string.
 
-	entryIndex, err := prog.image.ResolveEntryFunc(function)
+	entryIndex, err := prog.image.ResolveEntryFunc(function, false)
 	if err != nil {
 		return
 	}
@@ -523,7 +523,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 
 	// TODO: check resource policy (stack/memory/max-memory size etc.)
 
-	entryFunc, err := prog.image.ResolveEntryFunc(function)
+	entryFunc, err := prog.image.ResolveEntryFunc(function, false)
 	if err != nil {
 		return
 	}

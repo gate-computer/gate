@@ -31,9 +31,18 @@ func (prog *Program) TextSize() int     { return alignPageSize32(prog.man.TextSi
 func (prog *Program) ModuleSize() int64 { return prog.man.ModuleSize }
 func (prog *Program) Random() bool      { return prog.man.Random }
 
-// ResolveEntryFunc is like build/resolve.EntryFunc.
-func (prog *Program) ResolveEntryFunc(exportName string) (index int, err error) {
-	startIndex, startFound := prog.man.EntryIndexes["_start"]
+// ResolveEntryFunc or the implicit _start function.  The started argument is
+// disregarded if the program is a snapshot.
+func (prog *Program) ResolveEntryFunc(exportName string, started bool) (index int, err error) {
+	// internal/build.ResolveEntryFunc must be kept in sync with this.
+
+	var (
+		startIndex uint32
+		startFound bool
+	)
+	if prog.man.SnapshotSection.Length == 0 && !started {
+		startIndex, startFound = prog.man.EntryIndexes["_start"]
+	}
 
 	if exportName == "" {
 		if startFound {

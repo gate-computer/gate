@@ -9,12 +9,12 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/tsavola/gate/build/resolve"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
+	internal "github.com/tsavola/gate/internal/build"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/binding"
@@ -206,7 +206,7 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 			return
 		}
 	} else {
-		b.entryIndex, err = resolve.EntryFunc(b.Module, entryName)
+		b.entryIndex, err = internal.ResolveEntryFunc(b.Module, entryName, b.snapshot)
 		if err != nil {
 			return
 		}

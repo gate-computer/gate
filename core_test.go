@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsavola/gate/build/resolve"
 	"github.com/tsavola/gate/image"
+	internalbuild "github.com/tsavola/gate/internal/build"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
@@ -222,7 +222,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap
 
 	// dump.Text(os.Stderr, codeConfig.Text.Bytes(), 0, codeMap.FuncAddrs, nil)
 
-	entryIndex, err := resolve.EntryFunc(mod, function)
+	entryIndex, err := internalbuild.ResolveEntryFunc(mod, function, false)
 	if err != nil {
 		panic(err)
 	}
