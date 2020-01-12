@@ -10,6 +10,7 @@ import (
 	"github.com/tsavola/wag/compile"
 )
 
+// EntryFunc is like image.Program.ResolveEntryFunc.
 func EntryFunc(mod compile.Module, exportName string) (index int, err error) {
 	startIndex, startSig, startFound := mod.ExportFunc("_start")
 
@@ -25,12 +26,12 @@ func EntryFunc(mod compile.Module, exportName string) (index int, err error) {
 		return -1, notfound.ErrStart
 	}
 
-	i, sig, ok := mod.ExportFunc(exportName)
-	if !ok {
-		return -1, notfound.ErrFunction
+	if exportName == "_start" {
+		return -1, nil
 	}
 
-	if !binding.IsEntryFuncType(sig) {
+	i, sig, found := mod.ExportFunc(exportName)
+	if !found || !binding.IsEntryFuncType(sig) {
 		return -1, notfound.ErrFunction
 	}
 

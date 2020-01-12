@@ -31,8 +31,23 @@ func (prog *Program) TextSize() int     { return alignPageSize32(prog.man.TextSi
 func (prog *Program) ModuleSize() int64 { return prog.man.ModuleSize }
 func (prog *Program) Random() bool      { return prog.man.Random }
 
+// ResolveEntryFunc is like build/resolve.EntryFunc.
 func (prog *Program) ResolveEntryFunc(exportName string) (index int, err error) {
+	startIndex, startFound := prog.man.EntryIndexes["_start"]
+
 	if exportName == "" {
+		if startFound {
+			return int(startIndex), nil
+		} else {
+			return -1, nil
+		}
+	}
+
+	if startFound {
+		return -1, notfound.ErrStart
+	}
+
+	if exportName == "_start" {
 		return -1, nil
 	}
 
