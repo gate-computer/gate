@@ -166,10 +166,11 @@ func (b *Build) SetMaxMemorySize(maxMemorySize int) (err error) {
 	return
 }
 
-// BindFunctions (imports and optional start and entry functions) after initial
-// module sections have been loaded.
+// BindFunctions (imports and entry function) after initial module sections
+// have been loaded.
 func (b *Build) BindFunctions(entryName string) (err error) {
-	if m := &b.SectionMap; m.ExportWrap.Length != 0 {
+	m := &b.SectionMap
+	if m.ExportWrap.Length != 0 {
 		exportLen := m.Sections[section.Export].Length
 
 		// We didn't read the custom export section content, so offsets are
@@ -198,7 +199,13 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 		return
 	}
 
-	if !b.snapshot {
+	if m.ExportWrap.Length != 0 {
+		// Exports are hidden.
+		if entryName != "" {
+			err = notfound.ErrSuspended
+			return
+		}
+	} else {
 		b.entryIndex, err = resolve.EntryFunc(b.Module, entryName)
 		if err != nil {
 			return
