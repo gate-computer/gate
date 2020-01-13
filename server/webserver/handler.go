@@ -589,7 +589,7 @@ func handleModuleUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
 	ctx = principal.ContextWithIDFrom(ctx, pri)
 
-	err := s.Server.UploadModule(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength)
+	_, err := s.Server.UploadModule(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength)
 	if err != nil {
 		respondServerError(ctx, wr, s, pri, "", key, "", "", err)
 		panic(nil)

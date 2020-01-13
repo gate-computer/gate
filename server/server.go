@@ -178,7 +178,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 // UploadModule creates a new module reference if refModule is true.  Caller
 // provides module content which is compiled or validated in any case.
 func (s *Server) UploadModule(ctx context.Context, pri *principal.Key, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
-) (err error) {
+) (progHash string, err error) {
 	defer func() {
 		closeReader(&content)
 	}()
@@ -209,12 +209,20 @@ func (s *Server) UploadModule(ctx context.Context, pri *principal.Key, refModule
 
 	// TODO: check resource policy
 
-	found, err := s.loadKnownModule(ctx, acc, &pol, allegedHash, &content, contentLength)
-	if found || err != nil {
-		return
+	if allegedHash != "" {
+		var found bool
+
+		found, err = s.loadKnownModule(ctx, acc, &pol, allegedHash, &content, contentLength)
+		if err != nil {
+			return
+		}
+		if found {
+			progHash = allegedHash
+			return
+		}
 	}
 
-	_, err = s.loadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
+	progHash, err = s.loadUnknownModule(ctx, acc, &pol, allegedHash, content, int(contentLength))
 	content = nil
 	return
 }

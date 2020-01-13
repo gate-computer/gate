@@ -81,53 +81,10 @@ var remoteCommands = map[string]command{
 	"download": {
 		usage: "module [filename]",
 		do: func() {
-			var (
-				out  *os.File
-				temp bool
-				err  error
-			)
-
-			if flag.NArg() == 1 {
-				out = os.Stdout
-			} else {
-				f, err := os.OpenFile(flag.Arg(1), os.O_WRONLY, 0)
-				if err == nil {
-					info, err := f.Stat()
-					check(err)
-					if info.Mode().IsRegular() {
-						f.Close()
-						temp = true
-					} else {
-						out = f
-					}
-				} else {
-					if os.IsNotExist(err) {
-						temp = true
-					} else {
-						log.Fatal(err)
-					}
-				}
-			}
-
-			_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(0), nil)
-
-			if temp {
-				out, err = ioutil.TempFile(path.Dir(flag.Arg(1)), ".*.wasm")
-				check(err)
-				defer func() {
-					if out != nil {
-						os.Remove(out.Name())
-					}
-				}()
-			}
-
-			checkCopy(out, resp.Body)
-			check(out.Close())
-
-			if temp {
-				check(os.Rename(out.Name(), flag.Arg(1)))
-				out = nil
-			}
+			download(func() (io.Reader, int64) {
+				_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(0), nil)
+				return resp.Body, resp.ContentLength
+			})
 		},
 	},
 
@@ -551,7 +508,8 @@ func unmarshalStatus(serialized string) (status webapi.Status) {
 	return
 }
 
-func checkCopy(w io.Writer, r io.Reader) {
-	_, err := io.Copy(w, r)
+func checkCopy(w io.Writer, r io.Reader) (n int64) {
+	n, err := io.Copy(w, r)
 	check(err)
+	return
 }

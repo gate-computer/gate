@@ -273,11 +273,11 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 		},
 
 		"Upload": func(moduleFD dbus.UnixFD, moduleLen int64, key string,
-		) (err *dbus.Error) {
+		) (progID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			handleModuleUpload(ctx, pri, s, module, moduleLen, key)
+			progID = handleModuleUpload(ctx, pri, s, module, moduleLen, key)
 			return
 		},
 	}
@@ -332,8 +332,10 @@ func handleModuleDownload(ctx context.Context, pri *principal.Key, s *server.Ser
 	return
 }
 
-func handleModuleUpload(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, moduleLen int64, key string) {
-	check(s.UploadModule(ctx, pri, true, key, module, moduleLen))
+func handleModuleUpload(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, moduleLen int64, key string) string {
+	progID, err := s.UploadModule(ctx, pri, true, key, module, moduleLen)
+	check(err)
+	return progID
 }
 
 func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string,
