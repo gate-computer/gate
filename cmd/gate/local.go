@@ -234,6 +234,17 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"snapshot": {
+		usage: "instance",
+		do: func() {
+			call := daemonCall("Snapshot", flag.Arg(0))
+
+			var progID string
+			check(call.Store(&progID))
+			fmt.Println(progID)
+		},
+	},
+
 	"status": {
 		usage: "instance",
 		do: func() {

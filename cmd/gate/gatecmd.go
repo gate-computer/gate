@@ -46,6 +46,7 @@ Common commands:
   launch    create an instance from a wasm module
   modules   list wasm module references
   resume    resume a suspended or halted instance
+  snapshot  create a wasm module of a suspended or halted instance
   status    query current status of an instance
   suspend   suspend a running instance
   wait      wait until an instance is suspended, halted, terminated or killed
@@ -57,7 +58,6 @@ Local commands (no address before command):
 Remote commands (server address must be specified before command):
   download  write a wasm module to standard output
   repl      connect to a running instance in interactive mode
-  snapshot  create a wasm snapshot of an instance
   unref     remove a wasm module reference
   upload    read a wasm module from a local file
 

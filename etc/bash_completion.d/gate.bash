@@ -106,7 +106,7 @@ __gate_completion()
 
 	case $kind in
 		address-command)
-			COMPREPLY=( $( compgen -W "call delete io instances kill launch modules pull push resume status suspend wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call delete io instances kill launch modules pull push resume snapshot status suspend wait" -- "$cur" ) )
 			;;
 
 		command)

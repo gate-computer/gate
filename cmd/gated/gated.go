@@ -266,6 +266,12 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			return
 		},
 
+		"Snapshot": func(instID string) (progID string, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			progID = handleInstanceSnapshot(ctx, pri, s, instID)
+			return
+		},
+
 		"Upload": func(moduleFD dbus.UnixFD, moduleLen int64, key string,
 		) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
@@ -445,6 +451,13 @@ func handleInstanceConnect(ctx context.Context, pri *principal.Key, s *server.Se
 
 	check(connIO(ctx, r, w))
 	return true
+}
+
+func handleInstanceSnapshot(ctx context.Context, pri *principal.Key, s *server.Server, instID string,
+) (progID string) {
+	progID, err := s.InstanceModule(ctx, pri, instID)
+	check(err)
+	return
 }
 
 func getReaderWithLength(f *os.File) (io.Reader, int64) {
