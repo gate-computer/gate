@@ -959,6 +959,34 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID 
 
 func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID string,
 ) (moduleKey string, err error) {
+	// TODO: implement suspend-snapshot-resume at a lower level
+
+	inst, _ := s.getInstance(pri, instID)
+	if inst == nil {
+		err = resourcenotfound.ErrInstance
+		return
+	}
+
+	status := inst.Status()
+	resume := false
+	if status.State == StateRunning {
+		inst.suspend()
+		resume = inst.Wait(context.Background()).State == StateSuspended
+	}
+
+	moduleKey, err = s.snapshot(ctx, pri, instID)
+
+	if resume {
+		if _, e := s.ResumeInstance(ctx, pri, "", instID, status.Debug); err == nil {
+			err = e
+		}
+	}
+
+	return
+}
+
+func (s *Server) snapshot(ctx context.Context, pri *principal.Key, instID string,
+) (moduleKey string, err error) {
 	err = s.AccessPolicy.Authorize(ctx, pri)
 	if err != nil {
 		return
