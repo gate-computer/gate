@@ -20,7 +20,6 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
-	"github.com/tsavola/gate/server/internal/error/notapplicable"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	"github.com/tsavola/gate/snapshot"
 )
@@ -127,6 +126,9 @@ func (inst *Instance) stop(instanceLock) {
 }
 
 func (inst *Instance) Transient() bool {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
 	return inst.transient
 }
 
@@ -165,6 +167,7 @@ func (inst *Instance) Kill() {
 
 func (inst *Instance) suspend() {
 	inst.mu.Lock()
+	inst.transient = false
 	proc := inst.process
 	inst.mu.Unlock()
 
@@ -272,10 +275,6 @@ func (inst *Instance) snapshot(prog *program,
 
 	if !inst.exists {
 		err = resourcenotfound.ErrInstance
-		return
-	}
-	if inst.transient {
-		err = notapplicable.ErrInstanceTransient
 		return
 	}
 

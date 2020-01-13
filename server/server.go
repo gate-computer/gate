@@ -17,7 +17,6 @@ import (
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/server/internal/error/notapplicable"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	"github.com/tsavola/gate/snapshot"
 )
@@ -869,10 +868,6 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 	inst, _ = s.getInstance(pri, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
-		return
-	}
-	if inst.transient {
-		err = notapplicable.ErrInstanceTransient
 		return
 	}
 
