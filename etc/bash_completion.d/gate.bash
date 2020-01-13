@@ -96,7 +96,17 @@ __gate_completion()
 		return
 	fi
 
+	cur="${COMP_WORDS[$COMP_CWORD]}"
+
 	case $kind in
+		address-command)
+			COMPREPLY=( $( compgen -W "call delete io kill launch pull push resume status suspend wait" -- "$cur" ) )
+			;;
+
+		command)
+			COMPREPLY=( $( compgen -W "call delete download io kill launch repl resume snapshot status suspend unref wait" -- "$cur" ) )
+			;;
+
 		module)
 			__gate_complete_module $cmd "$addr"
 			;;
