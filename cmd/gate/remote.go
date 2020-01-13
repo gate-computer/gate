@@ -79,12 +79,55 @@ var remoteCommands = map[string]command{
 	},
 
 	"download": {
-		usage: "module",
+		usage: "module [filename]",
 		do: func() {
-			// TODO: output file option
+			var (
+				out  *os.File
+				temp bool
+				err  error
+			)
+
+			if flag.NArg() == 1 {
+				out = os.Stdout
+			} else {
+				f, err := os.OpenFile(flag.Arg(1), os.O_WRONLY, 0)
+				if err == nil {
+					info, err := f.Stat()
+					check(err)
+					if info.Mode().IsRegular() {
+						f.Close()
+						temp = true
+					} else {
+						out = f
+					}
+				} else {
+					if os.IsNotExist(err) {
+						temp = true
+					} else {
+						log.Fatal(err)
+					}
+				}
+			}
 
 			_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(0), nil)
-			checkCopy(os.Stdout, resp.Body)
+
+			if temp {
+				out, err = ioutil.TempFile(path.Dir(flag.Arg(1)), ".*.wasm")
+				check(err)
+				defer func() {
+					if out != nil {
+						os.Remove(out.Name())
+					}
+				}()
+			}
+
+			checkCopy(out, resp.Body)
+			check(out.Close())
+
+			if temp {
+				check(os.Rename(out.Name(), flag.Arg(1)))
+				out = nil
+			}
 		},
 	},
 

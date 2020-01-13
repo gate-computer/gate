@@ -9,7 +9,7 @@ __gate_complete_module()
 	gate="${COMP_WORDS[0]}"
 	cur="${COMP_WORDS[$COMP_CWORD]}"
 
-	if echo "$cur" | grep -q /; then
+	if echo "$cur" | grep -qE '(\.|/)'; then
 		COMPREPLY=( $( compgen -f -- "$cur" ) )
 	else
 		if [ -z "$2" ] || [ "$1" = push ]; then
@@ -64,7 +64,7 @@ __gate_completion()
 						cmd="$cur"
 						case "$cmd" in
 							call|launch) kind=module ;;
-							delete|io|kill|resume|status|suspend|wait) kind=instance ;;
+							delete|io|kill|resume|snapshot|status|suspend|wait) kind=instance ;;
 							pull|push) kind=address2 ;;
 							*) return ;;
 						esac
@@ -75,6 +75,7 @@ __gate_completion()
 					cmd="$cur"
 					case "$cmd" in
 						upload) kind=filename ;;
+						download) kind=module-filename ;;
 						call|download|launch|unref) kind=module ;;
 						delete|io|kill|repl|resume|snapshot|status|suspend|wait) kind=instance ;;
 						*) return ;;
@@ -84,6 +85,10 @@ __gate_completion()
 				address2)
 					addr="$cur"
 					kind=module
+					;;
+
+				module-filename)
+					kind=filename
 					;;
 
 				*)
@@ -101,18 +106,18 @@ __gate_completion()
 
 	case $kind in
 		address-command)
-			COMPREPLY=( $( compgen -W "call delete io kill launch pull push resume status suspend wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call delete io instances kill launch modules pull push resume status suspend wait" -- "$cur" ) )
 			;;
 
 		command)
-			COMPREPLY=( $( compgen -W "call delete download io kill launch repl resume snapshot status suspend unref upload wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call delete download io instances kill launch modules repl resume snapshot status suspend unref upload wait" -- "$cur" ) )
 			;;
 
 		filename)
 			COMPREPLY=( $( compgen -f -- "$cur" ) )
 			;;
 
-		module)
+		module|module-filename)
 			__gate_complete_module $cmd "$addr"
 			;;
 
