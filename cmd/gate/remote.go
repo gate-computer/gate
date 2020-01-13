@@ -279,24 +279,24 @@ var remoteCommands = map[string]command{
 	},
 
 	"upload": {
-		usage: "module",
+		usage: "filename",
 		do: func() {
-			module, key := loadModule(flag.Arg(0))
+			data, hash := loadModule(flag.Arg(0))
 
 			req := &http.Request{
 				Method: http.MethodPut,
 				Header: http.Header{
 					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
 				},
-				Body:          ioutil.NopCloser(module),
-				ContentLength: int64(module.Len()),
+				Body:          ioutil.NopCloser(data),
+				ContentLength: int64(data.Len()),
 			}
 			params := url.Values{
 				webapi.ParamAction: []string{webapi.ActionRef},
 			}
 
-			doHTTP(req, webapi.PathModuleRefs+key, params)
-			fmt.Println(key)
+			doHTTP(req, webapi.PathModuleRefs+hash, params)
+			fmt.Println(hash)
 		},
 	},
 
