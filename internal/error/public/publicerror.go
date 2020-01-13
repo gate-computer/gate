@@ -8,6 +8,12 @@ import (
 	werrors "github.com/tsavola/wag/errors"
 )
 
+// Err is a constant-compatible type.
+type Err string
+
+func (s Err) Error() string       { return string(s) }
+func (s Err) PublicError() string { return string(s) }
+
 // Error returns err.PublicError() if err is an Error.  Otherwise the
 // alternative is returned.
 func Error(err error, alternative string) string {

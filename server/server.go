@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
@@ -20,6 +21,8 @@ import (
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	"github.com/tsavola/gate/snapshot"
 )
+
+const ErrServerClosed = public.Err("server closed")
 
 type principalKeyArray [32]byte
 
@@ -1091,7 +1094,7 @@ func (s *Server) ensureAccount(pri *principal.Key) (acc *account, err error) {
 	defer s.mu.Unlock()
 
 	if s.accounts == nil {
-		err = context.Canceled
+		err = ErrServerClosed
 		return
 	}
 
@@ -1208,7 +1211,7 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.Key, instID stri
 		defer s.mu.Unlock()
 
 		if s.accounts == nil {
-			err = context.Canceled
+			err = ErrServerClosed
 			return
 		}
 
@@ -1340,7 +1343,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 	defer s.mu.Unlock()
 
 	if s.accounts == nil {
-		err = context.Canceled
+		err = ErrServerClosed
 		return
 	}
 
@@ -1398,7 +1401,7 @@ func (s *Server) mergeProgramRef(lock serverLock, prog *program) (canonical *pro
 	switch existing := s.programs[prog.hash]; existing {
 	case nil:
 		if s.programs == nil {
-			return nil, false, context.Canceled
+			return nil, false, ErrServerClosed
 		}
 		s.programs[prog.hash] = prog // Pass reference to map.
 		return prog, false, nil
