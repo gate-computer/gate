@@ -40,9 +40,11 @@ const mainUsageHead = `Usage: %s [options] [address] command [arguments]
 Common commands:
   call      execute a wasm module with I/O
   delete    delete an instance
+  instances list instances
   io        connect to a running instance
   kill      kill a running instance
   launch    create an instance from a wasm module
+  modules   list wasm module references
   resume    resume a suspended instance
   status    query current status of an instance
   suspend   suspend a running instance
@@ -54,8 +56,6 @@ Local commands (no address before command):
 
 Remote commands (server address must be specified before command):
   download  download a wasm module
-  instances list instances
-  modules   list wasm module references
   repl      connect to a running instance in interactive mode
   snapshot  create a wasm snapshot of an instance
   unref     remove a wasm module reference
