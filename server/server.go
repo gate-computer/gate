@@ -1339,6 +1339,11 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 	lock := s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.accounts == nil {
+		err = context.Canceled
+		return
+	}
+
 	if acc != nil {
 		err = acc.checkUniqueInstanceID(lock, instID)
 		if err != nil {
