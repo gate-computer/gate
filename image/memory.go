@@ -24,10 +24,6 @@ var Memory mem
 
 type mem struct{}
 
-func (mem) programBackend() interface{}  { return Memory }
-func (mem) instanceBackend() interface{} { return Memory }
-func (mem) singleBackend() bool          { return true }
-
 func (mem) newProgramFile() (*file.File, error) {
 	return newMemoryFile(memProgramName, progMaxOffset)
 }
@@ -72,7 +68,6 @@ type persistMem struct {
 // PersistentMemory supports instance persistence by copying data to and from a
 // Filesystem.
 func PersistentMemory(storage *Filesystem) InstanceStorage   { return persistMem{storage} }
-func (pmem persistMem) instanceBackend() interface{}         { return pmem }
 func (pmem persistMem) newInstanceFile() (*file.File, error) { return Memory.newInstanceFile() }
 func (pmem persistMem) instanceFileWriteSupported() bool     { return Memory.instanceFileWriteSupported() }
 func (pmem persistMem) storeInstanceSupported() bool         { return true }

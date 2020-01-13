@@ -23,12 +23,6 @@ const snapshotVersion = 0
 
 func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool,
 ) (newProg *Program, err error) {
-	// Old program.
-	var (
-		oldRanges = oldProg.man.Sections
-		oldFD     = oldProg.file.Fd()
-	)
-
 	// Instance file.
 	var (
 		instStackOffset   = int64(0)
@@ -71,6 +65,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 
 	// New module sections.
+	oldRanges := oldProg.man.Sections
 	newRanges := make([]manifest.ByteRange, section.Data+1)
 
 	off := int64(wasmModuleHeaderSize)
@@ -188,7 +183,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	newOff := progModuleOffset
 	oldOff := progModuleOffset
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
+	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen)
 	if err != nil {
 		return
 	}
@@ -226,7 +221,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 			oldOff += oldProg.man.ExportSectionWrap.Length - oldRanges[section.Export].Length
 		}
 	}
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
+	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen)
 	if err != nil {
 		return
 	}
@@ -236,7 +231,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// Copy element and code sections.
 	copyLen = int(oldRanges[section.Element].Length + oldRanges[section.Code].Length)
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
+	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen)
 	if err != nil {
 		return
 	}
@@ -288,20 +283,16 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 	newOff += int64(n)
 
-	if oldProg.storage.singleBackend() {
-		instOff := instMemoryOffset
-		err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, int(inst.man.MemorySize))
-		if err != nil {
-			return
-		}
-	} else {
-		panic("TODO")
+	instOff := instMemoryOffset
+	err = copyFileRange(inst.file, &instOff, newFile, &newOff, int(inst.man.MemorySize))
+	if err != nil {
+		return
 	}
 	oldOff += oldRanges[section.Data].Length
 
 	// Copy remaining (custom) sections.
 	copyLen = int(oldProg.man.ModuleSize - (oldOff - progModuleOffset))
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, copyLen)
+	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen)
 	if err != nil {
 		return
 	}
@@ -309,7 +300,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy object map from program.
 	newOff = align8(newOff)
 	oldOff = align8(oldOff)
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, int(oldProg.man.CallSitesSize)+int(oldProg.man.FuncAddrsSize))
+	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, int(oldProg.man.CallSitesSize)+int(oldProg.man.FuncAddrsSize))
 	if err != nil {
 		return
 	}
@@ -317,34 +308,28 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy text from program.
 	newOff = progTextOffset
 	oldOff = progTextOffset
-	err = copyFileRange(oldFD, &oldOff, newFile.Fd(), &newOff, alignPageSize32(oldProg.man.TextSize))
+	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, alignPageSize32(oldProg.man.TextSize))
 	if err != nil {
 		return
 	}
 
-	var newProgMem []byte
-
-	if oldProg.storage.singleBackend() {
-		// Copy stack from instance (again).
-		if instStackData != nil {
-			copyLen := alignPageSize(stackUsage)
-			newOff = progGlobalsOffset - int64(copyLen)
-			instOff := instGlobalsOffset - int64(copyLen)
-			err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, copyLen)
-			if err != nil {
-				return
-			}
-		}
-
-		// Copy globals and memory from instance (again).
-		newOff = progGlobalsOffset
-		instOff := instGlobalsOffset
-		err = copyFileRange(inst.file.Fd(), &instOff, newFile.Fd(), &newOff, alignPageSize32(inst.man.GlobalsSize)+int(inst.man.MemorySize))
+	// Copy stack from instance (again).
+	if instStackData != nil {
+		copyLen := alignPageSize(stackUsage)
+		newOff = progGlobalsOffset - int64(copyLen)
+		instOff := instGlobalsOffset - int64(copyLen)
+		err = copyFileRange(inst.file, &instOff, newFile, &newOff, copyLen)
 		if err != nil {
 			return
 		}
-	} else {
-		panic("TODO")
+	}
+
+	// Copy globals and memory from instance (again).
+	newOff = progGlobalsOffset
+	instOff = instGlobalsOffset
+	err = copyFileRange(inst.file, &instOff, newFile, &newOff, alignPageSize32(inst.man.GlobalsSize)+int(inst.man.MemorySize))
+	if err != nil {
+		return
 	}
 
 	newProg = &Program{
@@ -352,7 +337,6 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		storage: oldProg.storage,
 		man:     oldProg.man,
 		file:    newFile,
-		mem:     newProgMem,
 	}
 	newProg.man.TextAddr = newTextAddr
 	newProg.man.StackUsage = uint32(stackUsage)

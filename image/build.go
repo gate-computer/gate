@@ -255,25 +255,16 @@ func (b *Build) FinishProgram(
 		return
 	}
 
-	var (
-		stackMapSize = alignPageSize(b.stackUsage)
-		mapCopyLen   = stackMapSize + alignPageSize(b.data.Len())
-	)
-
 	if b.inst.enabled {
+		// Copy stack, globals and memory from instance file to program file.
 		var (
-			off1 = int64(b.inst.stackSize - stackMapSize)
-			off2 = progGlobalsOffset - int64(stackMapSize)
+			stackMapSize = alignPageSize(b.stackUsage)
+			off1         = int64(b.inst.stackSize - stackMapSize)
+			off2         = progGlobalsOffset - int64(stackMapSize)
+			copyLen      = stackMapSize + alignPageSize(b.data.Len())
 		)
 
-		if b.storage.singleBackend() {
-			// Copy stack, globals and memory from instance file to program file.
-			err = copyFileRange(b.inst.file.Fd(), &off1, b.prog.file.Fd(), &off2, mapCopyLen)
-		} else {
-			// Write stack, globals and memory from instance mapping to program file.
-			// TODO: trim range from beginning and end
-			_, err = b.prog.file.WriteAt(b.compileMem[:mapCopyLen], off2)
-		}
+		err = copyFileRange(b.inst.file, &off1, b.prog.file, &off2, copyLen)
 		if err != nil {
 			return
 		}
@@ -319,20 +310,6 @@ func (b *Build) FinishProgram(
 	b.data = buffer.Static{}
 	b.prog.module = buffer.Static{}
 
-	var progMem []byte
-
-	if !b.storage.singleBackend() {
-		if b.inst.enabled {
-			err = mmapp(&progMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapCopyLen)
-			if err != nil {
-				return
-			}
-		} else {
-			progMem = b.compileMem
-			b.compileMem = nil
-		}
-	}
-
 	b.munmapAll()
 
 	prog = &Program{
@@ -340,7 +317,6 @@ func (b *Build) FinishProgram(
 		storage: b.storage,
 		man:     man,
 		file:    b.prog.file,
-		mem:     progMem,
 	}
 	b.prog.file = nil
 	return

@@ -23,7 +23,6 @@ type Program struct {
 	storage Storage
 	man     manifest.Program
 	file    *file.File
-	mem     []byte
 }
 
 func (prog *Program) PageSize() int     { return internal.PageSize }
@@ -113,8 +112,6 @@ func (prog *Program) Store(name string) error {
 func (prog *Program) Close() (err error) {
 	err = prog.file.Close()
 	prog.file = nil
-
-	munmapp(&prog.mem)
 	return
 }
 
@@ -125,5 +122,4 @@ type ProgramStorage interface {
 	protectProgramFile(*file.File) error
 	storeProgram(prog *Program, name string) error
 	loadProgram(combined Storage, name string) (*Program, error)
-	programBackend() interface{}
 }

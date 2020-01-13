@@ -69,7 +69,6 @@ func (fs *Filesystem) Close() (err error) {
 
 func (fs *Filesystem) programBackend() interface{}  { return fs }
 func (fs *Filesystem) instanceBackend() interface{} { return fs }
-func (fs *Filesystem) singleBackend() bool          { return true }
 
 func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 	f, err = openat(int(fs.progDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0400)
@@ -214,15 +213,6 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 		return
 	}
 
-	if !storage.singleBackend() {
-		var (
-			stackMapSize   = alignPageSize32(prog.man.StackUsage)
-			globalsMapSize = alignPageSize32(prog.man.GlobalsSize)
-			mapSize        = alignPageSize(stackMapSize + globalsMapSize + int(prog.man.MemoryDataSize))
-		)
-
-		prog.mem, err = mmap(prog.file.Fd(), progGlobalsOffset-int64(stackMapSize), mapSize, syscall.PROT_READ, syscall.MAP_SHARED)
-	}
 	return
 }
 

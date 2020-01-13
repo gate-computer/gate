@@ -47,7 +47,6 @@ type InstanceStorage interface {
 	storeInstanceSupported() bool
 	storeInstance(inst *Instance, name string) (manifest.Instance, error)
 	LoadInstance(name string, man manifest.Instance) (*Instance, error)
-	instanceBackend() interface{}
 }
 
 // Instance is a program state.  It may be undergoing mutation.
@@ -97,43 +96,31 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 		}
 	}()
 
+	// Copy stack, globals and memory from program file to instance file.
 	var (
 		stackMapSize   = alignPageSize(instStackUsage)
 		globalsMapSize = alignPageSize32(prog.man.GlobalsSize)
 		memoryMapSize  = alignPageSize32(prog.man.MemoryDataSize)
+		off1           = progGlobalsOffset - int64(stackMapSize)
+		off2           = int64(instStackSize - stackMapSize)
 		copyLen        = stackMapSize + globalsMapSize + memoryMapSize
-
-		off1 = progGlobalsOffset - int64(stackMapSize)
-		off2 = int64(instStackSize - stackMapSize)
 	)
-
 	if copyLen > 0 {
-		switch {
-		case !prog.storage.instanceFileWriteSupported():
+		if prog.storage.instanceFileWriteSupported() {
+			err = copyFileRange(prog.file, &off1, instFile, &off2, copyLen)
+			if err != nil {
+				return
+			}
+		} else {
 			var dest []byte
 
-			// Copy stack, globals and memory from program mapping to temporary
-			// instance mapping.
 			dest, err = mmap(instFile.Fd(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 			if err != nil {
 				return
 			}
-			copy(dest, prog.mem[:copyLen])
-			mustMunmap(dest)
+			defer mustMunmap(dest)
 
-		case prog.storage.singleBackend():
-			// Copy stack, globals and memory from program file to instance
-			// file.
-			err = copyFileRange(prog.file.Fd(), &off1, instFile.Fd(), &off2, copyLen)
-			if err != nil {
-				return
-			}
-
-		default:
-			// Write stack, globals and memory from program mapping to instance
-			// file.
-			// TODO: trim range from beginning and end
-			_, err = instFile.WriteAt(prog.mem[:copyLen], off2)
+			_, err = prog.file.ReadAt(dest[:copyLen], off1)
 			if err != nil {
 				return
 			}
