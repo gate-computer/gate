@@ -272,6 +272,12 @@ func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[stri
 			return
 		},
 
+		"Unref": func(key string) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			handleModuleUnref(ctx, pri, s, key)
+			return
+		},
+
 		"Upload": func(moduleFD dbus.UnixFD, moduleLen int64, key string,
 		) (progID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
@@ -336,6 +342,10 @@ func handleModuleUpload(ctx context.Context, pri *principal.Key, s *server.Serve
 	progID, err := s.UploadModule(ctx, pri, true, key, module, moduleLen)
 	check(err)
 	return progID
+}
+
+func handleModuleUnref(ctx context.Context, pri *principal.Key, s *server.Server, key string) {
+	check(s.UnrefModule(ctx, pri, key))
 }
 
 func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string,

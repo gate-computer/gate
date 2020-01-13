@@ -50,6 +50,7 @@ Common commands:
   snapshot  create a wasm module of a suspended or halted instance
   status    query current status of an instance
   suspend   suspend a running instance
+  unref     remove a wasm module reference
   upload    read a wasm module from a local file
   wait      wait until an instance is suspended, halted, terminated or killed
 
@@ -59,7 +60,6 @@ Local commands (no address before command):
 
 Remote commands (server address must be specified before command):
   repl      connect to a running instance in interactive mode
-  unref     remove a wasm module reference
 
 Address examples:
   example.net           (scheme defaults to https)

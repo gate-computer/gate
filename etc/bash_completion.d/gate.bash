@@ -65,7 +65,7 @@ __gate_completion()
 						case "$cmd" in
 							upload) kind=filename ;;
 							download) kind=module-filename ;;
-							call|launch) kind=module ;;
+							call|launch|unref) kind=module ;;
 							delete|io|kill|resume|snapshot|status|suspend|wait) kind=instance ;;
 							pull|push) kind=address2 ;;
 							*) return ;;
@@ -108,7 +108,7 @@ __gate_completion()
 
 	case $kind in
 		address-command)
-			COMPREPLY=( $( compgen -W "call delete download io instances kill launch modules pull push resume snapshot status suspend upload wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call delete download io instances kill launch modules pull push resume snapshot status suspend unref upload wait" -- "$cur" ) )
 			;;
 
 		command)

@@ -279,6 +279,13 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"unref": {
+		usage: "module",
+		do: func() {
+			check(daemonCall("Unref", flag.Arg(0)).Store())
+		},
+	},
+
 	"upload": {
 		usage: "filename",
 		do: func() {
