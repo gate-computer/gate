@@ -53,9 +53,10 @@ func (m *serverMutex) Lock() serverLock {
 type Server struct {
 	Config
 
-	mu       serverMutex
-	accounts map[principalKeyArray]*account
-	programs map[string]*program
+	mu        serverMutex
+	programs  map[string]*program
+	accounts  map[principalKeyArray]*account
+	anonymous map[*Instance]struct{}
 }
 
 func New(config Config) (*Server, error) {
@@ -70,9 +71,10 @@ func New(config Config) (*Server, error) {
 	}
 
 	s := &Server{
-		Config:   config,
-		accounts: make(map[principalKeyArray]*account),
-		programs: make(map[string]*program),
+		Config:    config,
+		programs:  make(map[string]*program),
+		accounts:  make(map[principalKeyArray]*account),
+		anonymous: make(map[*Instance]struct{}),
 	}
 
 	list, err := s.ImageStorage.Programs()
@@ -136,40 +138,51 @@ func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash str
 }
 
 func (s *Server) Shutdown(ctx context.Context) (err error) {
-	var is []*Instance
-
+	var (
+		accInsts  []*Instance
+		anonInsts map[*Instance]struct{}
+	)
 	func() {
 		lock := s.mu.Lock()
 		defer s.mu.Unlock()
 
-		as := s.accounts
+		progs := s.programs
+		s.programs = nil
+
+		for _, prog := range progs {
+			prog.unref(lock)
+		}
+
+		accs := s.accounts
 		s.accounts = nil
 
-		for _, acc := range as {
+		for _, acc := range accs {
 			for _, x := range acc.cleanup(lock) {
-				is = append(is, x.inst)
+				accInsts = append(accInsts, x.inst)
 				x.prog.unref(lock)
 			}
 		}
 
-		ps := s.programs
-		s.programs = nil
-
-		for _, prog := range ps {
-			prog.unref(lock)
-		}
+		anonInsts = s.anonymous
+		s.anonymous = nil
 	}()
 
-	for _, inst := range is {
+	for _, inst := range accInsts {
 		inst.suspend()
+	}
+	for inst := range anonInsts {
+		inst.Kill()
 	}
 
 	var aborted bool
 
-	for _, inst := range is {
+	for _, inst := range accInsts {
 		if inst.Wait(ctx).State == StateRunning {
 			aborted = true
 		}
+	}
+	for inst := range anonInsts {
+		inst.Wait(ctx)
 	}
 
 	if aborted {
@@ -1375,6 +1388,8 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 			acc.ensureRefProgram(lock, prog)
 		}
 		acc.instances[instID] = accountInstance{inst, prog.ref(lock)}
+	} else {
+		s.anonymous[inst] = struct{}{}
 	}
 
 	canonicalProg = prog.ref(lock)
@@ -1382,16 +1397,16 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 }
 
 func (s *Server) deleteNonexistentInstance(inst *Instance) {
-	if inst.acc == nil {
-		return
-	}
-
 	lock := s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if x := inst.acc.instances[inst.ID]; x.inst == inst {
-		delete(inst.acc.instances, inst.ID)
-		x.prog.unref(lock)
+	if inst.acc != nil {
+		if x := inst.acc.instances[inst.ID]; x.inst == inst {
+			delete(inst.acc.instances, inst.ID)
+			x.prog.unref(lock)
+		}
+	} else {
+		delete(s.anonymous, inst)
 	}
 }
 
