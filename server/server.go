@@ -396,7 +396,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.Key, progHas
 
 	s.monitor(&event.InstanceCreateLocal{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 		Module:   progHash,
 	})
 	return
@@ -560,7 +560,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 
 	s.monitor(&event.InstanceCreateLocal{
 		Ctx:      accountContext(ctx, acc),
-		Instance: inst.id,
+		Instance: inst.ID,
 		Module:   progHash,
 	})
 	return
@@ -628,7 +628,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 
 	s.monitor(&event.InstanceCreateStream{
 		Ctx:      accountContext(ctx, acc),
-		Instance: inst.id,
+		Instance: inst.ID,
 		Module:   progHash,
 	})
 	return
@@ -655,7 +655,7 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *principal.Key) (refs Modul
 	refs = make(ModuleRefs, 0, len(acc.programRefs))
 	for prog := range acc.programRefs {
 		refs = append(refs, ModuleRef{
-			Key: prog.hash,
+			Id: prog.hash,
 		})
 	}
 
@@ -770,7 +770,7 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *principal.Key, ins
 		s.monitor(&event.FailRequest{
 			Ctx:      Context(ctx, pri),
 			Failure:  event.FailInstanceNoConnect,
-			Instance: inst.id,
+			Instance: inst.ID,
 		})
 		return
 	}
@@ -778,14 +778,14 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *principal.Key, ins
 	connIO = func(ctx context.Context, r io.Reader, w io.Writer) (err error) {
 		s.monitor(&event.InstanceConnect{
 			Ctx:      Context(ctx, pri),
-			Instance: inst.id,
+			Instance: inst.ID,
 		})
 
 		err = conn(ctx, r, w)
 
 		s.Monitor(&event.InstanceDisconnect{
 			Ctx:      Context(ctx, pri),
-			Instance: inst.id,
+			Instance: inst.ID,
 		}, err)
 		return
 	}
@@ -808,7 +808,7 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *principal.Key, instID 
 
 	s.monitor(&event.InstanceStatus{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 	})
 
 	status = inst.Status()
@@ -830,7 +830,7 @@ func (s *Server) WaitInstance(ctx context.Context, pri *principal.Key, instID st
 
 	s.monitor(&event.InstanceWait{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 	})
 
 	status = inst.Wait(ctx)
@@ -852,7 +852,7 @@ func (s *Server) KillInstance(ctx context.Context, pri *principal.Key, instID st
 
 	s.monitor(&event.InstanceKill{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 	})
 
 	inst.Kill()
@@ -878,7 +878,7 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.Key, instID
 
 	s.monitor(&event.InstanceSuspend{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 	})
 
 	inst.suspend()
@@ -929,7 +929,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.Key, functio
 
 	s.monitor(&event.InstanceResume{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 		Function: function,
 	})
 	return
@@ -955,7 +955,7 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.Key, instID 
 
 	s.monitor(&event.InstanceDelete{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 	})
 
 	s.deleteNonexistentInstance(inst)
@@ -1011,7 +1011,7 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.Key, instID 
 
 	s.monitor(&event.InstanceSnapshot{
 		Ctx:      Context(ctx, pri),
-		Instance: inst.id,
+		Instance: inst.ID,
 		Module:   moduleKey,
 	})
 	return
@@ -1046,7 +1046,7 @@ func (s *Server) Instances(ctx context.Context, pri *principal.Key) (statuses In
 	statuses = make(Instances, 0, len(is))
 	for _, inst := range is {
 		statuses = append(statuses, InstanceStatus{
-			Instance:  inst.id,
+			Instance:  inst.ID,
 			Status:    inst.Status(),
 			Transient: inst.transient,
 		})
@@ -1326,7 +1326,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		persistent = &clone
 	}
 
-	inst = newInstance(acc, instID, function, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugOutput)
+	inst = newInstance(instID, acc, function, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugOutput)
 	proc = nil
 	services = nil
 	debugOutput = nil
@@ -1350,8 +1350,8 @@ func (s *Server) deleteNonexistentInstance(inst *Instance) {
 	lock := s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if x := inst.acc.instances[inst.id]; x.inst == inst {
-		delete(inst.acc.instances, inst.id)
+	if x := inst.acc.instances[inst.ID]; x.inst == inst {
+		delete(inst.acc.instances, inst.ID)
 		x.prog.unref(lock)
 	}
 }

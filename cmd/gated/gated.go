@@ -385,7 +385,7 @@ func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, mod
 	}
 	check(err)
 
-	return inst.ID()
+	return inst.ID
 }
 
 func handleInstanceList(ctx context.Context, pri *principal.Key, s *server.Server) server.Instances {

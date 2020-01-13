@@ -13,7 +13,7 @@ type ModuleRefs []ModuleRef
 
 func (a ModuleRefs) Len() int           { return len(a) }
 func (a ModuleRefs) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ModuleRefs) Less(i, j int) bool { return a[i].Key < a[j].Key }
+func (a ModuleRefs) Less(i, j int) bool { return a[i].Id < a[j].Id }
 
 type State = serverapi.State
 

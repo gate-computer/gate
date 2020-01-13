@@ -395,7 +395,7 @@ func TestModuleRef(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]interface{}{
 			"modules": []interface{}{
 				map[string]interface{}{
-					"key": hashHello,
+					"id": hashHello,
 				},
 			},
 		})
@@ -411,7 +411,7 @@ func TestModuleRef(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]interface{}{
 			"modules": []interface{}{
 				map[string]interface{}{
-					"key": hashHello,
+					"id": hashHello,
 				},
 			},
 		})
@@ -577,7 +577,7 @@ func TestModuleRef(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]interface{}{
 			"modules": []interface{}{
 				map[string]interface{}{
-					"key": hashHello,
+					"id": hashHello,
 				},
 			},
 		})
@@ -631,7 +631,7 @@ func TestModuleRef(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]interface{}{
 			"modules": []interface{}{
 				map[string]interface{}{
-					"key": hashHello,
+					"id": hashHello,
 				},
 			},
 		})
@@ -751,7 +751,7 @@ func TestModuleSource(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]interface{}{
 			"modules": []interface{}{
 				map[string]interface{}{
-					"key": hashHello,
+					"id": hashHello,
 				},
 			},
 		})

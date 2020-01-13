@@ -157,7 +157,7 @@ var localCommands = map[string]command{
 			check(call.Store(&refs))
 
 			for _, m := range refs {
-				fmt.Println(m.Key)
+				fmt.Println(m.Id)
 			}
 		},
 	},

@@ -694,7 +694,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		if ref {
 			w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
 		}
-		w.Header().Set(webapi.HeaderInstance, inst.ID())
+		w.Header().Set(webapi.HeaderInstance, inst.ID)
 	}
 
 	if ref {
@@ -828,7 +828,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		if ref {
 			reply.Location = s.pathModuleRefs + progHash
 		}
-		reply.Instance = inst.ID()
+		reply.Instance = inst.ID
 	}
 
 	if debug != "" {
@@ -881,7 +881,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
-	w.Header().Set(webapi.HeaderInstance, inst.ID())
+	w.Header().Set(webapi.HeaderInstance, inst.ID)
 
 	if ref {
 		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
@@ -907,7 +907,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
-	w.Header().Set(webapi.HeaderInstance, inst.ID())
+	w.Header().Set(webapi.HeaderInstance, inst.ID)
 
 	if ref {
 		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+key)

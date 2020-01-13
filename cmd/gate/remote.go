@@ -191,7 +191,7 @@ var remoteCommands = map[string]command{
 			check(json.NewDecoder(resp.Body).Decode(&refs))
 
 			for _, m := range refs.Modules {
-				fmt.Println(m.Key)
+				fmt.Println(m.Id)
 			}
 		},
 	},

@@ -9,7 +9,7 @@ package server; // Types are alised in the public server package.
 option go_package = "github.com/tsavola/gate/internal/serverapi";
 
 message ModuleRef {
-	string key = 1;
+	string id = 1;
 }
 
 message ModuleRefs {

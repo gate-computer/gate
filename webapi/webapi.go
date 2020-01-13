@@ -20,7 +20,7 @@ import (
 // Name of the module reference source and associated content hash algorithm.
 const ModuleRefSource = "sha384"
 
-// Algorithm for converting module content to reference key.  A reference key
+// Algorithm for converting module content to reference id.  A reference id
 // string can be formed by encoding a hash digest with base64.RawURLEncoding.
 const ModuleRefHash = crypto.SHA384
 
@@ -29,7 +29,7 @@ const (
 	Path           = "/gate/"               // The API.
 	PathModule     = "/gate/module"         // Base of relative module URIs.
 	PathModules    = "/gate/module/"        // Module sources.
-	PathModuleRefs = "/gate/module/sha384/" // Module reference keys.
+	PathModuleRefs = "/gate/module/sha384/" // Module reference ids.
 	PathInstances  = "/gate/instance/"      // Instance ids.
 )
 

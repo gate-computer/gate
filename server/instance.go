@@ -52,9 +52,9 @@ func (m *instanceMutex) Lock() instanceLock {
 }
 
 type Instance struct {
-	acc       *account
-	id        string
+	ID        string
 	transient bool
+	acc       *account
 
 	mu       instanceMutex // Guards the fields below.
 	exists   bool
@@ -70,11 +70,11 @@ type Instance struct {
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(acc *account, id string, function string, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugOutput io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, function string, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugOutput io.WriteCloser) *Instance {
 	inst := &Instance{
-		acc:       acc,
-		id:        id,
+		ID:        id,
 		transient: persistent == nil,
+		acc:       acc,
 		status:    Status{Debug: debugStatus},
 		function:  function,
 		image:     image,
@@ -126,8 +126,8 @@ func (inst *Instance) stop(instanceLock) {
 	}
 }
 
-func (inst *Instance) ID() string {
-	return inst.id
+func (inst *Instance) Transient() bool {
+	return inst.transient
 }
 
 func (inst *Instance) Status() Status {
@@ -338,9 +338,9 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 		res.Error = public.Error(err, res.Error)
 		if _, ok := err.(badprogram.Error); ok {
 			res.Cause = CauseABIViolation
-			return programFailure(ctx, inst.acc, prog.hash, inst.function, inst.id), err
+			return programFailure(ctx, inst.acc, prog.hash, inst.function, inst.ID), err
 		} else {
-			return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.id, "service io", err), err
+			return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.ID, "service io", err), err
 		}
 	}
 
@@ -349,11 +349,11 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 		case runtime.TrapExit, runtime.TrapSuspended, runtime.TrapCallStackExhausted, runtime.TrapABIDeficiency:
 			err = prog.ensureStorage()
 			if err == nil {
-				_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.id), prog.image)
+				_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
 			}
 			if err != nil {
 				res.Error = public.Error(err, res.Error)
-				return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.id, "", err), err
+				return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.ID, "", err), err
 			}
 		}
 	}
