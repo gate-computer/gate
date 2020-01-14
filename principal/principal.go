@@ -14,5 +14,6 @@ type ID = internal.ID
 
 // ContextID returns the principal id, if any.
 func ContextID(ctx context.Context) *ID {
-	return ctx.Value(internal.ContextIDKey{}).(*ID)
+	id, _ := ctx.Value(internal.ContextIDKey{}).(*ID)
+	return id
 }
