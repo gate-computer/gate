@@ -12,8 +12,14 @@ import (
 
 type ID = internal.ID
 
+type contextKey struct{}
+
+func ContextWithID(ctx context.Context, id *ID) context.Context {
+	return context.WithValue(ctx, contextKey{}, id)
+}
+
 // ContextID returns the principal id, if any.
 func ContextID(ctx context.Context) *ID {
-	id, _ := ctx.Value(internal.ContextIDKey{}).(*ID)
+	id, _ := ctx.Value(contextKey{}).(*ID)
 	return id
 }

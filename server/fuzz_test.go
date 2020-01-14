@@ -74,7 +74,7 @@ func fuzzTest(ctx context.Context, t *testing.T, s *server.Server, filename stri
 	ctx, cancel := context.WithTimeout(ctx, fuzzutil.RunTimeout)
 	defer cancel()
 
-	inst, err := s.UploadModuleInstance(ctx, nil, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), false, fuzzutil.Function, "", "")
+	inst, err := s.UploadModuleInstance(ctx, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), false, fuzzutil.Function, "", "")
 	if err != nil {
 		if fuzzutil.IsFine(err) {
 			t.Log(err)

@@ -24,7 +24,7 @@ import (
 
 const ErrServerClosed = public.Err("server closed")
 
-type principalKeyArray [32]byte
+type rawPrincipalKey [32]byte
 
 type progPolicy struct {
 	res  ResourcePolicy
@@ -55,7 +55,7 @@ type Server struct {
 
 	mu        serverMutex
 	programs  map[string]*program
-	accounts  map[principalKeyArray]*account
+	accounts  map[rawPrincipalKey]*account
 	anonymous map[*Instance]struct{}
 }
 
@@ -73,7 +73,7 @@ func New(config Config) (*Server, error) {
 	s := &Server{
 		Config:    config,
 		programs:  make(map[string]*program),
-		accounts:  make(map[principalKeyArray]*account),
+		accounts:  make(map[rawPrincipalKey]*account),
 		anonymous: make(map[*Instance]struct{}),
 	}
 
@@ -193,19 +193,15 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 
 // UploadModule creates a new module reference if refModule is true.  Caller
 // provides module content which is compiled or validated in any case.
-func (s *Server) UploadModule(ctx context.Context, pri *principal.ID, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
+func (s *Server) UploadModule(ctx context.Context, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64,
 ) (progHash string, err error) {
 	defer func() {
 		closeReader(&content)
 	}()
 
-	if pri == nil && refModule {
-		panic("referencing module without principal")
-	}
-
 	var pol progPolicy
 
-	err = s.AccessPolicy.AuthorizeProgram(ctx, pri, &pol.res, &pol.prog)
+	ctx, err = s.AccessPolicy.AuthorizeProgram(ctx, &pol.res, &pol.prog)
 	if err != nil {
 		return
 	}
@@ -217,7 +213,7 @@ func (s *Server) UploadModule(ctx context.Context, pri *principal.ID, refModule 
 
 	var acc *account
 	if refModule {
-		acc, err = s.ensureAccount(pri)
+		acc, err = s.ensureAccount(ctx)
 		if err != nil {
 			return
 		}
@@ -245,22 +241,18 @@ func (s *Server) UploadModule(ctx context.Context, pri *principal.ID, refModule 
 
 // SourceModule creates a new module reference if refModule is true.  Module
 // content is read from a source - it is compiled or validated in any case.
-func (s *Server) SourceModule(ctx context.Context, pri *principal.ID, refModule bool, source Source, uri string,
+func (s *Server) SourceModule(ctx context.Context, refModule bool, source Source, uri string,
 ) (progHash string, err error) {
-	if pri == nil && refModule {
-		panic("referencing module without principal")
-	}
-
 	var pol progPolicy
 
-	err = s.AccessPolicy.AuthorizeProgramSource(ctx, pri, &pol.res, &pol.prog, source)
+	ctx, err = s.AccessPolicy.AuthorizeProgramSource(ctx, &pol.res, &pol.prog, source)
 	if err != nil {
 		return
 	}
 
 	var acc *account
 	if refModule {
-		acc, err = s.ensureAccount(pri)
+		acc, err = s.ensureAccount(ctx)
 		if err != nil {
 			return
 		}
@@ -319,7 +311,7 @@ func (s *Server) loadKnownModule(ctx context.Context, acc *account, pol *progPol
 	prog = nil
 
 	s.monitor(&event.ModuleUploadExist{
-		Ctx:    accountContext(ctx, acc),
+		Ctx:    ContextDetail(ctx),
 		Module: progHash,
 	})
 	return
@@ -352,13 +344,13 @@ func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progP
 
 	if redundant {
 		s.monitor(&event.ModuleUploadExist{
-			Ctx:      accountContext(ctx, acc),
+			Ctx:      ContextDetail(ctx),
 			Module:   progHash,
 			Compiled: true,
 		})
 	} else {
 		s.monitor(&event.ModuleUploadNew{
-			Ctx:    accountContext(ctx, acc),
+			Ctx:    ContextDetail(ctx),
 			Module: progHash,
 		})
 	}
@@ -366,16 +358,16 @@ func (s *Server) loadUnknownModule(ctx context.Context, acc *account, pol *progP
 }
 
 // CreateInstance instantiates a module reference.  Instance id is optional.
-func (s *Server) CreateInstance(ctx context.Context, pri *principal.ID, progHash string, persistInst bool, function string, instID, debug string,
+func (s *Server) CreateInstance(ctx context.Context, progHash string, persistInst bool, function string, instID, debug string,
 ) (inst *Instance, err error) {
 	var pol instPolicy
 
-	err = s.AccessPolicy.AuthorizeInstance(ctx, pri, &pol.res, &pol.inst)
+	ctx, err = s.AccessPolicy.AuthorizeInstance(ctx, &pol.res, &pol.inst)
 	if err != nil {
 		return
 	}
 
-	acc, err := s.checkInstanceIDAndEnsureAccount(pri, instID)
+	acc, err := s.checkInstanceIDAndEnsureAccount(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -418,7 +410,7 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.ID, progHash
 	prog = nil
 
 	s.monitor(&event.InstanceCreateLocal{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 		Module:   progHash,
 	})
@@ -428,24 +420,20 @@ func (s *Server) CreateInstance(ctx context.Context, pri *principal.ID, progHash
 // UploadModuleInstance creates a new module reference if refModule is true.
 // The module is instantiated in any case.  Caller provides module content.
 // Instance id is optional.
-func (s *Server) UploadModuleInstance(ctx context.Context, pri *principal.ID, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
+func (s *Server) UploadModuleInstance(ctx context.Context, refModule bool, allegedHash string, content io.ReadCloser, contentLength int64, persistInst bool, function, instID, debug string,
 ) (inst *Instance, err error) {
 	defer func() {
 		closeReader(&content)
 	}()
 
-	if pri == nil && refModule {
-		panic("referencing module without principal")
-	}
-
 	var pol instProgPolicy
 
-	err = s.AccessPolicy.AuthorizeProgramInstance(ctx, pri, &pol.res, &pol.prog, &pol.inst)
+	ctx, err = s.AccessPolicy.AuthorizeProgramInstance(ctx, &pol.res, &pol.prog, &pol.inst)
 	if err != nil {
 		return
 	}
 
-	acc, err := s.checkInstanceIDAndEnsureAccount(pri, instID)
+	acc, err := s.checkInstanceIDAndEnsureAccount(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -458,20 +446,16 @@ func (s *Server) UploadModuleInstance(ctx context.Context, pri *principal.ID, re
 // SourceModuleInstance creates a new module reference if refModule is true.
 // The module is instantiated in any case.  Module content is read from a
 // source.  Instance id is optional.
-func (s *Server) SourceModuleInstance(ctx context.Context, pri *principal.ID, refModule bool, source Source, uri string, persistInst bool, function, instID, debug string,
+func (s *Server) SourceModuleInstance(ctx context.Context, refModule bool, source Source, uri string, persistInst bool, function, instID, debug string,
 ) (progHash string, inst *Instance, err error) {
-	if pri == nil && refModule {
-		panic("referencing module without principal")
-	}
-
 	var pol instProgPolicy
 
-	err = s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, pri, &pol.res, &pol.prog, &pol.inst, source)
+	ctx, err = s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, &pol.res, &pol.prog, &pol.inst, source)
 	if err != nil {
 		return
 	}
 
-	acc, err := s.checkInstanceIDAndEnsureAccount(pri, instID)
+	acc, err := s.checkInstanceIDAndEnsureAccount(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -571,7 +555,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 	instImage = nil
 
 	s.monitor(&event.ModuleUploadExist{
-		Ctx:    accountContext(ctx, acc),
+		Ctx:    ContextDetail(ctx),
 		Module: progHash,
 	})
 
@@ -582,7 +566,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, refM
 	prog = nil
 
 	s.monitor(&event.InstanceCreateLocal{
-		Ctx:      accountContext(ctx, acc),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 		Module:   progHash,
 	})
@@ -616,27 +600,27 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	if allegedHash != "" {
 		if redundantProg {
 			s.monitor(&event.ModuleUploadExist{
-				Ctx:      accountContext(ctx, acc),
+				Ctx:      ContextDetail(ctx),
 				Module:   progHash,
 				Compiled: true,
 			})
 		} else {
 			s.monitor(&event.ModuleUploadNew{
-				Ctx:    accountContext(ctx, acc),
+				Ctx:    ContextDetail(ctx),
 				Module: progHash,
 			})
 		}
 	} else {
 		if redundantProg {
 			s.monitor(&event.ModuleSourceExist{
-				Ctx:    accountContext(ctx, acc),
+				Ctx:    ContextDetail(ctx),
 				Module: progHash,
 				// TODO: source URI
 				Compiled: true,
 			})
 		} else {
 			s.monitor(&event.ModuleSourceNew{
-				Ctx:    accountContext(ctx, acc),
+				Ctx:    ContextDetail(ctx),
 				Module: progHash,
 				// TODO: source URI
 			})
@@ -650,22 +634,27 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	prog = nil
 
 	s.monitor(&event.InstanceCreateStream{
-		Ctx:      accountContext(ctx, acc),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 		Module:   progHash,
 	})
 	return
 }
 
-func (s *Server) ModuleRefs(ctx context.Context, pri *principal.ID) (refs ModuleRefs, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+func (s *Server) ModuleRefs(ctx context.Context) (refs ModuleRefs, err error) {
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
 	s.monitor(&event.ModuleList{
-		Ctx: Context(ctx, pri),
+		Ctx: ContextDetail(ctx),
 	})
+
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		return
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -686,14 +675,14 @@ func (s *Server) ModuleRefs(ctx context.Context, pri *principal.ID) (refs Module
 }
 
 // ModuleContent for downloading.
-func (s *Server) ModuleContent(ctx context.Context, pri *principal.ID, hash string,
+func (s *Server) ModuleContent(ctx context.Context, hash string,
 ) (content io.ReadCloser, length int64, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	prog := s.refPrincipalProgram(pri, hash)
+	prog := s.refPrincipalProgram(ctx, hash)
 	if prog == nil {
 		err = resourcenotfound.ErrModule
 		return
@@ -701,7 +690,7 @@ func (s *Server) ModuleContent(ctx context.Context, pri *principal.ID, hash stri
 
 	length = prog.image.ModuleSize()
 	content = &moduleContent{
-		ctx:   Context(ctx, pri),
+		ctx:   ContextDetail(ctx),
 		r:     prog.image.NewModuleReader(),
 		s:     s,
 		prog:  prog,
@@ -737,13 +726,19 @@ func (x *moduleContent) Close() (err error) {
 	return
 }
 
-func (s *Server) UnrefModule(ctx context.Context, pri *principal.ID, hash string) (err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+func (s *Server) UnrefModule(ctx context.Context, hash string) (err error) {
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
 	err = func() (err error) {
+		pri := principal.ContextID(ctx)
+		if pri == nil {
+			err = resourcenotfound.ErrModule
+			return
+		}
+
 		lock := s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -769,20 +764,20 @@ func (s *Server) UnrefModule(ctx context.Context, pri *principal.ID, hash string
 	}
 
 	s.monitor(&event.ModuleUnref{
-		Ctx:    Context(ctx, pri),
+		Ctx:    ContextDetail(ctx),
 		Module: hash,
 	})
 	return
 }
 
-func (s *Server) InstanceConnection(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) InstanceConnection(ctx context.Context, instID string,
 ) (inst *Instance, connIO func(context.Context, io.Reader, io.Writer) error, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	inst, _ = s.getInstance(pri, instID)
+	inst, _ = s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
@@ -791,7 +786,7 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *principal.ID, inst
 	conn := inst.connect(ctx)
 	if conn == nil {
 		s.monitor(&event.FailRequest{
-			Ctx:      Context(ctx, pri),
+			Ctx:      ContextDetail(ctx),
 			Failure:  event.FailInstanceNoConnect,
 			Instance: inst.ID,
 		})
@@ -800,14 +795,14 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *principal.ID, inst
 
 	connIO = func(ctx context.Context, r io.Reader, w io.Writer) (err error) {
 		s.monitor(&event.InstanceConnect{
-			Ctx:      Context(ctx, pri),
+			Ctx:      ContextDetail(ctx),
 			Instance: inst.ID,
 		})
 
 		err = conn(ctx, r, w)
 
 		s.Monitor(&event.InstanceDisconnect{
-			Ctx:      Context(ctx, pri),
+			Ctx:      ContextDetail(ctx),
 			Instance: inst.ID,
 		}, err)
 		return
@@ -816,21 +811,21 @@ func (s *Server) InstanceConnection(ctx context.Context, pri *principal.ID, inst
 }
 
 // InstanceStatus of an existing instance.
-func (s *Server) InstanceStatus(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) InstanceStatus(ctx context.Context, instID string,
 ) (status Status, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	inst, _ := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
 	s.monitor(&event.InstanceStatus{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 	})
 
@@ -838,21 +833,21 @@ func (s *Server) InstanceStatus(ctx context.Context, pri *principal.ID, instID s
 	return
 }
 
-func (s *Server) WaitInstance(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) WaitInstance(ctx context.Context, instID string,
 ) (status Status, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	inst, _ := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
 	s.monitor(&event.InstanceWait{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 	})
 
@@ -860,21 +855,21 @@ func (s *Server) WaitInstance(ctx context.Context, pri *principal.ID, instID str
 	return
 }
 
-func (s *Server) KillInstance(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) KillInstance(ctx context.Context, instID string,
 ) (inst *Instance, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	inst, _ = s.getInstance(pri, instID)
+	inst, _ = s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
 	s.monitor(&event.InstanceKill{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 	})
 
@@ -882,21 +877,21 @@ func (s *Server) KillInstance(ctx context.Context, pri *principal.ID, instID str
 	return
 }
 
-func (s *Server) SuspendInstance(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) SuspendInstance(ctx context.Context, instID string,
 ) (inst *Instance, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	inst, _ = s.getInstance(pri, instID)
+	inst, _ = s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
 	}
 
 	s.monitor(&event.InstanceSuspend{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 	})
 
@@ -904,16 +899,16 @@ func (s *Server) SuspendInstance(ctx context.Context, pri *principal.ID, instID 
 	return
 }
 
-func (s *Server) ResumeInstance(ctx context.Context, pri *principal.ID, function, instID, debug string,
+func (s *Server) ResumeInstance(ctx context.Context, function, instID, debug string,
 ) (inst *Instance, err error) {
 	var pol instPolicy
 
-	err = s.AccessPolicy.AuthorizeInstance(ctx, pri, &pol.res, &pol.inst)
+	ctx, err = s.AccessPolicy.AuthorizeInstance(ctx, &pol.res, &pol.inst)
 	if err != nil {
 		return
 	}
 
-	inst, prog := s.getInstance(pri, instID)
+	inst, prog := s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
@@ -924,7 +919,7 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.ID, function
 		return
 	}
 
-	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pri, &pol.inst, debug)
+	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, &pol.inst, debug)
 	if err != nil {
 		return
 	}
@@ -947,21 +942,21 @@ func (s *Server) ResumeInstance(ctx context.Context, pri *principal.ID, function
 	prog = nil
 
 	s.monitor(&event.InstanceResume{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 		Function: function,
 	})
 	return
 }
 
-func (s *Server) DeleteInstance(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) DeleteInstance(ctx context.Context, instID string,
 ) (err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
-	inst, _ := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
@@ -973,7 +968,7 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.ID, instID s
 	}
 
 	s.monitor(&event.InstanceDelete{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 	})
 
@@ -981,11 +976,11 @@ func (s *Server) DeleteInstance(ctx context.Context, pri *principal.ID, instID s
 	return
 }
 
-func (s *Server) InstanceModule(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) InstanceModule(ctx context.Context, instID string,
 ) (moduleKey string, err error) {
 	// TODO: implement suspend-snapshot-resume at a lower level
 
-	inst, _ := s.getInstance(pri, instID)
+	inst, _ := s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
@@ -998,10 +993,10 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.ID, instID s
 		resume = inst.Wait(context.Background()).State == StateSuspended
 	}
 
-	moduleKey, err = s.snapshot(ctx, pri, instID)
+	moduleKey, err = s.snapshot(ctx, instID)
 
 	if resume {
-		if _, e := s.ResumeInstance(ctx, pri, "", instID, status.Debug); err == nil {
+		if _, e := s.ResumeInstance(ctx, "", instID, status.Debug); err == nil {
 			err = e
 		}
 	}
@@ -1009,16 +1004,16 @@ func (s *Server) InstanceModule(ctx context.Context, pri *principal.ID, instID s
 	return
 }
 
-func (s *Server) snapshot(ctx context.Context, pri *principal.ID, instID string,
+func (s *Server) snapshot(ctx context.Context, instID string,
 ) (moduleKey string, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
 	// TODO: check module storage limits
 
-	inst, oldProg := s.getInstance(pri, instID)
+	inst, oldProg := s.getInstance(ctx, instID)
 	if inst == nil {
 		err = resourcenotfound.ErrInstance
 		return
@@ -1057,25 +1052,30 @@ func (s *Server) snapshot(ctx context.Context, pri *principal.ID, instID string,
 	newProg = nil
 
 	s.monitor(&event.InstanceSnapshot{
-		Ctx:      Context(ctx, pri),
+		Ctx:      ContextDetail(ctx),
 		Instance: inst.ID,
 		Module:   moduleKey,
 	})
 	return
 }
 
-func (s *Server) Instances(ctx context.Context, pri *principal.ID) (statuses Instances, err error) {
-	err = s.AccessPolicy.Authorize(ctx, pri)
+func (s *Server) Instances(ctx context.Context) (statuses Instances, err error) {
+	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
 	}
 
 	s.monitor(&event.InstanceList{
-		Ctx: Context(ctx, pri),
+		Ctx: ContextDetail(ctx),
 	})
 
 	// Get instance references while holding server lock.
 	is := func() (is []*Instance) {
+		pri := principal.ContextID(ctx)
+		if pri == nil {
+			return
+		}
+
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
@@ -1102,7 +1102,12 @@ func (s *Server) Instances(ctx context.Context, pri *principal.ID) (statuses Ins
 	return
 }
 
-func (s *Server) ensureAccount(pri *principal.ID) (acc *account, err error) {
+func (s *Server) ensureAccount(ctx context.Context) (acc *account, err error) {
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		return
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1162,7 +1167,12 @@ func (s *Server) refAccountProgram(acc *account, hash string) *program {
 	return nil
 }
 
-func (s *Server) refPrincipalProgram(pri *principal.ID, hash string) *program {
+func (s *Server) refPrincipalProgram(ctx context.Context, hash string) *program {
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		return nil
+	}
+
 	lock := s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1209,8 +1219,7 @@ func (s *Server) registerProgramRef(acc *account, prog *program) (redundant bool
 	return
 }
 
-// checkInstanceIDAndEnsureAccount if pri is non-nil.
-func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.ID, instID string,
+func (s *Server) checkInstanceIDAndEnsureAccount(ctx context.Context, instID string,
 ) (acc *account, err error) {
 	if instID != "" {
 		err = validateInstanceID(instID)
@@ -1219,26 +1228,29 @@ func (s *Server) checkInstanceIDAndEnsureAccount(pri *principal.ID, instID strin
 		}
 	}
 
-	if pri != nil {
-		lock := s.mu.Lock()
-		defer s.mu.Unlock()
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		return
+	}
 
-		if s.accounts == nil {
-			err = ErrServerClosed
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.accounts == nil {
+		err = ErrServerClosed
+		return
+	}
+
+	acc = s.accounts[inprincipal.Raw(pri)]
+	if acc == nil {
+		acc = newAccount(pri)
+		s.accounts[inprincipal.Raw(pri)] = acc
+	}
+
+	if instID != "" {
+		err = acc.checkUniqueInstanceID(lock, instID)
+		if err != nil {
 			return
-		}
-
-		acc = s.accounts[inprincipal.Raw(pri)]
-		if acc == nil {
-			acc = newAccount(pri)
-			s.accounts[inprincipal.Raw(pri)] = acc
-		}
-
-		if instID != "" {
-			err = acc.checkUniqueInstanceID(lock, instID)
-			if err != nil {
-				return
-			}
 		}
 	}
 
@@ -1256,12 +1268,7 @@ func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *
 		return err
 	}
 
-	var pri *principal.ID
-	if inst.acc != nil {
-		pri = inst.acc.ID
-	}
-
-	go s.driveInstance(detachedContext(ctx, pri), inst, prog)
+	go s.driveInstance(detachedContext(ctx), inst, prog)
 	prog = nil
 
 	return nil
@@ -1286,7 +1293,12 @@ func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *progra
 
 // getInstance and a program reference which is valid until the instance
 // deleted.
-func (s *Server) getInstance(pri *principal.ID, instID string) (*Instance, *program) {
+func (s *Server) getInstance(ctx context.Context, instID string) (*Instance, *program) {
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		return nil, nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1299,15 +1311,13 @@ func (s *Server) getInstance(pri *principal.ID, instID string) (*Instance, *prog
 	return x.inst, x.prog
 }
 
-func (s *Server) allocateInstanceResources(ctx context.Context, pri *principal.ID, pol *InstancePolicy, debugOption string,
+func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePolicy, debugOption string,
 ) (proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser, err error) {
 	defer func() {
 		if err != nil {
 			closeInstanceResources(&proc, &services, &debugOutput)
 		}
 	}()
-
-	ctx = inprincipal.ContextWithID(ctx, pri)
 
 	if debugOption != "" {
 		if pol.Debug == nil {
@@ -1335,12 +1345,7 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pri *principal.I
 // reference is replaced with a reference to the canonical program object.
 func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, refModule bool, prog *program, instImage *image.Instance, pol *InstancePolicy, persistInst bool, function, instID, debug string,
 ) (inst *Instance, canonicalProg *program, redundantProg bool, err error) {
-	var pri *principal.ID
-	if acc != nil {
-		pri = acc.ID
-	}
-
-	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pri, pol, debug)
+	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pol, debug)
 	if err != nil {
 		return
 	}

@@ -12,12 +12,14 @@ import (
 	"strings"
 
 	"github.com/tsavola/gate/internal/error/public"
-	"github.com/tsavola/gate/internal/principal"
+	inprincipal "github.com/tsavola/gate/internal/principal"
+	"github.com/tsavola/gate/principal"
+	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/webapi"
 )
 
-func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) *principal.ID {
+func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) context.Context {
 	if str == "" && !require {
 		return nil
 	}
@@ -36,11 +38,11 @@ func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str
 	}
 
 	// TODO: RFC 6750 says that this should be Bad Request
-	respondUnauthorizedError(ctx, ew, s, nil, "invalid_request")
+	respondUnauthorizedError(ctx, ew, s, "invalid_request")
 	panic(nil)
 }
 
-func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) *principal.ID {
+func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) context.Context {
 	parts := mustSplitJWS(ctx, ew, s, token)
 	signedData := token[:len(parts[0])+1+len(parts[1])]
 
@@ -63,27 +65,25 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	mustDecodeJWTComponent(ctx, ew, s, bufSig, parts[2])
 
 	// Parse principal information first so that it can be used in logging.
-
 	header := mustUnmarshalJWTHeader(ctx, ew, s, bufHeader)
 	pri := mustParseJWK(ctx, ew, s, header.JWK)
 
 	// Check expiration and audience before signature, because they are not
 	// secrets.  Claims are still unauthenticated!
-
-	claims := mustUnmarshalJWTPayload(ctx, ew, s, pri, bufPayload)
-	mustVerifyExpiration(ctx, ew, s, pri.PrincipalID(), claims.Exp)
-	mustVerifyAudience(ctx, ew, s, pri.PrincipalID(), claims.Aud)
+	claims := mustUnmarshalJWTPayload(ctx, ew, s, bufPayload)
+	mustVerifyExpiration(ctx, ew, s, claims.Exp)
+	mustVerifyAudience(ctx, ew, s, claims.Aud)
 
 	// Check signature.
-
 	mustVerifySignature(ctx, ew, s, pri, header.Alg, signedData, bufSig)
 
 	// Check nonce after signature verification so as to not publicize
 	// information about its validity.
-
 	mustVerifyNonce(ctx, ew, s, pri, claims.Nonce, claims.Exp)
 
-	return pri.PrincipalID()
+	ctx = principal.ContextWithID(ctx, pri.PrincipalID())
+	ctx = server.ContextWithScope(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
+	return ctx
 }
 
 func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byte) [][]byte {
@@ -91,7 +91,7 @@ func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byt
 		return parts
 	}
 
-	respondUnauthorizedError(ctx, ew, s, nil, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
@@ -101,7 +101,7 @@ func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, d
 		return
 	}
 
-	respondUnauthorizedError(ctx, ew, s, nil, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
@@ -114,36 +114,36 @@ func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, s
 		}
 	}
 
-	respondUnauthorizedError(ctx, ew, s, nil, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
-func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, serialized []byte,
+func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, serialized []byte,
 ) (claims webapi.Claims) {
 	err := json.Unmarshal(serialized, &claims)
 	if err == nil {
 		return
 	}
 
-	respondUnauthorizedError(ctx, ew, s, nil, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
 func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *webapi.PublicKey,
-) (pri *principal.Key) {
+) (pri *inprincipal.Key) {
 	var err error
 
 	if jwk.Kty == webapi.KeyTypeOctetKeyPair && jwk.Crv == webapi.KeyCurveEd25519 {
-		pri, err = principal.ParseEd25519Key(jwk.X)
+		pri, err = inprincipal.ParseEd25519Key(jwk.X)
 		if err == nil {
 			return pri
 		}
 
 		errorDesc := public.Error(err, "principal key error")
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri.PrincipalID(), "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
 		panic(nil)
 	}
 
-	respondUnauthorizedError(ctx, ew, s, nil, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }

@@ -15,20 +15,21 @@ import (
 )
 
 const maxExpireMargin = 15 * 60 // Seconds
+const maxScopeLength = 10
 
-func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, expires int64) {
+func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, expires int64) {
 	switch margin := expires - time.Now().Unix(); {
 	case margin < 0:
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has expired", event.FailAuthExpired, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token has expired", event.FailAuthExpired, nil)
 		panic(nil)
 
 	case margin > maxExpireMargin:
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token expiration is too far in the future", event.FailAuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token expiration is too far in the future", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 }
 
-func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, audience []string) {
+func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, audience []string) {
 	if len(audience) == 0 {
 		return
 	}
@@ -39,7 +40,7 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *
 		}
 	}
 
-	respondUnauthorizedError(ctx, ew, s, pri, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
@@ -50,7 +51,7 @@ func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri 
 		}
 	}
 
-	respondUnauthorizedError(ctx, ew, s, pri.PrincipalID(), "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
@@ -60,12 +61,21 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 	}
 
 	if s.NonceStorage == nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri.PrincipalID(), "invalid_token", "nonce not supported", event.FailAuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "nonce not supported", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 
 	if err := s.NonceStorage.CheckNonce(ctx, pri.PublicKey(), nonce, time.Unix(expires, 0)); err != nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri.PrincipalID(), "invalid_token", "token has already been used", event.FailAuthReused, err)
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token has already been used", event.FailAuthReused, err)
 		panic(nil)
 	}
+}
+
+func mustValidateScope(ctx context.Context, ew errorWriter, s *webserver, scope []string) []string {
+	if len(scope) > maxScopeLength {
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "scope array is too long", event.FailScopeTooLarge, nil)
+		panic(nil)
+	}
+
+	return scope
 }

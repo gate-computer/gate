@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/webapi"
 )
@@ -190,22 +189,22 @@ func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	}
 }
 
-func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) *principal.ID {
+func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) context.Context {
 	switch values := wr.request.Header[webapi.HeaderAuthorization]; len(values) {
 	case 1:
 		return mustParseAuthorization(ctx, wr, s, values[0], true)
 
 	case 0:
 		if !require {
-			return nil
+			return ctx
 		}
 
-		respondUnauthorized(ctx, wr, s, nil)
+		respondUnauthorized(ctx, wr, s)
 		panic(nil)
 
 	default:
 		// TODO: RFC 6750 says that this should be Bad Request
-		respondUnauthorizedErrorDesc(ctx, wr, s, nil, "invalid_request", "multiple Authorization headers", event.FailAuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, wr, s, "invalid_request", "multiple Authorization headers", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 }

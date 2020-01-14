@@ -23,8 +23,8 @@ import (
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/build"
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/internal/principal"
-	"github.com/tsavola/gate/internal/system"
+	inprincipal "github.com/tsavola/gate/internal/principal"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/runtime/abi"
 	"github.com/tsavola/gate/service"
@@ -32,6 +32,7 @@ import (
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/scope/system"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack"
@@ -149,7 +150,7 @@ func main() {
 	ctx := context.Background()
 
 	if c.Principal.ID != "" {
-		id, err := principal.ParseID(c.Principal.ID)
+		id, err := inprincipal.ParseID(c.Principal.ID)
 		if err != nil {
 			log.Fatal(err)
 		}

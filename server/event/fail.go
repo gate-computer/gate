@@ -13,6 +13,7 @@ const (
 	FailAuthExpired        = FailRequest_AUTH_EXPIRED
 	FailAuthReused         = FailRequest_AUTH_REUSED
 	FailAuthDenied         = FailRequest_AUTH_DENIED
+	FailScopeTooLarge      = FailRequest_SCOPE_TOO_LARGE
 	FailResourceDenied     = FailRequest_RESOURCE_DENIED
 	FailResourceLimit      = FailRequest_RESOURCE_LIMIT
 	FailRateLimit          = FailRequest_RATE_LIMIT

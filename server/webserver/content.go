@@ -9,11 +9,9 @@ import (
 	"context"
 	"io"
 	"net/http"
-
-	"github.com/tsavola/gate/principal"
 )
 
-func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webserver, pri *principal.ID) io.ReadCloser {
+func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webserver) io.ReadCloser {
 	var encoding string
 
 	switch fields := wr.request.Header["Content-Encoding"]; len(fields) {
@@ -34,7 +32,7 @@ func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webser
 	case "gzip":
 		decoder, err := gzip.NewReader(wr.request.Body)
 		if err != nil {
-			respondContentDecodeError(ctx, wr, s, pri, err)
+			respondContentDecodeError(ctx, wr, s, err)
 			panic(nil)
 		}
 
@@ -43,6 +41,6 @@ func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webser
 
 bad:
 	wr.response.Header().Set("Accept-Encoding", "gzip")
-	respondUnsupportedEncoding(ctx, wr, s, pri)
+	respondUnsupportedEncoding(ctx, wr, s)
 	panic(nil)
 }

@@ -490,8 +490,9 @@ func makeAuthorization() string {
 	jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
 
 	claims := &webapi.Claims{
-		Exp: time.Now().Unix() + 60,
-		Aud: []string{"https://" + c.Address + webapi.Path},
+		Exp:   time.Now().Unix() + 60,
+		Aud:   []string{"https://" + c.Address + webapi.Path},
+		Scope: c.Scope,
 	}
 
 	auth, err := authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)

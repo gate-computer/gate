@@ -5,7 +5,6 @@
 package principal
 
 import (
-	"context"
 	"fmt"
 	"strings"
 )
@@ -42,13 +41,4 @@ func (id *ID) String() string {
 
 func Raw(id *ID) [keySize]byte {
 	return id.key
-}
-
-type ContextIDKey struct{}
-
-func ContextWithID(ctx context.Context, id *ID) context.Context {
-	if id == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, ContextIDKey{}, id)
 }

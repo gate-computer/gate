@@ -5,21 +5,10 @@
 package server
 
 import (
-	"context"
-
 	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 )
-
-func accountContext(ctx context.Context, acc *account) detail.Context {
-	var pri *principal.ID
-	if acc != nil {
-		pri = acc.ID
-	}
-	return Context(ctx, pri)
-}
 
 type accountInstance struct {
 	inst *Instance

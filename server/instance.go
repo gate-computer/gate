@@ -336,9 +336,9 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 		res.Error = public.Error(err, res.Error)
 		if _, ok := err.(badprogram.Error); ok {
 			res.Cause = CauseABIViolation
-			return programFailure(ctx, inst.acc, prog.hash, inst.function, inst.ID), err
+			return programFailure(ctx, prog.hash, inst.function, inst.ID), err
 		} else {
-			return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.ID, "service io", err), err
+			return internalFailure(ctx, prog.hash, inst.function, inst.ID, "service io", err), err
 		}
 	}
 
@@ -351,7 +351,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 			}
 			if err != nil {
 				res.Error = public.Error(err, res.Error)
-				return internalFailure(ctx, inst.acc, prog.hash, inst.function, inst.ID, "", err), err
+				return internalFailure(ctx, prog.hash, inst.function, inst.ID, "", err), err
 			}
 		}
 	}
@@ -386,9 +386,9 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 	return nil, nil
 }
 
-func programFailure(ctx context.Context, acc *account, progHash, function string, instID string) Event {
+func programFailure(ctx context.Context, progHash, function string, instID string) Event {
 	return &event.FailRequest{
-		Ctx:      accountContext(ctx, acc),
+		Ctx:      ContextDetail(ctx),
 		Failure:  event.FailProgramError,
 		Module:   progHash,
 		Function: function,
@@ -396,13 +396,13 @@ func programFailure(ctx context.Context, acc *account, progHash, function string
 	}
 }
 
-func internalFailure(ctx context.Context, acc *account, progHash, function string, instID, subsys string, err error) Event {
+func internalFailure(ctx context.Context, progHash, function string, instID, subsys string, err error) Event {
 	if x, ok := err.(subsystem.Error); ok {
 		subsys = x.Subsystem()
 	}
 
 	return &event.FailInternal{
-		Ctx:       accountContext(ctx, acc),
+		Ctx:       ContextDetail(ctx),
 		Module:    progHash,
 		Function:  function,
 		Instance:  instID,

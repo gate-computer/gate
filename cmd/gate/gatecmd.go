@@ -28,6 +28,7 @@ type Config struct {
 	Wait         bool
 	Function     string
 	Instance     string
+	Scope        []string
 	Debug        string
 	REPL         REPLConfig
 }

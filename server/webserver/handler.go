@@ -16,8 +16,8 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/internal/serverapi"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
@@ -31,9 +31,9 @@ type errorWriter interface {
 	WriteError(status int, text string)
 }
 
-type instanceMethod func(s *server.Server, ctx context.Context, pri *principal.ID, instance string) error
-type instanceStatusMethod func(s *server.Server, ctx context.Context, pri *principal.ID, instance string) (server.Status, error)
-type instanceWaiterMethod func(s *server.Server, ctx context.Context, pri *principal.ID, instance string) (*server.Instance, error)
+type instanceMethod func(s *server.Server, ctx context.Context, instance string) error
+type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (server.Status, error)
+type instanceWaiterMethod func(s *server.Server, ctx context.Context, instance string) (*server.Instance, error)
 
 type webserver struct {
 	Config
@@ -106,7 +106,7 @@ func NewHandler(pattern string, config Config) http.Handler {
 		ctx := server.ContextWithRequestAddr(r.Context(), s.NewRequestID(r), r.RemoteAddr)
 
 		s.Server.Monitor(&event.IfaceAccess{
-			Ctx: server.Context(ctx, nil),
+			Ctx: server.ContextDetail(ctx),
 		}, nil)
 
 		defer func() {
@@ -541,12 +541,11 @@ func handleStatic(w http.ResponseWriter, r *http.Request, s *webserver, contentL
 func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleList)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	refs, err := s.Server.ModuleRefs(ctx, pri)
+	refs, err := s.Server.ModuleRefs(ctx)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", "", err)
+		respondServerError(ctx, wr, s, "", "", "", "", err)
 		return
 	}
 
@@ -564,12 +563,11 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 func handleModuleDownload(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleDownload)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	content, length, err := s.Server.ModuleContent(ctx, pri, key)
+	content, length, err := s.Server.ModuleContent(ctx, key)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", key, "", "", err)
+		respondServerError(ctx, wr, s, "", key, "", "", err)
 		panic(nil)
 	}
 	defer content.Close()
@@ -586,12 +584,11 @@ func handleModuleDownload(w http.ResponseWriter, r *http.Request, s *webserver, 
 func handleModuleUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleUpload)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-	_, err := s.Server.UploadModule(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength)
+	_, err := s.Server.UploadModule(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", key, "", "", err)
+		respondServerError(ctx, wr, s, "", key, "", "", err)
 		panic(nil)
 	}
 
@@ -605,12 +602,11 @@ func handleModuleUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 func handleModuleUnref(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleUnref)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	err := s.Server.UnrefModule(ctx, pri, key)
+	err := s.Server.UnrefModule(ctx, key)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", key, "", "", err)
+		respondServerError(ctx, wr, s, "", key, "", "", err)
 		panic(nil)
 	}
 
@@ -620,12 +616,11 @@ func handleModuleUnref(w http.ResponseWriter, r *http.Request, s *webserver, key
 func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, source server.Source, key string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleSource)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-	progHash, err := s.Server.SourceModule(ctx, pri, ref, source, key)
+	progHash, err := s.Server.SourceModule(ctx, ref, source, key)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, key, "", "", "", err)
+		respondServerError(ctx, wr, s, key, "", "", "", err)
 		return
 	}
 
@@ -637,12 +632,11 @@ func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, re
 	}
 }
 
-func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref, content bool, source server.Source, key, function, debug string) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref, content bool, source server.Source, key, function string, debug string) {
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
 	var (
-		pri      *principal.ID
 		progHash string
 		inst     *server.Instance
 		err      error
@@ -650,35 +644,32 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	switch {
 	case content:
-		pri = mustParseAuthorizationHeader(ctx, wr, s, ref)
-		ctx = principal.ContextWithID(ctx, pri)
-		progHash = key
+		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, false, function, "", debug)
+		progHash = key
+		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, false, function, "", debug)
 		if err != nil {
-			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
+			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 
 	case source == nil:
-		pri = mustParseAuthorizationHeader(ctx, wr, s, true)
-		ctx = principal.ContextWithID(ctx, pri)
-		progHash = key
+		ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-		inst, err = s.Server.CreateInstance(ctx, pri, key, false, function, "", debug)
+		progHash = key
+		inst, err = s.Server.CreateInstance(ctx, key, false, function, "", debug)
 		if err != nil {
-			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
+			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 
 	default:
-		pri = mustParseAuthorizationHeader(ctx, wr, s, ref)
-		ctx = principal.ContextWithID(ctx, pri)
+		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, false, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, "", debug)
 		if err != nil {
 			// TODO: find out module hash
-			respondServerError(ctx, wr, s, pri, key, "", function, "", err)
+			respondServerError(ctx, wr, s, key, "", function, "", err)
 			return
 		}
 	}
@@ -690,7 +681,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
-	if pri != nil {
+	if principal.ContextID(ctx) != nil {
 		if ref {
 			w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
 		}
@@ -708,13 +699,13 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
 }
 
-func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function, debug string) {
+func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function string, debug string) {
 	ctx, cancel := context.WithCancel(request.Context())
 	defer cancel()
 
 	conn, err := websocketUpgrader.Upgrade(response, request, nil)
 	if err != nil {
-		reportProtocolError(ctx, s, nil, err)
+		reportProtocolError(ctx, s, err)
 		return
 	}
 	defer conn.Close()
@@ -735,7 +726,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			reportNetworkError(ctx, s, err)
 			return
 		}
-		reportProtocolError(ctx, s, nil, err)
+		reportProtocolError(ctx, s, err)
 		return
 	}
 
@@ -747,7 +738,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	case webapi.ContentTypeWebAssembly:
 		if source != nil {
 			conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedContent)
-			reportProtocolError(ctx, s, nil, errUnsupportedWebsocketContent)
+			reportProtocolError(ctx, s, errUnsupportedWebsocketContent)
 			return
 		}
 
@@ -763,22 +754,20 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	default:
 		conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedContentType)
-		reportProtocolError(ctx, s, nil, errUnsupportedWebsocketContentType)
+		reportProtocolError(ctx, s, errUnsupportedWebsocketContentType)
 		return
 	}
 
 	w := newWebsocketWriter(conn)
 
 	var (
-		pri      *principal.ID
 		progHash string
 		inst     *server.Instance
 	)
 
 	switch {
 	case content:
-		pri = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
-		ctx = principal.ContextWithID(ctx, pri)
+		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
 		progHash = key
 
 		frameType, frame, err := conn.NextReader()
@@ -788,35 +777,33 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		}
 		if frameType != websocket.BinaryMessage {
 			conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedData)
-			reportProtocolError(ctx, s, nil, errWrongWebsocketMessageType)
+			reportProtocolError(ctx, s, errWrongWebsocketMessageType)
 			return
 		}
 
-		inst, err = s.Server.UploadModuleInstance(ctx, pri, ref, key, ioutil.NopCloser(frame), r.ContentLength, false, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, ioutil.NopCloser(frame), r.ContentLength, false, function, "", debug)
 		if err != nil {
-			respondServerError(ctx, w, s, pri, "", key, function, "", err)
+			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
 		}
 
 	case source == nil:
-		pri = mustParseAuthorization(ctx, w, s, r.Authorization, false)
-		ctx = principal.ContextWithID(ctx, pri)
+		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, pri, key, false, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, key, false, function, "", debug)
 		if err != nil {
-			respondServerError(ctx, w, s, pri, "", key, function, "", err)
+			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
 		}
 
 	default:
-		pri = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
-		ctx = principal.ContextWithID(ctx, pri)
+		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, false, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, "", debug)
 		if err != nil {
 			// TODO: find out module hash
-			respondServerError(ctx, w, s, pri, key, "", function, "", err)
+			respondServerError(ctx, w, s, key, "", function, "", err)
 			return
 		}
 	}
@@ -824,7 +811,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	var reply webapi.CallConnection
 
-	if pri != nil {
+	if principal.ContextID(ctx) != nil {
 		if ref {
 			reply.Location = s.pathModuleRefs + progHash
 		}
@@ -849,11 +836,10 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 }
 
-func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID, debug string) {
+func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID string, debug string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
 	var (
 		progHash string
@@ -864,15 +850,15 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	if source == nil {
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, pri, key, true, function, instID, debug)
+		inst, err = s.Server.CreateInstance(ctx, key, true, function, instID, debug)
 		if err != nil {
-			respondServerError(ctx, wr, s, pri, "", key, function, "", err)
+			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 	} else {
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, pri, ref, source, key, true, function, instID, debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, instID, debug)
 		if err != nil {
-			respondServerError(ctx, wr, s, pri, key, "", function, "", err)
+			respondServerError(ctx, wr, s, key, "", function, "", err)
 			return
 		}
 	}
@@ -891,15 +877,14 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	}
 }
 
-func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID, debug string) {
+func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID string, debug string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, ref)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-	inst, err := s.Server.UploadModuleInstance(ctx, pri, ref, key, mustDecodeContent(ctx, wr, s, pri), r.ContentLength, true, function, instID, debug)
+	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, instID, debug)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", key, function, "", err)
+		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return
 	}
 
@@ -920,12 +905,11 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceList)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	instances, err := s.Server.Instances(ctx, pri)
+	instances, err := s.Server.Instances(ctx)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", "", err)
+		respondServerError(ctx, wr, s, "", "", "", "", err)
 		return
 	}
 
@@ -945,12 +929,11 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceMethod, instID string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	err := method(s.Server, ctx, pri, instID)
+	err := method(s.Server, ctx, instID)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, wr, s, "", "", "", instID, err)
 		return
 	}
 
@@ -960,12 +943,11 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op det
 func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceStatusMethod, instID string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	status, err := method(s.Server, ctx, pri, instID)
+	status, err := method(s.Server, ctx, instID)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, wr, s, "", "", "", instID, err)
 		return
 	}
 
@@ -976,12 +958,11 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceWaiterMethod, instID string, wait bool) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := method(s.Server, ctx, pri, instID)
+	inst, err := method(s.Server, ctx, instID)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, wr, s, "", "", "", instID, err)
 		return
 	}
 
@@ -993,15 +974,14 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID, debug string) {
+func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID string, debug string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceResume)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := s.Server.ResumeInstance(ctx, pri, function, instID, debug)
+	inst, err := s.Server.ResumeInstance(ctx, function, instID, debug)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", function, instID, err)
+		respondServerError(ctx, wr, s, "", "", function, instID, err)
 		return
 	}
 
@@ -1015,15 +995,14 @@ func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, 
 func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceConnect) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	content := mustDecodeContent(ctx, wr, s, pri)
+	content := mustDecodeContent(ctx, wr, s)
 	defer content.Close()
 
-	inst, connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
+	inst, connIO, err := s.Server.InstanceConnection(ctx, instID)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, wr, s, "", "", "", instID, err)
 		return
 	}
 	if connIO == nil {
@@ -1049,7 +1028,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 
 	conn, err := websocketUpgrader.Upgrade(response, request, nil)
 	if err != nil {
-		reportProtocolError(ctx, s, nil, err)
+		reportProtocolError(ctx, s, err)
 		return
 	}
 	defer conn.Close()
@@ -1064,19 +1043,18 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 			reportNetworkError(ctx, s, err)
 			return
 		}
-		reportProtocolError(ctx, s, nil, err)
+		reportProtocolError(ctx, s, err)
 		return
 	}
 
 	conn.SetReadLimit(0)
 
 	w := newWebsocketWriter(conn)
-	pri := mustParseAuthorization(ctx, w, s, r.Authorization, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorization(ctx, w, s, r.Authorization, true)
 
-	inst, connIO, err := s.Server.InstanceConnection(ctx, pri, instID)
+	inst, connIO, err := s.Server.InstanceConnection(ctx, instID)
 	if err != nil {
-		respondServerError(ctx, w, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, w, s, "", "", "", instID, err)
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 		return
 	}
@@ -1102,7 +1080,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 	data, err := serverapi.MarshalJSON(&server.ConnectionStatus{Status: inst.Status()})
 	if err != nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
-		reportInternalError(ctx, s, pri, "", "", "", "", err)
+		reportInternalError(ctx, s, "", "", "", "", err)
 		return
 	}
 
@@ -1118,12 +1096,11 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceSnapshot)
 	wr := &requestResponseWriter{w, r}
-	pri := mustParseAuthorizationHeader(ctx, wr, s, true)
-	ctx = principal.ContextWithID(ctx, pri)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	moduleKey, err := s.Server.InstanceModule(ctx, pri, instID)
+	moduleKey, err := s.Server.InstanceModule(ctx, instID)
 	if err != nil {
-		respondServerError(ctx, wr, s, pri, "", "", "", instID, err)
+		respondServerError(ctx, wr, s, "", "", "", instID, err)
 		return
 	}
 

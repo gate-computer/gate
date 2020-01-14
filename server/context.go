@@ -7,43 +7,55 @@ package server
 import (
 	"context"
 
-	"github.com/tsavola/gate/internal/principal"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server/detail"
 )
 
-type contextKey struct{}
+type contextKey int
+
+const (
+	contextKeyDetail contextKey = iota
+	contextKeyScope
+)
 
 func ContextWithIface(ctx context.Context, iface detail.Iface) context.Context {
-	c := Context(ctx, nil)
+	c := ContextDetail(ctx)
 	c.Iface = iface
-	return context.WithValue(ctx, contextKey{}, c)
+	return context.WithValue(ctx, contextKeyDetail, c)
 }
 
 func ContextWithRequestAddr(ctx context.Context, request uint64, addr string) context.Context {
-	c := Context(ctx, nil)
+	c := ContextDetail(ctx)
 	c.Req = request
 	c.Addr = addr
-	return context.WithValue(ctx, contextKey{}, c)
+	return context.WithValue(ctx, contextKeyDetail, c)
 }
 
 func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
-	c := Context(ctx, nil)
+	c := ContextDetail(ctx)
 	c.Op = op
-	return context.WithValue(ctx, contextKey{}, c)
+	return context.WithValue(ctx, contextKeyDetail, c)
 }
 
-func detachedContext(ctx context.Context, pri *principal.ID) context.Context {
-	c := Context(ctx, pri)
+func ContextWithScope(ctx context.Context, scope []string) context.Context {
+	if len(scope) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, contextKeyScope, scope)
+}
+
+func detachedContext(ctx context.Context) context.Context {
+	c := ContextDetail(ctx)
 	c.Addr = ""
-	return context.WithValue(context.Background(), contextKey{}, c)
+	return context.WithValue(ctx, contextKeyDetail, c)
 }
 
-func Context(ctx context.Context, pri *principal.ID) (c detail.Context) {
-	if x := ctx.Value(contextKey{}); x != nil {
+func ContextDetail(ctx context.Context) (c detail.Context) {
+	if x := ctx.Value(contextKeyDetail); x != nil {
 		c = x.(detail.Context)
 	}
 
-	if pri != nil {
+	if pri := principal.ContextID(ctx); pri != nil {
 		c.Principal = pri.String()
 	}
 
@@ -52,8 +64,23 @@ func Context(ctx context.Context, pri *principal.ID) (c detail.Context) {
 
 // ContextOp returns the server operation type.
 func ContextOp(ctx context.Context) (op detail.Op) {
-	if x := ctx.Value(contextKey{}); x != nil {
+	if x := ctx.Value(contextKeyDetail); x != nil {
 		op = x.(detail.Context).Op
 	}
 	return
+}
+
+func ScopeContains(ctx context.Context, scope string) bool {
+	x := ctx.Value(contextKeyScope)
+	if x == nil {
+		return false
+	}
+
+	for _, s := range x.([]string) {
+		if s == scope {
+			return true
+		}
+	}
+
+	return false
 }

@@ -144,6 +144,7 @@ type Claims struct {
 	Exp   int64    `json:"exp"`             // Expiration time.
 	Aud   []string `json:"aud,omitempty"`   // https://authority/api
 	Nonce string   `json:"nonce,omitempty"` // Unique during expiration period.
+	Scope []string `json:"scope,omitempty"`
 }
 
 // Instance state enumeration.
