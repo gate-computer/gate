@@ -11,10 +11,8 @@ import (
 )
 
 type ID = internal.ID
-type Key = internal.Key
 
 // ContextID returns the principal id, if any.
-func ContextID(ctx context.Context) (id ID, ok bool) {
-	id, ok = ctx.Value(internal.ContextID).(ID)
-	return
+func ContextID(ctx context.Context) *ID {
+	return ctx.Value(internal.ContextIDKey{}).(*ID)
 }

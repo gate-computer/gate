@@ -42,8 +42,7 @@ func (testService) ServiceVersion() string {
 }
 
 func (testService) Discoverable(ctx context.Context) bool {
-	_, ok := principal.ContextID(ctx)
-	return ok
+	return principal.ContextID(ctx) != nil
 }
 
 func (testService) CreateInstance(context.Context, service.InstanceConfig) service.Instance {

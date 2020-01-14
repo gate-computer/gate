@@ -14,9 +14,9 @@ import (
 )
 
 func accountContext(ctx context.Context, acc *account) detail.Context {
-	var pri *principal.Key
+	var pri *principal.ID
 	if acc != nil {
-		pri = acc.Key
+		pri = acc.ID
 	}
 	return Context(ctx, pri)
 }
@@ -27,16 +27,16 @@ type accountInstance struct {
 }
 
 type account struct {
-	*principal.Key
+	*principal.ID
 
 	// Protected by server mutex:
 	programRefs map[*program]struct{}
 	instances   map[string]accountInstance
 }
 
-func newAccount(pri *principal.Key) *account {
+func newAccount(pri *principal.ID) *account {
 	return &account{
-		Key:         pri,
+		ID:          pri,
 		programRefs: make(map[*program]struct{}),
 		instances:   make(map[string]accountInstance),
 	}

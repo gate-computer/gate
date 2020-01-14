@@ -16,7 +16,7 @@ import (
 
 const maxExpireMargin = 15 * 60 // Seconds
 
-func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, expires int64) {
+func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, expires int64) {
 	switch margin := expires - time.Now().Unix(); {
 	case margin < 0:
 		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has expired", event.FailAuthExpired, nil)
@@ -28,7 +28,7 @@ func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, pri
 	}
 }
 
-func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, audience []string) {
+func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, audience []string) {
 	if len(audience) == 0 {
 		return
 	}
@@ -45,13 +45,12 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, pri *
 
 func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, algorithm string, signedData, signature []byte) {
 	if algorithm == webapi.SignAlgEdDSA {
-		key := principal.RawKey(pri)
-		if ed25519.Verify(ed25519.PublicKey(key[:]), signedData, signature) {
+		if ed25519.Verify(pri.PublicKey(), signedData, signature) {
 			return
 		}
 	}
 
-	respondUnauthorizedError(ctx, ew, s, pri, "invalid_token")
+	respondUnauthorizedError(ctx, ew, s, pri.PrincipalID(), "invalid_token")
 	panic(nil)
 }
 
@@ -61,13 +60,12 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 	}
 
 	if s.NonceStorage == nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "nonce not supported", event.FailAuthInvalid, nil)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri.PrincipalID(), "invalid_token", "nonce not supported", event.FailAuthInvalid, nil)
 		panic(nil)
 	}
 
-	key := principal.RawKey(pri)
-	if err := s.NonceStorage.CheckNonce(ctx, key[:], nonce, time.Unix(expires, 0)); err != nil {
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", "token has already been used", event.FailAuthReused, err)
+	if err := s.NonceStorage.CheckNonce(ctx, pri.PublicKey(), nonce, time.Unix(expires, 0)); err != nil {
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri.PrincipalID(), "invalid_token", "token has already been used", event.FailAuthReused, err)
 		panic(nil)
 	}
 }

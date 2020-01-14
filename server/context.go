@@ -32,19 +32,19 @@ func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
 	return context.WithValue(ctx, contextKey{}, c)
 }
 
-func detachedContext(ctx context.Context, pri *principal.Key) context.Context {
+func detachedContext(ctx context.Context, pri *principal.ID) context.Context {
 	c := Context(ctx, pri)
 	c.Addr = ""
 	return context.WithValue(context.Background(), contextKey{}, c)
 }
 
-func Context(ctx context.Context, pri *principal.Key) (c detail.Context) {
+func Context(ctx context.Context, pri *principal.ID) (c detail.Context) {
 	if x := ctx.Value(contextKey{}); x != nil {
 		c = x.(detail.Context)
 	}
 
 	if pri != nil {
-		c.Principal = principal.KeyPrincipalID(pri).String()
+		c.Principal = pri.String()
 	}
 
 	return

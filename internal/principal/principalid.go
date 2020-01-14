@@ -11,50 +11,44 @@ import (
 )
 
 const (
+	typeLocal   = "local"
 	typeEd25519 = "ed25519"
 )
 
 type ID struct {
-	s string
+	key [keySize]byte
+	s   string
 }
 
-func makeEd25519ID(encodedKey string) ID {
-	return ID{typeEd25519 + ":" + encodedKey}
-}
+var LocalID = &ID{s: typeLocal}
 
-func ParseID(s string) (id ID, err error) {
-	if s == "" {
-		return
-	}
-
+func ParseID(s string) (*ID, error) {
 	if x := strings.SplitN(s, ":", 2); len(x) == 2 {
 		switch x[0] {
 		case typeEd25519:
-			if pri, e := ParseEd25519Key(x[1]); e == nil {
-				id = pri.principalID
-				return
+			id := &ID{s: s}
+			if parseEd25519Key(id.key[:], x[1]) == nil {
+				return id, nil
 			}
 		}
 	}
 
-	err = fmt.Errorf("principal ID string is invalid: %q", s)
-	return
+	return nil, fmt.Errorf("principal ID string is invalid: %q", s)
 }
 
-func (id ID) String() string {
+func (id *ID) String() string {
 	return id.s
 }
 
-type contextKey int
+func Raw(id *ID) [keySize]byte {
+	return id.key
+}
 
-const (
-	ContextID contextKey = iota
-)
+type ContextIDKey struct{}
 
-func ContextWithID(ctx context.Context, id ID) context.Context {
-	if id.s == "" {
+func ContextWithID(ctx context.Context, id *ID) context.Context {
+	if id == nil {
 		return ctx
 	}
-
-	return context.WithValue(ctx, ContextID, id)
+	return context.WithValue(ctx, ContextIDKey{}, id)
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/bus"
-	"github.com/tsavola/gate/principal"
+	"github.com/tsavola/gate/internal/principal"
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/service"
@@ -37,8 +37,8 @@ import (
 
 type debugKey struct{}
 
-type instanceStatusFunc func(ctx context.Context, pri *principal.Key, instance string) (server.Status, error)
-type instanceObjectFunc func(ctx context.Context, pri *principal.Key, instance string) (*server.Instance, error)
+type instanceStatusFunc func(ctx context.Context, pri *principal.ID, instance string) (server.Status, error)
+type instanceObjectFunc func(ctx context.Context, pri *principal.ID, instance string) (*server.Instance, error)
 
 const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
 
@@ -165,7 +165,7 @@ func mainResult() int {
 		panic(fmt.Errorf("D-Bus name already taken: %s", bus.DaemonIface))
 	}
 
-	pri := new(principal.Key)
+	pri := principal.LocalID
 
 	s, err := server.New(server.Config{
 		ImageStorage:   storage,
@@ -188,7 +188,7 @@ func mainResult() int {
 	return 0
 }
 
-func methods(ctx context.Context, pri *principal.Key, s *server.Server) map[string]interface{} {
+func methods(ctx context.Context, pri *principal.ID, s *server.Server) map[string]interface{} {
 	methods := map[string]interface{}{
 		"CallKey": func(key, function string, rFD, wFD, debugFD dbus.UnixFD, debugName string,
 		) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
@@ -324,31 +324,31 @@ func debugHandler(ctx context.Context, option string,
 	return
 }
 
-func handleModuleList(ctx context.Context, pri *principal.Key, s *server.Server) server.ModuleRefs {
+func handleModuleList(ctx context.Context, pri *principal.ID, s *server.Server) server.ModuleRefs {
 	refs, err := s.ModuleRefs(ctx, pri)
 	check(err)
 	sort.Sort(refs)
 	return refs
 }
 
-func handleModuleDownload(ctx context.Context, pri *principal.Key, s *server.Server, key string,
+func handleModuleDownload(ctx context.Context, pri *principal.ID, s *server.Server, key string,
 ) (content io.ReadCloser, contentLen int64) {
 	content, contentLen, err := s.ModuleContent(ctx, pri, key)
 	check(err)
 	return
 }
 
-func handleModuleUpload(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, moduleLen int64, key string) string {
+func handleModuleUpload(ctx context.Context, pri *principal.ID, s *server.Server, module *os.File, moduleLen int64, key string) string {
 	progID, err := s.UploadModule(ctx, pri, true, key, module, moduleLen)
 	check(err)
 	return progID
 }
 
-func handleModuleUnref(ctx context.Context, pri *principal.Key, s *server.Server, key string) {
+func handleModuleUnref(ctx context.Context, pri *principal.ID, s *server.Server, key string) {
 	check(s.UnrefModule(ctx, pri, key))
 }
 
-func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string,
+func handleCall(ctx context.Context, pri *principal.ID, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string,
 ) (state server.State, cause server.Cause, result int32) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
@@ -385,7 +385,7 @@ func handleCall(ctx context.Context, pri *principal.Key, s *server.Server, modul
 	return status.State, status.Cause, status.Result
 }
 
-func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, module *os.File, key, function string, ref bool, debugFD dbus.UnixFD, debugName string) string {
+func handleLaunch(ctx context.Context, pri *principal.ID, s *server.Server, module *os.File, key, function string, ref bool, debugFD dbus.UnixFD, debugName string) string {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
@@ -406,30 +406,30 @@ func handleLaunch(ctx context.Context, pri *principal.Key, s *server.Server, mod
 	return inst.ID
 }
 
-func handleInstanceList(ctx context.Context, pri *principal.Key, s *server.Server) server.Instances {
+func handleInstanceList(ctx context.Context, pri *principal.ID, s *server.Server) server.Instances {
 	instances, err := s.Instances(ctx, pri)
 	check(err)
 	sort.Sort(instances)
 	return instances
 }
 
-func handleInstanceStatus(ctx context.Context, pri *principal.Key, f instanceStatusFunc, instID string,
+func handleInstanceStatus(ctx context.Context, pri *principal.ID, f instanceStatusFunc, instID string,
 ) (state server.State, cause server.Cause, result int32) {
 	status, err := f(ctx, pri, instID)
 	check(err)
 	return status.State, status.Cause, status.Result
 }
 
-func handleInstanceObject(ctx context.Context, pri *principal.Key, f instanceObjectFunc, instID string) {
+func handleInstanceObject(ctx context.Context, pri *principal.ID, f instanceObjectFunc, instID string) {
 	_, err := f(ctx, pri, instID)
 	check(err)
 }
 
-func handleInstanceDelete(ctx context.Context, pri *principal.Key, s *server.Server, instID string) {
+func handleInstanceDelete(ctx context.Context, pri *principal.ID, s *server.Server, instID string) {
 	check(s.DeleteInstance(ctx, pri, instID))
 }
 
-func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Server, instID string, debugFD dbus.UnixFD, debugName string) {
+func handleInstanceResume(ctx context.Context, pri *principal.ID, s *server.Server, instID string, debugFD dbus.UnixFD, debugName string) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
@@ -439,7 +439,7 @@ func handleInstanceResume(ctx context.Context, pri *principal.Key, s *server.Ser
 	check(err)
 }
 
-func handleInstanceConnect(ctx context.Context, pri *principal.Key, s *server.Server, instID string, rFD, wFD dbus.UnixFD) bool {
+func handleInstanceConnect(ctx context.Context, pri *principal.ID, s *server.Server, instID string, rFD, wFD dbus.UnixFD) bool {
 	var err error
 	if err == nil {
 		err = syscall.SetNonblock(int(rFD), true)
@@ -465,7 +465,7 @@ func handleInstanceConnect(ctx context.Context, pri *principal.Key, s *server.Se
 	return true
 }
 
-func handleInstanceSnapshot(ctx context.Context, pri *principal.Key, s *server.Server, instID string,
+func handleInstanceSnapshot(ctx context.Context, pri *principal.ID, s *server.Server, instID string,
 ) (progID string) {
 	progID, err := s.InstanceModule(ctx, pri, instID)
 	check(err)

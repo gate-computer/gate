@@ -79,13 +79,13 @@ func (ak *AuthorizedKeys) Parse(uid string, text []byte) error {
 	return nil
 }
 
-func (ak *AuthorizedKeys) Authenticate(pri *principal.Key) (uid string, err error) {
+func (ak *AuthorizedKeys) Authenticate(pri *principal.ID) (uid string, err error) {
 	if pri == nil {
 		err = errUnauthorized
 		return
 	}
 
-	uid, found := ak.publicKeys[principal.RawKey(pri)]
+	uid, found := ak.publicKeys[principal.Raw(pri)]
 	if !found {
 		err = errForbidden
 		return
@@ -108,7 +108,7 @@ func (ak *AuthorizedKeys) ConfigureInstance(policy *server.InstancePolicy, uid s
 	}
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramContent(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, progPolicy *server.ProgramPolicy) error {
+func (ak *AuthorizedKeys) AuthorizeProgramContent(_ context.Context, pri *principal.ID, resPolicy *server.ResourcePolicy, progPolicy *server.ProgramPolicy) error {
 	_, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -117,7 +117,7 @@ func (ak *AuthorizedKeys) AuthorizeProgramContent(_ context.Context, pri *princi
 	return err
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstanceProgramContent(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy) error {
+func (ak *AuthorizedKeys) AuthorizeInstanceProgramContent(_ context.Context, pri *principal.ID, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy) error {
 	uid, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -127,7 +127,7 @@ func (ak *AuthorizedKeys) AuthorizeInstanceProgramContent(_ context.Context, pri
 	return err
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstanceProgramSource(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy, _ server.Source) error {
+func (ak *AuthorizedKeys) AuthorizeInstanceProgramSource(_ context.Context, pri *principal.ID, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy, progPolicy *server.ProgramPolicy, _ server.Source) error {
 	uid, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -137,7 +137,7 @@ func (ak *AuthorizedKeys) AuthorizeInstanceProgramSource(_ context.Context, pri 
 	return err
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstance(_ context.Context, pri *principal.Key, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy) error {
+func (ak *AuthorizedKeys) AuthorizeInstance(_ context.Context, pri *principal.ID, resPolicy *server.ResourcePolicy, instPolicy *server.InstancePolicy) error {
 	uid, err := ak.Authenticate(pri)
 	if err == nil {
 		ak.ConfigureResource(resPolicy)
@@ -146,7 +146,7 @@ func (ak *AuthorizedKeys) AuthorizeInstance(_ context.Context, pri *principal.Ke
 	return err
 }
 
-func (ak *AuthorizedKeys) Authorize(_ context.Context, pri *principal.Key) error {
+func (ak *AuthorizedKeys) Authorize(_ context.Context, pri *principal.ID) error {
 	_, err := ak.Authenticate(pri)
 	return err
 }

@@ -67,7 +67,7 @@ type Config struct {
 	Monitor        func(Event, error)
 
 	// TODO: remove this after there is some kind of ownership database
-	XXX_Owner *principal.Key
+	XXX_Owner *principal.ID
 }
 
 func (c *Config) Configured() bool {

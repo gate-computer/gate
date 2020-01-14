@@ -5,8 +5,9 @@
 package principal
 
 import (
-	"context"
 	"encoding/base64"
+
+	"golang.org/x/crypto/ed25519"
 )
 
 const (
@@ -15,47 +16,41 @@ const (
 )
 
 type Key struct {
-	key         [keySize]byte
-	principalID ID
+	id ID
 }
 
 func ParseEd25519Key(encodedKey string) (pri *Key, err error) {
-	pri = new(Key)
+	pri = &Key{ID{s: typeEd25519 + ":" + encodedKey}}
+	err = parseEd25519Key(pri.id.key[:], encodedKey)
+	return
+}
 
+func parseEd25519Key(dest []byte, encodedKey string) (err error) {
 	if len(encodedKey) != encodedKeyLen {
 		err = principalKeyError("encoded principal key has wrong length")
 		return
 	}
 
-	n, err := base64.RawURLEncoding.Decode(pri.key[:], []byte(encodedKey))
+	n, err := base64.RawURLEncoding.Decode(dest, []byte(encodedKey))
 	if err != nil {
 		err = principalKeyError("base64url encoding of principal key is invalid")
 		return
 	}
 
-	if n != len(pri.key) {
+	if n != len(dest) {
 		err = principalKeyError("decoded principal key has wrong length")
 		return
 	}
 
-	pri.principalID = makeEd25519ID(encodedKey)
 	return
 }
 
-func RawKey(pri *Key) [keySize]byte {
-	return pri.key
+func (pri *Key) PrincipalID() *ID {
+	return &pri.id
 }
 
-func KeyPrincipalID(pri *Key) ID {
-	return pri.principalID
-}
-
-func ContextWithIDFrom(ctx context.Context, key *Key) context.Context {
-	if key == nil {
-		return ctx
-	}
-
-	return ContextWithID(ctx, key.principalID)
+func (pri *Key) PublicKey() ed25519.PublicKey {
+	return ed25519.PublicKey(pri.id.key[:])
 }
 
 type principalKeyError string

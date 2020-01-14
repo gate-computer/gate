@@ -16,7 +16,6 @@ import (
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/subsystem"
-	"github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -39,7 +38,7 @@ func validateInstanceID(s string) error {
 }
 
 func instanceStorageKey(acc *account, instID string) string {
-	return fmt.Sprintf("%s.%s", principal.KeyPrincipalID(acc.Key).String(), instID)
+	return fmt.Sprintf("%s.%s", acc.ID.String(), instID)
 }
 
 type instanceLock struct{}

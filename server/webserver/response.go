@@ -180,35 +180,35 @@ func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserv
 	reportProtocolError(r.Context(), s, nil, fmt.Errorf("bad action query: %s", r.URL.RawQuery))
 }
 
-func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key) {
+func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
 	ew.WriteError(http.StatusUnauthorized, "missing authentication credentials")
 	reportRequestFailure(ctx, s, pri, event.FailAuthMissing)
 }
 
-func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, errorCode string) {
+func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, errorCode string) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode))
 	ew.WriteError(http.StatusUnauthorized, errorCode)
 	reportRequestFailure(ctx, s, pri, event.FailAuthInvalid)
 }
 
-func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
+func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q error_description=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode, errorDesc))
 	ew.WriteError(http.StatusUnauthorized, errorDesc)
 	reportRequestError(ctx, s, pri, failType, "", "", "", "", err)
 }
 
-func respondContentDecodeError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, err error) {
+func respondContentDecodeError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, err error) {
 	ew.WriteError(http.StatusBadRequest, errContentDecode.Error())
 	reportPayloadError(ctx, s, pri, errContentDecode)
 }
 
-func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key) {
+func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID) {
 	ew.WriteError(http.StatusBadRequest, errEncodingNotSupported.Error())
 	reportPayloadError(ctx, s, pri, errEncodingNotSupported)
 }
 
-func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, sourceURI, progHash, function, instID string, err error) {
+func respondServerError(ctx context.Context, ew errorWriter, s *webserver, pri *principal.ID, sourceURI, progHash, function, instID string, err error) {
 	var (
 		status   = http.StatusInternalServerError
 		text     = "internal server error"

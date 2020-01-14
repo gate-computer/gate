@@ -146,13 +146,16 @@ func main() {
 		os.Exit(2)
 	}
 
-	principalID, err := principal.ParseID(c.Principal.ID)
-	if err != nil {
-		log.Fatal(err)
+	ctx := context.Background()
+
+	if c.Principal.ID != "" {
+		id, err := principal.ParseID(c.Principal.ID)
+		if err != nil {
+			log.Fatal(err)
+		}
+		ctx = principal.ContextWithID(ctx, id)
 	}
 
-	ctx := context.Background()
-	ctx = principal.ContextWithID(ctx, principalID)
 	if c.Scope.System {
 		ctx = system.ContextWithUserID(ctx, strconv.Itoa(os.Getuid()))
 	}

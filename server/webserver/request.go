@@ -190,7 +190,7 @@ func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	}
 }
 
-func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) *principal.Key {
+func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) *principal.ID {
 	switch values := wr.request.Header[webapi.HeaderAuthorization]; len(values) {
 	case 1:
 		return mustParseAuthorization(ctx, wr, s, values[0], true)

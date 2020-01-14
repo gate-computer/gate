@@ -13,7 +13,7 @@ import (
 	"github.com/tsavola/gate/principal"
 )
 
-func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webserver, pri *principal.Key) io.ReadCloser {
+func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webserver, pri *principal.ID) io.ReadCloser {
 	var encoding string
 
 	switch fields := wr.request.Header["Content-Encoding"]; len(fields) {

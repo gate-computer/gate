@@ -17,7 +17,7 @@ import (
 	"github.com/tsavola/gate/webapi"
 )
 
-func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) *principal.Key {
+func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) *principal.ID {
 	if str == "" && !require {
 		return nil
 	}
@@ -40,7 +40,7 @@ func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str
 	panic(nil)
 }
 
-func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) *principal.Key {
+func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) *principal.ID {
 	parts := mustSplitJWS(ctx, ew, s, token)
 	signedData := token[:len(parts[0])+1+len(parts[1])]
 
@@ -71,8 +71,8 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	// secrets.  Claims are still unauthenticated!
 
 	claims := mustUnmarshalJWTPayload(ctx, ew, s, pri, bufPayload)
-	mustVerifyExpiration(ctx, ew, s, pri, claims.Exp)
-	mustVerifyAudience(ctx, ew, s, pri, claims.Aud)
+	mustVerifyExpiration(ctx, ew, s, pri.PrincipalID(), claims.Exp)
+	mustVerifyAudience(ctx, ew, s, pri.PrincipalID(), claims.Aud)
 
 	// Check signature.
 
@@ -83,7 +83,7 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 
 	mustVerifyNonce(ctx, ew, s, pri, claims.Nonce, claims.Exp)
 
-	return pri
+	return pri.PrincipalID()
 }
 
 func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byte) [][]byte {
@@ -140,7 +140,7 @@ func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *webapi
 		}
 
 		errorDesc := public.Error(err, "principal key error")
-		respondUnauthorizedErrorDesc(ctx, ew, s, pri, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
+		respondUnauthorizedErrorDesc(ctx, ew, s, pri.PrincipalID(), "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
 		panic(nil)
 	}
 
