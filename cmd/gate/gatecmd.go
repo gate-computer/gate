@@ -41,7 +41,8 @@ const mainUsageHead = `Usage: %s [options] [address] command [arguments]
 Common commands:
   call      execute a wasm module with I/O
   delete    delete an instance
-  download  write a wasm module to a local file or standard output
+  export    write a wasm module to a local file or standard output
+  import    read a wasm module from a local file
   instances list instances
   io        connect to a running instance
   kill      kill a running instance
@@ -52,7 +53,6 @@ Common commands:
   status    query current status of an instance
   suspend   suspend a running instance
   unref     remove a wasm module reference
-  upload    read a wasm module from a local file
   wait      wait until an instance is suspended, halted, terminated or killed
 
 Local commands (no address before command):

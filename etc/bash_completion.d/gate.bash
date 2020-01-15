@@ -63,8 +63,8 @@ __gate_completion()
 					else
 						cmd="$cur"
 						case "$cmd" in
-							upload) kind=filename ;;
-							download) kind=module-filename ;;
+							import) kind=filename ;;
+							export) kind=module-filename ;;
 							call|launch|unref) kind=module ;;
 							delete|io|kill|resume|snapshot|status|suspend|wait) kind=instance ;;
 							pull|push) kind=address2 ;;
@@ -76,8 +76,8 @@ __gate_completion()
 				command)
 					cmd="$cur"
 					case "$cmd" in
-						upload) kind=filename ;;
-						download) kind=module-filename ;;
+						import) kind=filename ;;
+						export) kind=module-filename ;;
 						call|launch|unref) kind=module ;;
 						delete|io|kill|repl|resume|snapshot|status|suspend|wait) kind=instance ;;
 						*) return ;;
@@ -108,11 +108,11 @@ __gate_completion()
 
 	case $kind in
 		address-command)
-			COMPREPLY=( $( compgen -W "call delete download io instances kill launch modules pull push resume snapshot status suspend unref upload wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call delete export import instances io kill launch modules pull push resume snapshot status suspend unref wait" -- "$cur" ) )
 			;;
 
 		command)
-			COMPREPLY=( $( compgen -W "call delete download io instances kill launch modules repl resume snapshot status suspend unref upload wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call delete export import instances io kill launch modules repl resume snapshot status suspend unref wait" -- "$cur" ) )
 			;;
 
 		filename)

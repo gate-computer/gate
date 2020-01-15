@@ -81,7 +81,7 @@ var localCommands = map[string]command{
 		},
 	},
 
-	"download": {
+	"export": {
 		usage: "module [filename]",
 		do: func() {
 			download(func() (r io.Reader, moduleLen int64) {
@@ -95,6 +95,50 @@ var localCommands = map[string]command{
 				check(call.Store(&moduleLen))
 				return
 			})
+		},
+	},
+
+	"import": {
+		usage: "filename",
+		do: func() {
+			var (
+				r      *os.File
+				w      *os.File
+				length int64
+				copied chan error
+			)
+
+			r = openFile(flag.Arg(0))
+			if info, err := r.Stat(); err == nil && info.Mode().IsRegular() {
+				length = info.Size()
+			} else {
+				data, err := ioutil.ReadAll(r)
+				r.Close()
+				check(err)
+				length = int64(len(data))
+
+				r, w, err = os.Pipe()
+				check(err)
+
+				copied = make(chan error, 1)
+				go func() {
+					_, err := w.Write(data)
+					copied <- err
+				}()
+			}
+
+			rFD := dbus.UnixFD(r.Fd())
+			call := daemonCall("Upload", rFD, length, "")
+			closeFiles(r)
+
+			var progID string
+			check(call.Store(&progID))
+
+			if copied != nil {
+				check(<-copied)
+			}
+
+			fmt.Println(progID)
 		},
 	},
 
@@ -282,50 +326,6 @@ var localCommands = map[string]command{
 		usage: "module",
 		do: func() {
 			check(daemonCall("Unref", flag.Arg(0)).Store())
-		},
-	},
-
-	"upload": {
-		usage: "filename",
-		do: func() {
-			var (
-				r      *os.File
-				w      *os.File
-				length int64
-				copied chan error
-			)
-
-			r = openFile(flag.Arg(0))
-			if info, err := r.Stat(); err == nil && info.Mode().IsRegular() {
-				length = info.Size()
-			} else {
-				data, err := ioutil.ReadAll(r)
-				r.Close()
-				check(err)
-				length = int64(len(data))
-
-				r, w, err = os.Pipe()
-				check(err)
-
-				copied = make(chan error, 1)
-				go func() {
-					_, err := w.Write(data)
-					copied <- err
-				}()
-			}
-
-			rFD := dbus.UnixFD(r.Fd())
-			call := daemonCall("Upload", rFD, length, "")
-			closeFiles(r)
-
-			var progID string
-			check(call.Store(&progID))
-
-			if copied != nil {
-				check(<-copied)
-			}
-
-			fmt.Println(progID)
 		},
 	},
 

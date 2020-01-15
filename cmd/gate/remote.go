@@ -78,13 +78,35 @@ var remoteCommands = map[string]command{
 		},
 	},
 
-	"download": {
+	"export": {
 		usage: "module [filename]",
 		do: func() {
 			download(func() (io.Reader, int64) {
 				_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(0), nil)
 				return resp.Body, resp.ContentLength
 			})
+		},
+	},
+
+	"import": {
+		usage: "filename",
+		do: func() {
+			data, hash := loadModule(flag.Arg(0))
+
+			req := &http.Request{
+				Method: http.MethodPut,
+				Header: http.Header{
+					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
+				},
+				Body:          ioutil.NopCloser(data),
+				ContentLength: int64(data.Len()),
+			}
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionRef},
+			}
+
+			doHTTP(req, webapi.PathModuleRefs+hash, params)
+			fmt.Println(hash)
 		},
 	},
 
@@ -275,28 +297,6 @@ var remoteCommands = map[string]command{
 			}
 
 			doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), params)
-		},
-	},
-
-	"upload": {
-		usage: "filename",
-		do: func() {
-			data, hash := loadModule(flag.Arg(0))
-
-			req := &http.Request{
-				Method: http.MethodPut,
-				Header: http.Header{
-					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
-				},
-				Body:          ioutil.NopCloser(data),
-				ContentLength: int64(data.Len()),
-			}
-			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionRef},
-			}
-
-			doHTTP(req, webapi.PathModuleRefs+hash, params)
-			fmt.Println(hash)
 		},
 	},
 
