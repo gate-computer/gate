@@ -39,11 +39,10 @@ type ServiceConfig struct {
 // StartServing is called once for each program instance.  The receive channel
 // is closed when the program is being shut down.
 //
-// The maximum packet content size may be used when buffering data.
+// config.MaxSendSize may be used when buffering data.
 //
-// The initial state buffers must not be mutated, and references to them
-// shouldn't be retained for long as they may be parts of a large memory
-// allocation.
+// The snapshot buffers must not be mutated, and references to them shouldn't
+// be retained for long as they may be parts of a large memory allocation.
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {

@@ -41,7 +41,7 @@ type ProgramPolicy struct {
 type InstancePolicy struct {
 	MaxMemorySize  int           // Linear memory growth limit.
 	StackSize      int           // Including system/runtime overhead.
-	TimeResolution time.Duration // Granularity of gate.time function.
+	TimeResolution time.Duration // Granularity of time functions.
 
 	// Services function defines which services are discoverable by the
 	// instance.

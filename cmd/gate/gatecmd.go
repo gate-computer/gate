@@ -56,8 +56,8 @@ Common commands:
   wait      wait until an instance is suspended, halted, terminated or killed
 
 Local commands (no address before command):
-  pull      copy a wasm module from a server to local storage
-  push      copy a wasm module from local storage to a server
+  pull      copy a wasm module from a remote server to local storage
+  push      copy a wasm module from local storage to a remote server
 
 Remote commands (server address must be specified before command):
   repl      connect to a running instance in interactive mode

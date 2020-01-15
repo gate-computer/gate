@@ -4,9 +4,8 @@
 
 // Package packetio provides streaming utilities.
 //
-// Stream, ReadStream and WriteStream are a high-level tools for implementing
-// streaming.  State implements simple binary serialization of suspended I/O
-// state.
+// Stream, ReadStream and WriteStream are tools for implementing streaming.
+// State implements simple binary serialization of suspended I/O state.
 package packetio
 
 import (
