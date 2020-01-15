@@ -54,9 +54,6 @@ func (acc *account) ensureRefProgram(lock serverLock, prog *program) {
 }
 
 func (acc *account) unrefProgram(lock serverLock, prog *program) {
-	if _, ok := acc.programRefs[prog]; !ok {
-		panic("account does not reference program")
-	}
 	delete(acc.programRefs, prog)
 	prog.unref(lock)
 }

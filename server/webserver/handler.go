@@ -839,7 +839,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID string, debug string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
-	ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 	var (
 		progHash string
@@ -880,7 +880,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID string, debug string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
-	ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, instID, debug)
 	if err != nil {
