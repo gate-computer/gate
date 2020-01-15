@@ -1093,7 +1093,7 @@ func (s *Server) Instances(ctx context.Context) (statuses Instances, err error) 
 		statuses = append(statuses, InstanceStatus{
 			Instance:  inst.ID,
 			Status:    inst.Status(),
-			Transient: inst.transient,
+			Transient: inst.Transient(),
 		})
 	}
 
@@ -1235,7 +1235,7 @@ func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *progra
 		s.Monitor(event, err)
 	}
 
-	if inst.transient {
+	if inst.Transient() {
 		if inst.annihilate() == nil {
 			s.deleteNonexistentInstance(inst)
 		}
