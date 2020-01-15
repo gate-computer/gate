@@ -378,9 +378,9 @@ func handleCall(ctx context.Context, s *server.Server, module *os.File, key, fun
 	var inst *server.Instance
 	if module != nil {
 		moduleR, moduleLen := getReaderWithLength(module)
-		inst, err = s.UploadModuleInstance(ctx, ref, "", ioutil.NopCloser(moduleR), moduleLen, false, function, "", debugName)
+		inst, err = s.UploadModuleInstance(ctx, ref, "", ioutil.NopCloser(moduleR), moduleLen, true, function, "", debugName)
 	} else {
-		inst, err = s.CreateInstance(ctx, key, false, function, "", debugName)
+		inst, err = s.CreateInstance(ctx, key, true, function, "", debugName)
 	}
 	check(err)
 	defer inst.Kill()
@@ -403,9 +403,9 @@ func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, f
 	)
 	if module != nil {
 		moduleR, moduleLen := getReaderWithLength(module)
-		inst, err = s.UploadModuleInstance(ctx, ref, "", ioutil.NopCloser(moduleR), moduleLen, true, function, "", debugName)
+		inst, err = s.UploadModuleInstance(ctx, ref, "", ioutil.NopCloser(moduleR), moduleLen, false, function, "", debugName)
 	} else {
-		inst, err = s.CreateInstance(ctx, key, true, function, "", debugName)
+		inst, err = s.CreateInstance(ctx, key, false, function, "", debugName)
 	}
 	check(err)
 

@@ -31,7 +31,7 @@ func Fuzz(data []byte) int {
 	ctx, cancel := context.WithTimeout(context.Background(), fuzzutil.RunTimeout)
 	defer cancel()
 
-	inst, err := s.UploadModuleInstance(ctx, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), false, fuzzutil.Function, "", "")
+	inst, err := s.UploadModuleInstance(ctx, false, "", ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), true, fuzzutil.Function, "", "")
 	if err != nil {
 		if fuzzutil.IsFine(err) {
 			return 1

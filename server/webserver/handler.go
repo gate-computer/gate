@@ -647,7 +647,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
 		progHash = key
-		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, false, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -657,7 +657,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 		progHash = key
-		inst, err = s.Server.CreateInstance(ctx, key, false, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -666,7 +666,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	default:
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, wr, s, key, "", function, "", err)
@@ -781,7 +781,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			return
 		}
 
-		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, ioutil.NopCloser(frame), r.ContentLength, false, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, ioutil.NopCloser(frame), r.ContentLength, true, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -791,7 +791,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, key, false, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -800,7 +800,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, w, s, key, "", function, "", err)
@@ -850,13 +850,13 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	if source == nil {
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, key, true, function, instID, debug)
+		inst, err = s.Server.CreateInstance(ctx, key, false, function, instID, debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 	} else {
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, instID, debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, instID, debug)
 		if err != nil {
 			respondServerError(ctx, wr, s, key, "", function, "", err)
 			return
@@ -882,7 +882,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, instID, debug)
+	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, false, function, instID, debug)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return
