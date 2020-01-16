@@ -8,7 +8,7 @@ import (
 	"context"
 )
 
-const Scope = "system"
+const Scope = "program:system"
 
 type contextKey int
 

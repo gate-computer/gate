@@ -29,7 +29,7 @@ import (
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
 	gateruntime "github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/scope/system"
+	"github.com/tsavola/gate/scope/program/system"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/catalog"

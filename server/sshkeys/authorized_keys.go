@@ -11,7 +11,7 @@ import (
 
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/scope/system"
+	"github.com/tsavola/gate/scope/program/system"
 	"github.com/tsavola/gate/server"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
