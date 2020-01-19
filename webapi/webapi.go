@@ -52,6 +52,8 @@ const (
 
 // Actions on instances.  ActionWait can be combined with ActionKill or
 // ActionSuspend in a single request (ParamAction appears twice in the URL).
+// ActionSuspend can be combined with ActionLaunch on a module: the instance
+// will be created in StateSuspended or StateHalted.
 const (
 	ActionIO       = "io"       // Post or websocket.
 	ActionStatus   = "status"   // Post.

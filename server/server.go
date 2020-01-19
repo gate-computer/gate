@@ -329,8 +329,19 @@ func (s *Server) loadUnknownModule(ctx context.Context, ref bool, pol *progPolic
 }
 
 // CreateInstance instantiates a module reference.  Instance id is optional.
-func (s *Server) CreateInstance(ctx context.Context, progHash string, transient bool, function string, instID, debug string,
+func (s *Server) CreateInstance(ctx context.Context, progHash string, transient bool, function string, instID, debug string, suspend bool,
 ) (inst *Instance, err error) {
+	if suspend {
+		if function != "" {
+			err = public.Err("function cannot be specified for suspended instance")
+			return
+		}
+		if debug != "" {
+			err = public.Err("debug option is not available for suspended instance")
+			return
+		}
+	}
+
 	var pol instPolicy
 
 	ctx, err = s.AccessPolicy.AuthorizeInstance(ctx, &pol.res, &pol.inst)
@@ -386,7 +397,7 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 		closeInstanceImage(&instImage)
 	}()
 
-	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, transient, function, instID, debug)
+	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, transient, function, instID, debug, suspend)
 	if err != nil {
 		return
 	}
@@ -409,7 +420,7 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 // UploadModuleInstance creates a new module reference if ref is true.  The
 // module is instantiated in any case.  Caller provides module content.
 // Instance id is optional.
-func (s *Server) UploadModuleInstance(ctx context.Context, ref bool, allegedHash string, content io.ReadCloser, contentLength int64, transient bool, function, instID, debug string,
+func (s *Server) UploadModuleInstance(ctx context.Context, ref bool, allegedHash string, content io.ReadCloser, contentLength int64, transient bool, function, instID, debug string, suspend bool,
 ) (inst *Instance, err error) {
 	defer func() {
 		closeReader(&content)
@@ -427,7 +438,7 @@ func (s *Server) UploadModuleInstance(ctx context.Context, ref bool, allegedHash
 		return
 	}
 
-	_, inst, err = s.loadModuleInstance(ctx, acc, ref, &pol, allegedHash, content, contentLength, transient, function, instID, debug)
+	_, inst, err = s.loadModuleInstance(ctx, acc, ref, &pol, allegedHash, content, contentLength, transient, function, instID, debug, suspend)
 	content = nil
 	return
 }
@@ -435,7 +446,7 @@ func (s *Server) UploadModuleInstance(ctx context.Context, ref bool, allegedHash
 // SourceModuleInstance creates a new module reference if ref is true.  The
 // module is instantiated in any case.  Module content is read from a source.
 // Instance id is optional.
-func (s *Server) SourceModuleInstance(ctx context.Context, ref bool, source Source, uri string, transient bool, function, instID, debug string,
+func (s *Server) SourceModuleInstance(ctx context.Context, ref bool, source Source, uri string, transient bool, function, instID, debug string, suspend bool,
 ) (progHash string, inst *Instance, err error) {
 	var pol instProgPolicy
 
@@ -462,15 +473,26 @@ func (s *Server) SourceModuleInstance(ctx context.Context, ref bool, source Sour
 		return
 	}
 
-	progHash, inst, err = s.loadModuleInstance(ctx, acc, ref, &pol, "", content, int64(size), transient, function, instID, debug)
+	progHash, inst, err = s.loadModuleInstance(ctx, acc, ref, &pol, "", content, int64(size), transient, function, instID, debug, suspend)
 	return
 }
 
-func (s *Server) loadModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, transient bool, function, instID, debug string,
+func (s *Server) loadModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, transient bool, function, instID, debug string, suspend bool,
 ) (progHash string, inst *Instance, err error) {
 	defer func() {
 		closeReader(&content)
 	}()
+
+	if suspend {
+		if function != "" {
+			err = public.Err("function cannot be specified for suspended instance")
+			return
+		}
+		if debug != "" {
+			err = public.Err("debug option is not available for suspended instance")
+			return
+		}
+	}
 
 	if contentLength > int64(pol.prog.MaxModuleSize) {
 		err = resourcelimit.New("module size limit exceeded")
@@ -480,7 +502,7 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, ref bool,
 	// TODO: check resource policy
 
 	if allegedHash != "" {
-		inst, err = s.loadKnownModuleInstance(ctx, acc, ref, pol, allegedHash, &content, contentLength, transient, function, instID, debug)
+		inst, err = s.loadKnownModuleInstance(ctx, acc, ref, pol, allegedHash, &content, contentLength, transient, function, instID, debug, suspend)
 		if err != nil {
 			return
 		}
@@ -490,13 +512,13 @@ func (s *Server) loadModuleInstance(ctx context.Context, acc *account, ref bool,
 		}
 	}
 
-	progHash, inst, err = s.loadUnknownModuleInstance(ctx, acc, ref, pol, allegedHash, content, int(contentLength), transient, function, instID, debug)
+	progHash, inst, err = s.loadUnknownModuleInstance(ctx, acc, ref, pol, allegedHash, content, int(contentLength), transient, function, instID, debug, suspend)
 	content = nil
 	return
 }
 
 // loadKnownModuleInstance might close the content reader and set it to nil.
-func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content *io.ReadCloser, contentLength int64, transient bool, function, instID, debug string,
+func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content *io.ReadCloser, contentLength int64, transient bool, function, instID, debug string, suspend bool,
 ) (inst *Instance, err error) {
 	prog, err := s.refProgram(allegedHash, contentLength)
 	if prog == nil || err != nil {
@@ -532,7 +554,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 		closeInstanceImage(&instImage)
 	}()
 
-	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, function, instID, debug)
+	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, function, instID, debug, suspend)
 	if err != nil {
 		return
 	}
@@ -558,7 +580,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 }
 
 // loadUnknownModuleInstance always closes the content reader.
-func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, transient bool, function, instID, debug string,
+func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentSize int, transient bool, function, instID, debug string, suspend bool,
 ) (progHash string, inst *Instance, err error) {
 	prog, instImage, err := buildProgram(s.ImageStorage, &pol.prog, &pol.inst, allegedHash, content, contentSize, function)
 	if err != nil {
@@ -570,7 +592,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	}()
 	progHash = prog.hash
 
-	inst, prog, redundantProg, err := s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, function, instID, debug)
+	inst, prog, redundantProg, err := s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, function, instID, debug, suspend)
 	if err != nil {
 		return
 	}
@@ -1214,13 +1236,16 @@ func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *
 		s.unrefProgram(&prog)
 	}()
 
-	if err := inst.startOrAnnihilate(prog); err != nil {
+	drive, err := inst.startOrAnnihilate(prog)
+	if err != nil {
 		s.deleteNonexistentInstance(inst)
 		return err
 	}
 
-	go s.driveInstance(detachedContext(ctx), inst, prog)
-	prog = nil
+	if drive {
+		go s.driveInstance(detachedContext(ctx), inst, prog)
+		prog = nil
+	}
 
 	return nil
 }
@@ -1304,15 +1329,23 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 // registerProgramRefInstance with server, and an account if ref is true.
 // Caller's instance image is stolen (except on error).  Caller's program
 // reference is replaced with a reference to the canonical program object.
-func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, ref bool, prog *program, instImage *image.Instance, pol *InstancePolicy, transient bool, function, instID, debug string,
+func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, ref bool, prog *program, instImage *image.Instance, pol *InstancePolicy, transient bool, function, instID, debug string, suspend bool,
 ) (inst *Instance, canonicalProg *program, redundantProg bool, err error) {
-	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, pol, debug)
-	if err != nil {
-		return
+	var (
+		proc        *runtime.Process
+		services    InstanceServices
+		debugStatus string
+		debugOutput io.WriteCloser
+	)
+	if !suspend {
+		proc, services, debugStatus, debugOutput, err = s.allocateInstanceResources(ctx, pol, debug)
+		if err != nil {
+			return
+		}
+		defer func() {
+			closeInstanceResources(&proc, &services, &debugOutput)
+		}()
 	}
-	defer func() {
-		closeInstanceResources(&proc, &services, &debugOutput)
-	}()
 
 	if ref || !transient {
 		if acc == nil {

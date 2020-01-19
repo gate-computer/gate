@@ -363,6 +363,7 @@ func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 	mustHaveWebAssemblyContent(w, r, s)
 	query := mustParseOptionalQuery(w, r, s)
 	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
+	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
 
 	if _, found := query[webapi.ParamAction]; found {
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
@@ -377,7 +378,7 @@ func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 			instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
 			debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
 			mustNotHaveParams(w, r, s, query)
-			handleLaunchUpload(w, r, s, ref, key, function, instance, debug)
+			handleLaunchUpload(w, r, s, ref, key, function, instance, debug, suspend)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -390,6 +391,7 @@ func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 
 func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	query := mustParseQuery(w, r, s)
+	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
 
 	switch popLastParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
@@ -404,7 +406,7 @@ func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, k
 		debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContent(w, r, s)
-		handleLaunch(w, r, s, server.OpLaunchExtant, false, nil, key, function, instance, debug)
+		handleLaunch(w, r, s, server.OpLaunchExtant, false, nil, key, function, instance, debug, suspend)
 
 	case webapi.ActionUnref:
 		mustNotHaveParams(w, r, s, query)
@@ -436,6 +438,7 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
 	query := mustParseQuery(w, r, s)
 	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
+	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
 
 	if _, found := query[webapi.ParamAction]; found {
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
@@ -452,7 +455,7 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 			mustNotHaveParams(w, r, s, query)
 			mustNotHaveContentType(w, r, s)
 			mustNotHaveContent(w, r, s)
-			handleLaunch(w, r, s, server.OpLaunchSource, ref, source, key, function, instance, debug)
+			handleLaunch(w, r, s, server.OpLaunchSource, ref, source, key, function, instance, debug, suspend)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -647,7 +650,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
 		progHash = key
-		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, "", debug, false)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -657,7 +660,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 		progHash = key
-		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug, false)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -666,7 +669,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	default:
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug, false)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, wr, s, key, "", function, "", err)
@@ -781,7 +784,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			return
 		}
 
-		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, ioutil.NopCloser(frame), r.ContentLength, true, function, "", debug)
+		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, ioutil.NopCloser(frame), r.ContentLength, true, function, "", debug, false)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -791,7 +794,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug)
+		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug, false)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -800,7 +803,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug, false)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, w, s, key, "", function, "", err)
@@ -836,7 +839,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 }
 
-func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID string, debug string) {
+func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID string, debug string, suspend bool) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -850,13 +853,13 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	if source == nil {
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, key, false, function, instID, debug)
+		inst, err = s.Server.CreateInstance(ctx, key, false, function, instID, debug, suspend)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 	} else {
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, instID, debug)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, instID, debug, suspend)
 		if err != nil {
 			respondServerError(ctx, wr, s, key, "", function, "", err)
 			return
@@ -877,12 +880,12 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	}
 }
 
-func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID string, debug string) {
+func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID string, debug string, suspend bool) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, false, function, instID, debug)
+	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, false, function, instID, debug, suspend)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return

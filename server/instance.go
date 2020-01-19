@@ -88,9 +88,20 @@ func newInstance(id string, acc *account, function string, image *image.Instance
 	return inst
 }
 
-func (inst *Instance) startOrAnnihilate(prog *program) (err error) {
+func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
+
+	if inst.process == nil {
+		if inst.image.StackUsage() == 0 {
+			inst.status.State = StateHalted
+		} else {
+			inst.status.State = StateSuspended
+		}
+		inst.exists = true
+		close(inst.stopped)
+		return
+	}
 
 	policy := runtime.ProcessPolicy{
 		TimeResolution: inst.timeReso,
@@ -107,6 +118,7 @@ func (inst *Instance) startOrAnnihilate(prog *program) (err error) {
 
 	inst.status.State = StateRunning
 	inst.exists = true
+	drive = true
 	return
 }
 
@@ -161,7 +173,9 @@ func (inst *Instance) Kill() {
 	proc := inst.process
 	inst.mu.Unlock()
 
-	proc.Kill()
+	if proc != nil {
+		proc.Kill()
+	}
 }
 
 func (inst *Instance) suspend() {
@@ -170,7 +184,9 @@ func (inst *Instance) suspend() {
 	proc := inst.process
 	inst.mu.Unlock()
 
-	proc.Suspend()
+	if proc != nil {
+		proc.Suspend()
+	}
 }
 
 func (inst *Instance) checkResume(prog *program, function string) (err error) {
