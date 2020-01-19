@@ -8,8 +8,8 @@ import (
 	"encoding/binary"
 	"syscall"
 
-	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/internal/varint"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/gate/snapshot/wasm"

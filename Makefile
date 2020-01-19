@@ -15,8 +15,8 @@ GEN_LIB_SOURCES := \
 	runtime/include/errors.h
 
 GEN_BIN_SOURCES := \
-	image/internal/manifest/manifest.pb.go \
 	internal/error/runtime/errors.go \
+	internal/manifest/manifest.pb.go \
 	internal/serverapi/serverapi.pb.go \
 	server/detail/detail.pb.go \
 	server/event/event.pb.go \

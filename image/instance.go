@@ -12,11 +12,11 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/wa"

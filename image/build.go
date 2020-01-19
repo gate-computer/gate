@@ -12,12 +12,13 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/tsavola/gate/image/internal/manifest"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
+	"github.com/tsavola/gate/internal/manifest"
 	runtimeabi "github.com/tsavola/gate/runtime/abi"
+	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/buffer"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
@@ -247,7 +248,7 @@ func (b *Build) FinishProgram(
 	mod compile.Module,
 	startFuncIndex int,
 	entryFuncs bool,
-	monotonicTime uint64,
+	snap *snapshot.Snapshot,
 	bufferSectionHeaderLength int,
 ) (prog *Program, err error) {
 	if b.stackUsage != len(b.stack) {
@@ -294,7 +295,6 @@ func (b *Build) FinishProgram(
 		CallSitesSize:             uint32(callSitesSize(b.prog.objectMap)),
 		FuncAddrsSize:             uint32(funcAddrsSize(b.prog.objectMap)),
 		Random:                    b.imports.Random,
-		Snapshot:                  manifest.Snapshot{MonotonicTime: monotonicTime},
 	}
 	if startFuncIndex >= 0 {
 		man.StartFunc = manifest.Function{
@@ -304,6 +304,9 @@ func (b *Build) FinishProgram(
 	}
 	if entryFuncs {
 		man.InitEntryFuncs(mod, b.prog.objectMap.FuncAddrs)
+	}
+	if snap != nil {
+		man.Snapshot.MonotonicTime = snap.MonotonicTime
 	}
 
 	b.stack = nil

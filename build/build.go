@@ -10,11 +10,11 @@ import (
 	"io/ioutil"
 
 	"github.com/tsavola/gate/image"
+	internal "github.com/tsavola/gate/internal/build"
 	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
-	internal "github.com/tsavola/gate/internal/build"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/binding"
@@ -35,8 +35,7 @@ type Build struct {
 	StackSize                 int
 	maxMemorySize             int // For instance.
 	entryIndex                int
-	snapshot                  bool
-	monotonicTime             uint64
+	snapshot                  *snapshot.Snapshot
 	Buffers                   snapshot.Buffers
 	bufferSectionHeaderLength int
 }
@@ -69,6 +68,8 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 			return
 		}
 
+		snap := new(snapshot.Snapshot)
+
 		version, n, err := readVaruint64(r)
 		if err != nil {
 			return
@@ -86,7 +87,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		}
 		length--
 
-		b.monotonicTime, n, err = readVaruint64(r)
+		snap.MonotonicTime, n, err = readVaruint64(r)
 		if err != nil {
 			return
 		}
@@ -98,12 +99,12 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		}
 
 		b.SectionMap.Snapshot = b.SectionMap.Sections[section.Custom]
-		b.snapshot = true
+		b.snapshot = snap
 		return
 	}
 
 	b.Loaders[wasm.SectionExport] = func(_ string, r section.Reader, length uint32) (err error) {
-		if !b.snapshot {
+		if b.snapshot == nil {
 			err = badprogram.Err("gate.export section without gate.snapshot section")
 			return
 		}
@@ -206,7 +207,7 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 			return
 		}
 	} else {
-		b.entryIndex, err = internal.ResolveEntryFunc(b.Module, entryName, b.snapshot)
+		b.entryIndex, err = internal.ResolveEntryFunc(b.Module, entryName, b.snapshot != nil)
 		if err != nil {
 			return
 		}
@@ -228,7 +229,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		b.installLateSnapshotLoader()
 		b.installDuplicateBufferLoader()
 
-		if !b.snapshot {
+		if b.snapshot == nil {
 			err = badprogram.Err("gate.buffer section without gate.snapshot section")
 			return
 		}
@@ -259,7 +260,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		b.installLateBufferLoader()
 		b.installDuplicateStackLoader()
 
-		if !b.snapshot {
+		if b.snapshot == nil {
 			err = badprogram.Err("gate.stack section without gate.snapshot section")
 			return
 		}
@@ -361,7 +362,7 @@ func (b *Build) FinishProgramImage() (*image.Program, error) {
 		startIndex = int(i)
 	}
 
-	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.monotonicTime, b.bufferSectionHeaderLength)
+	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.snapshot, b.bufferSectionHeaderLength)
 }
 
 // FinishInstanceImage after program image has been finished.
