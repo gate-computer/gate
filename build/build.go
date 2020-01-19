@@ -5,10 +5,9 @@
 package build
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 
 	"github.com/tsavola/gate/image"
 	internal "github.com/tsavola/gate/internal/build"
@@ -16,7 +15,6 @@ import (
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
-	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/binding"
@@ -25,8 +23,6 @@ import (
 	"github.com/tsavola/wag/section"
 	"github.com/tsavola/wag/wa"
 )
-
-const minSnapshotVersion = 0
 
 type Build struct {
 	Image                     *image.Build
@@ -37,7 +33,8 @@ type Build struct {
 	StackSize                 int
 	maxMemorySize             int // For instance.
 	entryIndex                int
-	snapshot                  *snapshot.Snapshot
+	Snapshot                  *snapshot.Snapshot
+	breakpoints               map[uint32]compile.Breakpoint
 	Buffers                   snapshot.Buffers
 	bufferSectionHeaderLength int
 }
@@ -65,68 +62,23 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 	b.Loaders[wasm.SectionSnapshot] = func(_ string, r section.Reader, length uint32) (err error) {
 		b.installDuplicateSnapshotLoader()
 
-		if length == 0 {
-			err = badprogram.Err("gate.snapshot section is empty")
-			return
-		}
-
-		snap := new(snapshot.Snapshot)
-
-		version, n, err := readVaruint64(r)
+		snap, n, err := wasm.ReadSnapshotSection(r)
 		if err != nil {
 			return
 		}
-		length -= uint32(n)
 
-		if version < minSnapshotVersion {
-			err = badprogram.Err(fmt.Sprintf("unsupported snapshot version: %d", version))
-			return
-		}
-
-		_, err = r.ReadByte() // Flags
-		if err != nil {
-			return
-		}
-		length--
-
-		snap.MonotonicTime, n, err = readVaruint64(r)
-		if err != nil {
-			return
-		}
-		length -= uint32(n)
-
-		numBreakpoints, n, err := readVaruint64(r)
-		if err != nil {
-			return
-		}
-		length -= uint32(n)
-
-		if numBreakpoints >= manifest.MaxBreakpoints {
-			err = errors.New("snapshot has too many breakpoints")
-			return
-		}
-
-		snap.Breakpoints = make([]uint64, numBreakpoints)
-		for i := range snap.Breakpoints {
-			snap.Breakpoints[i], n, err = readVaruint64(r)
-			if err != nil {
-				return
-			}
-			length -= uint32(n)
-		}
-
-		_, err = io.CopyN(ioutil.Discard, r, int64(length))
+		_, err = io.CopyN(ioutil.Discard, r, int64(length)-int64(n))
 		if err != nil {
 			return
 		}
 
 		b.SectionMap.Snapshot = b.SectionMap.Sections[section.Custom]
-		b.snapshot = snap
+		b.Snapshot = &snap
 		return
 	}
 
 	b.Loaders[wasm.SectionExport] = func(_ string, r section.Reader, length uint32) (err error) {
-		if b.snapshot == nil {
+		if b.Snapshot == nil {
 			err = badprogram.Err("gate.export section without gate.snapshot section")
 			return
 		}
@@ -229,7 +181,7 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 			return
 		}
 	} else {
-		b.entryIndex, err = internal.ResolveEntryFunc(b.Module, entryName, b.snapshot != nil)
+		b.entryIndex, err = internal.ResolveEntryFunc(b.Module, entryName, b.Snapshot != nil)
 		if err != nil {
 			return
 		}
@@ -239,11 +191,43 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 }
 
 func (b *Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
-	return &compile.CodeConfig{
-		Text:   b.Image.TextBuffer(),
-		Mapper: mapper,
-		Config: b.Config,
+	if b.Snapshot != nil {
+		b.breakpoints = make(map[uint32]compile.Breakpoint)
+		for _, offset := range b.Snapshot.Breakpoints {
+			if offset <= math.MaxUint32 {
+				b.breakpoints[uint32(offset)] = compile.Breakpoint{}
+			}
+		}
 	}
+
+	return &compile.CodeConfig{
+		Text:        b.Image.TextBuffer(),
+		Mapper:      mapper,
+		Breakpoints: b.breakpoints,
+		Config:      b.Config,
+	}
+}
+
+func (b *Build) VerifyBreakpoints() (err error) {
+	if b.Snapshot == nil {
+		return
+	}
+
+	for _, offset := range b.Snapshot.Breakpoints {
+		if offset > math.MaxUint32 {
+			err = badprogram.Errorf("breakpoint could not be set at offset 0x%x", offset)
+			return
+		}
+	}
+
+	for offset, bp := range b.breakpoints {
+		if !bp.Set {
+			err = badprogram.Errorf("breakpoint could not be set at offset 0x%x", offset)
+			return
+		}
+	}
+
+	return
 }
 
 func (b *Build) InstallSnapshotDataLoaders() {
@@ -251,7 +235,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		b.installLateSnapshotLoader()
 		b.installDuplicateBufferLoader()
 
-		if b.snapshot == nil {
+		if b.Snapshot == nil {
 			err = badprogram.Err("gate.buffer section without gate.snapshot section")
 			return
 		}
@@ -282,7 +266,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		b.installLateBufferLoader()
 		b.installDuplicateStackLoader()
 
-		if b.snapshot == nil {
+		if b.Snapshot == nil {
 			err = badprogram.Err("gate.stack section without gate.snapshot section")
 			return
 		}
@@ -384,7 +368,7 @@ func (b *Build) FinishProgramImage() (*image.Program, error) {
 		startIndex = int(i)
 	}
 
-	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.snapshot, b.bufferSectionHeaderLength)
+	return b.Image.FinishProgram(b.SectionMap, b.Module, startIndex, true, b.Snapshot, b.bufferSectionHeaderLength)
 }
 
 // FinishInstanceImage after program image has been finished.
@@ -399,25 +383,4 @@ func (b *Build) Close() error {
 func alignMemorySize(size int) int {
 	mask := wa.PageSize - 1
 	return (size + mask) &^ mask
-}
-
-func readVaruint64(r section.Reader) (x uint64, n int, err error) {
-	var shift uint
-	for n = 1; ; n++ {
-		var b byte
-		b, err = r.ReadByte()
-		if err != nil {
-			return
-		}
-		if b < 0x80 {
-			if n > 9 || n == 9 && b > 1 {
-				err = badprogram.Err("varuint64 is too large")
-				return
-			}
-			x |= uint64(b) << shift
-			return
-		}
-		x |= (uint64(b) & 0x7f) << shift
-		shift += 7
-	}
 }

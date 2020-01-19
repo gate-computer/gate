@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"sort"
 
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/object"
+	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/wa"
 )
 
@@ -33,7 +33,7 @@ func putInitStack(portable []byte, startFuncIndex, entryFuncIndex int64) {
 }
 
 // exportStack from native source buffer to portable target buffer.
-func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMap) (err error) {
+func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap) (err error) {
 	if n := len(native); n == 0 || n&7 != 0 {
 		err = fmt.Errorf("invalid stack size %d", n)
 		return
@@ -68,7 +68,7 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 			return
 		}
 
-		init, _, callIndex, stackOffset, _ := codeMap.FindAddr(uint32(retAddr))
+		init, _, callIndex, stackOffset, _ := textMap.FindCall(uint32(retAddr))
 		if callIndex < 0 {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", retAddr)
 			return
@@ -111,14 +111,9 @@ func exportStack(portable, native []byte, textAddr uint64, codeMap object.CallMa
 		funcIndex := uint32(math.MaxUint32) // No entry function.
 
 		if funcAddr != 0 {
-			i := sort.Search(len(codeMap.FuncAddrs), func(i int) bool {
-				return uint64(codeMap.FuncAddrs[i]) >= funcAddr
-			})
-			if i == len(codeMap.FuncAddrs) || uint64(codeMap.FuncAddrs[i]) != funcAddr {
-				err = fmt.Errorf("entry function address 0x%x is unknown", funcAddr)
-				return
+			if i, found := textMap.FindFunc(uint32(funcAddr)); found {
+				funcIndex = uint32(i)
 			}
-			funcIndex = uint32(i)
 		}
 
 		binary.LittleEndian.PutUint64(portable, uint64(funcIndex))
@@ -199,7 +194,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 		buf = buf[call.StackOffset-8:]
 
-		init, funcIndex, callIndexAgain, stackOffsetAgain, _ := codeMap.FindAddr(call.RetAddr)
+		init, funcIndex, callIndexAgain, stackOffsetAgain, _ := codeMap.FindCall(call.RetAddr)
 		if init || callIndexAgain != int(callIndex) || stackOffsetAgain != call.StackOffset {
 			err = fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr)
 			return

@@ -40,6 +40,7 @@ const mainUsageHead = `Usage: %s [options] [address] command [arguments]
 
 Common commands:
   call      execute a wasm module with I/O
+  debug     instance debugger
   delete    delete an instance
   export    write a wasm module to a local file or standard output
   import    read a wasm module from a local file

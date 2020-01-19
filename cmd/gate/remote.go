@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	api "github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/gate/webapi/authorization"
 	"golang.org/x/crypto/ed25519"
@@ -68,6 +69,33 @@ var remoteCommands = map[string]command{
 				log.Fatal(status)
 			}
 			os.Exit(status.Result)
+		},
+	},
+
+	"debug": {
+		usage: "instance [command [offset]]",
+		do: func() {
+			debug(func(instID string, debug api.DebugRequest) (res api.DebugResponse) {
+				debugJSON, err := json.Marshal(debug)
+				check(err)
+
+				params := url.Values{
+					webapi.ParamAction: []string{webapi.ActionDebug},
+				}
+
+				req := &http.Request{
+					Method: http.MethodPost,
+					Header: http.Header{
+						webapi.HeaderContentType: []string{webapi.ContentTypeJSON},
+					},
+					Body:          ioutil.NopCloser(bytes.NewReader(debugJSON)),
+					ContentLength: int64(len(debugJSON)),
+				}
+
+				_, resp := doHTTP(req, webapi.PathInstances+instID, params)
+				check(json.NewDecoder(resp.Body).Decode(&res))
+				return
+			})
 		},
 	},
 

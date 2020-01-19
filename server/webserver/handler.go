@@ -16,11 +16,13 @@ import (
 	"strings"
 
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/gate/internal/serverapi"
+	"github.com/tsavola/gate/internal/jsonproto"
+	api "github.com/tsavola/gate/internal/webserverapi"
 	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
+	"github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/gate/webapi"
 )
 
@@ -32,7 +34,7 @@ type errorWriter interface {
 }
 
 type instanceMethod func(s *server.Server, ctx context.Context, instance string) error
-type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (server.Status, error)
+type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (serverapi.Status, error)
 type instanceWaiterMethod func(s *server.Server, ctx context.Context, instance string) (*server.Instance, error)
 
 type webserver struct {
@@ -271,8 +273,9 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, sour
 
 func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 	var (
-		headers = join(webapi.HeaderAuthorization)
-		exposed = join(webapi.HeaderStatus)
+		headersGet  = join(webapi.HeaderAuthorization)
+		headersPost = join(webapi.HeaderAuthorization, webapi.HeaderContentType)
+		exposed     = join(webapi.HeaderStatus)
 	)
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -280,7 +283,7 @@ func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 			// Instance directory listing
 
 			methods := "GET, HEAD, OPTIONS"
-			setAccessControlAllowHeaders(w, r, methods, headers)
+			setAccessControlAllowHeaders(w, r, methods, headersGet)
 
 			switch r.Method {
 			case "GET", "HEAD":
@@ -298,7 +301,7 @@ func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 
 			// Get method is only for websocket; exclude it from CORS.
 			methods := "OPTIONS, POST"
-			setAccessControlAllowExposeHeaders(w, r, methods, headers, exposed)
+			setAccessControlAllowExposeHeaders(w, r, methods, headersPost, exposed)
 
 			methods = "GET, OPTIONS, POST"
 
@@ -360,7 +363,8 @@ func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 }
 
 func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
-	mustHaveWebAssemblyContent(w, r, s)
+	mustHaveContentType(w, r, s, webapi.ContentTypeWebAssembly)
+	mustHaveContentLength(w, r, s)
 	query := mustParseOptionalQuery(w, r, s)
 	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
 	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
@@ -527,6 +531,10 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 		mustNotHaveParams(w, r, s, query)
 		handleInstance(w, r, s, server.OpInstanceDelete, (*server.Server).DeleteInstance, instance)
 
+	case webapi.ActionDebug:
+		mustNotHaveParams(w, r, s, query)
+		handleInstanceDebug(w, r, s, instance)
+
 	default:
 		respondUnsupportedAction(w, r, s)
 	}
@@ -554,13 +562,13 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 
 	sort.Sort(refs)
 
-	if refs == nil {
-		refs = []webapi.ModuleRef{} // For JSON.
+	if refs.Modules == nil {
+		refs.Modules = []webapi.ModuleRef{} // For JSON.
 	}
 
 	w.Header().Set(webapi.HeaderContentType, contentTypeJSON)
 
-	json.NewEncoder(w).Encode(&webapi.ModuleRefs{Modules: refs})
+	json.NewEncoder(w).Encode(refs)
 }
 
 func handleModuleDownload(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
@@ -699,7 +707,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	inst.Connect(ctx, r.Body, w)
 	status := inst.Wait(ctx)
-	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
+	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 }
 
 func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function string, debug string) {
@@ -833,7 +841,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
 	status := inst.Wait(ctx)
-	statusJSON := serverapi.MustMarshalJSON(&status) // TODO: send ConnectionStatus
+	statusJSON := jsonproto.MustMarshal(&status) // TODO: send ConnectionStatus
 	if conn.WriteMessage(websocket.TextMessage, statusJSON) == nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 	}
@@ -918,15 +926,13 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 
 	sort.Sort(instances)
 
-	if instances == nil {
-		instances = []server.InstanceStatus{}
+	if instances.Instances == nil {
+		instances.Instances = []serverapi.InstanceStatus{} // For JSON.
 	}
 
 	w.Header().Set(webapi.HeaderContentType, contentTypeJSON)
 
-	serverapi.JSONMarshaler.Marshal(w, &serverapi.Instances{
-		Instances: instances,
-	})
+	jsonproto.Marshaler.Marshal(w, &instances)
 }
 
 func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceMethod, instID string) {
@@ -954,7 +960,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
+	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -971,7 +977,7 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 
 	if wait {
 		status := inst.Wait(ctx)
-		w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
+		w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -1023,7 +1029,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	status := inst.Status()
-	w.Header().Set(webapi.HeaderStatus, string(serverapi.MustMarshalJSON(&status)))
+	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 }
 
 func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, instID string) {
@@ -1062,8 +1068,12 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	reply := &server.IOConnection{Connected: connIO != nil}
-	err = conn.WriteMessage(websocket.TextMessage, serverapi.MustMarshalJSON(reply))
+	reply := &api.IOConnection{
+		Connected: connIO != nil,
+		Debug:     inst.Status().Debug,
+	}
+
+	err = conn.WriteMessage(websocket.TextMessage, jsonproto.MustMarshal(reply))
 	if err != nil {
 		reportNetworkError(ctx, s, err)
 		return
@@ -1080,7 +1090,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	data, err := serverapi.MarshalJSON(&server.ConnectionStatus{Status: inst.Status()})
+	data, err := jsonproto.Marshal(&api.ConnectionStatus{Status: inst.Status()})
 	if err != nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		reportInternalError(ctx, s, "", "", "", "", err)
@@ -1109,4 +1119,33 @@ func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver
 
 	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+moduleKey)
 	w.WriteHeader(http.StatusCreated)
+}
+
+func handleInstanceDebug(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
+	mustHaveContentType(w, r, s, webapi.ContentTypeJSON)
+	ctx := server.ContextWithOp(r.Context(), server.OpInstanceDebug)
+	wr := &requestResponseWriter{w, r}
+	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
+
+	var req serverapi.DebugRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondContentParseError(ctx, wr, s, err)
+		return
+	}
+
+	res, err := s.Server.DebugInstance(ctx, instID, req)
+	if err != nil {
+		respondServerError(ctx, wr, s, "", "", "", instID, err)
+		return
+	}
+
+	resContent, err := json.Marshal(res)
+	if err != nil {
+		panic(err)
+	}
+
+	w.Header().Set(webapi.HeaderContentLength, strconv.Itoa(len(resContent)))
+	w.Header().Set(webapi.HeaderContentType, webapi.ContentTypeJSON+"; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resContent)
 }

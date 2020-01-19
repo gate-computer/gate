@@ -30,4 +30,5 @@ const (
 	OpInstanceResume   = detail.Op_INSTANCE_RESUME
 	OpInstanceSnapshot = detail.Op_INSTANCE_SNAPSHOT
 	OpInstanceDelete   = detail.Op_INSTANCE_DELETE
+	OpInstanceDebug    = detail.Op_INSTANCE_DEBUG
 )

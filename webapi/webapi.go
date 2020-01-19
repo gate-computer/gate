@@ -14,15 +14,15 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/tsavola/gate/internal/serverapi"
+	"github.com/tsavola/gate/serverapi"
 )
 
 // Name of the module reference source and associated content hash algorithm.
-const ModuleRefSource = "sha384"
+const ModuleRefSource = serverapi.ModuleRefSource
 
 // Algorithm for converting module content to reference id.  A reference id
 // string can be formed by encoding a hash digest with base64.RawURLEncoding.
-const ModuleRefHash = crypto.SHA384
+const ModuleRefHash crypto.Hash = serverapi.ModuleRefHash
 
 // Request URL paths.
 const (
@@ -63,6 +63,7 @@ const (
 	ActionResume   = "resume"   // Post.
 	ActionSnapshot = "snapshot" // Post.
 	ActionDelete   = "delete"   // Post.
+	ActionDebug    = "debug"    // Post.
 )
 
 // HTTP request headers.
@@ -86,6 +87,9 @@ const (
 
 // The supported module content type.
 const ContentTypeWebAssembly = "application/wasm"
+
+// The supported instance debug content type.
+const ContentTypeJSON = "application/json"
 
 // The supported key type.
 const KeyTypeOctetKeyPair = "OKP"
@@ -168,6 +172,7 @@ const (
 	// Abnormal causes for StateSuspended:
 	CauseCallStackExhausted = "CALL_STACK_EXHAUSTED"
 	CauseABIDeficiency      = "ABI_DEFICIENCY"
+	CauseBreakpoint         = "BREAKPOINT"
 
 	// Abnormal causes for StateKilled:
 	CauseUnreachable                   = "UNREACHABLE"
@@ -215,9 +220,7 @@ func (status Status) String() (s string) {
 }
 
 // Response to PathModuleRefs request.
-type ModuleRefs struct {
-	Modules []ModuleRef `json:"modules"`
-}
+type ModuleRefs = serverapi.ModuleRefs
 
 // An item in a ModuleRefs response.
 type ModuleRef = serverapi.ModuleRef
@@ -232,6 +235,7 @@ type InstanceStatus struct {
 	Instance  string `json:"instance"`
 	Status    Status `json:"status"`
 	Transient bool   `json:"transient,omitempty"`
+	Debugging bool   `json:"debugging,omitempty"`
 }
 
 // ActionCall websocket request message.

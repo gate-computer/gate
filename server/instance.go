@@ -8,19 +8,24 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path"
+	"reflect"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/internal/error/badprogram"
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/subsystem"
+	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
+	api "github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/trap"
+	"github.com/tsavola/wag/object/stack"
 )
 
 func makeInstanceID() string {
@@ -41,6 +46,23 @@ func instanceStorageKey(acc *account, instID string) string {
 	return fmt.Sprintf("%s.%s", acc.ID.String(), instID)
 }
 
+// trapStatus converts non-exit trap id to non-final instance state and cause.
+func trapStatus(id trap.ID) (api.State, api.Cause) {
+	switch id {
+	case trap.Suspended:
+		return api.StateSuspended, api.CauseNormal
+
+	case trap.CallStackExhausted, trap.ABIDeficiency, trap.Breakpoint:
+		return api.StateSuspended, api.Cause(id)
+
+	case trap.Killed:
+		return api.StateKilled, api.CauseNormal
+
+	default:
+		return api.StateKilled, api.Cause(id)
+	}
+}
+
 type instanceLock struct{}
 type instanceMutex struct{ sync.Mutex }
 
@@ -50,36 +72,38 @@ func (m *instanceMutex) Lock() instanceLock {
 }
 
 type Instance struct {
-	ID        string
-	transient bool
-	acc       *account
+	ID  string
+	acc *account
 
-	mu       instanceMutex // Guards the fields below.
-	exists   bool
-	status   Status
-	function string
-	image    *image.Instance
-	buffers  snapshot.Buffers
-	process  *runtime.Process
-	services InstanceServices
-	timeReso time.Duration
-	debug    io.WriteCloser
-	stopped  chan struct{}
+	mu           instanceMutex // Guards the fields below.
+	exists       bool
+	transient    bool
+	status       api.Status
+	function     string
+	altProgImage *image.Program
+	altTextMap   stack.TextMap
+	image        *image.Instance
+	buffers      snapshot.Buffers
+	process      *runtime.Process
+	services     InstanceServices
+	timeReso     time.Duration
+	debugLog     io.WriteCloser
+	stopped      chan struct{}
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, function string, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugOutput io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, function string, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser) *Instance {
 	inst := &Instance{
 		ID:        id,
 		transient: persistent == nil,
 		acc:       acc,
-		status:    Status{Debug: debugStatus},
+		status:    api.Status{Debug: debugStatus},
 		function:  function,
 		image:     image,
 		process:   proc,
 		services:  services,
 		timeReso:  timeReso,
-		debug:     debugOutput,
+		debugLog:  debugLog,
 		stopped:   make(chan struct{}),
 	}
 	if persistent != nil {
@@ -93,22 +117,39 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 	defer inst.mu.Unlock()
 
 	if inst.process == nil {
-		if inst.image.StackUsage() == 0 {
-			inst.status.State = StateHalted
+		if id := inst.image.Trap(); id == trap.Exit {
+			if inst.image.Final() {
+				inst.status.State = api.StateTerminated
+			} else {
+				inst.status.State = api.StateHalted
+			}
+			inst.status.Result = inst.image.Result()
 		} else {
-			inst.status.State = StateSuspended
+			if inst.image.Final() {
+				inst.status.State = api.StateKilled
+				if id != trap.Killed {
+					inst.status.Cause = api.Cause(id)
+				}
+			} else {
+				inst.status.State, inst.status.Cause = trapStatus(id)
+			}
 		}
 		inst.exists = true
 		close(inst.stopped)
 		return
 	}
 
-	policy := runtime.ProcessPolicy{
-		TimeResolution: inst.timeReso,
-		Debug:          inst.debug,
+	progImage := prog.image
+	if inst.altProgImage != nil {
+		progImage = inst.altProgImage
 	}
 
-	err = inst.process.Start(prog.image, inst.image, policy)
+	policy := runtime.ProcessPolicy{
+		TimeResolution: inst.timeReso,
+		Debug:          inst.debugLog,
+	}
+
+	err = inst.process.Start(progImage, inst.image, policy)
 	if err != nil {
 		inst.stop(lock)
 		inst.image.Close()
@@ -116,7 +157,7 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 		return
 	}
 
-	inst.status.State = StateRunning
+	inst.status.State = api.StateRunning
 	inst.exists = true
 	drive = true
 	return
@@ -130,9 +171,9 @@ func (inst *Instance) stop(instanceLock) {
 	inst.services.Close()
 	inst.services = nil
 
-	if inst.debug != nil {
-		inst.debug.Close()
-		inst.debug = nil
+	if inst.debugLog != nil {
+		inst.debugLog.Close()
+		inst.debugLog = nil
 	}
 }
 
@@ -143,20 +184,32 @@ func (inst *Instance) Transient() bool {
 	return inst.transient
 }
 
-func (inst *Instance) Status() Status {
+func (inst *Instance) Status() api.Status {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	return inst.status
 }
 
-func (inst *Instance) Wait(ctx context.Context) (status Status) {
+func (inst *Instance) instanceStatus() api.InstanceStatus {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
+	return api.InstanceStatus{
+		Instance:  inst.ID,
+		Status:    inst.status,
+		Transient: inst.transient,
+		Debugging: inst.image.DebugInfo() || len(inst.image.Breakpoints()) > 0,
+	}
+}
+
+func (inst *Instance) Wait(ctx context.Context) (status api.Status) {
 	inst.mu.Lock()
 	status = inst.status
 	stopped := inst.stopped
 	inst.mu.Unlock()
 
-	if status.State != StateRunning {
+	if status.State != api.StateRunning {
 		return
 	}
 
@@ -207,13 +260,13 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 	}
 
 	switch inst.status.State {
-	case StateSuspended:
+	case api.StateSuspended:
 		if function != "" {
 			err = failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance")
 			return
 		}
 
-	case StateHalted:
+	case api.StateHalted:
 		if function == "" {
 			err = failrequest.Errorf(event.FailInstanceStatus, "function must be specified when resuming halted instance")
 			return
@@ -232,8 +285,8 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 	return
 }
 
-// doResume steals proc, services and debugOutput.
-func (inst *Instance) doResume(prog *program, function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugOutput io.WriteCloser,
+// doResume steals proc, services and debugLog.
+func (inst *Instance) doResume(prog *program, function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser,
 ) (err error) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
@@ -244,8 +297,8 @@ func (inst *Instance) doResume(prog *program, function string, proc *runtime.Pro
 		return
 	}
 
-	inst.status = Status{
-		State: StateRunning,
+	inst.status = api.Status{
+		State: api.StateRunning,
 		Debug: debugStatus,
 	}
 	if function != "" {
@@ -255,7 +308,7 @@ func (inst *Instance) doResume(prog *program, function string, proc *runtime.Pro
 	inst.process = proc
 	inst.services = services
 	inst.timeReso = timeReso
-	inst.debug = debugOutput
+	inst.debugLog = debugLog
 	inst.stopped = make(chan struct{})
 	return
 }
@@ -292,18 +345,13 @@ func (inst *Instance) snapshot(prog *program,
 		err = resourcenotfound.ErrInstance
 		return
 	}
-
-	switch inst.status.State {
-	case StateSuspended, StateHalted, StateTerminated:
-		// ok
-
-	default:
-		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted or terminated")
+	if inst.status.State == api.StateRunning {
+		err = failrequest.Errorf(event.FailInstanceStatus, "instance must not be running")
 		return
 	}
 
 	buffers = inst.buffers
-	progImage, err = image.Snapshot(prog.image, inst.image, buffers, inst.status.State == StateSuspended)
+	progImage, err = image.Snapshot(prog.image, inst.image, buffers, inst.status.State == api.StateSuspended)
 	return
 }
 
@@ -316,13 +364,8 @@ func (inst *Instance) annihilate() (err error) {
 		err = resourcenotfound.ErrInstance
 		return
 	}
-
-	switch inst.status.State {
-	case StateSuspended, StateHalted, StateTerminated, StateKilled:
-		// ok
-
-	default:
-		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended, halted, terminated or killed")
+	if inst.status.State == api.StateRunning {
+		err = failrequest.Errorf(event.FailInstanceStatus, "instance must not be running")
 		return
 	}
 
@@ -334,24 +377,30 @@ func (inst *Instance) annihilate() (err error) {
 }
 
 func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
-	res := Status{
-		State: StateKilled,
-		Cause: CauseInternal,
+	trapID := trap.InternalError
+	res := api.Status{
+		State: api.StateKilled,
+		Cause: api.CauseInternal,
 		Debug: inst.status.Debug,
 	}
 	defer func() {
 		lock := inst.mu.Lock()
 		defer inst.mu.Unlock()
 
+		if res.State >= api.StateTerminated {
+			inst.image.SetFinal()
+		}
+		inst.image.SetTrap(trapID)
+		inst.image.SetResult(res.Result)
 		inst.status = res
 		inst.stop(lock)
 	}()
 
-	exit, trap, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
+	result, trapID, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
 	if err != nil {
 		res.Error = public.Error(err, res.Error)
-		if _, ok := err.(badprogram.Error); ok {
-			res.Cause = CauseABIViolation
+		if trapID == trap.ABIViolation {
+			res.Cause = api.CauseABIViolation
 			return programFailure(ctx, prog.hash, inst.function, inst.ID), err
 		} else {
 			return internalFailure(ctx, prog.hash, inst.function, inst.ID, "service io", err), err
@@ -359,47 +408,195 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 	}
 
 	if !inst.transient {
-		switch trap {
-		case runtime.TrapExit, runtime.TrapSuspended, runtime.TrapCallStackExhausted, runtime.TrapABIDeficiency:
-			err = prog.ensureStorage()
-			if err == nil {
-				_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
-			}
-			if err != nil {
-				res.Error = public.Error(err, res.Error)
-				return internalFailure(ctx, prog.hash, inst.function, inst.ID, "", err), err
-			}
+		err = prog.ensureStorage()
+		if err == nil {
+			_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
+		}
+		if err != nil {
+			res.Error = public.Error(err, res.Error)
+			return internalFailure(ctx, prog.hash, inst.function, inst.ID, "", err), err
 		}
 	}
 
-	switch trap {
-	case runtime.TrapExit:
-		if inst.transient || inst.buffers.Terminated() {
-			res.State = StateTerminated
+	if trapID == trap.Exit {
+		if inst.transient || result.Terminated() {
+			res.State = api.StateTerminated
 		} else {
-			res.State = StateHalted
+			res.State = api.StateHalted
 		}
-		res.Cause = CauseNormal
-		res.Result = int32(exit)
-
-	case runtime.TrapSuspended:
-		res.State = StateSuspended
-		res.Cause = CauseNormal
-
-	case runtime.TrapCallStackExhausted, runtime.TrapABIDeficiency:
-		res.State = StateSuspended
-		res.Cause = Cause(trap)
-
-	case runtime.TrapKilled:
-		res.State = StateKilled
-		res.Cause = CauseNormal
-
-	default:
-		res.State = StateKilled
-		res.Cause = Cause(trap)
+		res.Cause = api.CauseNormal
+		res.Result = int32(result.Value())
+	} else {
+		res.State, res.Cause = trapStatus(trapID)
 	}
 
 	return nil, nil
+}
+
+func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugRequest,
+) (rebuild *instanceRebuild, newConfig api.DebugConfig, res api.DebugResponse, err error) {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
+	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
+		err = public.Err("unsupported debug op") // TODO: http response code: not implemented
+		return
+	}
+
+	if req.Op != api.DebugOpConfigGet && inst.status.State != api.StateSuspended && inst.status.State != api.StateHalted {
+		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or halted")
+		return
+	}
+
+	info := inst.image.DebugInfo()
+	breaks := inst.image.Breakpoints()
+	modified := false
+
+	switch req.Op {
+	case api.DebugOpConfigSet:
+		if len(req.Config.Breakpoints.Offsets) > manifest.MaxBreakpoints {
+			err = public.Err("too many breakpoints")
+			return
+		}
+
+		info = req.Config.DebugInfo
+		if info != inst.image.DebugInfo() {
+			modified = true
+		}
+
+		breaks = manifest.SortDedupUint64(req.Config.Breakpoints.Offsets)
+		if !reflect.DeepEqual(breaks, inst.image.Breakpoints()) {
+			modified = true
+		}
+
+	case api.DebugOpConfigUnion:
+		if len(breaks)+len(req.Config.Breakpoints.Offsets) > manifest.MaxBreakpoints {
+			err = public.Err("too many breakpoints")
+			return
+		}
+
+		if req.Config.DebugInfo {
+			if !info {
+				modified = true
+			}
+			info = true
+		}
+
+		breaks = append([]uint64{}, breaks...)
+		for _, x := range req.Config.Breakpoints.Offsets {
+			if i := searchUint64(breaks, x); i == len(breaks) || breaks[i] != x {
+				breaks = append(breaks[:i], append([]uint64{x}, breaks[i:]...)...)
+				modified = true
+			}
+		}
+
+	case api.DebugOpConfigComplement:
+		if req.Config.DebugInfo {
+			if info {
+				modified = true
+			}
+			info = false
+		}
+
+		breaks = append([]uint64{}, breaks...)
+		for _, x := range req.Config.Breakpoints.Offsets {
+			if i := searchUint64(breaks, x); i < len(breaks) && breaks[i] == x {
+				breaks = append(breaks[:i], breaks[i+1:]...)
+				modified = true
+			}
+		}
+
+	case api.DebugOpReadGlobals:
+		res.Module = path.Join(api.ModuleRefSource, prog.hash)
+
+		panic("TODO")
+
+	case api.DebugOpReadMemory:
+		res.Module = path.Join(api.ModuleRefSource, prog.hash)
+
+		panic("TODO")
+
+	case api.DebugOpReadStack:
+		res.Module = path.Join(api.ModuleRefSource, prog.hash)
+
+		textMap := inst.altTextMap
+		if inst.altProgImage == nil {
+			textMap = &prog.image.Map
+		}
+
+		res.Data, err = inst.image.ExportStack(textMap)
+		if err != nil {
+			return
+		}
+	}
+
+	if modified {
+		if info == prog.image.DebugInfo() && reflect.DeepEqual(breaks, prog.image.Breakpoints()) {
+			if inst.altProgImage != nil {
+				inst.altProgImage.Close()
+				inst.altProgImage = nil
+				inst.altTextMap = nil
+			}
+
+			inst.image.SetDebugInfo(info)
+			inst.image.SetBreakpoints(prog.image.Breakpoints())
+		} else {
+			rebuild = &instanceRebuild{
+				inst: inst,
+				oldConfig: api.DebugConfig{
+					DebugInfo:   inst.image.DebugInfo(),
+					Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
+				},
+			}
+			newConfig = api.DebugConfig{
+				DebugInfo:   info,
+				Breakpoints: manifest.Breakpoints{Offsets: breaks},
+			}
+		}
+	}
+
+	res.Status = inst.status
+	res.Config = api.DebugConfig{
+		DebugInfo:   inst.image.DebugInfo(),
+		Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
+	}
+
+	return
+}
+
+type instanceRebuild struct {
+	inst      *Instance
+	oldConfig api.DebugConfig
+}
+
+func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.DebugConfig, textMap stack.TextMap,
+) (res api.DebugResponse, ok bool) {
+	inst := rebuild.inst
+	oldConfig := rebuild.oldConfig
+
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
+	if inst.image.DebugInfo() == oldConfig.DebugInfo && reflect.DeepEqual(inst.image.Breakpoints(), oldConfig.Breakpoints.Offsets) {
+		if inst.altProgImage != nil {
+			inst.altProgImage.Close()
+		}
+		inst.altProgImage = progImage
+		inst.altTextMap = textMap
+
+		inst.image.SetDebugInfo(newConfig.DebugInfo)
+		inst.image.SetBreakpoints(newConfig.Breakpoints.Offsets)
+		ok = true
+	}
+
+	res = api.DebugResponse{
+		Status: inst.status,
+		Config: api.DebugConfig{
+			DebugInfo:   inst.image.DebugInfo(),
+			Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
+		},
+	}
+	return
 }
 
 func programFailure(ctx context.Context, progHash, function string, instID string) Event {

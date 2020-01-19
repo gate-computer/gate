@@ -31,6 +31,7 @@ import (
 	gateruntime "github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/scope/program/system"
 	"github.com/tsavola/gate/server"
+	api "github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/catalog"
 	"github.com/tsavola/gate/service/origin"
@@ -40,7 +41,7 @@ import (
 
 type debugKey struct{}
 
-type instanceStatusFunc func(context.Context, string) (server.Status, error)
+type instanceStatusFunc func(context.Context, string) (api.Status, error)
 type instanceObjectFunc func(context.Context, string) (*server.Instance, error)
 
 const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
@@ -195,18 +196,25 @@ func mainResult() int {
 func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 	methods := map[string]interface{}{
 		"CallKey": func(key, function string, rFD, wFD, debugFD dbus.UnixFD, debugName string, scope []string,
-		) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
+		) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			state, cause, result = handleCall(ctx, s, nil, key, function, false, rFD, wFD, debugFD, debugName, scope)
 			return
 		},
 
 		"CallFile": func(moduleFD dbus.UnixFD, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string, scope []string,
-		) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
+		) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
 			state, cause, result = handleCall(ctx, s, module, "", function, ref, rFD, wFD, debugFD, debugName, scope)
+			return
+		},
+
+		"Debug": func(instID string, req []byte,
+		) (res []byte, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			res = handleInstanceDebug(ctx, s, instID, req)
 			return
 		},
 
@@ -229,7 +237,7 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			return
 		},
 
-		"Instances": func() (list []server.InstanceStatus, err *dbus.Error) {
+		"Instances": func() (list api.Instances, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = handleInstanceList(ctx, s)
 			return
@@ -257,16 +265,16 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			return
 		},
 
-		"Modules": func() (list []server.ModuleRef, err *dbus.Error) {
+		"ModuleRefs": func() (list api.ModuleRefs, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = handleModuleList(ctx, s)
 			return
 		},
 
-		"Resume": func(instID string, debugFD dbus.UnixFD, debugName string, scope []string,
+		"Resume": func(instID, function string, debugFD dbus.UnixFD, debugName string, scope []string,
 		) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceResume(ctx, s, instID, debugFD, debugName, scope)
+			handleInstanceResume(ctx, s, instID, function, debugFD, debugName, scope)
 			return
 		},
 
@@ -297,7 +305,7 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 		"Wait":   s.WaitInstance,
 	} {
 		f := f // Closure needs a local copy of the iterator's current value.
-		methods[name] = func(instID string) (state server.State, cause server.Cause, result int32, err *dbus.Error) {
+		methods[name] = func(instID string) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			state, cause, result = handleInstanceStatus(ctx, f, instID)
 			return
@@ -328,7 +336,7 @@ func debugHandler(ctx context.Context, option string,
 	return
 }
 
-func handleModuleList(ctx context.Context, s *server.Server) server.ModuleRefs {
+func handleModuleList(ctx context.Context, s *server.Server) api.ModuleRefs {
 	refs, err := s.ModuleRefs(ctx)
 	check(err)
 	sort.Sort(refs)
@@ -353,7 +361,7 @@ func handleModuleUnref(ctx context.Context, s *server.Server, key string) {
 }
 
 func handleCall(ctx context.Context, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string, scope []string,
-) (state server.State, cause server.Cause, result int32) {
+) (state api.State, cause api.Cause, result int32) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
@@ -412,7 +420,7 @@ func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, f
 	return inst.ID
 }
 
-func handleInstanceList(ctx context.Context, s *server.Server) server.Instances {
+func handleInstanceList(ctx context.Context, s *server.Server) api.Instances {
 	instances, err := s.Instances(ctx)
 	check(err)
 	sort.Sort(instances)
@@ -420,7 +428,7 @@ func handleInstanceList(ctx context.Context, s *server.Server) server.Instances 
 }
 
 func handleInstanceStatus(ctx context.Context, f instanceStatusFunc, instID string,
-) (state server.State, cause server.Cause, result int32) {
+) (state api.State, cause api.Cause, result int32) {
 	status, err := f(ctx, instID)
 	check(err)
 	return status.State, status.Cause, status.Result
@@ -435,14 +443,14 @@ func handleInstanceDelete(ctx context.Context, s *server.Server, instID string) 
 	check(s.DeleteInstance(ctx, instID))
 }
 
-func handleInstanceResume(ctx context.Context, s *server.Server, instID string, debugFD dbus.UnixFD, debugName string, scope []string) {
+func handleInstanceResume(ctx context.Context, s *server.Server, instID, function string, debugFD dbus.UnixFD, debugName string, scope []string) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
 	ctx = server.ContextWithScope(ctx, scope)
 	ctx = context.WithValue(ctx, debugKey{}, debug)
 
-	_, err := s.ResumeInstance(ctx, "", instID, debugName)
+	_, err := s.ResumeInstance(ctx, function, instID, debugName)
 	check(err)
 }
 
@@ -475,6 +483,19 @@ func handleInstanceConnect(ctx context.Context, s *server.Server, instID string,
 func handleInstanceSnapshot(ctx context.Context, s *server.Server, instID string,
 ) (progID string) {
 	progID, err := s.InstanceModule(ctx, instID)
+	check(err)
+	return
+}
+
+func handleInstanceDebug(ctx context.Context, s *server.Server, instID string, reqBuf []byte,
+) (resBuf []byte) {
+	var req api.DebugRequest
+	check(req.Unmarshal(reqBuf))
+
+	res, err := s.DebugInstance(ctx, instID, req)
+	check(err)
+
+	resBuf, err = res.Marshal()
 	check(err)
 	return
 }

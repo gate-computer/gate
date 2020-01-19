@@ -151,11 +151,11 @@ func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, que
 	}
 }
 
-func mustHaveWebAssemblyContent(w http.ResponseWriter, r *http.Request, s *webserver) {
+func mustHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver, contentType string) {
 	switch values := r.Header[webapi.HeaderContentType]; len(values) {
 	case 1:
 		tokens := strings.SplitN(values[0], ";", 2)
-		if strings.TrimSpace(tokens[0]) != webapi.ContentTypeWebAssembly {
+		if strings.TrimSpace(tokens[0]) != contentType {
 			respondUnsupportedMediaType(w, r, s)
 			panic(nil)
 		}
@@ -168,7 +168,9 @@ func mustHaveWebAssemblyContent(w http.ResponseWriter, r *http.Request, s *webse
 		respondDuplicateHeader(w, r, s, webapi.HeaderContentType)
 		panic(nil)
 	}
+}
 
+func mustHaveContentLength(w http.ResponseWriter, r *http.Request, s *webserver) {
 	if r.ContentLength < 0 {
 		respondLengthRequired(w, r, s)
 		panic(nil)

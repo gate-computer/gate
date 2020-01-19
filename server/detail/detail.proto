@@ -34,6 +34,7 @@ enum Op {
 	INSTANCE_RESUME = 18;
 	INSTANCE_SNAPSHOT = 19;
 	INSTANCE_DELETE = 20;
+	INSTANCE_DEBUG = 21;
 }
 
 message Context {

@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -1361,21 +1360,16 @@ func TestInstanceTerminated(t *testing.T) {
 			}
 		}
 
-		var flagsOK bool
+		var final bool
 
 		loaders := map[string]section.CustomContentLoader{
-			wasm.SectionBuffer: func(_ string, r section.Reader, length uint32) (err error) {
-				bs, _, _, err := wasm.ReadBufferSectionHeader(r, length)
+			wasm.SectionSnapshot: func(_ string, r section.Reader, _ uint32) (err error) {
+				snap, _, err := wasm.ReadSnapshotSection(r)
 				if err != nil {
 					return
 				}
 
-				if !bs.Terminated() {
-					err = errors.New("buffer section: terminated flag not set")
-					return
-				}
-
-				flagsOK = true
+				final = snap.Final()
 				return
 			},
 		}
@@ -1402,8 +1396,8 @@ func TestInstanceTerminated(t *testing.T) {
 			t.Error(err)
 		}
 
-		if !flagsOK {
-			t.Error("flags not ok")
+		if !final {
+			t.Error("snapshot section did not have final flag set")
 		}
 	})
 }

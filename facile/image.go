@@ -75,6 +75,11 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
+	err = b.VerifyBreakpoints()
+	if err != nil {
+		return
+	}
+
 	b.InstallSnapshotDataLoaders()
 
 	err = compile.LoadCustomSections(&b.Config, reader)

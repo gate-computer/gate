@@ -5,14 +5,21 @@
 package wasm
 
 import (
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/tsavola/gate/internal/error/badprogram"
+	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/trap"
 	"github.com/tsavola/wag/section"
 )
 
-const maxServiceNameLen = 127
+const (
+	minSnapshotVersion = 0
+	maxServiceNameLen  = 127
+)
 
 // Custom WebAssembly sections.
 const (
@@ -22,16 +29,69 @@ const (
 	SectionStack    = "gate.stack"    // May appear once between buffer and data sections.
 )
 
-func ReadBufferSectionHeader(r section.Reader, length uint32,
-) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
-	flags, n, err := readVaruint32(r)
+func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int, err error) {
+	version, n, err := readVaruint64(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	bs.Flags = snapshot.Flags(flags)
+	if version < minSnapshotVersion {
+		err = badprogram.Err(fmt.Sprintf("unsupported snapshot version: %d", version))
+		return
+	}
 
+	flags, n, err := readVaruint64(r)
+	if err != nil {
+		return
+	}
+	readLen += n
+	snap.Flags = snapshot.Flags(flags)
+
+	trapID, n, err := readVaruint32(r)
+	if err != nil {
+		return
+	}
+	readLen += n
+	snap.Trap = trap.ID(trapID)
+
+	result, n, err := readVaruint32(r)
+	if err != nil {
+		return
+	}
+	readLen += n
+	snap.Result = int32(result)
+
+	snap.MonotonicTime, n, err = readVaruint64(r)
+	if err != nil {
+		return
+	}
+	readLen += n
+
+	numBreakpoints, n, err := readVaruint32(r)
+	if err != nil {
+		return
+	}
+	readLen += n
+	if numBreakpoints > manifest.MaxBreakpoints {
+		err = errors.New("snapshot has too many breakpoints")
+		return
+	}
+
+	snap.Breakpoints = make([]uint64, numBreakpoints)
+	for i := range snap.Breakpoints {
+		snap.Breakpoints[i], n, err = readVaruint64(r)
+		if err != nil {
+			return
+		}
+		readLen += n
+	}
+
+	return
+}
+
+func ReadBufferSectionHeader(r section.Reader, length uint32,
+) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
 	// TODO: limit sizes and count
 
 	inputSize, n, err := readVaruint32(r)
@@ -129,6 +189,27 @@ func readVaruint32(r section.Reader) (x uint32, n int, err error) {
 			return
 		}
 		x |= (uint32(b) & 0x7f) << shift
+		shift += 7
+	}
+}
+
+func readVaruint64(r section.Reader) (x uint64, n int, err error) {
+	var shift uint
+	for n = 1; ; n++ {
+		var b byte
+		b, err = r.ReadByte()
+		if err != nil {
+			return
+		}
+		if b < 0x80 {
+			if n > 9 || n == 9 && b > 1 {
+				err = badprogram.Err("varuint64 is too large")
+				return
+			}
+			x |= uint64(b) << shift
+			return
+		}
+		x |= (uint64(b) & 0x7f) << shift
 		shift += 7
 	}
 }

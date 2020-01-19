@@ -16,12 +16,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tsavola/gate/internal/error/badprogram"
 	internal "github.com/tsavola/gate/internal/error/runtime"
 	"github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/trap"
 	"github.com/tsavola/wag/object/abi"
-	"github.com/tsavola/wag/trap"
 )
 
 const imageInfoSize = 104
@@ -77,32 +78,34 @@ type ProcessFactory interface {
 	NewProcess(context.Context) (*Process, error)
 }
 
-type TrapID trap.ID
+type Result struct {
+	code int
+}
 
-const (
-	TrapExit                          = TrapID(trap.Exit)
-	TrapSuspended                     = TrapID(trap.Suspended)
-	TrapUnreachable                   = TrapID(trap.Unreachable)
-	TrapCallStackExhausted            = TrapID(trap.CallStackExhausted)
-	TrapMemoryAccessOutOfBounds       = TrapID(trap.MemoryAccessOutOfBounds)
-	TrapIndirectCallIndexOutOfBounds  = TrapID(trap.IndirectCallIndexOutOfBounds)
-	TrapIndirectCallSignatureMismatch = TrapID(trap.IndirectCallSignatureMismatch)
-	TrapIntegerDivideByZero           = TrapID(trap.IntegerDivideByZero)
-	TrapIntegerOverflow               = TrapID(trap.IntegerOverflow)
-	TrapABIDeficiency                 = TrapID(26)
-	TrapKilled                        = TrapID(29)
-)
+// ResultSuccess is the Result.Value() which indicates success.
+const ResultSuccess = 0
 
-func (id TrapID) String() string {
-	switch id {
-	case TrapABIDeficiency:
-		return "ABI deficiency"
+// Terminated instead of halting?
+func (r Result) Terminated() bool { return r.code&2 != 0 }
+func (r Result) Value() int       { return r.code & 1 }
 
-	case TrapKilled:
-		return "killed"
+func (r Result) String() string {
+	if r.code < 0 || r.code > 3 {
+		return "invalid result code"
+	}
 
-	default:
-		return trap.ID(id).String()
+	if r.Terminated() {
+		if r.Value() == ResultSuccess {
+			return "terminated successfully"
+		} else {
+			return "terminated unsuccessfully"
+		}
+	} else {
+		if r.Value() == ResultSuccess {
+			return "halted successfully"
+		} else {
+			return "halted unsuccessfully"
+		}
 	}
 }
 
@@ -259,10 +262,18 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 // Start must have been called before this.
 //
 // Buffers will be mutated (unless nil).
+//
+// A meaningful trap id is returned also when an error is returned.  The result
+// is meaningful when trap is Exit.
 func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers,
-) (exit int, trap TrapID, err error) {
+) (result Result, trapID trap.ID, err error) {
+	trapID = trap.InternalError
+
 	err = ioLoop(ctx, services, p, buffers)
 	if err != nil {
+		if _, ok := err.(badprogram.Error); ok {
+			trapID = trap.ABIViolation
+		}
 		return
 	}
 
@@ -279,31 +290,32 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 	case status.Exited():
 		switch n := status.ExitStatus(); {
 		case n >= 0 && n <= 3:
-			exit = n & 1
-			if n&2 != 0 && buffers != nil {
-				buffers.SetTerminated()
-			}
+			trapID = trap.Exit
+			result = Result{n}
 
 		case n >= 100 && n <= 127:
-			trap = TrapID(n - 100)
+			trapID = trap.ID(n - 100)
 
 		default:
 			err = internal.ProcessError(n)
 			return
 		}
 
-		if (trap == TrapExit || trap == TrapABIDeficiency) && p.execution.killRequested() {
-			trap = TrapKilled
+		if p.execution.killRequested() {
+			switch trapID {
+			case trap.Exit, trap.Suspended, trap.Breakpoint, trap.ABIDeficiency:
+				trapID = trap.Killed
+			}
 		}
 
 	case status.Signaled():
 		switch s := status.Signal(); {
 		case s == os.Kill && p.execution.killRequested():
-			trap = TrapKilled
+			trapID = trap.Killed
 
 		case s == syscall.SIGXCPU:
 			// During initialization (ok) or by force (instance stack is dirty).
-			trap = TrapSuspended
+			trapID = trap.Suspended
 
 		default:
 			err = fmt.Errorf("process termination signal: %s", s)
@@ -319,7 +331,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 }
 
 // Suspend the program if it is still running.  If suspended, Serve call will
-// return with TrapSuspended.  (The program may get suspended also through
+// return with the Suspended trap.  (The program may get suspended also through
 // other means.)
 //
 // This can be called multiple times, concurrently with Start, Serve, Kill,
@@ -332,7 +344,7 @@ func (p *Process) Suspend() {
 }
 
 // Kill the process if it is still alive.  If killed, Serve call will return
-// with TrapKilled.
+// with the Killed trap.
 //
 // This can be called multiple times, concurrently with Start, Serve, Suspend,
 // Close and itself.

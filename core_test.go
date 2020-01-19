@@ -26,6 +26,7 @@ import (
 	"github.com/tsavola/gate/service"
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/trap"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
@@ -272,7 +273,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap
 }
 
 func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer,
-) (*executor, *image.Program, *image.Instance, *runtime.Process, debug.TrapMap, compile.Module) {
+) (*executor, *image.Program, *image.Instance, *runtime.Process, *debug.TrapMap, compile.Module) {
 	var err error
 
 	executor := newExecutor()
@@ -282,9 +283,9 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		}
 	}()
 
-	var codeMap debug.TrapMap
+	codeMap := new(debug.TrapMap)
 
-	prog, inst, mod := buildInstance(executor, storage, &codeMap, wasm, len(wasm), function, true)
+	prog, inst, mod := buildInstance(executor, storage, codeMap, wasm, len(wasm), function, true)
 	defer func() {
 		if err != nil {
 			prog.Close()
@@ -320,7 +321,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 	return executor, prog, inst, proc, codeMap, mod
 }
 
-func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, expectTrap runtime.TrapID) (output bytes.Buffer) {
+func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, expectTrap trap.ID) (output bytes.Buffer) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -331,18 +332,18 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	defer prog.Close()
 	defer executor.Close()
 
-	exit, trapID, err := proc.Serve(ctx, serviceRegistry{&output}, nil)
+	result, trapID, err := proc.Serve(ctx, serviceRegistry{&output}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else {
 		if trapID != expectTrap {
 			t.Errorf("run %v", trapID)
 		}
-		if trapID == 0 && exit != 0 {
-			t.Errorf("run exit: %d", exit)
+		if trapID == trap.Exit && result.Value() != runtime.ResultSuccess {
+			t.Errorf("run result: %s", result)
 		}
 		if testing.Verbose() {
-			trace, err := inst.Stacktrace(&trapMap, mod.FuncTypes())
+			trace, err := inst.Stacktrace(trapMap, mod.FuncTypes())
 			if err == nil {
 				err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
 			}
@@ -359,11 +360,11 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 }
 
 func TestRunNop(t *testing.T) {
-	runProgram(t, wasmNop, "", nil, runtime.TrapExit)
+	runProgram(t, wasmNop, "", nil, trap.Exit)
 }
 
 func testRunHello(t *testing.T, debug io.Writer) {
-	output := runProgram(t, wasmHello, "greet", debug, runtime.TrapExit)
+	output := runProgram(t, wasmHello, "greet", debug, trap.Exit)
 	if s := output.String(); s != "hello, world\n" {
 		t.Errorf("%q", s)
 	}
@@ -379,7 +380,7 @@ func TestRunHelloNoDebug(t *testing.T) {
 
 func TestRunHelloDebug(t *testing.T) {
 	var debug bytes.Buffer
-	runProgram(t, wasmHelloDebug, "debug", &debug, runtime.TrapExit)
+	runProgram(t, wasmHelloDebug, "debug", &debug, trap.Exit)
 	s := debug.String()
 	t.Logf("debug: %q", s)
 	if s != "hello, world\n" {
@@ -388,7 +389,7 @@ func TestRunHelloDebug(t *testing.T) {
 }
 
 func TestRunHelloDebugNoDebug(t *testing.T) {
-	runProgram(t, wasmHelloDebug, "debug", nil, runtime.TrapExit)
+	runProgram(t, wasmHelloDebug, "debug", nil, trap.Exit)
 }
 
 func TestRunSuspendMem(t *testing.T) {
@@ -429,7 +430,7 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 		t.Errorf("run error: %v", err)
 	} else if trapID == 0 {
 		t.Errorf("run exit: %d", exit)
-	} else if trapID != runtime.TrapSuspended {
+	} else if trapID != trap.Suspended {
 		t.Errorf("run %v", trapID)
 	}
 
@@ -463,7 +464,7 @@ func TestRandomSeed(t *testing.T) {
 
 	for i := 0; i < len(values); i++ {
 		var debug bytes.Buffer
-		runProgram(t, wasmRandomSeed, "dump", &debug, runtime.TrapExit)
+		runProgram(t, wasmRandomSeed, "dump", &debug, trap.Exit)
 		for j, s := range strings.Split(debug.String(), " ") {
 			n, err := strconv.ParseUint(strings.TrimSpace(s), 16, 64)
 			if err != nil {
@@ -499,5 +500,5 @@ func testRandomDeficiency(t *testing.T, function string) {
 }
 
 func TestTime(t *testing.T) {
-	runProgram(t, wasmTime, "check", os.Stderr, runtime.TrapExit)
+	runProgram(t, wasmTime, "check", os.Stderr, trap.Exit)
 }

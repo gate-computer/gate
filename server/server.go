@@ -18,7 +18,9 @@ import (
 	"github.com/tsavola/gate/server/detail"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
+	api "github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/wag/object/stack"
 )
 
 const ErrServerClosed = public.Err("server closed")
@@ -178,7 +180,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 	var aborted bool
 
 	for _, inst := range accInsts {
-		if inst.Wait(ctx).State == StateRunning {
+		if inst.Wait(ctx).State == api.StateRunning {
 			aborted = true
 		}
 	}
@@ -642,7 +644,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	return
 }
 
-func (s *Server) ModuleRefs(ctx context.Context) (refs ModuleRefs, err error) {
+func (s *Server) ModuleRefs(ctx context.Context) (refs api.ModuleRefs, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -666,9 +668,9 @@ func (s *Server) ModuleRefs(ctx context.Context) (refs ModuleRefs, err error) {
 		return
 	}
 
-	refs = make(ModuleRefs, 0, len(acc.programRefs))
+	refs.Modules = make([]api.ModuleRef, 0, len(acc.programRefs))
 	for prog := range acc.programRefs {
-		refs = append(refs, ModuleRef{
+		refs.Modules = append(refs.Modules, api.ModuleRef{
 			Id: prog.hash,
 		})
 	}
@@ -841,7 +843,7 @@ func (s *Server) InstanceConnection(ctx context.Context, instID string,
 
 // InstanceStatus of an existing instance.
 func (s *Server) InstanceStatus(ctx context.Context, instID string,
-) (status Status, err error) {
+) (status api.Status, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -862,7 +864,7 @@ func (s *Server) InstanceStatus(ctx context.Context, instID string,
 }
 
 func (s *Server) WaitInstance(ctx context.Context, instID string,
-) (status Status, err error) {
+) (status api.Status, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -943,21 +945,21 @@ func (s *Server) ResumeInstance(ctx context.Context, function, instID, debug str
 		return
 	}
 
-	proc, services, debugStatus, debugOutput, err := s.allocateInstanceResources(ctx, &pol.inst, debug)
+	proc, services, debugStatus, debugLog, err := s.allocateInstanceResources(ctx, &pol.inst, debug)
 	if err != nil {
 		return
 	}
 	defer func() {
-		closeInstanceResources(&proc, &services, &debugOutput)
+		closeInstanceResources(&proc, &services, &debugLog)
 	}()
 
-	err = inst.doResume(prog, function, proc, services, pol.inst.TimeResolution, debugStatus, debugOutput)
+	err = inst.doResume(prog, function, proc, services, pol.inst.TimeResolution, debugStatus, debugLog)
 	if err != nil {
 		return
 	}
 	proc = nil
 	services = nil
-	debugOutput = nil
+	debugLog = nil
 
 	err = s.runOrDeleteInstance(ctx, inst, prog)
 	if err != nil {
@@ -1009,9 +1011,9 @@ func (s *Server) InstanceModule(ctx context.Context, instID string) (moduleKey s
 
 	status := inst.Status()
 	resume := false
-	if status.State == StateRunning {
+	if status.State == api.StateRunning {
 		inst.suspend()
-		resume = inst.Wait(context.Background()).State == StateSuspended
+		resume = inst.Wait(context.Background()).State == api.StateSuspended
 	}
 
 	moduleKey, err = s.snapshot(ctx, instID)
@@ -1078,7 +1080,59 @@ func (s *Server) snapshot(ctx context.Context, instID string) (moduleKey string,
 	return
 }
 
-func (s *Server) Instances(ctx context.Context) (statuses Instances, err error) {
+func (s *Server) DebugInstance(ctx context.Context, instID string, req api.DebugRequest,
+) (res api.DebugResponse, err error) {
+	var pol progPolicy
+
+	ctx, err = s.AccessPolicy.AuthorizeProgram(ctx, &pol.res, &pol.prog)
+	if err != nil {
+		return
+	}
+
+	inst, defaultProg, err := s.getInstance(ctx, instID)
+	if err != nil {
+		return
+	}
+
+	rebuild, config, res, err := inst.debug(ctx, defaultProg, req)
+	if err != nil {
+		return
+	}
+
+	if rebuild != nil {
+		var (
+			progImage *image.Program
+			textMap   stack.TextMap
+			ok        bool
+		)
+
+		progImage, textMap, err = rebuildProgramImage(s.ImageStorage, &pol.prog, defaultProg.image.NewModuleReader(), config.DebugInfo, config.Breakpoints.Offsets)
+		if err != nil {
+			return
+		}
+		defer func() {
+			if progImage != nil {
+				progImage.Close()
+			}
+		}()
+
+		res, ok = rebuild.apply(progImage, config, textMap)
+		if !ok {
+			err = public.Err("conflict") // TODO: http response code: conflict
+			return
+		}
+		progImage = nil
+	}
+
+	s.monitor(&event.InstanceDebug{
+		Ctx:      ContextDetail(ctx),
+		Instance: inst.ID,
+		Compiled: rebuild != nil,
+	})
+	return
+}
+
+func (s *Server) Instances(ctx context.Context) (statuses api.Instances, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -1110,13 +1164,9 @@ func (s *Server) Instances(ctx context.Context) (statuses Instances, err error) 
 	}()
 
 	// Get instance statuses.  Each instance has its own lock.
-	statuses = make(Instances, 0, len(is))
-	for _, inst := range is {
-		statuses = append(statuses, InstanceStatus{
-			Instance:  inst.ID,
-			Status:    inst.Status(),
-			Transient: inst.Transient(),
-		})
+	statuses.Instances = make([]api.InstanceStatus, len(is))
+	for i, inst := range is {
+		statuses.Instances[i] = inst.instanceStatus()
 	}
 
 	return
@@ -1298,10 +1348,10 @@ func (s *Server) getInstance(ctx context.Context, instID string,
 }
 
 func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePolicy, debugOption string,
-) (proc *runtime.Process, services InstanceServices, debugStatus string, debugOutput io.WriteCloser, err error) {
+) (proc *runtime.Process, services InstanceServices, debugStatus string, debugLog io.WriteCloser, err error) {
 	defer func() {
 		if err != nil {
-			closeInstanceResources(&proc, &services, &debugOutput)
+			closeInstanceResources(&proc, &services, &debugLog)
 		}
 	}()
 
@@ -1310,7 +1360,7 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 			err = AccessForbidden("no debug policy")
 			return
 		}
-		debugStatus, debugOutput, err = pol.Debug(ctx, debugOption)
+		debugStatus, debugLog, err = pol.Debug(ctx, debugOption)
 		if err != nil {
 			return
 		}
@@ -1335,15 +1385,15 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		proc        *runtime.Process
 		services    InstanceServices
 		debugStatus string
-		debugOutput io.WriteCloser
+		debugLog    io.WriteCloser
 	)
-	if !suspend {
-		proc, services, debugStatus, debugOutput, err = s.allocateInstanceResources(ctx, pol, debug)
+	if !suspend && !instImage.Final() {
+		proc, services, debugStatus, debugLog, err = s.allocateInstanceResources(ctx, pol, debug)
 		if err != nil {
 			return
 		}
 		defer func() {
-			closeInstanceResources(&proc, &services, &debugOutput)
+			closeInstanceResources(&proc, &services, &debugLog)
 		}()
 	}
 
@@ -1389,10 +1439,10 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		persistent = &clone
 	}
 
-	inst = newInstance(instID, acc, function, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugOutput)
+	inst = newInstance(instID, acc, function, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugLog)
 	proc = nil
 	services = nil
-	debugOutput = nil
+	debugLog = nil
 
 	if acc != nil {
 		if ref {

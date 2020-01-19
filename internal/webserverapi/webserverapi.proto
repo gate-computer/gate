@@ -1,0 +1,20 @@
+// Copyright (c) 2020 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package webserverapi;
+
+import "serverapi/serverapi.proto";
+
+option go_package = "github.com/tsavola/gate/internal/webserverapi";
+
+message IOConnection {
+	bool connected = 1;
+	string debug = 2;
+}
+
+message ConnectionStatus {
+	serverapi.Status status = 1;
+}

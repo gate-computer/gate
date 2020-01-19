@@ -24,6 +24,8 @@ import (
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
+	"github.com/tsavola/wag/object/debug"
+	"github.com/tsavola/wag/object/stack"
 )
 
 var (
@@ -124,6 +126,11 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	}
 
 	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library())
+	if err != nil {
+		return
+	}
+
+	err = b.VerifyBreakpoints()
 	if err != nil {
 		return
 	}
@@ -251,5 +258,88 @@ func (prog *program) ensureStorage() (err error) {
 	}
 
 	prog.stored = true
+	return
+}
+
+func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, debugInfo bool, breakpoints []uint64,
+) (progImage *image.Program, textMap stack.TextMap, err error) {
+	var (
+		mapper  compile.ObjectMapper
+		callMap *object.CallMap
+	)
+	if debugInfo {
+		m := new(debug.TrapMap)
+		mapper = m
+		callMap = &m.CallMap
+		textMap = m
+	} else {
+		m := new(object.CallMap)
+		mapper = m
+		callMap = m
+		textMap = m
+	}
+
+	b, err := build.New(storage, 0, progPolicy.MaxTextSize, callMap, false)
+	if err != nil {
+		return
+	}
+	defer b.Close()
+
+	reader := bufio.NewReader(content)
+
+	b.InstallEarlySnapshotLoaders()
+
+	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
+	if err != nil {
+		return
+	}
+
+	b.StackSize = progPolicy.MaxStackSize
+
+	err = b.BindFunctions("")
+	if err != nil {
+		return
+	}
+
+	if b.Snapshot == nil {
+		b.Snapshot = new(snapshot.Snapshot)
+	}
+	b.Snapshot.Breakpoints = append([]uint64{}, breakpoints...)
+
+	codeReader := compile.Reader(reader)
+	if len(breakpoints) > 0 {
+		codeReader = debug.NewReadTeller(codeReader)
+	}
+
+	err = compile.LoadCodeSection(b.CodeConfig(mapper), codeReader, b.Module, abi.Library())
+	if err != nil {
+		return
+	}
+
+	err = b.VerifyBreakpoints()
+	if err != nil {
+		return
+	}
+
+	b.InstallSnapshotDataLoaders()
+
+	err = compile.LoadCustomSections(&b.Config, reader)
+	if err != nil {
+		return
+	}
+
+	err = b.FinishImageText()
+	if err != nil {
+		return
+	}
+
+	b.InstallLateSnapshotLoaders()
+
+	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
+	if err != nil {
+		return
+	}
+
+	progImage, err = b.FinishProgramImage()
 	return
 }

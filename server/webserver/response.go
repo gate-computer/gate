@@ -196,6 +196,11 @@ func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webser
 	reportRequestError(ctx, s, failType, "", "", "", "", err)
 }
 
+func respondContentParseError(ctx context.Context, ew errorWriter, s *webserver, err error) {
+	ew.WriteError(http.StatusBadRequest, "content parse error")
+	reportPayloadError(ctx, s, err)
+}
+
 func respondContentDecodeError(ctx context.Context, ew errorWriter, s *webserver, err error) {
 	ew.WriteError(http.StatusBadRequest, "content decode error")
 	reportPayloadError(ctx, s, err)

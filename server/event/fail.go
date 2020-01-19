@@ -28,4 +28,5 @@ const (
 	FailInstanceStatus     = FailRequest_INSTANCE_STATUS
 	FailInstanceNoConnect  = FailRequest_INSTANCE_NO_CONNECT
 	FailInstanceTransient  = FailRequest_INSTANCE_TRANSIENT
+	FailInstanceDebugger   = FailRequest_INSTANCE_DEBUGGER
 )

@@ -10,6 +10,7 @@ func (x *IfaceAccess) EventName() string          { return "IFACE_ACCESS" }
 func (x *InstanceConnect) EventName() string      { return "INSTANCE_CONNECT" }
 func (x *InstanceCreateLocal) EventName() string  { return "INSTANCE_CREATE_LOCAL" }
 func (x *InstanceCreateStream) EventName() string { return "INSTANCE_CREATE_STREAM" }
+func (x *InstanceDebug) EventName() string        { return "INSTANCE_DEBUG" }
 func (x *InstanceDelete) EventName() string       { return "INSTANCE_DELETE" }
 func (x *InstanceDisconnect) EventName() string   { return "INSTANCE_DISCONNECT" }
 func (x *InstanceKill) EventName() string         { return "INSTANCE_KILL" }
@@ -35,6 +36,7 @@ func (*IfaceAccess) EventType() int32          { return int32(Type_IFACE_ACCESS)
 func (*InstanceConnect) EventType() int32      { return int32(Type_INSTANCE_CONNECT) }
 func (*InstanceCreateLocal) EventType() int32  { return int32(Type_INSTANCE_CREATE_LOCAL) }
 func (*InstanceCreateStream) EventType() int32 { return int32(Type_INSTANCE_CREATE_STREAM) }
+func (*InstanceDebug) EventType() int32        { return int32(Type_INSTANCE_DEBUG) }
 func (*InstanceDelete) EventType() int32       { return int32(Type_INSTANCE_DELETE) }
 func (*InstanceDisconnect) EventType() int32   { return int32(Type_INSTANCE_DISCONNECT) }
 func (*InstanceKill) EventType() int32         { return int32(Type_INSTANCE_KILL) }

@@ -53,7 +53,7 @@
          (block $supported
            (loop $retry
                  (br_if $supported (i32.lt_u (get_local $id) (i32.const 2)))
-                 (set_local $time (call $rt_stop (i32.const 126))) ;; ABI deficiency.
+                 (set_local $time (call $rt_stop (i32.const 127))) ;; ABI deficiency.
                  (br_if $done (i64.ne (get_local $time) (i64.const 0)))
                  (br $retry))) ;; Implicit call site.
          (set_local $time (call $rt_time (i32.add (get_local $id) (i32.const 5))))) ;; Coarse
@@ -156,7 +156,7 @@
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
        (loop $retry
-             (set_local $result (call $rt_stop (i32.const 126))) ;; ABI deficiency.
+             (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
              (if (i64.eq (get_local $result) (i64.const 0))
                  (br $retry))) ;; Implicit call site.
        (i32.wrap/i64 (get_local $result)))
@@ -223,7 +223,7 @@
                              (i64.const 0))
                      (return (i32.const 76))))) ;; ENOTCAPABLE
        (loop $retry
-             (set_local $result (call $rt_stop (i32.const 126))) ;; ABI deficiency.
+             (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
              (if (i64.eq (get_local $result) (i64.const 0))
                  (br $retry))) ;; Implicit call site.
        (i32.wrap/i64 (get_local $result)))
@@ -295,7 +295,7 @@
        (if (i32.eq (get_local $from) (get_local $to))
            (return (i32.const 0)))
        (loop $retry
-             (set_local $result (call $rt_stop (i32.const 126))) ;; ABI deficiency.
+             (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
              (if (i64.eq (get_local $result) (i64.const 0))
                  (br $retry))) ;; Implicit call site.
        (i32.wrap/i64 (get_local $result)))
@@ -481,7 +481,7 @@
                (if (i32.ge_u (get_local $type) (i32.const 3))
                    (return (i32.const 28))) ;; EINVAL
                (if (i32.eqz (get_local $type)) ;; EVENTTYPE_CLOCK
-                   (then (drop (call $rt_stop (i32.const 126))) ;; ABI deficiency.
+                   (then (drop (call $rt_stop (i32.const 127))) ;; ABI deficiency.
                          (br $cont))) ;; Implicit call site.
                (set_local $fd (i32.load offset=16 (get_local $sub_ptr)))
                (if (i32.eq (get_local $fd) (i32.const 4))
@@ -545,7 +545,7 @@
        (param $signal i32)
        (result i32)
        (block (br_if 0 (i32.const 1)) (call $reserved))
-       (i32.wrap/i64 (call $rt_stop (i32.const 126)))) ;; ABI deficiency.
+       (i32.wrap/i64 (call $rt_stop (i32.const 127)))) ;; ABI deficiency.
 
  (func (export "random_get")
        (param $buf i32)
@@ -563,7 +563,7 @@
                    (then (i32.store8 (get_local $buf) (get_local $value))
                          (set_local $buf (i32.add (get_local $buf) (i32.const 1)))
                          (set_local $len (i32.sub (get_local $len) (i32.const 1))))
-                   (else (set_local $result (call $rt_stop (i32.const 126))) ;; ABI deficiency.
+                   (else (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
                          (if (i64.ne (get_local $result) (i64.const 0))
                              (br $break))))
                (br $cont))) ;; Implicit call site.

@@ -48,19 +48,19 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 
 	var (
-		newTextAddr   uint64
 		stackUsage    int
 		instStackData []byte
+		newTextAddr   uint64
 	)
-	if suspended {
-		if inst.man.StackUsage == 0 {
+	if suspended || inst.Final() {
+		if inst.man.StackUsage != 0 {
+			stackUsage = int(inst.man.StackUsage)
+			instStackData = instStackMapping[len(instStackMapping)-stackUsage:]
+			newTextAddr = inst.man.TextAddr
+		} else if suspended {
 			// Resume at virtual call site at beginning of enter routine.
 			// Stack data is synthesized later.
 			stackUsage = initStackSize
-		} else {
-			newTextAddr = inst.man.TextAddr
-			stackUsage = int(inst.man.StackUsage)
-			instStackData = instStackMapping[len(instStackMapping)-stackUsage:]
 		}
 	}
 
@@ -88,7 +88,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		exportSectionWrap      manifest.ByteRange
 		exportSectionWrapFrame []byte
 	)
-	if suspended || buffers.Terminated() {
+	if suspended || inst.Final() {
 		if oldRanges[section.Export].Length != 0 {
 			if oldProg.man.ExportSectionWrap.Length != 0 {
 				exportSectionWrap = manifest.ByteRange{
@@ -124,7 +124,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		stackSectionSize   int
 		stackSectionOffset int64
 	)
-	if suspended {
+	if stackUsage != 0 {
 		stackHeader = makeStackSectionHeader(stackUsage)
 		stackSectionSize = len(stackHeader) + stackUsage
 		stackSectionOffset = off
@@ -253,14 +253,14 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	oldOff += oldProg.man.BufferSection.Length
 
 	// Write new stack section, and skip old one.
-	if suspended {
+	if stackSectionSize > 0 {
 		newStackSection := make([]byte, stackSectionSize)
 		copy(newStackSection, stackHeader)
 
 		newStack := newStackSection[len(stackHeader):]
 
 		if instStackData != nil {
-			err = exportStack(newStack, instStackData, inst.man.TextAddr, oldProg.Map)
+			err = exportStack(newStack, instStackData, inst.man.TextAddr, &oldProg.Map)
 			if err != nil {
 				return
 			}
@@ -466,10 +466,12 @@ func makeSnapshotSection(snap manifest.Snapshot) []byte {
 		1 + // Name length
 		len(wasm.SectionSnapshot) + // Name string
 		1 + // Snapshot version
-		1 + // Flags
+		binary.MaxVarintLen64 + // Flags
+		binary.MaxVarintLen32 + // Trap
+		binary.MaxVarintLen32 + // Result
 		binary.MaxVarintLen64 + // Monotonic time
 		binary.MaxVarintLen32 + // Breakpoint count
-		binary.MaxVarintLen32*len(snap.Breakpoints.Offset)) // Breakpoint array
+		binary.MaxVarintLen64*len(snap.Breakpoints.Offsets)) // Breakpoint array
 
 	b := make([]byte, maxSectionFrameSize+maxPayloadSize)
 	i := maxSectionFrameSize
@@ -478,12 +480,13 @@ func makeSnapshotSection(snap manifest.Snapshot) []byte {
 	i += copy(b[i:], wasm.SectionSnapshot)
 	b[i] = snapshotVersion
 	i++
-	b[i] = 0 // Flags
-	i++
+	i += binary.PutUvarint(b[i:], snap.Flags)
+	i += binary.PutUvarint(b[i:], uint64(snap.Trap))
+	i += binary.PutUvarint(b[i:], uint64(snap.Result))
 	i += binary.PutUvarint(b[i:], snap.MonotonicTime)
-	i += binary.PutUvarint(b[i:], uint64(len(snap.Breakpoints.Offset)))
-	for _, offset := range snap.Breakpoints.Offset {
-		i += binary.PutUvarint(b[i:], offset)
+	i += binary.PutUvarint(b[i:], uint64(len(snap.Breakpoints.Offsets)))
+	for _, offset := range snap.Breakpoints.Offsets {
+		i += binary.PutUvarint(b[i:], uint64(offset))
 	}
 
 	payloadLen := uint32(i - maxSectionFrameSize)
@@ -512,7 +515,7 @@ func makeExportSectionWrapFrame(exportSectionSize int64) []byte {
 }
 
 func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSize int64) {
-	if len(buffers.Services) == 0 && len(buffers.Input) == 0 && len(buffers.Output) == 0 && buffers.Flags == 0 {
+	if len(buffers.Services) == 0 && len(buffers.Input) == 0 && len(buffers.Output) == 0 {
 		return
 	}
 
@@ -522,7 +525,6 @@ func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSi
 	maxHeaderSize := maxSectionFrameSize
 	maxHeaderSize += 1                       // Section name length
 	maxHeaderSize += len(wasm.SectionBuffer) // Section name
-	maxHeaderSize += varint.MaxLen           // Flags
 	maxHeaderSize += varint.MaxLen           // Input data size
 	maxHeaderSize += varint.MaxLen           // Output data size
 	maxHeaderSize += varint.MaxLen           // Service count
@@ -538,7 +540,6 @@ func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSi
 	tail := buf[maxSectionFrameSize:]
 	tail = putByte(tail, byte(len(wasm.SectionBuffer)))
 	tail = putString(tail, wasm.SectionBuffer)
-	tail = varint.Put(tail, int32(buffers.Flags))
 	tail = varint.Put(tail, int32(len(buffers.Input)))
 	tail = varint.Put(tail, int32(len(buffers.Output)))
 	tail = varint.Put(tail, int32(len(buffers.Services)))

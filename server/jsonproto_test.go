@@ -7,18 +7,18 @@ package server_test
 import (
 	"testing"
 
-	"github.com/tsavola/gate/internal/serverapi"
-	"github.com/tsavola/gate/server"
+	"github.com/tsavola/gate/internal/jsonproto"
+	api "github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/wag/trap"
 )
 
 func TestStatusJSON(t *testing.T) {
-	status := &server.Status{
-		State: server.StateKilled,
-		Cause: server.Cause(trap.MemoryAccessOutOfBounds),
+	status := &api.Status{
+		State: api.StateKilled,
+		Cause: api.Cause(trap.MemoryAccessOutOfBounds),
 	}
 
-	data := serverapi.MustMarshalJSON(status)
+	data := jsonproto.MustMarshal(status)
 
 	if s := string(data); s != `{"state":"KILLED","cause":"MEMORY_ACCESS_OUT_OF_BOUNDS"}` {
 		t.Error(s)

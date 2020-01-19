@@ -18,7 +18,7 @@ import (
 
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/gate/internal/bus"
-	"github.com/tsavola/gate/server"
+	api "github.com/tsavola/gate/serverapi"
 	"github.com/tsavola/gate/webapi"
 	"golang.org/x/sys/unix"
 )
@@ -64,13 +64,31 @@ var localCommands = map[string]command{
 			}
 			closeFiles(module, r, w, debug)
 
-			var status server.Status
+			var status api.Status
 			check(call.Store(&status.State, &status.Cause, &status.Result))
 
-			if status.State != server.StateTerminated || status.Cause != server.CauseNormal {
+			if status.State != api.State_TERMINATED || status.Cause != 0 {
 				log.Fatal(statusString(status))
 			}
 			os.Exit(int(status.Result))
+		},
+	},
+
+	"debug": {
+		usage: "instance [command [offset]]",
+		do: func() {
+			debug(func(instID string, req api.DebugRequest) (res api.DebugResponse) {
+				reqBuf, err := req.Marshal()
+				check(err)
+
+				call := daemonCall("Debug", instID, reqBuf)
+
+				var resBuf []byte
+				check(call.Store(&resBuf))
+
+				check(res.Unmarshal(resBuf))
+				return
+			})
 		},
 	},
 
@@ -146,10 +164,10 @@ var localCommands = map[string]command{
 		do: func() {
 			call := daemonCall("Instances")
 
-			var is []server.InstanceStatus
+			var is api.Instances
 			check(call.Store(&is))
 
-			for _, inst := range is {
+			for _, inst := range is.Instances {
 				fmt.Printf("%-36s %s\n", inst.Instance, statusString(inst.Status))
 			}
 		},
@@ -213,12 +231,12 @@ var localCommands = map[string]command{
 
 	"modules": {
 		do: func() {
-			call := daemonCall("Modules")
+			call := daemonCall("ModuleRefs")
 
-			var refs []server.ModuleRef
+			var refs api.ModuleRefs
 			check(call.Store(&refs))
 
-			for _, m := range refs {
+			for _, m := range refs.Modules {
 				fmt.Println(m.Id)
 			}
 		},
@@ -287,11 +305,15 @@ var localCommands = map[string]command{
 	},
 
 	"resume": {
-		usage: "instance",
+		usage: "instance [function]",
 		do: func() {
+			if flag.NArg() > 1 {
+				c.Function = flag.Arg(1)
+			}
+
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
-			call := daemonCall("Resume", flag.Arg(0), debugFD, c.Debug, c.Scope)
+			call := daemonCall("Resume", flag.Arg(0), c.Function, debugFD, c.Debug, c.Scope)
 			closeFiles(debug)
 			check(call.Store())
 		},
@@ -340,7 +362,7 @@ var localCommands = map[string]command{
 func daemonCallInstanceStatus(name string) {
 	call := daemonCall(name, flag.Arg(0))
 
-	var status server.Status
+	var status api.Status
 	check(call.Store(&status.State, &status.Cause, &status.Result))
 	fmt.Println(statusString(status))
 }
@@ -415,7 +437,7 @@ func closeFiles(files ...*os.File) {
 	}
 }
 
-func statusString(s server.Status) string {
+func statusString(s api.Status) string {
 	t := webapi.Status{
 		State:  s.State.String(),
 		Cause:  s.Cause.String(),
@@ -423,7 +445,7 @@ func statusString(s server.Status) string {
 		Error:  s.Error,
 		Debug:  s.Debug,
 	}
-	if s.Cause == server.CauseNormal {
+	if s.Cause == 0 {
 		t.Cause = ""
 	}
 	return t.String()

@@ -17,6 +17,8 @@ import (
 	internal "github.com/tsavola/gate/internal/executable"
 	"github.com/tsavola/gate/internal/file"
 	"github.com/tsavola/gate/internal/manifest"
+	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/trap"
 	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/stack"
 	"github.com/tsavola/wag/wa"
@@ -205,7 +207,42 @@ func (inst *Instance) MemorySize() int       { return int(inst.man.MemorySize) }
 func (inst *Instance) MaxMemorySize() int    { return int(inst.man.MaxMemorySize) }
 func (inst *Instance) StartAddr() uint32     { return inst.man.StartFunc.Addr }
 func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryFunc.Addr }
+func (inst *Instance) Flags() snapshot.Flags { return snapshot.Flags(inst.man.Snapshot.Flags) }
+func (inst *Instance) Final() bool           { return inst.Flags().Final() }
+func (inst *Instance) DebugInfo() bool       { return inst.Flags().DebugInfo() }
+func (inst *Instance) Trap() trap.ID         { return trap.ID(inst.man.Snapshot.Trap) }
+func (inst *Instance) Result() int32         { return inst.man.Snapshot.Result }
 func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.MonotonicTime }
+
+// Breakpoints are in ascending order and unique.
+func (inst *Instance) Breakpoints() []uint64 {
+	return inst.man.Snapshot.Breakpoints.Offsets
+}
+
+func (inst *Instance) SetFinal() {
+	inst.man.Snapshot.Flags = uint64(inst.Flags() | snapshot.FlagFinal)
+}
+
+func (inst *Instance) SetDebugInfo(enabled bool) {
+	if enabled {
+		inst.man.Snapshot.Flags = uint64(inst.Flags() | snapshot.FlagDebugInfo)
+	} else {
+		inst.man.Snapshot.Flags = uint64(inst.Flags() &^ snapshot.FlagDebugInfo)
+	}
+}
+
+func (inst *Instance) SetTrap(id trap.ID) {
+	inst.man.Snapshot.Trap = int32(id)
+}
+
+func (inst *Instance) SetResult(n int32) {
+	inst.man.Snapshot.Result = n
+}
+
+// SetBreakpoints which must have been sorted and deduplicated.
+func (inst *Instance) SetBreakpoints(a []uint64) {
+	inst.man.Snapshot.Breakpoints.Offsets = a
+}
 
 // BeginMutation is invoked by a mutator when it takes exclusive ownership of
 // the instance state.  CheckMutation and Close may be called during the
@@ -310,8 +347,7 @@ func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
 	return
 }
 
-func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
-) (stacktrace []stack.Frame, err error) {
+func (inst *Instance) readStack() (stack []byte, err error) {
 	b := make([]byte, inst.man.StackSize)
 
 	_, err = inst.file.ReadAt(b, 0)
@@ -328,7 +364,33 @@ func (inst *Instance) Stacktrace(textMap stack.TextMap, funcSigs []wa.FuncType,
 		return
 	}
 
-	return stack.Trace(b[len(b)-int(inst.man.StackUsage):], inst.man.TextAddr, textMap, funcSigs)
+	stack = b[len(b)-int(inst.man.StackUsage):]
+	return
+}
+
+func (inst *Instance) ExportStack(textMap stack.TextMap) (stack []byte, err error) {
+	b, err := inst.readStack()
+	if err != nil || len(b) == 0 {
+		return
+	}
+
+	err = exportStack(b, b, inst.man.TextAddr, textMap)
+	if err != nil {
+		return
+	}
+
+	stack = b
+	return
+}
+
+func (inst *Instance) Stacktrace(textMap stack.TextMap, funcTypes []wa.FuncType,
+) (stacktrace []stack.Frame, err error) {
+	b, err := inst.readStack()
+	if err != nil || len(b) == 0 {
+		return
+	}
+
+	return stack.Trace(b, inst.man.TextAddr, textMap, funcTypes)
 }
 
 func checkStack(b []byte, stackSize uint32) (vars stackVars, ok bool) {

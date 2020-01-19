@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package serverapi
+package jsonproto
 
 import (
 	"bytes"
@@ -11,14 +11,14 @@ import (
 	"github.com/gogo/protobuf/proto"
 )
 
-var JSONMarshaler = jsonpb.Marshaler{
+var Marshaler = jsonpb.Marshaler{
 	OrigName: true,
 }
 
-func MarshalJSON(x proto.Message) (b []byte, err error) {
+func Marshal(x proto.Message) (b []byte, err error) {
 	var buf bytes.Buffer
 
-	err = JSONMarshaler.Marshal(&buf, x)
+	err = Marshaler.Marshal(&buf, x)
 	if err != nil {
 		return
 	}
@@ -27,8 +27,8 @@ func MarshalJSON(x proto.Message) (b []byte, err error) {
 	return
 }
 
-func MustMarshalJSON(x proto.Message) (b []byte) {
-	b, err := MarshalJSON(x)
+func MustMarshal(x proto.Message) (b []byte) {
+	b, err := Marshal(x)
 	if err != nil {
 		panic(err)
 	}

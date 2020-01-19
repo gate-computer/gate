@@ -307,7 +307,7 @@ func (b *Build) FinishProgram(
 	}
 	if snap != nil {
 		man.Snapshot.MonotonicTime = snap.MonotonicTime
-		man.Snapshot.Breakpoints.Offset = snap.Breakpoints
+		man.Snapshot.Breakpoints.Offsets = manifest.SortDedupUint64(snap.Breakpoints)
 	}
 
 	b.stack = nil

@@ -33,6 +33,7 @@ import (
 	"github.com/tsavola/gate/service/origin"
 	"github.com/tsavola/gate/service/plugin"
 	"github.com/tsavola/gate/snapshot"
+	"github.com/tsavola/gate/trap"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack"
@@ -272,11 +273,11 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 
 	tLoadBegin := tBegin
 
-	var im debug.InsnMap
+	var im = new(debug.InsnMap)
 	var ns = new(section.NameSection)
 	var cs = new(section.CustomSections)
 
-	funcSigs, prog, inst, buffers, err := load(filename, &im, ns, cs)
+	funcSigs, prog, inst, buffers, err := load(filename, im, ns, cs)
 	if err != nil {
 		log.Fatalf("load: %v", err)
 	}
@@ -301,7 +302,8 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 		}
 	}()
 
-	exit, trapID, err := proc.Serve(ctx, services, &buffers)
+	result, trapID, err := proc.Serve(ctx, services, &buffers)
+	exit = result.Value()
 
 	tRunEnd := time.Now()
 	tEnd := tRunEnd
@@ -313,7 +315,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 
 	case trapID != 0:
 		log.Printf("%v", trapID)
-		if trapID == runtime.TrapSuspended {
+		if trapID == trap.Suspended {
 			if !dump(prog, inst, buffers, true) {
 				exit = 4
 			}
@@ -326,7 +328,7 @@ func execute(ctx context.Context, executor *runtime.Executor, filename string, s
 			log.Printf("exit: %d", exit)
 		}
 
-		if !buffers.Terminated() {
+		if !result.Terminated() {
 			if !dump(prog, inst, buffers, false) {
 				exit = 4
 			}
@@ -383,7 +385,7 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 	b.Loaders[".debug_ranges"] = cs.Load
 	b.Loaders[".debug_str"] = cs.Load
 
-	reader := codeMap.Reader(bufio.NewReader(io.TeeReader(f, b.Image.ModuleWriter())))
+	reader := bufio.NewReader(io.TeeReader(f, b.Image.ModuleWriter()))
 
 	b.InstallEarlySnapshotLoaders()
 
@@ -402,7 +404,13 @@ func load(filename string, codeMap *debug.InsnMap, ns *section.NameSection, cs *
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(codeMap), reader, b.Module, abi.Library())
+	codeReader := debug.NewReadTeller(reader)
+	err = compile.LoadCodeSection(b.CodeConfig(codeMap.Mapper(codeReader)), codeReader, b.Module, abi.Library())
+	if err != nil {
+		return
+	}
+
+	err = b.VerifyBreakpoints()
 	if err != nil {
 		return
 	}
