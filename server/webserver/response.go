@@ -34,7 +34,6 @@ const (
 )
 
 var (
-	errContentDecode        = errors.New("content decode error")
 	errContentNotEmpty      = errors.New("request content not empty")
 	errDuplicateQueryParam  = errors.New("duplicate query parameter")
 	errEncodingNotSupported = errors.New("unsupported content encoding")
@@ -198,8 +197,8 @@ func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webser
 }
 
 func respondContentDecodeError(ctx context.Context, ew errorWriter, s *webserver, err error) {
-	ew.WriteError(http.StatusBadRequest, errContentDecode.Error())
-	reportPayloadError(ctx, s, errContentDecode)
+	ew.WriteError(http.StatusBadRequest, "content decode error")
+	reportPayloadError(ctx, s, err)
 }
 
 func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserver) {
