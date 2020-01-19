@@ -458,12 +458,18 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 	return
 }
 
-func makeSnapshotSection(vars manifest.Snapshot) []byte {
+func makeSnapshotSection(snap manifest.Snapshot) []byte {
 	// Section id, payload length.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
-	// Name length, name string, snapshot version length, flags, monotonic time length.
-	var maxPayloadSize = 1 + len(wasm.SectionSnapshot) + 1 + 1 + binary.MaxVarintLen64
+	var maxPayloadSize = (0 +
+		1 + // Name length
+		len(wasm.SectionSnapshot) + // Name string
+		1 + // Snapshot version
+		1 + // Flags
+		binary.MaxVarintLen64 + // Monotonic time
+		binary.MaxVarintLen32 + // Breakpoint count
+		binary.MaxVarintLen32*len(snap.Breakpoints.Offset)) // Breakpoint array
 
 	b := make([]byte, maxSectionFrameSize+maxPayloadSize)
 	i := maxSectionFrameSize
@@ -474,7 +480,11 @@ func makeSnapshotSection(vars manifest.Snapshot) []byte {
 	i++
 	b[i] = 0 // Flags
 	i++
-	i += binary.PutUvarint(b[i:], vars.MonotonicTime)
+	i += binary.PutUvarint(b[i:], snap.MonotonicTime)
+	i += binary.PutUvarint(b[i:], uint64(len(snap.Breakpoints.Offset)))
+	for _, offset := range snap.Breakpoints.Offset {
+		i += binary.PutUvarint(b[i:], offset)
+	}
 
 	payloadLen := uint32(i - maxSectionFrameSize)
 	payloadLenSize := putVaruint32Before(b, maxSectionFrameSize, payloadLen)

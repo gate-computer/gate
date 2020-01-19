@@ -58,4 +58,9 @@ message Function {
 
 message Snapshot {
 	uint64 monotonic_time = 1;
+	Breakpoints breakpoints = 2;
+}
+
+message Breakpoints {
+	repeated uint64 offset = 1;
 }

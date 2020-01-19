@@ -5,6 +5,7 @@
 package build
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"github.com/tsavola/gate/internal/error/notfound"
 	"github.com/tsavola/gate/internal/error/resourcelimit"
 	"github.com/tsavola/gate/internal/executable"
+	"github.com/tsavola/gate/internal/manifest"
 	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/gate/snapshot/wasm"
 	"github.com/tsavola/wag/binding"
@@ -92,6 +94,26 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 			return
 		}
 		length -= uint32(n)
+
+		numBreakpoints, n, err := readVaruint64(r)
+		if err != nil {
+			return
+		}
+		length -= uint32(n)
+
+		if numBreakpoints >= manifest.MaxBreakpoints {
+			err = errors.New("snapshot has too many breakpoints")
+			return
+		}
+
+		snap.Breakpoints = make([]uint64, numBreakpoints)
+		for i := range snap.Breakpoints {
+			snap.Breakpoints[i], n, err = readVaruint64(r)
+			if err != nil {
+				return
+			}
+			length -= uint32(n)
+		}
 
 		_, err = io.CopyN(ioutil.Discard, r, int64(length))
 		if err != nil {

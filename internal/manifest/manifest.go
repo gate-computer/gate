@@ -10,6 +10,7 @@ import (
 )
 
 const MaxSize = 4096 // Including header.
+const MaxBreakpoints = 100
 
 var NoFunction = Function{Index: -1}
 

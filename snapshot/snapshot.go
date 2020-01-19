@@ -6,4 +6,5 @@ package snapshot
 
 type Snapshot struct {
 	MonotonicTime uint64
+	Breakpoints   []uint64
 }

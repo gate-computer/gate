@@ -307,6 +307,7 @@ func (b *Build) FinishProgram(
 	}
 	if snap != nil {
 		man.Snapshot.MonotonicTime = snap.MonotonicTime
+		man.Snapshot.Breakpoints.Offset = snap.Breakpoints
 	}
 
 	b.stack = nil
