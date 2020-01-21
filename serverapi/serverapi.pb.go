@@ -53,7 +53,7 @@ func (x State) String() string {
 	return proto.EnumName(State_name, int32(x))
 }
 func (State) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{0}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{0}
 }
 
 type Cause int32
@@ -106,7 +106,7 @@ func (x Cause) String() string {
 	return proto.EnumName(Cause_name, int32(x))
 }
 func (Cause) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{1}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{1}
 }
 
 type DebugOp int32
@@ -144,7 +144,7 @@ func (x DebugOp) String() string {
 	return proto.EnumName(DebugOp_name, int32(x))
 }
 func (DebugOp) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{2}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{2}
 }
 
 type ModuleRef struct {
@@ -155,7 +155,7 @@ func (m *ModuleRef) Reset()         { *m = ModuleRef{} }
 func (m *ModuleRef) String() string { return proto.CompactTextString(m) }
 func (*ModuleRef) ProtoMessage()    {}
 func (*ModuleRef) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{0}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{0}
 }
 func (m *ModuleRef) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -192,7 +192,7 @@ func (m *ModuleRefs) Reset()         { *m = ModuleRefs{} }
 func (m *ModuleRefs) String() string { return proto.CompactTextString(m) }
 func (*ModuleRefs) ProtoMessage()    {}
 func (*ModuleRefs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{1}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{1}
 }
 func (m *ModuleRefs) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -233,7 +233,7 @@ func (m *Status) Reset()         { *m = Status{} }
 func (m *Status) String() string { return proto.CompactTextString(m) }
 func (*Status) ProtoMessage()    {}
 func (*Status) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{2}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{2}
 }
 func (m *Status) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -273,7 +273,7 @@ func (m *InstanceStatus) Reset()         { *m = InstanceStatus{} }
 func (m *InstanceStatus) String() string { return proto.CompactTextString(m) }
 func (*InstanceStatus) ProtoMessage()    {}
 func (*InstanceStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{3}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{3}
 }
 func (m *InstanceStatus) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -310,7 +310,7 @@ func (m *Instances) Reset()         { *m = Instances{} }
 func (m *Instances) String() string { return proto.CompactTextString(m) }
 func (*Instances) ProtoMessage()    {}
 func (*Instances) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{4}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{4}
 }
 func (m *Instances) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -350,7 +350,7 @@ func (m *DebugRequest) Reset()         { *m = DebugRequest{} }
 func (m *DebugRequest) String() string { return proto.CompactTextString(m) }
 func (*DebugRequest) ProtoMessage()    {}
 func (*DebugRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{5}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{5}
 }
 func (m *DebugRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -390,7 +390,7 @@ func (m *DebugResponse) Reset()         { *m = DebugResponse{} }
 func (m *DebugResponse) String() string { return proto.CompactTextString(m) }
 func (*DebugResponse) ProtoMessage()    {}
 func (*DebugResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{6}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{6}
 }
 func (m *DebugResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -428,7 +428,7 @@ func (m *DebugConfig) Reset()         { *m = DebugConfig{} }
 func (m *DebugConfig) String() string { return proto.CompactTextString(m) }
 func (*DebugConfig) ProtoMessage()    {}
 func (*DebugConfig) Descriptor() ([]byte, []int) {
-	return fileDescriptor_serverapi_9394a1e30af7a1be, []int{7}
+	return fileDescriptor_serverapi_d7f061ec9bb22a40, []int{7}
 }
 func (m *DebugConfig) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1985,10 +1985,10 @@ var (
 )
 
 func init() {
-	proto.RegisterFile("serverapi/serverapi.proto", fileDescriptor_serverapi_9394a1e30af7a1be)
+	proto.RegisterFile("serverapi/serverapi.proto", fileDescriptor_serverapi_d7f061ec9bb22a40)
 }
 
-var fileDescriptor_serverapi_9394a1e30af7a1be = []byte{
+var fileDescriptor_serverapi_d7f061ec9bb22a40 = []byte{
 	// 899 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x55, 0x4f, 0x6f, 0xdb, 0xc6,
 	0x13, 0x15, 0x65, 0x49, 0xb6, 0x46, 0xb6, 0x7e, 0xeb, 0x85, 0x63, 0x28, 0x76, 0xa2, 0x28, 0xc2,
