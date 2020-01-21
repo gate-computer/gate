@@ -13,8 +13,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"runtime"
 	"strings"
+	"syscall"
 
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/gate/internal/bus"
@@ -48,6 +50,9 @@ var localCommands = map[string]command{
 			rFD := dbus.UnixFD(r.Fd())
 			wFD := dbus.UnixFD(w.Fd())
 
+			suspend := newSignalPipe(syscall.SIGQUIT)
+			suspendFD := dbus.UnixFD(suspend.Fd())
+
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
 
@@ -56,21 +61,32 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !strings.Contains(flag.Arg(0), "/") {
-				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, debugFD, c.Debug, c.Scope)
+				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.Debug, c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, debugFD, c.Debug, c.Scope)
+				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, suspendFD, debugFD, c.Debug, c.Scope)
 			}
-			closeFiles(module, r, w, debug)
+			closeFiles(module, r, w, suspend, debug)
 
-			var status api.Status
-			check(call.Store(&status.State, &status.Cause, &status.Result))
+			var (
+				instID string
+				status api.Status
+			)
+			check(call.Store(&instID, &status.State, &status.Cause, &status.Result))
 
-			if status.State != api.State_TERMINATED || status.Cause != 0 {
+			switch {
+			case status.State == api.StateSuspended:
+				fmt.Println()
+				fmt.Println(instID)
+				fmt.Println(statusString(status))
+
+			case status.State == api.StateTerminated:
+				os.Exit(int(status.Result))
+
+			default:
 				log.Fatal(statusString(status))
 			}
-			os.Exit(int(status.Result))
 		},
 	},
 
@@ -411,6 +427,21 @@ func copyStdout() *os.File {
 	}()
 
 	return w
+}
+
+func newSignalPipe(signals ...os.Signal) *os.File {
+	r, w, err := os.Pipe()
+	check(err)
+
+	c := make(chan os.Signal)
+	signal.Notify(c, signals...)
+	go func() {
+		defer w.Close()
+		<-c
+		w.Write([]byte{0})
+	}()
+
+	return r
 }
 
 func openDebugFile() *os.File {

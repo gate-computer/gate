@@ -195,19 +195,19 @@ func mainResult() int {
 
 func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 	methods := map[string]interface{}{
-		"CallKey": func(key, function string, rFD, wFD, debugFD dbus.UnixFD, debugName string, scope []string,
-		) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"CallKey": func(key, function string, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugName string, scope []string,
+		) (instID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			state, cause, result = handleCall(ctx, s, nil, key, function, false, rFD, wFD, debugFD, debugName, scope)
+			instID, state, cause, result = handleCall(ctx, s, nil, key, function, false, rFD, wFD, suspendFD, debugFD, debugName, scope)
 			return
 		},
 
-		"CallFile": func(moduleFD dbus.UnixFD, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string, scope []string,
-		) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"CallFile": func(moduleFD dbus.UnixFD, function string, ref bool, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugName string, scope []string,
+		) (instID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			state, cause, result = handleCall(ctx, s, module, "", function, ref, rFD, wFD, debugFD, debugName, scope)
+			instID, state, cause, result = handleCall(ctx, s, module, "", function, ref, rFD, wFD, suspendFD, debugFD, debugName, scope)
 			return
 		},
 
@@ -360,8 +360,8 @@ func handleModuleUnref(ctx context.Context, s *server.Server, key string) {
 	check(s.UnrefModule(ctx, key))
 }
 
-func handleCall(ctx context.Context, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, debugFD dbus.UnixFD, debugName string, scope []string,
-) (state api.State, cause api.Cause, result int32) {
+func handleCall(ctx context.Context, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugName string, scope []string,
+) (instID string, state api.State, cause api.Cause, result int32) {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
@@ -372,10 +372,23 @@ func handleCall(ctx context.Context, s *server.Server, module *os.File, key, fun
 	if err == nil {
 		err = syscall.SetNonblock(int(wFD), true)
 	}
-	r := os.NewFile(uintptr(rFD), "r")
-	defer r.Close()
-	w := os.NewFile(uintptr(wFD), "w")
-	defer w.Close()
+	if err == nil {
+		err = syscall.SetNonblock(int(suspendFD), true)
+	}
+
+	var (
+		r       = os.NewFile(uintptr(rFD), "r")
+		w       = os.NewFile(uintptr(wFD), "w")
+		suspend = os.NewFile(uintptr(suspendFD), "suspend")
+	)
+	defer func() {
+		r.Close()
+		w.Close()
+		if suspend != nil {
+			suspend.Close()
+		}
+	}()
+
 	if err != nil {
 		panic(err) // First SetNonblock error.
 	}
@@ -393,9 +406,17 @@ func handleCall(ctx context.Context, s *server.Server, module *os.File, key, fun
 	check(err)
 	defer inst.Kill()
 
+	go func(suspend *os.File) {
+		defer suspend.Close()
+		if n, _ := io.ReadFull(suspend, make([]byte, 1)); n > 0 {
+			inst.Suspend()
+		}
+	}(suspend)
+	suspend = nil
+
 	inst.Connect(ctx, r, w)
 	status := inst.Wait(ctx)
-	return status.State, status.Cause, status.Result
+	return inst.ID, status.State, status.Cause, status.Result
 }
 
 func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, function string, ref bool, debugFD dbus.UnixFD, debugName string, scope []string) string {

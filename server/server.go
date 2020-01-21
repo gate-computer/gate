@@ -171,7 +171,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 	}()
 
 	for _, inst := range accInsts {
-		inst.suspend()
+		inst.Suspend()
 	}
 	for inst := range anonInsts {
 		inst.Kill()
@@ -922,7 +922,7 @@ func (s *Server) SuspendInstance(ctx context.Context, instID string,
 		Instance: inst.ID,
 	})
 
-	inst.suspend()
+	inst.Suspend()
 	return
 }
 
@@ -1012,7 +1012,7 @@ func (s *Server) InstanceModule(ctx context.Context, instID string) (moduleKey s
 	status := inst.Status()
 	resume := false
 	if status.State == api.StateRunning {
-		inst.suspend()
+		inst.Suspend()
 		resume = inst.Wait(context.Background()).State == api.StateSuspended
 	}
 

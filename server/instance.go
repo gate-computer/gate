@@ -231,7 +231,7 @@ func (inst *Instance) Kill() {
 	}
 }
 
-func (inst *Instance) suspend() {
+func (inst *Instance) Suspend() {
 	inst.mu.Lock()
 	inst.transient = false
 	proc := inst.process
