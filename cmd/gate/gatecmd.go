@@ -22,7 +22,6 @@ const (
 )
 
 type Config struct {
-	Address      string
 	IdentityFile string
 	Ref          bool
 	Wait         bool
@@ -31,6 +30,8 @@ type Config struct {
 	Scope        []string
 	Debug        string
 	REPL         REPLConfig
+
+	address string
 }
 
 var home = os.Getenv("HOME")
@@ -144,7 +145,7 @@ func main() {
 			flag.Usage()
 			os.Exit(2)
 		}
-		c.Address = s
+		c.address = s
 		os.Args = flag.Args()[1:]
 	} else {
 		os.Args = flag.Args()
@@ -155,7 +156,7 @@ func main() {
 
 	commands := localCommands
 	otherCommands := remoteCommands
-	if c.Address != "" {
+	if c.address != "" {
 		commands, otherCommands = otherCommands, commands
 	}
 
@@ -178,7 +179,7 @@ func main() {
 		flag.VisitAll(func(*flag.Flag) { options = true })
 
 		usageFmt := "Usage: %s"
-		if c.Address != "" {
+		if c.address != "" {
 			usageFmt += " "
 		}
 		usageFmt += "%s %s"
@@ -196,7 +197,7 @@ func main() {
 			usageFmt += "\nOptions:\n"
 		}
 
-		fmt.Fprintf(flag.CommandLine.Output(), usageFmt, progname, c.Address, flag.CommandLine.Name(), command.usage)
+		fmt.Fprintf(flag.CommandLine.Output(), usageFmt, progname, c.address, flag.CommandLine.Name(), command.usage)
 		flag.PrintDefaults()
 	}
 	flag.CommandLine.Usage = flag.Usage

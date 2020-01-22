@@ -261,7 +261,7 @@ var localCommands = map[string]command{
 	"pull": {
 		usage: "address module",
 		do: func() {
-			c.Address = flag.Arg(0)
+			c.address = flag.Arg(0)
 
 			_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(1), nil)
 			if resp.ContentLength < 0 {
@@ -292,7 +292,7 @@ var localCommands = map[string]command{
 	"push": {
 		usage: "address module",
 		do: func() {
-			c.Address = flag.Arg(0)
+			c.address = flag.Arg(0)
 
 			r, w, err := os.Pipe()
 			check(err)

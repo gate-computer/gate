@@ -458,7 +458,7 @@ func doHTTP(req *http.Request, uri string, params url.Values,
 }
 
 func makeURL(uri string, params url.Values, prelocate bool) (u *url.URL) {
-	addr := c.Address
+	addr := c.address
 	if !strings.Contains(addr, "://") {
 		addr = "https://" + addr
 	}
@@ -519,7 +519,7 @@ func makeAuthorization() string {
 
 	claims := &webapi.Claims{
 		Exp:   time.Now().Unix() + 60,
-		Aud:   []string{"https://" + c.Address + webapi.Path},
+		Aud:   []string{"https://" + c.address + webapi.Path},
 		Scope: c.Scope,
 	}
 
