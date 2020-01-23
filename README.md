@@ -57,17 +57,21 @@ Important Go packages:
 Programs:
 
   - **gate**:
-    Command-line client.  Uses SSH keys (ed25519) for authentication.
+    Command-line client for local daemon and remote servers.  Uses SSH keys
+    (ed25519) for authentication.
+
+  - **gated**:
+    D-Bus daemon for running and managing instances and wasm modules locally.
 
   - **gate-server**:
-    Standalone HTTP server with the built-in and plugged-in services.
-
-  - **gate-run**:
-    Run your programs locally, with the built-in and plugged-in services.
+    Standalone web server which can serve the public or require authentication.
 
   - **gate-runtimed**:
     For optionally preconfiguring the execution environment, e.g. as a system
     service.
+
+  - **gate-run**:
+    Run programs locally.  (Being superseded by **gate**.)
 
 See the complete [list of Go packages](https://godoc.org/github.com/tsavola/gate).
 
@@ -116,7 +120,7 @@ of continually running programs.
 User program support:
 
   - [x] Low-level C API
-  - [x] [Rust](https://github.com/tsavola/gain) support
+  - [ ] [Rust](https://github.com/tsavola/gain) support (out of date)
   - [ ] Improved Rust support
   - [ ] Go support
   - [ ] Approach for splitting WebAssembly app between browser (UI) and server (state)
@@ -136,6 +140,10 @@ The non-Go components can be built with `make`.  They require:
 
 `make bin` builds the programs using the Go 1.11 module mechanism.
 (Individual packages may be buildable with older Go versions.)
+
+Running the D-Bus enabled programs (gate and gated) requires:
+
+  - dbus-user-session
 
 Additional requirements for `make check`:
 
