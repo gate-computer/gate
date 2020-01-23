@@ -108,7 +108,7 @@ func parseConfig(flags *flag.FlagSet, c *Config) {
 	flags.Parse(os.Args[1:])
 
 	if err := b.Apply(c); err != nil {
-		fmt.Fprintf(flags.Output(), "%s: %v\n", flags.Name(), err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", flags.Name(), err)
 		os.Exit(2)
 	}
 }
