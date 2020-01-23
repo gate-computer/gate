@@ -249,19 +249,19 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			return
 		},
 
-		"LaunchKey": func(key, function string, debugFD dbus.UnixFD, debugName string, scope []string,
+		"LaunchKey": func(key, function string, suspend bool, debugFD dbus.UnixFD, debugName string, scope []string,
 		) (instID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			instID = handleLaunch(ctx, s, nil, key, function, false, debugFD, debugName, scope)
+			instID = handleLaunch(ctx, s, nil, key, function, false, suspend, debugFD, debugName, scope)
 			return
 		},
 
-		"LaunchFile": func(moduleFD dbus.UnixFD, function string, ref bool, debugFD dbus.UnixFD, debugName string, scope []string,
+		"LaunchFile": func(moduleFD dbus.UnixFD, function string, ref, suspend bool, debugFD dbus.UnixFD, debugName string, scope []string,
 		) (instID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			instID = handleLaunch(ctx, s, module, "", function, ref, debugFD, debugName, scope)
+			instID = handleLaunch(ctx, s, module, "", function, ref, suspend, debugFD, debugName, scope)
 			return
 		},
 
@@ -419,7 +419,7 @@ func handleCall(ctx context.Context, s *server.Server, module *os.File, key, fun
 	return inst.ID, status.State, status.Cause, status.Result
 }
 
-func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, function string, ref bool, debugFD dbus.UnixFD, debugName string, scope []string) string {
+func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, function string, ref, suspend bool, debugFD dbus.UnixFD, debugName string, scope []string) string {
 	debug := newFileCell(debugFD, "debug")
 	defer debug.Close()
 
@@ -432,9 +432,9 @@ func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, f
 	)
 	if module != nil {
 		moduleR, moduleLen := getReaderWithLength(module)
-		inst, err = s.UploadModuleInstance(ctx, ref, "", ioutil.NopCloser(moduleR), moduleLen, false, function, "", debugName, false)
+		inst, err = s.UploadModuleInstance(ctx, ref, "", ioutil.NopCloser(moduleR), moduleLen, false, function, "", debugName, suspend)
 	} else {
-		inst, err = s.CreateInstance(ctx, key, false, function, "", debugName, false)
+		inst, err = s.CreateInstance(ctx, key, false, function, "", debugName, suspend)
 	}
 	check(err)
 

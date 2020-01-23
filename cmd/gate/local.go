@@ -229,11 +229,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !strings.Contains(flag.Arg(0), "/") {
-				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, debugFD, c.Debug, c.Scope)
+				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.Debug, c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, debugFD, c.Debug, c.Scope)
+				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, c.Suspend, debugFD, c.Debug, c.Scope)
 			}
 			closeFiles(module, debug)
 

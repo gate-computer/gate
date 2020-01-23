@@ -28,6 +28,7 @@ type Config struct {
 	Function     string
 	Instance     string
 	Scope        []string
+	Suspend      bool
 	Debug        string
 	REPL         REPLConfig
 

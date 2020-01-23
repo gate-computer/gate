@@ -181,8 +181,15 @@ var remoteCommands = map[string]command{
 				c.Function = flag.Arg(1)
 			}
 
+			actions := []string{
+				webapi.ActionLaunch,
+			}
+			if c.Suspend {
+				actions = append(actions, webapi.ActionSuspend)
+			}
+
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionLaunch},
+				webapi.ParamAction: actions,
 			}
 			if c.Function != "" {
 				params.Set(webapi.ParamFunction, c.Function)
