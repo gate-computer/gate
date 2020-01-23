@@ -433,7 +433,7 @@ func maxInstanceMemory(prog *Program, n int) (adjusted int, err error) {
 	if prog.man.MemorySizeLimit >= 0 && n > int(prog.man.MemorySizeLimit) {
 		n = int(prog.man.MemorySizeLimit)
 	}
-	if n < int(prog.man.MemorySize) {
+	if n >= 0 && n < int(prog.man.MemorySize) {
 		return n, resourcelimit.New("out of memory")
 	}
 	return n, nil
