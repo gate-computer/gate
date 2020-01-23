@@ -77,7 +77,6 @@ var localCommands = map[string]command{
 
 			switch {
 			case status.State == api.StateSuspended:
-				fmt.Println()
 				fmt.Println(instID)
 				fmt.Println(statusString(status))
 
@@ -438,6 +437,9 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 	go func() {
 		defer w.Close()
 		<-c
+		if _, err := unix.IoctlGetTermios(int(os.Stdout.Fd()), unix.TCGETS); err == nil {
+			fmt.Print("\r") // Clear the ^\ in case the signal was sent via terminal.
+		}
 		w.Write([]byte{0})
 	}()
 
