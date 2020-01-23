@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	ServiceName    = "savo.la/gate/localhost"
+	ServiceName    = "gate.computer/localhost"
 	ServiceVersion = "0"
 )
 

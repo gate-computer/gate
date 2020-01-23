@@ -14,10 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"gate.computer/localhost/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/service"
-	"savo.la/gate/localhost/flat"
 )
 
 const testMaxSendSize = 65536

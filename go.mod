@@ -1,4 +1,4 @@
-module savo.la/gate/localhost
+module gate.computer/localhost
 
 go 1.11
 

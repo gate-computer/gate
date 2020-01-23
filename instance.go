@@ -14,10 +14,10 @@ import (
 	"net/http"
 	"net/url"
 
+	"gate.computer/localhost/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/tsavola/gate/packet"
 	"github.com/tsavola/gate/service"
-	"savo.la/gate/localhost/flat"
 )
 
 // Any encoded flat.HTTPResponse (just the table) must not be larger than this,
