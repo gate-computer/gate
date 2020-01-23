@@ -21,7 +21,7 @@ import (
 
 func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) context.Context {
 	if str == "" && !require {
-		return nil
+		return ctx
 	}
 
 	token := mustParseBearerToken(ctx, ew, s, str)
