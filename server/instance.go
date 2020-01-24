@@ -410,7 +410,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 	if !inst.transient {
 		err = prog.ensureStorage()
 		if err == nil {
-			_, err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
+			err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
 		}
 		if err != nil {
 			res.Error = public.Error(err, res.Error)

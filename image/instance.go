@@ -27,7 +27,8 @@ import (
 var ErrInvalidState = errors.New("instance state is invalid")
 
 const (
-	instMaxOffset = int64(0x180000000) // 0x80000000 * 3
+	instManifestOffset = int64(0x180000000)
+	instMaxOffset      = int64(0x200000000)
 )
 
 const stackMagic = 0x7b53c485c17322fe
@@ -47,17 +48,18 @@ type InstanceStorage interface {
 	newInstanceFile() (*file.File, error)
 	instanceFileWriteSupported() bool
 	storeInstanceSupported() bool
-	storeInstance(inst *Instance, name string) (manifest.Instance, error)
-	LoadInstance(name string, man manifest.Instance) (*Instance, error)
+	storeInstance(inst *Instance, name string) error
+	LoadInstance(name string) (*Instance, error)
 }
 
 // Instance is a program state.  It may be undergoing mutation.
 type Instance struct {
 	man      manifest.Instance
+	manDirty bool // Manifest needs to be written to file.
+	coherent bool // File is not being mutated and looks okay.
 	file     *file.File
-	coherent bool
-	dir      *file.File
-	name     string
+	dir      *file.File // Non-nil means that store is supported and instance is stored.
+	name     string     // Non-empty means that instance is in stored state.
 }
 
 func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex int,
@@ -141,16 +143,22 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
 			Snapshot:      prog.man.Snapshot,
 		},
-		file:     instFile,
+		manDirty: true,
 		coherent: true,
+		file:     instFile,
 	}
 	return
 }
 
 // Store the instance.  The name must not contain path separators.
-func (inst *Instance) Store(name string, prog *Program) (man manifest.Instance, err error) {
+func (inst *Instance) Store(name string, prog *Program) (err error) {
+	if inst.name != "" {
+		err = errors.New("instance already stored")
+		return
+	}
+
 	if !prog.storage.storeInstanceSupported() {
-		// Zero manifest value represents nonexistent instance.
+		inst.name = name
 		return
 	}
 
@@ -159,11 +167,7 @@ func (inst *Instance) Store(name string, prog *Program) (man manifest.Instance, 
 		return
 	}
 
-	man, err = prog.storage.storeInstance(inst, name)
-	if err != nil {
-		return
-	}
-
+	err = prog.storage.storeInstance(inst, name)
 	return
 }
 
@@ -177,6 +181,10 @@ func (inst *Instance) Unstore() (err error) {
 	inst.dir = nil
 	inst.name = ""
 
+	if dir == nil {
+		return
+	}
+
 	err = unlinkat(dir.Fd(), name)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -186,10 +194,6 @@ func (inst *Instance) Unstore() (err error) {
 	}
 
 	err = fdatasync(dir.Fd())
-	if err != nil {
-		return
-	}
-
 	return
 }
 
@@ -220,28 +224,57 @@ func (inst *Instance) Breakpoints() []uint64 {
 }
 
 func (inst *Instance) SetFinal() {
-	inst.man.Snapshot.Flags = uint64(inst.Flags() | snapshot.FlagFinal)
+	flags := uint64(inst.Flags() | snapshot.FlagFinal)
+	if inst.man.Snapshot.Flags == flags {
+		return
+	}
+	inst.man.Snapshot.Flags = flags
+	inst.manDirty = true
 }
 
 func (inst *Instance) SetDebugInfo(enabled bool) {
+	var flags uint64
 	if enabled {
-		inst.man.Snapshot.Flags = uint64(inst.Flags() | snapshot.FlagDebugInfo)
+		flags = uint64(inst.Flags() | snapshot.FlagDebugInfo)
 	} else {
-		inst.man.Snapshot.Flags = uint64(inst.Flags() &^ snapshot.FlagDebugInfo)
+		flags = uint64(inst.Flags() &^ snapshot.FlagDebugInfo)
 	}
+	if inst.man.Snapshot.Flags == flags {
+		return
+	}
+	inst.man.Snapshot.Flags = flags
+	inst.manDirty = true
 }
 
 func (inst *Instance) SetTrap(id trap.ID) {
+	if inst.man.Snapshot.Trap == int32(id) {
+		return
+	}
 	inst.man.Snapshot.Trap = int32(id)
+	inst.manDirty = true
 }
 
 func (inst *Instance) SetResult(n int32) {
+	if inst.man.Snapshot.Result == n {
+		return
+	}
 	inst.man.Snapshot.Result = n
+	inst.manDirty = true
 }
 
 // SetBreakpoints which must have been sorted and deduplicated.
 func (inst *Instance) SetBreakpoints(a []uint64) {
+	if len(inst.man.Snapshot.Breakpoints.Offsets) == len(a) {
+		for i, x := range inst.man.Snapshot.Breakpoints.Offsets {
+			if x != a[i] {
+				goto changed
+			}
+		}
+		return
+	}
+changed:
 	inst.man.Snapshot.Breakpoints.Offsets = a
+	inst.manDirty = true
 }
 
 // BeginMutation is invoked by a mutator when it takes exclusive ownership of
@@ -282,12 +315,7 @@ func (inst *Instance) CheckMutation() (err error) {
 		return
 	}
 
-	err = inst.checkMutation(b)
-	if err != nil {
-		return
-	}
-
-	return
+	return inst.checkMutation(b)
 }
 
 func (inst *Instance) checkMutation(stack []byte) (err error) {
@@ -315,14 +343,21 @@ func (inst *Instance) checkMutation(stack []byte) (err error) {
 		inst.man.StartFunc = manifest.NoFunction
 		inst.man.EntryFunc = manifest.NoFunction
 		inst.man.Snapshot.MonotonicTime = vars.MonotonicTimeSnapshot
+		inst.manDirty = true
 	}
+
 	inst.coherent = true
 	return
 }
 
 // SetEntry prepares a halted instance for re-entry.
 func (inst *Instance) SetEntry(prog *Program, funcIndex int) {
-	inst.man.EntryFunc = prog.man.EntryFunc(funcIndex)
+	f := prog.man.EntryFunc(funcIndex)
+	if inst.man.EntryFunc == f {
+		return
+	}
+	inst.man.EntryFunc = f
+	inst.manDirty = true
 }
 
 func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {

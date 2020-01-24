@@ -20,6 +20,7 @@ import (
 
 const (
 	programFileTag     = 0x4a5274bd
+	instanceFileTag    = 0xb405dd05
 	manifestHeaderSize = 8
 )
 
@@ -82,27 +83,13 @@ func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 	}()
 
 	err = ftruncate(f.Fd(), progMaxOffset)
-	if err != nil {
-		return
-	}
-
 	return
 }
 
 func (fs *Filesystem) protectProgramFile(*file.File) error { return nil }
 
 func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
-	manSize := manifestHeaderSize + prog.man.Size()
-	b := make([]byte, manSize)
-	binary.LittleEndian.PutUint32(b, programFileTag)
-	binary.LittleEndian.PutUint32(b[4:], uint32(manSize))
-
-	_, err = prog.man.MarshalTo(b[manifestHeaderSize:])
-	if err != nil {
-		return
-	}
-
-	_, err = prog.file.WriteAt(b, progManifestOffset)
+	err = marshalManifest(prog.file, &prog.man, progManifestOffset, programFileTag)
 	if err != nil {
 		return
 	}
@@ -121,10 +108,6 @@ func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
 	}
 
 	err = fdatasync(fs.progDir.Fd())
-	if err != nil {
-		return
-	}
-
 	return
 }
 
@@ -171,24 +154,7 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 		file:    f,
 	}
 
-	b := make([]byte, manifest.MaxSize)
-	_, err = io.ReadFull(io.NewSectionReader(f, progManifestOffset, manifest.MaxSize), b)
-	if err != nil {
-		return
-	}
-
-	if tag := binary.LittleEndian.Uint32(b); tag != programFileTag {
-		err = fmt.Errorf("unknown program file tag: %#x", programFileTag)
-		return
-	}
-
-	manSize := binary.LittleEndian.Uint32(b[4:])
-	if manSize < manifestHeaderSize || manSize > manifest.MaxSize {
-		err = fmt.Errorf("program manifest size out of bounds: %d", manSize)
-		return
-	}
-
-	err = prog.man.Unmarshal(b[manifestHeaderSize:manSize])
+	err = unmarshalManifest(f, &prog.man, progManifestOffset, programFileTag)
 	if err != nil {
 		return
 	}
@@ -209,10 +175,6 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 	}
 
 	_, err = io.ReadFull(io.NewSectionReader(f, progFuncAddrsOffset, int64(prog.man.FuncAddrsSize)), funcAddrsBytes(&prog.Map))
-	if err != nil {
-		return
-	}
-
 	return
 }
 
@@ -228,20 +190,19 @@ func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
 	}()
 
 	err = ftruncate(f.Fd(), instMaxOffset)
-	if err != nil {
-		return
-	}
-
 	return
 }
 
 func (fs *Filesystem) instanceFileWriteSupported() bool { return true }
 func (fs *Filesystem) storeInstanceSupported() bool     { return true }
 
-func (fs *Filesystem) storeInstance(inst *Instance, name string) (man manifest.Instance, err error) {
-	if inst.name != "" {
-		// Instance not mutated after it was loaded; link is still there.
-		return
+func (fs *Filesystem) storeInstance(inst *Instance, name string) (err error) {
+	if inst.manDirty {
+		err = marshalManifest(inst.file, &inst.man, instManifestOffset, instanceFileTag)
+		if err != nil {
+			return
+		}
+		inst.manDirty = false
 	}
 
 	err = fdatasync(inst.file.Fd())
@@ -261,11 +222,10 @@ func (fs *Filesystem) storeInstance(inst *Instance, name string) (man manifest.I
 
 	inst.dir = fs.instDir
 	inst.name = name
-	man = inst.man
 	return
 }
 
-func (fs *Filesystem) LoadInstance(name string, man manifest.Instance) (inst *Instance, err error) {
+func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 	f, err := openat(int(fs.instDir.Fd()), name, syscall.O_RDWR, 0)
 	if err != nil {
 		return
@@ -277,11 +237,57 @@ func (fs *Filesystem) LoadInstance(name string, man manifest.Instance) (inst *In
 	}()
 
 	inst = &Instance{
-		man:      man,
-		file:     f,
 		coherent: true,
+		file:     f,
 		dir:      fs.instDir,
 		name:     name,
 	}
+
+	err = unmarshalManifest(f, &inst.man, instManifestOffset, instanceFileTag)
 	return
+}
+
+type marshaler interface {
+	Size() int
+	MarshalTo([]byte) (int, error)
+}
+
+func marshalManifest(f *file.File, man marshaler, offset int64, tag uint32) (err error) {
+	size := manifestHeaderSize + man.Size()
+	b := make([]byte, size)
+	binary.LittleEndian.PutUint32(b, tag)
+	binary.LittleEndian.PutUint32(b[4:], uint32(size))
+
+	_, err = man.MarshalTo(b[manifestHeaderSize:])
+	if err != nil {
+		return
+	}
+
+	_, err = f.WriteAt(b, offset)
+	return
+}
+
+type unmarshaler interface {
+	Unmarshal([]byte) error
+}
+
+func unmarshalManifest(f *file.File, man unmarshaler, offset int64, tag uint32) (err error) {
+	b := make([]byte, manifest.MaxSize)
+	_, err = io.ReadFull(io.NewSectionReader(f, offset, manifest.MaxSize), b)
+	if err != nil {
+		return
+	}
+
+	if x := binary.LittleEndian.Uint32(b); x != tag {
+		err = fmt.Errorf("incorrect file tag: %#x", x)
+		return
+	}
+
+	size := binary.LittleEndian.Uint32(b[4:])
+	if size < manifestHeaderSize || size > manifest.MaxSize {
+		err = fmt.Errorf("manifest size out of bounds: %d", size)
+		return
+	}
+
+	return man.Unmarshal(b[manifestHeaderSize:size])
 }

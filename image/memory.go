@@ -49,17 +49,13 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 	}()
 
 	err = protectFileMemory(f, syscall.PROT_READ|syscall.PROT_WRITE)
-	if err != nil {
-		return
-	}
-
 	return
 }
 
-func (mem) instanceFileWriteSupported() bool                               { return memoryFileWriteSupported }
-func (mem) storeInstanceSupported() bool                                   { return false }
-func (mem) storeInstance(*Instance, string) (_ manifest.Instance, _ error) { return }
-func (mem) LoadInstance(string, manifest.Instance) (*Instance, error)      { return nil, os.ErrNotExist }
+func (mem) instanceFileWriteSupported() bool       { return memoryFileWriteSupported }
+func (mem) storeInstanceSupported() bool           { return false }
+func (mem) storeInstance(*Instance, string) error  { return nil }
+func (mem) LoadInstance(string) (*Instance, error) { return nil, os.ErrNotExist }
 
 type persistMem struct {
 	fs *Filesystem
@@ -72,12 +68,7 @@ func (pmem persistMem) newInstanceFile() (*file.File, error) { return Memory.new
 func (pmem persistMem) instanceFileWriteSupported() bool     { return Memory.instanceFileWriteSupported() }
 func (pmem persistMem) storeInstanceSupported() bool         { return true }
 
-func (pmem persistMem) storeInstance(inst *Instance, name string) (man manifest.Instance, err error) {
-	if inst.name != "" {
-		// Instance not mutated after it was loaded; link is still there.
-		return
-	}
-
+func (pmem persistMem) storeInstance(inst *Instance, name string) (err error) {
 	f, err := pmem.fs.newInstanceFile()
 	if err != nil {
 		return
@@ -100,7 +91,12 @@ func (pmem persistMem) storeInstance(inst *Instance, name string) (man manifest.
 		return
 	}
 
-	// TODO: move this to filesystem.go
+	// TODO: cache serialized form
+	err = marshalManifest(f, &inst.man, instManifestOffset, instanceFileTag)
+	if err != nil {
+		return
+	}
+	inst.manDirty = false
 
 	err = fdatasync(f.Fd())
 	if err != nil {
@@ -119,12 +115,11 @@ func (pmem persistMem) storeInstance(inst *Instance, name string) (man manifest.
 
 	inst.dir = pmem.fs.instDir
 	inst.name = name
-	man = inst.man
 	return
 }
 
-func (pmem persistMem) LoadInstance(name string, man manifest.Instance) (inst *Instance, err error) {
-	inst, err = pmem.fs.LoadInstance(name, man)
+func (pmem persistMem) LoadInstance(name string) (inst *Instance, err error) {
+	inst, err = pmem.fs.LoadInstance(name)
 	if err != nil {
 		return
 	}
@@ -144,7 +139,7 @@ func (pmem persistMem) LoadInstance(name string, man manifest.Instance) (inst *I
 		}
 	}()
 
-	err = pmem.copyInstance(f, inst.file, man)
+	err = copyInstance(f, inst.file, inst.man)
 	if err != nil {
 		return
 	}
@@ -155,7 +150,7 @@ func (pmem persistMem) LoadInstance(name string, man manifest.Instance) (inst *I
 	return
 }
 
-func (pmem persistMem) copyInstance(dest, src *file.File, man manifest.Instance) (err error) {
+func copyInstance(dest, src *file.File, man manifest.Instance) (err error) {
 	o := int64(man.StackSize - man.StackUsage)
 	l := int64(man.StackUsage)
 
@@ -168,10 +163,6 @@ func (pmem persistMem) copyInstance(dest, src *file.File, man manifest.Instance)
 	l = int64(man.GlobalsSize + man.MemorySize)
 
 	_, err = io.Copy(&offsetWriter{dest, o}, io.NewSectionReader(src, o, l))
-	if err != nil {
-		return
-	}
-
 	return
 }
 
