@@ -399,13 +399,13 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 		closeInstanceImage(&instImage)
 	}()
 
-	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, transient, function, instID, debug, suspend)
+	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, transient, instID, debug, suspend)
 	if err != nil {
 		return
 	}
 	instImage = nil
 
-	err = s.runOrDeleteInstance(ctx, inst, prog)
+	err = s.runOrDeleteInstance(ctx, inst, prog, function)
 	if err != nil {
 		return
 	}
@@ -556,7 +556,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 		closeInstanceImage(&instImage)
 	}()
 
-	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, function, instID, debug, suspend)
+	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, instID, debug, suspend)
 	if err != nil {
 		return
 	}
@@ -567,7 +567,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 		Module: progHash,
 	})
 
-	err = s.runOrDeleteInstance(ctx, inst, prog)
+	err = s.runOrDeleteInstance(ctx, inst, prog, function)
 	if err != nil {
 		return
 	}
@@ -594,7 +594,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	}()
 	progHash = prog.hash
 
-	inst, prog, redundantProg, err := s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, function, instID, debug, suspend)
+	inst, prog, redundantProg, err := s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, instID, debug, suspend)
 	if err != nil {
 		return
 	}
@@ -630,7 +630,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 		}
 	}
 
-	err = s.runOrDeleteInstance(ctx, inst, prog)
+	err = s.runOrDeleteInstance(ctx, inst, prog, function)
 	if err != nil {
 		return
 	}
@@ -961,7 +961,7 @@ func (s *Server) ResumeInstance(ctx context.Context, function, instID, debug str
 	services = nil
 	debugLog = nil
 
-	err = s.runOrDeleteInstance(ctx, inst, prog)
+	err = s.runOrDeleteInstance(ctx, inst, prog, function)
 	if err != nil {
 		return
 	}
@@ -1281,7 +1281,7 @@ func (s *Server) checkAccountInstanceID(ctx context.Context, instID string) (acc
 }
 
 // runOrDeleteInstance steals the program reference (except on error).
-func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *program) error {
+func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *program, function string) error {
 	defer func() {
 		s.unrefProgram(&prog)
 	}()
@@ -1293,7 +1293,7 @@ func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *
 	}
 
 	if drive {
-		go s.driveInstance(detachedContext(ctx), inst, prog)
+		go s.driveInstance(detachedContext(ctx), inst, prog, function)
 		prog = nil
 	}
 
@@ -1301,12 +1301,12 @@ func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *
 }
 
 // driveInstance steals the program reference.
-func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *program) {
+func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *program, function string) {
 	defer func() {
 		s.unrefProgram(&prog)
 	}()
 
-	if event, err := inst.drive(ctx, prog); event != nil {
+	if event, err := inst.drive(ctx, prog, function); event != nil {
 		s.Monitor(event, err)
 	}
 
@@ -1379,7 +1379,7 @@ func (s *Server) allocateInstanceResources(ctx context.Context, pol *InstancePol
 // registerProgramRefInstance with server, and an account if ref is true.
 // Caller's instance image is stolen (except on error).  Caller's program
 // reference is replaced with a reference to the canonical program object.
-func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, ref bool, prog *program, instImage *image.Instance, pol *InstancePolicy, transient bool, function, instID, debug string, suspend bool,
+func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, ref bool, prog *program, instImage *image.Instance, pol *InstancePolicy, transient bool, instID, debug string, suspend bool,
 ) (inst *Instance, canonicalProg *program, redundantProg bool, err error) {
 	var (
 		proc        *runtime.Process
@@ -1439,7 +1439,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		persistent = &clone
 	}
 
-	inst = newInstance(instID, acc, function, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugLog)
+	inst = newInstance(instID, acc, instImage, persistent, proc, services, pol.TimeResolution, debugStatus, debugLog)
 	proc = nil
 	services = nil
 	debugLog = nil

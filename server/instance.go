@@ -79,7 +79,6 @@ type Instance struct {
 	exists       bool
 	transient    bool
 	status       api.Status
-	function     string
 	altProgImage *image.Program
 	altTextMap   stack.TextMap
 	image        *image.Instance
@@ -92,13 +91,12 @@ type Instance struct {
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, function string, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser) *Instance {
 	inst := &Instance{
 		ID:        id,
-		transient: persistent == nil,
 		acc:       acc,
+		transient: persistent == nil,
 		status:    api.Status{Debug: debugStatus},
-		function:  function,
 		image:     image,
 		process:   proc,
 		services:  services,
@@ -134,6 +132,7 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 				inst.status.State, inst.status.Cause = trapStatus(id)
 			}
 		}
+
 		inst.exists = true
 		close(inst.stopped)
 		return
@@ -233,7 +232,9 @@ func (inst *Instance) Kill() {
 
 func (inst *Instance) Suspend() {
 	inst.mu.Lock()
-	inst.transient = false
+	if inst.status.State == api.StateRunning {
+		inst.transient = false
+	}
 	proc := inst.process
 	inst.mu.Unlock()
 
@@ -300,9 +301,6 @@ func (inst *Instance) doResume(prog *program, function string, proc *runtime.Pro
 	inst.status = api.Status{
 		State: api.StateRunning,
 		Debug: debugStatus,
-	}
-	if function != "" {
-		inst.function = function
 	}
 	inst.image.SetEntry(prog.image, entryIndex)
 	inst.process = proc
@@ -376,7 +374,7 @@ func (inst *Instance) annihilate() (err error) {
 	return
 }
 
-func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
+func (inst *Instance) drive(ctx context.Context, prog *program, function string) (Event, error) {
 	trapID := trap.InternalError
 	res := api.Status{
 		State: api.StateKilled,
@@ -401,9 +399,9 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 		res.Error = public.Error(err, res.Error)
 		if trapID == trap.ABIViolation {
 			res.Cause = api.CauseABIViolation
-			return programFailure(ctx, prog.hash, inst.function, inst.ID), err
+			return programFailure(ctx, prog.hash, function, inst.ID), err
 		} else {
-			return internalFailure(ctx, prog.hash, inst.function, inst.ID, "service io", err), err
+			return internalFailure(ctx, prog.hash, function, inst.ID, "service io", err), err
 		}
 	}
 
@@ -414,7 +412,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program) (Event, error) {
 		}
 		if err != nil {
 			res.Error = public.Error(err, res.Error)
-			return internalFailure(ctx, prog.hash, inst.function, inst.ID, "", err), err
+			return internalFailure(ctx, prog.hash, function, inst.ID, "", err), err
 		}
 	}
 
