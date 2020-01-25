@@ -171,7 +171,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 	}()
 
 	for _, inst := range accInsts {
-		inst.Suspend()
+		inst.suspend()
 	}
 	for inst := range anonInsts {
 		inst.Kill()
@@ -912,7 +912,8 @@ func (s *Server) SuspendInstance(ctx context.Context, instID string,
 		return
 	}
 
-	inst, _, err = s.getInstance(ctx, instID)
+	// Store the program in case the instance becomes non-transient.
+	inst, err = s.getInstanceEnsureProgramStorage(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -1012,7 +1013,7 @@ func (s *Server) InstanceModule(ctx context.Context, instID string) (moduleKey s
 	status := inst.Status()
 	resume := false
 	if status.State == api.StateRunning {
-		inst.Suspend()
+		inst.suspend()
 		resume = inst.Wait(context.Background()).State == api.StateSuspended
 	}
 
@@ -1317,8 +1318,8 @@ func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *progra
 	}
 }
 
-// getInstance and a program reference which is valid until the instance
-// deleted.
+// getInstance and a borrowed program reference which is valid until the
+// instance is deleted.
 func (s *Server) getInstance(ctx context.Context, instID string,
 ) (inst *Instance, prog *program, err error) {
 	pri := principal.ContextID(ctx)
@@ -1327,9 +1328,34 @@ func (s *Server) getInstance(ctx context.Context, instID string,
 		return
 	}
 
-	s.mu.Lock()
+	lock := s.mu.Lock()
 	defer s.mu.Unlock()
 
+	return s.getInstance_(lock, pri, instID)
+}
+
+func (s *Server) getInstanceEnsureProgramStorage(ctx context.Context, instID string,
+) (inst *Instance, err error) {
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		err = errAnonymous
+		return
+	}
+
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
+
+	inst, prog, err := s.getInstance_(lock, pri, instID)
+	if err != nil {
+		return
+	}
+
+	err = prog.ensureStorage()
+	return
+}
+
+func (s *Server) getInstance_(_ serverLock, pri *principal.ID, instID string,
+) (inst *Instance, prog *program, err error) {
 	acc := s.accounts[inprincipal.Raw(pri)]
 	if acc == nil {
 		err = resourcenotfound.ErrInstance

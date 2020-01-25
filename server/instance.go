@@ -230,11 +230,22 @@ func (inst *Instance) Kill() {
 	}
 }
 
+// Suspend the instance and make it non-transient.
 func (inst *Instance) Suspend() {
 	inst.mu.Lock()
 	if inst.status.State == api.StateRunning {
 		inst.transient = false
 	}
+	proc := inst.process
+	inst.mu.Unlock()
+
+	if proc != nil {
+		proc.Suspend()
+	}
+}
+
+func (inst *Instance) suspend() {
+	inst.mu.Lock()
 	proc := inst.process
 	inst.mu.Unlock()
 
