@@ -61,11 +61,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !strings.Contains(flag.Arg(0), "/") {
-				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.Debug, c.Scope)
+				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.Debug != "", c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, suspendFD, debugFD, c.Debug, c.Scope)
+				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, suspendFD, debugFD, c.Debug != "", c.Scope)
 			}
 			closeFiles(module, r, w, suspend, debug)
 
@@ -229,11 +229,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !strings.Contains(flag.Arg(0), "/") {
-				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.Debug, c.Scope)
+				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.Debug != "", c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, c.Suspend, debugFD, c.Debug, c.Scope)
+				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, c.Suspend, debugFD, c.Debug != "", c.Scope)
 			}
 			closeFiles(module, debug)
 
@@ -328,7 +328,7 @@ var localCommands = map[string]command{
 
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
-			call := daemonCall("Resume", flag.Arg(0), c.Function, debugFD, c.Debug, c.Scope)
+			call := daemonCall("Resume", flag.Arg(0), c.Function, debugFD, c.Debug != "", c.Scope)
 			closeFiles(debug)
 			check(call.Store())
 		},
@@ -476,7 +476,6 @@ func statusString(s api.Status) string {
 		Cause:  s.Cause.String(),
 		Result: int(s.Result),
 		Error:  s.Error,
-		Debug:  s.Debug,
 	}
 	if s.Cause == 0 {
 		t.Cause = ""

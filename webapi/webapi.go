@@ -82,7 +82,6 @@ const (
 	HeaderLocation = "Location"        // Absolute module ref path.
 	HeaderInstance = "X-Gate-Instance" // UUID.
 	HeaderStatus   = "X-Gate-Status"   // Status of instance as JSON.
-	HeaderDebug    = "X-Gate-Debug"
 )
 
 // The supported module content type.
@@ -191,7 +190,6 @@ type Status struct {
 	Cause  string `json:"cause,omitempty"`
 	Result int    `json:"result,omitempty"` // Meaningful if StateHalted or StateTerminated.
 	Error  string `json:"error,omitempty"`  // Optional details for abnormal causes.
-	Debug  string `json:"debug,omitempty"`
 }
 
 func (status Status) String() (s string) {
@@ -249,7 +247,6 @@ type Call struct {
 type CallConnection struct {
 	Location string `json:"location,omitempty"` // Absolute module ref path.
 	Instance string `json:"instance,omitempty"` // UUID.
-	Debug    string `json:"debug,omitempty"`
 }
 
 // ActionIO websocket request message.
@@ -259,8 +256,7 @@ type IO struct {
 
 // Reply to IO message.
 type IOConnection struct {
-	Connected bool   `json:"connected"`
-	Debug     string `json:"debug,omitempty"`
+	Connected bool `json:"connected"`
 }
 
 // Second and final text message on successful ActionCall or ActionIO websocket

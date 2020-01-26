@@ -310,7 +310,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 
 	policy := runtime.ProcessPolicy{
 		TimeResolution: time.Microsecond,
-		Debug:          debugOut,
+		DebugLog:       debugOut,
 	}
 
 	err = proc.Start(prog, inst, policy)

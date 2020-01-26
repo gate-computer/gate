@@ -59,7 +59,7 @@ type timing struct {
 
 var processPolicy = runtime.ProcessPolicy{
 	TimeResolution: 1, // Best resolution.
-	Debug:          os.Stderr,
+	DebugLog:       os.Stderr,
 }
 
 func init() {

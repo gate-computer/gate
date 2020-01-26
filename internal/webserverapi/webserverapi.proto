@@ -12,7 +12,6 @@ option go_package = "github.com/tsavola/gate/internal/webserverapi";
 
 message IOConnection {
 	bool connected = 1;
-	string debug = 2;
 }
 
 message ConnectionStatus {

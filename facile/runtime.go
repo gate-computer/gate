@@ -146,7 +146,7 @@ func NewRuntimeProcess(executor *RuntimeExecutor) (process *RuntimeProcess, err 
 func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) error {
 	return process.p.Start(code.image, state.image, runtime.ProcessPolicy{
 		TimeResolution: 1, // Best.
-		Debug:          os.Stderr,
+		DebugLog:       os.Stderr,
 	})
 }
 

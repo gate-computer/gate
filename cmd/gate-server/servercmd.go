@@ -10,7 +10,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"log/syslog"
@@ -94,8 +93,6 @@ var c = new(struct {
 		SSH struct {
 			AuthorizedKeys string
 		}
-
-		Debug bool
 	}
 
 	Principal server.AccessConfig
@@ -340,16 +337,6 @@ func main2(critLog *log.Logger) error {
 	}
 
 	c.Server.Config.ImageStorage = image.CombinedStorage(progStorage, instStorage)
-
-	if c.Access.Debug {
-		c.Principal.Debug = func(ctx context.Context, option string) (status string, output io.WriteCloser, err error) {
-			if option == "stderr" {
-				status = option
-				output = os.Stderr
-			}
-			return
-		}
-	}
 
 	switch c.Access.Policy {
 	case "public":

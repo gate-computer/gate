@@ -120,6 +120,10 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
+func popOptionalLastDebugParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) bool {
+	return popOptionalLastParam(w, r, s, query, webapi.ParamDebug) == "true"
+}
+
 func popOptionalActionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) bool {
 	values := query[webapi.ParamAction]
 	for i, s := range values {

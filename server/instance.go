@@ -111,12 +111,11 @@ type Instance struct {
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) *Instance {
 	inst := &Instance{
 		ID:        id,
 		acc:       acc,
 		transient: persistent == nil,
-		status:    api.Status{Debug: debugStatus},
 		image:     image,
 		process:   proc,
 		services:  services,
@@ -179,7 +178,7 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 
 	policy := runtime.ProcessPolicy{
 		TimeResolution: inst.timeReso,
-		Debug:          inst.debugLog,
+		DebugLog:       inst.debugLog,
 	}
 
 	err = inst.process.Start(progImage, inst.image, policy)
@@ -323,7 +322,7 @@ func (inst *Instance) resumeCheck(_ instanceLock, function string) (err error) {
 }
 
 // doResume steals proc, services and debugLog.
-func (inst *Instance) doResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser,
+func (inst *Instance) doResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser,
 ) (err error) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
@@ -334,10 +333,7 @@ func (inst *Instance) doResume(function string, proc *runtime.Process, services 
 		return
 	}
 
-	inst.status = api.Status{
-		State: api.StateRunning,
-		Debug: debugStatus,
-	}
+	inst.status = api.Status{State: api.StateRunning}
 	inst.process = proc
 	inst.services = services
 	inst.timeReso = timeReso
@@ -414,7 +410,6 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 	res := api.Status{
 		State: api.StateKilled,
 		Cause: api.CauseInternal,
-		Debug: inst.status.Debug,
 	}
 
 	cleanupFunc := func(lock instanceLock) {

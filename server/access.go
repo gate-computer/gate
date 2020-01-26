@@ -6,7 +6,6 @@ package server
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/tsavola/wag/wa"
@@ -46,10 +45,6 @@ type InstancePolicy struct {
 	// Services function defines which services are discoverable by the
 	// instance.
 	Services func(ctx context.Context) InstanceServices
-
-	// Debug function parses the debug option string and provides a debug
-	// output writer, with status indicating what is happening.
-	Debug func(ctx context.Context, option string) (status string, output io.WriteCloser, err error)
 }
 
 // Authorizer and moderator of server access.
@@ -178,7 +173,6 @@ var DefaultAccessConfig = AccessConfig{
 		DefaultMaxMemorySize,
 		DefaultStackSize,
 		DefaultTimeResolution,
-		nil,
 		nil,
 	},
 }

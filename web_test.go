@@ -17,7 +17,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -76,11 +75,6 @@ func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int,
 		content = ioutil.NopCloser(bytes.NewReader(wasmHello))
 		return
 
-	case "/test/hello-debug":
-		contentLength = int64(len(wasmHelloDebug))
-		content = ioutil.NopCloser(bytes.NewReader(wasmHelloDebug))
-		return
-
 	default:
 		panic(uri)
 	}
@@ -121,83 +115,11 @@ func newServices() func(context.Context) server.InstanceServices {
 	}
 }
 
-type debugBuffer struct{ bytes.Buffer }
-
-func (*debugBuffer) Close() error { return nil }
-
-var (
-	debugOutput = new(debugBuffer)
-	debugLog    struct {
-		sync.Mutex
-		sync.Cond
-		writers int
-		logf    func(string, ...interface{})
-	}
-)
-
-func init() {
-	debugLog.Cond.L = &debugLog.Mutex
-}
-
-func debugPolicy(ctx context.Context, option string) (status string, output io.WriteCloser, err error) {
-	switch option {
-	case "":
-		return
-
-	case "output":
-		output = debugOutput
-		status = "out-putting"
-		return
-
-	case "log":
-		r, w := io.Pipe()
-		go func() {
-			defer r.Close()
-			b := make([]byte, 256)
-			for {
-				n, err := r.Read(b)
-				if err != nil {
-					if err == io.EOF {
-						return
-					}
-					panic(err)
-				}
-				var logf func(string, ...interface{})
-				debugLog.Lock()
-				if debugLog.logf != nil {
-					logf = debugLog.logf
-					debugLog.writers++
-				}
-				debugLog.Unlock()
-				if logf == nil {
-					break
-				}
-				logf("debug: %s", b[:n])
-				debugLog.Lock()
-				debugLog.writers--
-				debugLog.Unlock()
-				debugLog.Broadcast()
-			}
-		}()
-		output = w
-		return
-
-	default:
-		err = server.RetryAfter(time.Now().Add(time.Hour))
-		return
-	}
-}
-
 func newServer() (*server.Server, error) {
-	access := server.NewPublicAccess(newServices())
-	access.Debug = debugPolicy
-
-	config := server.Config{
+	return server.New(server.Config{
 		ProcessFactory: newExecutor(),
-		AccessPolicy:   access,
-	}
-
-	return server.New(config)
+		AccessPolicy:   server.NewPublicAccess(newServices()),
+	})
 }
 
 func newHandler(t *testing.T) http.Handler {
@@ -942,35 +864,6 @@ func TestModuleSource(t *testing.T) {
 	})
 }
 
-func TestInstanceDebug(t *testing.T) {
-	handler := newHandler(t)
-
-	t.Run("Output", func(t *testing.T) {
-		debugOutput.Reset()
-
-		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&function=debug&debug=output", nil)
-		resp, _ := checkResponse(t, handler, req, http.StatusOK)
-
-		if s := resp.Header.Get(webapi.HeaderDebug); s != "out-putting" {
-			t.Error(s)
-		}
-
-		if debugOutput.String() != "hello, world\n" {
-			t.Errorf("%q", debugOutput)
-		}
-
-		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateTerminated,
-			Debug: "out-putting",
-		})
-	})
-
-	t.Run("Error", func(t *testing.T) {
-		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello-debug?action=call&debug=fail", nil)
-		checkResponse(t, handler, req, http.StatusTooManyRequests) // debugPolicy's error.
-	})
-}
-
 func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, expect interface{}) {
 	t.Helper()
 
@@ -1179,23 +1072,13 @@ func TestInstanceKill(t *testing.T) {
 }
 
 func TestInstanceSuspend(t *testing.T) {
-	debugLog.logf = t.Logf
-	defer func() {
-		debugLog.Lock()
-		defer debugLog.Unlock()
-		for debugLog.writers > 0 {
-			debugLog.Wait()
-		}
-		debugLog.logf = nil
-	}()
-
 	handler := newHandler(t)
 	pri := newPrincipalKey()
 
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=log", wasmSuspend)
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=true", wasmSuspend)
 		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -1262,7 +1145,7 @@ func TestInstanceSuspend(t *testing.T) {
 	})
 
 	t.Run("Resume", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=log", nil)
+		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=true", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 
 		if testing.Verbose() {
@@ -1291,7 +1174,7 @@ func TestInstanceSuspend(t *testing.T) {
 	handler2 := newHandler(t)
 
 	t.Run("Restore", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=log", snapshot)
+		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=true", snapshot)
 		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
 		restoredID := resp.Header.Get(webapi.HeaderInstance)

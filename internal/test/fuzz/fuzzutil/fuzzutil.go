@@ -96,9 +96,5 @@ func IsGood(s serverapi.Status) bool {
 		return false
 	}
 
-	if s.Debug != "" {
-		return false
-	}
-
 	return true
 }

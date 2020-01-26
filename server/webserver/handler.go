@@ -344,7 +344,7 @@ func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
 		case webapi.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleCallWebsocket(w, r, s, ref, nil, key, function, debug)
 
@@ -373,14 +373,14 @@ func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
 		case webapi.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleCall(w, r, s, server.OpCallUpload, ref, true, nil, key, function, debug)
 
 		case webapi.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
-			debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleLaunchUpload(w, r, s, ref, key, function, instance, debug, suspend)
 
@@ -400,14 +400,14 @@ func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, k
 	switch popLastParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
-		debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleCall(w, r, s, server.OpCallExtant, false, false, nil, key, function, debug)
 
 	case webapi.ActionLaunch:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
-		debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContent(w, r, s)
 		handleLaunch(w, r, s, server.OpLaunchExtant, false, nil, key, function, instance, debug, suspend)
@@ -430,7 +430,7 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 	switch popLastParam(w, r, s, query, webapi.ParamAction) {
 	case webapi.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
-		debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleCallWebsocket(w, r, s, ref, source, key, function, debug)
 
@@ -448,14 +448,14 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 		switch popLastParam(w, r, s, query, webapi.ParamAction) {
 		case webapi.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleCall(w, r, s, server.OpCallSource, ref, false, source, key, function, debug)
 
 		case webapi.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
-			debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			mustNotHaveContentType(w, r, s)
 			mustNotHaveContent(w, r, s)
@@ -519,7 +519,7 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 	case webapi.ActionResume:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
-		debug := popOptionalLastParam(w, r, s, query, webapi.ParamDebug)
+		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceResume(w, r, s, function, instance, debug)
 
@@ -643,7 +643,7 @@ func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, re
 	}
 }
 
-func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref, content bool, source server.Source, key, function string, debug string) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref, content bool, source server.Source, key, function string, debug bool) {
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
@@ -658,7 +658,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
 		progHash = key
-		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, true, function, "", debug, false)
+		inst, err = s.Server.UploadModuleInstance(ctx, mustDecodeContent(ctx, wr, s), r.ContentLength, key, ref, "", function, true, false, nil)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -668,7 +668,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 		progHash = key
-		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug, false)
+		inst, err = s.Server.CreateInstance(ctx, key, "", function, true, false, nil)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -677,7 +677,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	default:
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug, false)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, source, key, ref, "", function, true, false, nil)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, wr, s, key, "", function, "", err)
@@ -687,10 +687,6 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	defer inst.Kill()
 
 	w.Header().Set("Trailer", webapi.HeaderStatus)
-
-	if debug != "" {
-		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
-	}
 
 	if principal.ContextID(ctx) != nil {
 		if ref {
@@ -710,7 +706,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 }
 
-func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function string, debug string) {
+func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function string, debug bool) {
 	ctx, cancel := context.WithCancel(request.Context())
 	defer cancel()
 
@@ -792,7 +788,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			return
 		}
 
-		inst, err = s.Server.UploadModuleInstance(ctx, ref, key, ioutil.NopCloser(frame), r.ContentLength, true, function, "", debug, false)
+		inst, err = s.Server.UploadModuleInstance(ctx, ioutil.NopCloser(frame), r.ContentLength, key, ref, "", function, true, false, nil)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -802,7 +798,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, key, true, function, "", debug, false)
+		inst, err = s.Server.CreateInstance(ctx, key, "", function, true, false, nil)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -811,7 +807,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, ref)
 
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, true, function, "", debug, false)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, source, key, ref, "", function, true, false, nil)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, w, s, key, "", function, "", err)
@@ -829,10 +825,6 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		reply.Instance = inst.ID
 	}
 
-	if debug != "" {
-		reply.Debug = inst.Status().Debug
-	}
-
 	err = conn.WriteJSON(&reply)
 	if err != nil {
 		reportNetworkError(ctx, s, err)
@@ -847,7 +839,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 }
 
-func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID string, debug string, suspend bool) {
+func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, ref bool, source server.Source, key, function, instID string, debug bool, suspend bool) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -861,21 +853,17 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	if source == nil {
 		progHash = key
 
-		inst, err = s.Server.CreateInstance(ctx, key, false, function, instID, debug, suspend)
+		inst, err = s.Server.CreateInstance(ctx, key, instID, function, false, suspend, nil)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 	} else {
-		progHash, inst, err = s.Server.SourceModuleInstance(ctx, ref, source, key, false, function, instID, debug, suspend)
+		progHash, inst, err = s.Server.SourceModuleInstance(ctx, source, key, ref, instID, function, false, suspend, nil)
 		if err != nil {
 			respondServerError(ctx, wr, s, key, "", function, "", err)
 			return
 		}
-	}
-
-	if debug != "" {
-		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
 	w.Header().Set(webapi.HeaderInstance, inst.ID)
@@ -888,19 +876,15 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	}
 }
 
-func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID string, debug string, suspend bool) {
+func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, ref bool, key, function, instID string, debug bool, suspend bool) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := s.Server.UploadModuleInstance(ctx, ref, key, mustDecodeContent(ctx, wr, s), r.ContentLength, false, function, instID, debug, suspend)
+	inst, err := s.Server.UploadModuleInstance(ctx, mustDecodeContent(ctx, wr, s), r.ContentLength, key, ref, instID, function, false, suspend, nil)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return
-	}
-
-	if debug != "" {
-		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
 	w.Header().Set(webapi.HeaderInstance, inst.ID)
@@ -983,19 +967,15 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID string, debug string) {
+func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instID string, debug bool) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceResume)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := s.Server.ResumeInstance(ctx, function, instID, debug)
+	_, err := s.Server.ResumeInstance(ctx, instID, function, nil)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", "", function, instID, err)
 		return
-	}
-
-	if debug != "" {
-		w.Header().Set(webapi.HeaderDebug, inst.Status().Debug)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -1068,11 +1048,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	reply := &api.IOConnection{
-		Connected: connIO != nil,
-		Debug:     inst.Status().Debug,
-	}
-
+	reply := &api.IOConnection{Connected: connIO != nil}
 	err = conn.WriteMessage(websocket.TextMessage, jsonproto.MustMarshal(reply))
 	if err != nil {
 		reportNetworkError(ctx, s, err)

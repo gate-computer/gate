@@ -71,7 +71,7 @@ type ProgramState interface {
 
 type ProcessPolicy struct {
 	TimeResolution time.Duration
-	Debug          io.Writer
+	DebugLog       io.Writer
 }
 
 type ProcessFactory interface {
@@ -212,7 +212,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		debugReader *os.File
 		debugWriter *os.File
 	)
-	if policy.Debug != nil {
+	if policy.DebugLog != nil {
 		debugReader, debugWriter, err = os.Pipe()
 		if err != nil {
 			return
@@ -236,7 +236,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 	}
 
 	var cmsg []byte
-	if policy.Debug == nil {
+	if policy.DebugLog == nil {
 		cmsg = unixRights(int(textFile.Fd()), int(stateFile.Fd()))
 	} else {
 		cmsg = unixRights(int(debugWriter.Fd()), int(textFile.Fd()), int(stateFile.Fd()))
@@ -247,9 +247,9 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		return
 	}
 
-	if policy.Debug != nil {
+	if policy.DebugLog != nil {
 		done := make(chan struct{})
-		go copyDebug(done, policy.Debug, debugReader)
+		go copyDebug(done, policy.DebugLog, debugReader)
 		p.debugging = done
 	}
 

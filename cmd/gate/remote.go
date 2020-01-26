@@ -43,7 +43,7 @@ var remoteCommands = map[string]command{
 				params.Set(webapi.ParamFunction, c.Function)
 			}
 			if c.Debug != "" {
-				params.Set(webapi.ParamDebug, c.Debug)
+				params.Set(webapi.ParamDebug, "true")
 			}
 
 			var status webapi.Status
@@ -198,7 +198,7 @@ var remoteCommands = map[string]command{
 				params.Set(webapi.ParamInstance, c.Instance)
 			}
 			if c.Debug != "" {
-				params.Set(webapi.ParamDebug, c.Debug)
+				params.Set(webapi.ParamDebug, "true")
 			}
 
 			var (
@@ -280,7 +280,7 @@ var remoteCommands = map[string]command{
 				webapi.ParamAction: []string{webapi.ActionResume},
 			}
 			if c.Debug != "" {
-				params.Set(webapi.ParamDebug, c.Debug)
+				params.Set(webapi.ParamDebug, "true")
 			}
 
 			doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
