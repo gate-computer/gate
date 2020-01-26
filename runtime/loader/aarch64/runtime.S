@@ -444,7 +444,7 @@ rt_time:
 
 	movz	x3, #0xca00, lsl #16
 	movk	x3, #0x3b9a, lsl #0		// 1000000000
-	mul	x10, x10, x2
+	mul	x10, x10, x3
 	ldr	w2, [x27, #-9*8]		// mask
 	and	x11, x11, x2
 	add	x0, x10, x11
