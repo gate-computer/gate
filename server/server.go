@@ -20,7 +20,6 @@ import (
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
 	api "github.com/tsavola/gate/serverapi"
-	"github.com/tsavola/gate/snapshot"
 	"github.com/tsavola/wag/object/stack"
 )
 
@@ -1463,13 +1462,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		return
 	}
 
-	var persistent *snapshot.Buffers
-	if !transient {
-		clone := prog.buffers
-		persistent = &clone
-	}
-
-	inst = newInstance(instID, acc, instImage, persistent, proc, services, pol.TimeResolution, debugLog)
+	inst = newInstance(instID, acc, transient, instImage, prog.buffers, proc, services, pol.TimeResolution, debugLog)
 	proc = nil
 	services = nil
 	debugLog = nil

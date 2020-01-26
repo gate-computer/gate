@@ -111,22 +111,19 @@ type Instance struct {
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, image *image.Instance, persistent *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) *Instance {
-	inst := &Instance{
+func newInstance(id string, acc *account, transient bool, image *image.Instance, buffers snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) *Instance {
+	return &Instance{
 		ID:        id,
 		acc:       acc,
-		transient: persistent == nil,
+		transient: transient,
 		image:     image,
+		buffers:   buffers,
 		process:   proc,
 		services:  services,
 		timeReso:  timeReso,
 		debugLog:  debugLog,
 		stopped:   make(chan struct{}),
 	}
-	if persistent != nil {
-		inst.buffers = *persistent
-	}
-	return inst
 }
 
 func (inst *Instance) store(_ instanceLock, prog *program) error {
