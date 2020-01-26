@@ -259,14 +259,14 @@ func (inst *Instance) suspend() {
 	}
 }
 
-func (inst *Instance) checkResume(prog *program, function string) error {
+func (inst *Instance) checkResume(function string) error {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	return inst.resumeCheck(lock, prog, function)
+	return inst.resumeCheck(lock, function)
 }
 
-func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string) (err error) {
+func (inst *Instance) resumeCheck(_ instanceLock, function string) (err error) {
 	if !inst.exists {
 		err = resourcenotfound.ErrInstance
 		return
@@ -294,13 +294,13 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 }
 
 // doResume steals proc, services and debugLog.
-func (inst *Instance) doResume(prog *program, function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser,
+func (inst *Instance) doResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugStatus string, debugLog io.WriteCloser,
 ) (err error) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	// Check again in case of a race condition.
-	err = inst.resumeCheck(lock, prog, function)
+	err = inst.resumeCheck(lock, function)
 	if err != nil {
 		return
 	}

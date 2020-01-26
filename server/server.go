@@ -119,9 +119,7 @@ func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash str
 	if image == nil { // Race condition with human?
 		return nil
 	}
-	defer func() {
-		closeProgramImage(&image)
-	}()
+	defer closeProgramImage(&image)
 
 	buffers, err := image.LoadBuffers()
 	if err != nil {
@@ -131,16 +129,16 @@ func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash str
 	prog := newProgram(hash, image, buffers, true)
 	image = nil
 
-	s.programs[hash] = prog
-
 	if owner != nil {
-		owner.ensureRefProgram(lock, prog)
+		owner.ensureProgramRef(lock, prog)
 	}
+
+	s.programs[hash] = prog
 
 	return nil
 }
 
-func (s *Server) Shutdown(ctx context.Context) (err error) {
+func (s *Server) Shutdown(ctx context.Context) error {
 	var (
 		accInsts  []*Instance
 		anonInsts map[*Instance]struct{}
@@ -160,7 +158,7 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 		s.accounts = nil
 
 		for _, acc := range accs {
-			for _, x := range acc.cleanup(lock) {
+			for _, x := range acc.shutdown(lock) {
 				accInsts = append(accInsts, x.inst)
 				x.prog.unref(lock)
 			}
@@ -189,18 +187,16 @@ func (s *Server) Shutdown(ctx context.Context) (err error) {
 	}
 
 	if aborted {
-		err = ctx.Err()
+		return ctx.Err()
 	}
-	return
+	return nil
 }
 
 // UploadModule creates a new module reference if ref is true.  Caller provides
 // module content which is compiled or validated in any case.
 func (s *Server) UploadModule(ctx context.Context, ref bool, allegedHash string, content io.ReadCloser, contentLength int64,
 ) (progHash string, err error) {
-	defer func() {
-		closeReader(&content)
-	}()
+	defer closeReader(&content)
 
 	var pol progPolicy
 
@@ -268,9 +264,7 @@ func (s *Server) loadKnownModule(ctx context.Context, ref bool, pol *progPolicy,
 	if prog == nil || err != nil {
 		return
 	}
-	defer func() {
-		s.unrefProgram(&prog)
-	}()
+	defer s.unrefProgram(&prog)
 	progHash := prog.hash
 	found = true
 
@@ -304,9 +298,7 @@ func (s *Server) loadUnknownModule(ctx context.Context, ref bool, pol *progPolic
 	if err != nil {
 		return
 	}
-	defer func() {
-		s.unrefProgram(&prog)
-	}()
+	defer s.unrefProgram(&prog)
 	progHash = prog.hash
 
 	redundant, err := s.registerProgramRef(ctx, prog, ref)
@@ -369,20 +361,13 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 			return nil
 		}
 
-		_, own := acc.programRefs[prog]
-		if !own {
-			return nil
-		}
-
-		return prog.ref(lock)
+		return acc.refProgram(lock, prog)
 	}()
 	if prog == nil {
 		err = resourcenotfound.ErrModule
 		return
 	}
-	defer func() {
-		s.unrefProgram(&prog)
-	}()
+	defer s.unrefProgram(&prog)
 
 	funcIndex, err := prog.image.ResolveEntryFunc(function, false)
 	if err != nil {
@@ -395,9 +380,7 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 	if err != nil {
 		return
 	}
-	defer func() {
-		closeInstanceImage(&instImage)
-	}()
+	defer closeInstanceImage(&instImage)
 
 	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, false, prog, instImage, &pol.inst, transient, instID, debug, suspend)
 	if err != nil {
@@ -424,9 +407,7 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 // Instance id is optional.
 func (s *Server) UploadModuleInstance(ctx context.Context, ref bool, allegedHash string, content io.ReadCloser, contentLength int64, transient bool, function, instID, debug string, suspend bool,
 ) (inst *Instance, err error) {
-	defer func() {
-		closeReader(&content)
-	}()
+	defer closeReader(&content)
 
 	var pol instProgPolicy
 
@@ -481,9 +462,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, ref bool, source Sour
 
 func (s *Server) loadModuleInstance(ctx context.Context, acc *account, ref bool, pol *instProgPolicy, allegedHash string, content io.ReadCloser, contentLength int64, transient bool, function, instID, debug string, suspend bool,
 ) (progHash string, inst *Instance, err error) {
-	defer func() {
-		closeReader(&content)
-	}()
+	defer closeReader(&content)
 
 	if suspend {
 		if function != "" {
@@ -526,9 +505,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 	if prog == nil || err != nil {
 		return
 	}
-	defer func() {
-		s.unrefProgram(&prog)
-	}()
+	defer s.unrefProgram(&prog)
 	progHash := prog.hash
 
 	err = validateHashContent(prog.hash, content)
@@ -552,9 +529,7 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 	if err != nil {
 		return
 	}
-	defer func() {
-		closeInstanceImage(&instImage)
-	}()
+	defer closeInstanceImage(&instImage)
 
 	inst, prog, _, err = s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, instID, debug, suspend)
 	if err != nil {
@@ -588,10 +563,8 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	if err != nil {
 		return
 	}
-	defer func() {
-		closeInstanceImage(&instImage)
-		s.unrefProgram(&prog)
-	}()
+	defer closeInstanceImage(&instImage)
+	defer s.unrefProgram(&prog)
 	progHash = prog.hash
 
 	inst, prog, redundantProg, err := s.registerProgramRefInstance(ctx, acc, ref, prog, instImage, &pol.inst, transient, instID, debug, suspend)
@@ -668,8 +641,8 @@ func (s *Server) ModuleRefs(ctx context.Context) (refs api.ModuleRefs, err error
 		return
 	}
 
-	refs.Modules = make([]api.ModuleRef, 0, len(acc.programRefs))
-	for prog := range acc.programRefs {
+	refs.Modules = make([]api.ModuleRef, 0, len(acc.programs))
+	for prog := range acc.programs {
 		refs.Modules = append(refs.Modules, api.ModuleRef{
 			Id: prog.hash,
 		})
@@ -706,12 +679,7 @@ func (s *Server) ModuleContent(ctx context.Context, hash string,
 			return nil
 		}
 
-		_, own := acc.programRefs[prog]
-		if !own {
-			return nil
-		}
-
-		return prog.ref(lock)
+		return acc.refProgram(lock, prog)
 	}()
 	if prog == nil {
 		err = resourcenotfound.ErrModule
@@ -782,13 +750,7 @@ func (s *Server) UnrefModule(ctx context.Context, hash string) (err error) {
 			return false
 		}
 
-		_, own := acc.programRefs[prog]
-		if !own {
-			return false
-		}
-
-		acc.unrefProgram(lock, prog)
-		return true
+		return acc.unrefProgram(lock, prog)
 	}()
 	if !found {
 		err = resourcenotfound.ErrModule
@@ -809,7 +771,7 @@ func (s *Server) InstanceConnection(ctx context.Context, instID string,
 		return
 	}
 
-	inst, _, err = s.getInstance(ctx, instID)
+	inst, err = s.getInstance(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -849,7 +811,7 @@ func (s *Server) InstanceStatus(ctx context.Context, instID string,
 		return
 	}
 
-	inst, _, err := s.getInstance(ctx, instID)
+	inst, err := s.getInstance(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -870,7 +832,7 @@ func (s *Server) WaitInstance(ctx context.Context, instID string,
 		return
 	}
 
-	inst, _, err := s.getInstance(ctx, instID)
+	inst, err := s.getInstance(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -891,7 +853,7 @@ func (s *Server) KillInstance(ctx context.Context, instID string,
 		return
 	}
 
-	inst, _, err = s.getInstance(ctx, instID)
+	inst, err = s.getInstance(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -913,7 +875,13 @@ func (s *Server) SuspendInstance(ctx context.Context, instID string,
 	}
 
 	// Store the program in case the instance becomes non-transient.
-	inst, err = s.getInstanceEnsureProgramStorage(ctx, instID)
+	inst, prog, err := s.getInstanceRefProgram(ctx, instID)
+	if err != nil {
+		return
+	}
+	defer s.unrefProgram(&prog)
+
+	err = prog.ensureStorage()
 	if err != nil {
 		return
 	}
@@ -936,12 +904,13 @@ func (s *Server) ResumeInstance(ctx context.Context, function, instID, debug str
 		return
 	}
 
-	inst, prog, err := s.getInstance(ctx, instID)
+	inst, prog, err := s.getInstanceRefProgram(ctx, instID)
 	if err != nil {
 		return
 	}
+	defer s.unrefProgram(&prog)
 
-	err = inst.checkResume(prog, function)
+	err = inst.checkResume(function)
 	if err != nil {
 		return
 	}
@@ -950,11 +919,9 @@ func (s *Server) ResumeInstance(ctx context.Context, function, instID, debug str
 	if err != nil {
 		return
 	}
-	defer func() {
-		closeInstanceResources(&proc, &services, &debugLog)
-	}()
+	defer closeInstanceResources(&proc, &services, &debugLog)
 
-	err = inst.doResume(prog, function, proc, services, pol.inst.TimeResolution, debugStatus, debugLog)
+	err = inst.doResume(function, proc, services, pol.inst.TimeResolution, debugStatus, debugLog)
 	if err != nil {
 		return
 	}
@@ -983,7 +950,7 @@ func (s *Server) DeleteInstance(ctx context.Context, instID string,
 		return
 	}
 
-	inst, _, err := s.getInstance(ctx, instID)
+	inst, err := s.getInstance(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -1005,7 +972,7 @@ func (s *Server) DeleteInstance(ctx context.Context, instID string,
 func (s *Server) InstanceModule(ctx context.Context, instID string) (moduleKey string, err error) {
 	// TODO: implement suspend-snapshot-resume at a lower level
 
-	inst, _, err := s.getInstance(ctx, instID)
+	inst, err := s.getInstance(ctx, instID)
 	if err != nil {
 		return
 	}
@@ -1036,18 +1003,17 @@ func (s *Server) snapshot(ctx context.Context, instID string) (moduleKey string,
 
 	// TODO: check module storage limits
 
-	inst, oldProg, err := s.getInstance(ctx, instID)
+	inst, oldProg, err := s.getInstanceRefProgram(ctx, instID)
 	if err != nil {
 		return
 	}
+	defer s.unrefProgram(&oldProg)
 
 	newImage, buffers, err := inst.snapshot(oldProg)
 	if err != nil {
 		return
 	}
-	defer func() {
-		closeProgramImage(&newImage)
-	}()
+	defer closeProgramImage(&newImage)
 
 	h := newHash()
 	_, err = io.Copy(h, newImage.NewModuleReader())
@@ -1063,9 +1029,7 @@ func (s *Server) snapshot(ctx context.Context, instID string) (moduleKey string,
 
 	newProg := newProgram(moduleKey, newImage, buffers, true)
 	newImage = nil
-	defer func() {
-		s.unrefProgram(&newProg)
-	}()
+	defer s.unrefProgram(&newProg)
 
 	_, err = s.registerProgramRef(ctx, newProg, true)
 	if err != nil {
@@ -1090,10 +1054,11 @@ func (s *Server) DebugInstance(ctx context.Context, instID string, req api.Debug
 		return
 	}
 
-	inst, defaultProg, err := s.getInstance(ctx, instID)
+	inst, defaultProg, err := s.getInstanceRefProgram(ctx, instID)
 	if err != nil {
 		return
 	}
+	defer s.unrefProgram(&defaultProg)
 
 	rebuild, config, res, err := inst.debug(ctx, defaultProg, req)
 	if err != nil {
@@ -1241,8 +1206,8 @@ func (s *Server) registerProgramRef(ctx context.Context, prog *program, ref bool
 
 	if ref {
 		// mergeProgramRef checked for shutdown, so the ensure methods are safe
-		// to be called.
-		s.ensureAccount(lock, pri).ensureRefProgram(lock, prog)
+		// to call.
+		s.ensureAccount(lock, pri).ensureProgramRef(lock, prog)
 	}
 
 	return
@@ -1283,9 +1248,7 @@ func (s *Server) checkAccountInstanceID(ctx context.Context, instID string) (acc
 
 // runOrDeleteInstance steals the program reference (except on error).
 func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *program, function string) error {
-	defer func() {
-		s.unrefProgram(&prog)
-	}()
+	defer s.unrefProgram(&prog)
 
 	drive, err := inst.startOrAnnihilate(prog)
 	if err != nil {
@@ -1303,9 +1266,7 @@ func (s *Server) runOrDeleteInstance(ctx context.Context, inst *Instance, prog *
 
 // driveInstance steals the program reference.
 func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *program, function string) {
-	defer func() {
-		s.unrefProgram(&prog)
-	}()
+	defer s.unrefProgram(&prog)
 
 	if event, err := inst.drive(ctx, prog, function); event != nil {
 		s.Monitor(event, err)
@@ -1318,10 +1279,7 @@ func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *progra
 	}
 }
 
-// getInstance and a borrowed program reference which is valid until the
-// instance is deleted.
-func (s *Server) getInstance(ctx context.Context, instID string,
-) (inst *Instance, prog *program, err error) {
+func (s *Server) getInstance(ctx context.Context, instID string) (inst *Instance, err error) {
 	pri := principal.ContextID(ctx)
 	if pri == nil {
 		err = errAnonymous
@@ -1331,31 +1289,35 @@ func (s *Server) getInstance(ctx context.Context, instID string,
 	lock := s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.getInstance_(lock, pri, instID)
-}
-
-func (s *Server) getInstanceEnsureProgramStorage(ctx context.Context, instID string,
-) (inst *Instance, err error) {
-	pri := principal.ContextID(ctx)
-	if pri == nil {
-		err = errAnonymous
-		return
-	}
-
-	lock := s.mu.Lock()
-	defer s.mu.Unlock()
-
-	inst, prog, err := s.getInstance_(lock, pri, instID)
+	x, err := s.getInstanceBorrowProgram(lock, pri, instID)
 	if err != nil {
 		return
 	}
 
-	err = prog.ensureStorage()
-	return
+	return x.inst, nil
 }
 
-func (s *Server) getInstance_(_ serverLock, pri *principal.ID, instID string,
+func (s *Server) getInstanceRefProgram(ctx context.Context, instID string,
 ) (inst *Instance, prog *program, err error) {
+	pri := principal.ContextID(ctx)
+	if pri == nil {
+		err = errAnonymous
+		return
+	}
+
+	lock := s.mu.Lock()
+	defer s.mu.Unlock()
+
+	x, err := s.getInstanceBorrowProgram(lock, pri, instID)
+	if err != nil {
+		return
+	}
+
+	return x.inst, x.prog.ref(lock), nil
+}
+
+func (s *Server) getInstanceBorrowProgram(_ serverLock, pri *principal.ID, instID string,
+) (x accountInstance, err error) {
 	acc := s.accounts[inprincipal.Raw(pri)]
 	if acc == nil {
 		err = resourcenotfound.ErrInstance
@@ -1368,8 +1330,6 @@ func (s *Server) getInstance_(_ serverLock, pri *principal.ID, instID string,
 		return
 	}
 
-	inst = x.inst
-	prog = x.prog
 	return
 }
 
@@ -1418,9 +1378,7 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 		if err != nil {
 			return
 		}
-		defer func() {
-			closeInstanceResources(&proc, &services, &debugLog)
-		}()
+		defer closeInstanceResources(&proc, &services, &debugLog)
 	}
 
 	if ref || !transient {
@@ -1472,7 +1430,9 @@ func (s *Server) registerProgramRefInstance(ctx context.Context, acc *account, r
 
 	if acc != nil {
 		if ref {
-			acc.ensureRefProgram(lock, prog)
+			// mergeProgramRef checked for shutdown, so ensureProgramRef is
+			// safe to call.
+			acc.ensureProgramRef(lock, prog)
 		}
 		acc.instances[instID] = accountInstance{inst, prog.ref(lock)}
 	} else {
@@ -1497,9 +1457,10 @@ func (s *Server) deleteNonexistentInstance(inst *Instance) {
 	}
 }
 
-// mergeProgramRef returns a borrowed program reference which valid until the
-// server mutex is unlocked.
-func (s *Server) mergeProgramRef(lock serverLock, prog *program) (canonical *program, redundant bool, err error) {
+// mergeProgramRef steals the program reference and returns a borrowed program
+// reference which valid until the server mutex is unlocked.
+func (s *Server) mergeProgramRef(lock serverLock, prog *program,
+) (canonical *program, redundant bool, err error) {
 	switch existing := s.programs[prog.hash]; existing {
 	case nil:
 		if s.programs == nil {

@@ -19,21 +19,21 @@ type account struct {
 	*principal.ID
 
 	// Protected by server mutex:
-	programRefs map[*program]struct{}
-	instances   map[string]accountInstance
+	programs  map[*program]struct{}
+	instances map[string]accountInstance
 }
 
 func newAccount(pri *principal.ID) *account {
 	return &account{
-		ID:          pri,
-		programRefs: make(map[*program]struct{}),
-		instances:   make(map[string]accountInstance),
+		ID:        pri,
+		programs:  make(map[*program]struct{}),
+		instances: make(map[string]accountInstance),
 	}
 }
 
-func (acc *account) cleanup(lock serverLock) (is map[string]accountInstance) {
-	ps := acc.programRefs
-	acc.programRefs = nil
+func (acc *account) shutdown(lock serverLock) (is map[string]accountInstance) {
+	ps := acc.programs
+	acc.programs = nil
 
 	for prog := range ps {
 		prog.unref(lock)
@@ -44,23 +44,35 @@ func (acc *account) cleanup(lock serverLock) (is map[string]accountInstance) {
 	return
 }
 
-// ensureRefProgram is safe to call for an already referenced program.  It must
-// not be called while the server is shutting down.
-func (acc *account) ensureRefProgram(lock serverLock, prog *program) {
-	if _, exists := acc.programRefs[prog]; !exists {
-		prog.ref(lock)
-		acc.programRefs[prog] = struct{}{}
+// ensureProgramRef adds program reference unless already found.  It must not
+// be called while the server is shutting down.
+func (acc *account) ensureProgramRef(lock serverLock, prog *program) {
+	if _, exists := acc.programs[prog]; !exists {
+		acc.programs[prog.ref(lock)] = struct{}{}
 	}
 }
 
-func (acc *account) unrefProgram(lock serverLock, prog *program) {
-	delete(acc.programRefs, prog)
-	prog.unref(lock)
+// refProgram if found.
+func (acc *account) refProgram(lock serverLock, prog *program) *program {
+	if _, found := acc.programs[prog]; found {
+		return prog.ref(lock)
+	}
+	return nil
 }
 
-func (acc *account) checkUniqueInstanceID(_ serverLock, instID string) (err error) {
-	if _, exists := acc.instances[instID]; exists {
-		err = failrequest.New(event.FailInstanceIDExists, "duplicate instance id")
+// unrefProgram if found.
+func (acc *account) unrefProgram(lock serverLock, prog *program) (found bool) {
+	_, found = acc.programs[prog]
+	if found {
+		delete(acc.programs, prog)
+		prog.unref(lock)
 	}
 	return
+}
+
+func (acc *account) checkUniqueInstanceID(_ serverLock, instID string) error {
+	if _, exists := acc.instances[instID]; exists {
+		return failrequest.New(event.FailInstanceIDExists, "duplicate instance id")
+	}
+	return nil
 }

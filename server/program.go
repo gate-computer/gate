@@ -220,7 +220,6 @@ func finalizeProgram(prog *program) {
 	}
 }
 
-// ref must be called with server mutex held.
 func (prog *program) ref(serverLock) *program {
 	if prog.refCount <= 0 {
 		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.hash, prog.refCount))
@@ -230,7 +229,6 @@ func (prog *program) ref(serverLock) *program {
 	return prog
 }
 
-// unref must be called with server mutex held.
 func (prog *program) unref(serverLock) {
 	if prog.refCount <= 0 {
 		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.hash, prog.refCount))
