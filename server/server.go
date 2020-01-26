@@ -384,14 +384,14 @@ func (s *Server) CreateInstance(ctx context.Context, progHash string, transient 
 		s.unrefProgram(&prog)
 	}()
 
-	entryIndex, err := prog.image.ResolveEntryFunc(function, false)
+	funcIndex, err := prog.image.ResolveEntryFunc(function, false)
 	if err != nil {
 		return
 	}
 
 	// TODO: check resource policy (text/stack/memory/max-memory size etc.)
 
-	instImage, err := image.NewInstance(prog.image, pol.inst.MaxMemorySize, pol.inst.StackSize, entryIndex)
+	instImage, err := image.NewInstance(prog.image, pol.inst.MaxMemorySize, pol.inst.StackSize, funcIndex)
 	if err != nil {
 		return
 	}
@@ -543,12 +543,12 @@ func (s *Server) loadKnownModuleInstance(ctx context.Context, acc *account, ref 
 
 	// TODO: check resource policy (stack/memory/max-memory size etc.)
 
-	entryFunc, err := prog.image.ResolveEntryFunc(function, false)
+	funcIndex, err := prog.image.ResolveEntryFunc(function, false)
 	if err != nil {
 		return
 	}
 
-	instImage, err := image.NewInstance(prog.image, pol.inst.MaxMemorySize, pol.inst.StackSize, entryFunc)
+	instImage, err := image.NewInstance(prog.image, pol.inst.MaxMemorySize, pol.inst.StackSize, funcIndex)
 	if err != nil {
 		return
 	}

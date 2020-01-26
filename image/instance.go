@@ -152,22 +152,20 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 
 // Store the instance.  The name must not contain path separators.
 func (inst *Instance) Store(name string, prog *Program) (err error) {
+	if !inst.coherent {
+		err = ErrInvalidState
+		return
+	}
 	if inst.name != "" {
 		err = errors.New("instance already stored")
 		return
 	}
 
-	if !prog.storage.storeInstanceSupported() {
+	if prog.storage.storeInstanceSupported() {
+		err = prog.storage.storeInstance(inst, name)
+	} else {
 		inst.name = name
-		return
 	}
-
-	err = inst.CheckMutation()
-	if err != nil {
-		return
-	}
-
-	err = prog.storage.storeInstance(inst, name)
 	return
 }
 
@@ -277,10 +275,9 @@ changed:
 	inst.manDirty = true
 }
 
-// BeginMutation is invoked by a mutator when it takes exclusive ownership of
-// the instance state.  CheckMutation and Close may be called during the
-// mutation.  The returned file handle is valid until the next Instance method
-// call.
+// BeginMutation must be invoked when mutation starts.  CheckMutation and Close
+// may be called during the mutation.  The returned file handle is valid until
+// the next Instance method call.
 func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintptr }, err error) {
 	if !inst.coherent {
 		err = ErrInvalidState
@@ -299,10 +296,7 @@ func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintp
 	return
 }
 
-// CheckMutation returns nil if the instance state is not undergoing mutation
-// and the previous mutator (if any) has terminated cleanly.  ErrInvalidState
-// is returned if the opposite is true.  Other errors mean that the check
-// failed.
+// CheckMutation can be invoked after the mutation has ended.
 func (inst *Instance) CheckMutation() (err error) {
 	if inst.coherent {
 		return
@@ -315,15 +309,7 @@ func (inst *Instance) CheckMutation() (err error) {
 		return
 	}
 
-	return inst.checkMutation(b)
-}
-
-func (inst *Instance) checkMutation(stack []byte) (err error) {
-	if inst.coherent {
-		return
-	}
-
-	vars, ok := checkStack(stack, inst.man.StackSize)
+	vars, ok := checkStack(b, inst.man.StackSize)
 	if !ok {
 		err = ErrInvalidState
 		return
@@ -348,16 +334,6 @@ func (inst *Instance) checkMutation(stack []byte) (err error) {
 
 	inst.coherent = true
 	return
-}
-
-// SetEntry prepares a halted instance for re-entry.
-func (inst *Instance) SetEntry(prog *Program, funcIndex int) {
-	f := prog.man.EntryFunc(funcIndex)
-	if inst.man.EntryFunc == f {
-		return
-	}
-	inst.man.EntryFunc = f
-	inst.manDirty = true
 }
 
 func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
@@ -386,11 +362,6 @@ func (inst *Instance) readStack() (stack []byte, err error) {
 	b := make([]byte, inst.man.StackSize)
 
 	_, err = inst.file.ReadAt(b, 0)
-	if err != nil {
-		return
-	}
-
-	err = inst.checkMutation(b)
 	if err != nil {
 		return
 	}

@@ -30,38 +30,38 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		instMemoryOffset  = instGlobalsOffset + alignPageOffset32(inst.man.GlobalsSize)
 	)
 
-	instMap, err := mmap(inst.file.Fd(), instStackOffset, int(instMemoryOffset-instStackOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
-	if err != nil {
-		return
-	}
-	defer mustMunmap(instMap)
-
 	var (
-		instStackMapping   = instMap[:inst.man.StackSize]
-		instGlobalsMapping = instMap[inst.man.StackSize:]
-		instGlobalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(oldProg.man.GlobalTypes)*8:]
-	)
-
-	err = inst.checkMutation(instStackMapping)
-	if err != nil {
-		return
-	}
-
-	var (
-		stackUsage    int
-		instStackData []byte
-		newTextAddr   uint64
+		stackUsage   int
+		stackMapSize int
+		newTextAddr  uint64
 	)
 	if suspended || inst.Final() {
 		if inst.man.StackUsage != 0 {
 			stackUsage = int(inst.man.StackUsage)
-			instStackData = instStackMapping[len(instStackMapping)-stackUsage:]
+			stackMapSize = alignPageSize(stackUsage)
 			newTextAddr = inst.man.TextAddr
 		} else if suspended {
 			// Resume at virtual call site at beginning of enter routine.
 			// Stack data is synthesized later.
 			stackUsage = initStackSize
 		}
+	}
+
+	// TODO: reading might be faster.  exportStack could work in-place.
+	instMapOffset := instGlobalsOffset - int64(stackMapSize)
+	instMap, err := mmap(inst.file.Fd(), instMapOffset, int(instMemoryOffset-instMapOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
+	if err != nil {
+		return
+	}
+	defer mustMunmap(instMap)
+
+	var (
+		instGlobalsMapping = instMap[stackMapSize:]
+		instGlobalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(oldProg.man.GlobalTypes)*8:]
+		instStackData      []byte
+	)
+	if stackMapSize != 0 {
+		instStackData = instMap[stackMapSize-stackUsage : stackMapSize]
 	}
 
 	// New module sections.

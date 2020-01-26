@@ -115,21 +115,26 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 	defer inst.mu.Unlock()
 
 	if inst.process == nil {
-		if id := inst.image.Trap(); id == trap.Exit {
-			if inst.image.Final() {
-				inst.status.State = api.StateTerminated
-			} else {
-				inst.status.State = api.StateHalted
-			}
-			inst.status.Result = inst.image.Result()
-		} else {
-			if inst.image.Final() {
+		trapID := inst.image.Trap()
+
+		if inst.image.Final() {
+			if trapID != trap.Exit {
 				inst.status.State = api.StateKilled
-				if id != trap.Killed {
-					inst.status.Cause = api.Cause(id)
+				if trapID != trap.Killed {
+					inst.status.Cause = api.Cause(trapID)
 				}
 			} else {
-				inst.status.State, inst.status.Cause = trapStatus(id)
+				inst.status.State = api.StateTerminated
+				inst.status.Result = inst.image.Result()
+			}
+		} else {
+			if trapID != trap.Exit {
+				inst.status.State, inst.status.Cause = trapStatus(trapID)
+			} else if inst.image.EntryAddr() == 0 {
+				inst.status.State = api.StateHalted
+				inst.status.Result = inst.image.Result()
+			} else {
+				inst.status.State = api.StateSuspended
 			}
 		}
 
@@ -254,18 +259,14 @@ func (inst *Instance) suspend() {
 	}
 }
 
-func (inst *Instance) checkResume(prog *program, function string) (err error) {
+func (inst *Instance) checkResume(prog *program, function string) error {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	_, err = inst.resumeCheck(lock, prog, function)
-	return
+	return inst.resumeCheck(lock, prog, function)
 }
 
-func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string,
-) (entryIndex int, err error) {
-	entryIndex = -1
-
+func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string) (err error) {
 	if !inst.exists {
 		err = resourcenotfound.ErrInstance
 		return
@@ -283,17 +284,12 @@ func (inst *Instance) resumeCheck(_ instanceLock, prog *program, function string
 			err = failrequest.Errorf(event.FailInstanceStatus, "function must be specified when resuming halted instance")
 			return
 		}
-		entryIndex, err = prog.image.ResolveEntryFunc(function, true)
-		if err != nil {
-			return
-		}
 
 	default:
 		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or halted")
 		return
 	}
 
-	err = inst.image.CheckMutation()
 	return
 }
 
@@ -303,8 +299,8 @@ func (inst *Instance) doResume(prog *program, function string, proc *runtime.Pro
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	// Check again in case of a race condition.  (CheckMutation caches result.)
-	entryIndex, err := inst.resumeCheck(lock, prog, function)
+	// Check again in case of a race condition.
+	err = inst.resumeCheck(lock, prog, function)
 	if err != nil {
 		return
 	}
@@ -313,7 +309,6 @@ func (inst *Instance) doResume(prog *program, function string, proc *runtime.Pro
 		State: api.StateRunning,
 		Debug: debugStatus,
 	}
-	inst.image.SetEntry(prog.image, entryIndex)
 	inst.process = proc
 	inst.services = services
 	inst.timeReso = timeReso
@@ -392,10 +387,8 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		Cause: api.CauseInternal,
 		Debug: inst.status.Debug,
 	}
-	defer func() {
-		lock := inst.mu.Lock()
-		defer inst.mu.Unlock()
 
+	cleanupFunc := func(lock instanceLock) {
 		if res.State >= api.StateTerminated {
 			inst.image.SetFinal()
 		}
@@ -403,6 +396,13 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		inst.image.SetResult(res.Result)
 		inst.status = res
 		inst.stop(lock)
+	}
+	defer func() {
+		if cleanupFunc != nil {
+			lock := inst.mu.Lock()
+			defer inst.mu.Unlock()
+			cleanupFunc(lock)
+		}
 	}()
 
 	result, trapID, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
@@ -416,14 +416,25 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		}
 	}
 
-	if !inst.transient {
-		err = prog.ensureStorage()
-		if err == nil {
-			err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
-		}
+	lock := inst.mu.Lock()
+	defer func() {
+		defer inst.mu.Unlock()
+		f := cleanupFunc
+		cleanupFunc = nil
+		f(lock)
+	}()
+
+	mutErr := inst.image.CheckMutation()
+	if mutErr != nil && trapID != trap.Killed {
+		res.Error = public.Error(mutErr, res.Error)
+		return internalFailure(ctx, prog.hash, function, inst.ID, "image state", mutErr), mutErr
+	}
+
+	if mutErr == nil && !inst.transient {
+		err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
 		if err != nil {
 			res.Error = public.Error(err, res.Error)
-			return internalFailure(ctx, prog.hash, function, inst.ID, "", err), err
+			return internalFailure(ctx, prog.hash, function, inst.ID, "image storage", err), err
 		}
 	}
 

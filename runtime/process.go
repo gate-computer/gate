@@ -312,6 +312,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 		switch s := status.Signal(); {
 		case s == os.Kill && p.execution.killRequested():
 			trapID = trap.Killed
+			return
 
 		case s == syscall.SIGXCPU:
 			// During initialization (ok) or by force (instance stack is dirty).
