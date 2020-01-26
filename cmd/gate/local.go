@@ -117,17 +117,12 @@ var localCommands = map[string]command{
 	"export": {
 		usage: "module [filename]",
 		do: func() {
-			download(func() (r io.Reader, moduleLen int64) {
-				r, w, err := os.Pipe()
-				check(err)
+			var filename string
+			if flag.NArg() > 1 {
+				filename = flag.Arg(1)
+			}
 
-				wFD := dbus.UnixFD(w.Fd())
-				call := daemonCall("Download", wFD, flag.Arg(0))
-				closeFiles(w)
-
-				check(call.Store(&moduleLen))
-				return
-			})
+			exportLocal(flag.Arg(0), filename)
 		},
 	},
 
@@ -335,13 +330,19 @@ var localCommands = map[string]command{
 	},
 
 	"snapshot": {
-		usage: "instance",
+		usage: "instance [filename]",
 		do: func() {
 			call := daemonCall("Snapshot", flag.Arg(0))
 
 			var progID string
 			check(call.Store(&progID))
-			fmt.Println(progID)
+
+			if flag.NArg() == 1 {
+				fmt.Println(progID)
+			} else {
+				fmt.Fprintln(terminal(), progID)
+				exportLocal(progID, flag.Arg(1))
+			}
 		},
 	},
 
@@ -372,6 +373,20 @@ var localCommands = map[string]command{
 			daemonCallInstanceStatus("Wait")
 		},
 	},
+}
+
+func exportLocal(module, filename string) {
+	download(filename, func() (r io.Reader, moduleLen int64) {
+		r, w, err := os.Pipe()
+		check(err)
+
+		wFD := dbus.UnixFD(w.Fd())
+		call := daemonCall("Download", wFD, module)
+		closeFiles(w)
+
+		check(call.Store(&moduleLen))
+		return
+	})
 }
 
 func daemonCallInstanceStatus(name string) {
@@ -437,9 +452,7 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 	go func() {
 		defer w.Close()
 		<-c
-		if _, err := unix.IoctlGetTermios(int(os.Stdout.Fd()), unix.TCGETS); err == nil {
-			fmt.Print("\r") // Clear the ^\ in case the signal was sent via terminal.
-		}
+		fmt.Fprint(terminal(), "\r") // Clear the ^\ in case the signal was sent via terminal.
 		w.Write([]byte{0})
 	}()
 

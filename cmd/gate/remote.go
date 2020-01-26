@@ -109,10 +109,12 @@ var remoteCommands = map[string]command{
 	"export": {
 		usage: "module [filename]",
 		do: func() {
-			download(func() (io.Reader, int64) {
-				_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(0), nil)
-				return resp.Body, resp.ContentLength
-			})
+			var filename string
+			if flag.NArg() > 1 {
+				filename = flag.Arg(1)
+			}
+
+			exportRemote(flag.Arg(0), filename)
 		},
 	},
 
@@ -288,7 +290,7 @@ var remoteCommands = map[string]command{
 	},
 
 	"snapshot": {
-		usage: "instance",
+		usage: "instance [filename]",
 		do: func() {
 			req := &http.Request{
 				Method: http.MethodPost,
@@ -303,7 +305,14 @@ var remoteCommands = map[string]command{
 			if location == "" {
 				log.Fatal("no Location header in response")
 			}
-			fmt.Println(path.Base(location))
+			progID := path.Base(location)
+
+			if flag.NArg() == 1 {
+				fmt.Println(progID)
+			} else {
+				fmt.Fprintln(terminal(), progID)
+				exportRemote(progID, flag.Arg(1))
+			}
 		},
 	},
 
@@ -341,6 +350,13 @@ var remoteCommands = map[string]command{
 			fmt.Println(commandInstance(webapi.ActionWait))
 		},
 	},
+}
+
+func exportRemote(module, filename string) {
+	download(filename, func() (io.Reader, int64) {
+		_, resp := doHTTP(nil, webapi.PathModuleRefs+module, nil)
+		return resp.Body, resp.ContentLength
+	})
 }
 
 func callPost(uri string, params url.Values) webapi.Status {

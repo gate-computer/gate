@@ -7,6 +7,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/tsavola/confi"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -227,6 +229,15 @@ func openFile(name string) *os.File {
 	f, err := os.Open(name)
 	check(err)
 	return f
+}
+
+func terminal() io.Writer {
+	for _, f := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
+		if _, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS); err == nil {
+			return f
+		}
+	}
+	return ioutil.Discard
 }
 
 func check(err error) {

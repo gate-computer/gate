@@ -5,7 +5,6 @@
 package main
 
 import (
-	"flag"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,17 +12,17 @@ import (
 	"path"
 )
 
-func download(get func() (io.Reader, int64)) {
+func download(filename string, get func() (io.Reader, int64)) {
 	var (
 		out  *os.File
 		temp bool
 		err  error
 	)
 
-	if flag.NArg() == 1 {
+	if filename == "" {
 		out = os.Stdout
 	} else {
-		f, err := os.OpenFile(flag.Arg(1), os.O_WRONLY, 0)
+		f, err := os.OpenFile(filename, os.O_WRONLY, 0)
 		if err == nil {
 			info, err := f.Stat()
 			check(err)
@@ -45,7 +44,7 @@ func download(get func() (io.Reader, int64)) {
 	in, length := get()
 
 	if temp {
-		out, err = ioutil.TempFile(path.Dir(flag.Arg(1)), ".*.wasm")
+		out, err = ioutil.TempFile(path.Dir(filename), ".*.wasm")
 		check(err)
 		defer func() {
 			if out != nil {
@@ -60,7 +59,7 @@ func download(get func() (io.Reader, int64)) {
 	check(out.Close())
 
 	if temp {
-		check(os.Rename(out.Name(), flag.Arg(1)))
+		check(os.Rename(out.Name(), filename))
 		out = nil
 	}
 }
