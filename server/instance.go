@@ -10,6 +10,7 @@ import (
 	"io"
 	"path"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/tsavola/gate/internal/error/public"
 	"github.com/tsavola/gate/internal/error/subsystem"
 	"github.com/tsavola/gate/internal/manifest"
+	inprincipal "github.com/tsavola/gate/internal/principal"
+	"github.com/tsavola/gate/principal"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server/event"
 	"github.com/tsavola/gate/server/internal/error/failrequest"
@@ -42,8 +45,25 @@ func validateInstanceID(s string) error {
 	return failrequest.New(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4")
 }
 
-func instanceStorageKey(acc *account, instID string) string {
-	return fmt.Sprintf("%s.%s", acc.ID.String(), instID)
+func instanceStorageKey(pri *principal.ID, instID string) string {
+	return fmt.Sprintf("%s.%s", pri.String(), instID)
+}
+
+func parseInstanceStorageKey(key string) (pri *principal.ID, instID string, err error) {
+	i := strings.LastIndexByte(key, '.')
+	if i < 0 {
+		err = fmt.Errorf("invalid instance storage key: %q", key)
+		return
+	}
+
+	pri, err = inprincipal.ParseID(key[:i])
+	if err != nil {
+		return
+	}
+
+	instID = key[i+1:]
+	err = validateInstanceID(instID)
+	return
 }
 
 // trapStatus converts non-exit trap id to non-final instance state and cause.
@@ -110,11 +130,20 @@ func newInstance(id string, acc *account, image *image.Instance, persistent *sna
 	return inst
 }
 
+func (inst *Instance) store(_ instanceLock, prog *program) error {
+	return inst.image.Store(instanceStorageKey(inst.acc.ID, inst.ID), prog.hash, prog.image)
+}
+
 func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if inst.process == nil {
+		err = inst.store(lock, prog)
+		if err != nil {
+			return
+		}
+
 		trapID := inst.image.Trap()
 
 		if inst.image.Final() {
@@ -431,7 +460,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 	}
 
 	if mutErr == nil && !inst.transient {
-		err = inst.image.Store(instanceStorageKey(inst.acc, inst.ID), prog.image)
+		err = inst.store(lock, prog)
 		if err != nil {
 			res.Error = public.Error(err, res.Error)
 			return internalFailure(ctx, prog.hash, function, inst.ID, "image storage", err), err

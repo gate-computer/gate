@@ -32,6 +32,10 @@ func ParseID(s string) (*ID, error) {
 		}
 	}
 
+	if s == typeLocal {
+		return LocalID, nil
+	}
+
 	return nil, fmt.Errorf("principal ID string is invalid: %q", s)
 }
 

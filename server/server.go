@@ -7,6 +7,7 @@ package server
 import (
 	"context"
 	"io"
+	"log"
 	"sync"
 
 	"github.com/tsavola/gate/image"
@@ -80,7 +81,12 @@ func New(config Config) (*Server, error) {
 		anonymous: make(map[*Instance]struct{}),
 	}
 
-	list, err := s.ImageStorage.Programs()
+	progList, err := s.ImageStorage.Programs()
+	if err != nil {
+		return nil, err
+	}
+
+	instList, err := s.ImageStorage.Instances()
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +107,14 @@ func New(config Config) (*Server, error) {
 		s.accounts[inprincipal.Raw(s.XXX_Owner)] = owner
 	}
 
-	for _, hash := range list {
+	for _, hash := range progList {
 		if err := s.loadProgramDuringInit(lock, owner, hash); err != nil {
+			return nil, err
+		}
+	}
+
+	for _, key := range instList {
+		if err := s.loadInstanceDuringInit(lock, key); err != nil {
 			return nil, err
 		}
 	}
@@ -116,7 +128,7 @@ func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash str
 	if err != nil {
 		return err
 	}
-	if image == nil { // Race condition with human?
+	if image == nil { // Race condition with human operator?
 		return nil
 	}
 	defer closeProgramImage(&image)
@@ -134,6 +146,29 @@ func (s *Server) loadProgramDuringInit(lock serverLock, owner *account, hash str
 	}
 
 	s.programs[hash] = prog
+
+	return nil
+}
+
+func (s *Server) loadInstanceDuringInit(lock serverLock, key string) error {
+	image, err := s.ImageStorage.LoadInstance(key)
+	if err != nil {
+		return err
+	}
+	if image == nil { // Race condition with human operator?
+		return nil
+	}
+	defer closeInstanceImage(&image)
+
+	pri, instID, err := parseInstanceStorageKey(key)
+	if err != nil {
+		return err
+	}
+
+	acc := s.ensureAccount(lock, pri)
+
+	// TODO: restore instance
+	log.Printf("TODO: load account %s instance %s (%s)", acc.ID, instID, image.Trap())
 
 	return nil
 }

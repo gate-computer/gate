@@ -438,7 +438,7 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 		t.Errorf("instance state: %v", err)
 	}
 
-	if err := inst.Store(t.Name(), prog); err != nil {
+	if err := inst.Store(t.Name(), t.Name(), prog); err != nil {
 		t.Fatal(err)
 	}
 

@@ -31,7 +31,7 @@ func (m *ByteRange) Reset()         { *m = ByteRange{} }
 func (m *ByteRange) String() string { return proto.CompactTextString(m) }
 func (*ByteRange) ProtoMessage()    {}
 func (*ByteRange) Descriptor() ([]byte, []int) {
-	return fileDescriptor_manifest_fadde398cdead607, []int{0}
+	return fileDescriptor_manifest_9fdd2f0118821c99, []int{0}
 }
 func (m *ByteRange) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -91,7 +91,7 @@ func (m *Program) Reset()         { *m = Program{} }
 func (m *Program) String() string { return proto.CompactTextString(m) }
 func (*Program) ProtoMessage()    {}
 func (*Program) Descriptor() ([]byte, []int) {
-	return fileDescriptor_manifest_fadde398cdead607, []int{1}
+	return fileDescriptor_manifest_9fdd2f0118821c99, []int{1}
 }
 func (m *Program) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -139,7 +139,7 @@ func (m *Instance) Reset()         { *m = Instance{} }
 func (m *Instance) String() string { return proto.CompactTextString(m) }
 func (*Instance) ProtoMessage()    {}
 func (*Instance) Descriptor() ([]byte, []int) {
-	return fileDescriptor_manifest_fadde398cdead607, []int{2}
+	return fileDescriptor_manifest_9fdd2f0118821c99, []int{2}
 }
 func (m *Instance) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -179,7 +179,7 @@ func (m *Function) Reset()         { *m = Function{} }
 func (m *Function) String() string { return proto.CompactTextString(m) }
 func (*Function) ProtoMessage()    {}
 func (*Function) Descriptor() ([]byte, []int) {
-	return fileDescriptor_manifest_fadde398cdead607, []int{3}
+	return fileDescriptor_manifest_9fdd2f0118821c99, []int{3}
 }
 func (m *Function) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -222,7 +222,7 @@ func (m *Snapshot) Reset()         { *m = Snapshot{} }
 func (m *Snapshot) String() string { return proto.CompactTextString(m) }
 func (*Snapshot) ProtoMessage()    {}
 func (*Snapshot) Descriptor() ([]byte, []int) {
-	return fileDescriptor_manifest_fadde398cdead607, []int{4}
+	return fileDescriptor_manifest_9fdd2f0118821c99, []int{4}
 }
 func (m *Snapshot) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -261,7 +261,7 @@ func (m *Breakpoints) Reset()         { *m = Breakpoints{} }
 func (m *Breakpoints) String() string { return proto.CompactTextString(m) }
 func (*Breakpoints) ProtoMessage()    {}
 func (*Breakpoints) Descriptor() ([]byte, []int) {
-	return fileDescriptor_manifest_fadde398cdead607, []int{5}
+	return fileDescriptor_manifest_9fdd2f0118821c99, []int{5}
 }
 func (m *Breakpoints) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -2451,10 +2451,10 @@ var (
 )
 
 func init() {
-	proto.RegisterFile("internal/manifest/manifest.proto", fileDescriptor_manifest_fadde398cdead607)
+	proto.RegisterFile("internal/manifest/manifest.proto", fileDescriptor_manifest_9fdd2f0118821c99)
 }
 
-var fileDescriptor_manifest_fadde398cdead607 = []byte{
+var fileDescriptor_manifest_9fdd2f0118821c99 = []byte{
 	// 886 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x56, 0xd1, 0x6e, 0x1b, 0x45,
 	0x14, 0xcd, 0xd6, 0x8e, 0xb3, 0xbe, 0x6b, 0xc7, 0xc9, 0xa4, 0x8d, 0x96, 0x02, 0xae, 0x63, 0x44,

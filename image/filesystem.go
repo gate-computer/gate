@@ -112,23 +112,7 @@ func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
 }
 
 func (fs *Filesystem) Programs() (names []string, err error) {
-	dir, err := openAsOSFile(fs.progDir.Fd())
-	if err != nil {
-		return
-	}
-	defer dir.Close()
-
-	infos, err := dir.Readdir(-1)
-	if err != nil {
-		return
-	}
-
-	for _, info := range infos {
-		if info.Mode().IsRegular() {
-			names = append(names, info.Name())
-		}
-	}
-	return
+	return fs.listNames(fs.progDir.Fd())
 }
 
 func (fs *Filesystem) LoadProgram(name string) (prog *Program, err error) {
@@ -225,9 +209,16 @@ func (fs *Filesystem) storeInstance(inst *Instance, name string) (err error) {
 	return
 }
 
+func (fs *Filesystem) Instances() (names []string, err error) {
+	return fs.listNames(fs.instDir.Fd())
+}
+
 func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 	f, err := openat(int(fs.instDir.Fd()), name, syscall.O_RDWR, 0)
 	if err != nil {
+		if os.IsNotExist(err) {
+			err = nil
+		}
 		return
 	}
 	defer func() {
@@ -244,6 +235,26 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 	}
 
 	err = unmarshalManifest(f, &inst.man, instManifestOffset, instanceFileTag)
+	return
+}
+
+func (fs *Filesystem) listNames(dirFD uintptr) (names []string, err error) {
+	dir, err := openAsOSFile(dirFD)
+	if err != nil {
+		return
+	}
+	defer dir.Close()
+
+	infos, err := dir.Readdir(-1)
+	if err != nil {
+		return
+	}
+
+	for _, info := range infos {
+		if info.Mode().IsRegular() {
+			names = append(names, info.Name())
+		}
+	}
 	return
 }
 

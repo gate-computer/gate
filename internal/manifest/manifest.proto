@@ -14,9 +14,9 @@ message ByteRange {
 }
 
 message Program {
-	uint64 text_addr = 1; // Nonzero if suspended.
+	uint64 text_addr = 1;
 	uint32 text_size = 2;
-	uint32 stack_usage = 3; // Nonzero if suspended.
+	uint32 stack_usage = 3;
 	uint32 globals_size = 4;
 	uint32 memory_size = 5;
 	sint64 memory_size_limit = 6;
@@ -39,9 +39,9 @@ message Program {
 }
 
 message Instance {
-	uint64 text_addr = 1; // Nonzero if suspended.
+	uint64 text_addr = 1;
 	uint32 stack_size = 2;
-	uint32 stack_usage = 3; // Nonzero if suspended.
+	uint32 stack_usage = 3;
 	uint32 globals_size = 4;
 	uint32 memory_size = 5;
 	uint32 max_memory_size = 6;

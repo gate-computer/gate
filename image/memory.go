@@ -55,6 +55,7 @@ func (mem) newInstanceFile() (f *file.File, err error) {
 func (mem) instanceFileWriteSupported() bool       { return memoryFileWriteSupported }
 func (mem) storeInstanceSupported() bool           { return false }
 func (mem) storeInstance(*Instance, string) error  { return nil }
+func (mem) Instances() (_ []string, _ error)       { return }
 func (mem) LoadInstance(string) (*Instance, error) { return nil, os.ErrNotExist }
 
 type persistMem struct {
@@ -116,6 +117,10 @@ func (pmem persistMem) storeInstance(inst *Instance, name string) (err error) {
 	inst.dir = pmem.fs.instDir
 	inst.name = name
 	return
+}
+
+func (pmem persistMem) Instances() (names []string, err error) {
+	return pmem.fs.Instances()
 }
 
 func (pmem persistMem) LoadInstance(name string) (inst *Instance, err error) {

@@ -45,11 +45,13 @@ type stackVars struct {
 }
 
 type InstanceStorage interface {
+	Instances() (names []string, err error)
+	LoadInstance(name string) (*Instance, error)
+
 	newInstanceFile() (*file.File, error)
 	instanceFileWriteSupported() bool
 	storeInstanceSupported() bool
 	storeInstance(inst *Instance, name string) error
-	LoadInstance(name string) (*Instance, error)
 }
 
 // Instance is a program state.  It may be undergoing mutation.
@@ -150,8 +152,8 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 	return
 }
 
-// Store the instance.  The name must not contain path separators.
-func (inst *Instance) Store(name string, prog *Program) (err error) {
+// Store the instance.  The names must not contain path separators.
+func (inst *Instance) Store(name, progName string, prog *Program) (err error) {
 	if !inst.coherent {
 		err = ErrInvalidState
 		return
