@@ -31,7 +31,6 @@ import (
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
 	objectabi "github.com/tsavola/wag/object/abi"
-	"github.com/tsavola/wag/object/debug"
 	"github.com/tsavola/wag/object/stack/stacktrace"
 	"github.com/tsavola/wag/wa"
 )
@@ -192,7 +191,7 @@ func prepareBuild(exec *executor, storage image.Storage, config compile.Config, 
 	return
 }
 
-func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap, wasm []byte, moduleSize int, function string, persistent bool,
+func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMap, wasm []byte, moduleSize int, function string, persistent bool,
 ) (prog *image.Program, inst *image.Instance, mod compile.Module) {
 	var config compile.Config
 	var sectionMap image.SectionMap
@@ -201,7 +200,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap
 		config.SectionMapper = sectionMap.Mapper()
 	}
 
-	r, mod, build := prepareBuild(exec, storage, config, wasm, moduleSize, &codeMap.CallMap)
+	r, mod, build := prepareBuild(exec, storage, config, wasm, moduleSize, codeMap)
 	defer build.Close()
 
 	if persistent {
@@ -273,7 +272,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *debug.TrapMap
 }
 
 func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer,
-) (*executor, *image.Program, *image.Instance, *runtime.Process, *debug.TrapMap, compile.Module) {
+) (*executor, *image.Program, *image.Instance, *runtime.Process, *object.CallMap, compile.Module) {
 	var err error
 
 	executor := newExecutor()
@@ -283,7 +282,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		}
 	}()
 
-	codeMap := new(debug.TrapMap)
+	codeMap := new(object.CallMap)
 
 	prog, inst, mod := buildInstance(executor, storage, codeMap, wasm, len(wasm), function, true)
 	defer func() {
@@ -326,7 +325,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 
 	ctx := context.Background()
 
-	executor, prog, inst, proc, trapMap, mod := startInstance(ctx, t, image.Memory, wasm, function, debug)
+	executor, prog, inst, proc, textMap, mod := startInstance(ctx, t, image.Memory, wasm, function, debug)
 	defer proc.Kill()
 	defer inst.Close()
 	defer prog.Close()
@@ -343,7 +342,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 			t.Errorf("run result: %s", result)
 		}
 		if testing.Verbose() {
-			trace, err := inst.Stacktrace(trapMap, mod.FuncTypes())
+			trace, err := inst.Stacktrace(textMap, mod.FuncTypes())
 			if err == nil {
 				err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
 			}

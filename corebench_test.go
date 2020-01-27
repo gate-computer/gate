@@ -18,7 +18,7 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/trap"
-	"github.com/tsavola/wag/object/debug"
+	"github.com/tsavola/wag/object"
 )
 
 const benchPrepareCount = 32
@@ -40,8 +40,7 @@ var optionalBenchData = []struct {
 	name string
 	path string
 }{
-	{"GainRel", "../gain/target/wasm32-unknown-unknown/release/examples/hello.wasm"},
-	{"GainDbg", "../gain/target/wasm32-unknown-unknown/debug/examples/hello.wasm"},
+	//{"003", "../wag-bench/003.wasm"},
 }
 
 func init() {
@@ -122,12 +121,11 @@ func benchBuild(b *testing.B, storage image.Storage) {
 	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
-			var codeMap debug.TrapMap
+			var codeMap object.CallMap
 
 			for i := 0; i < b.N; i++ {
 				codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 				codeMap.CallSites = codeMap.CallSites[:0]
-				codeMap.TrapSites = codeMap.TrapSites[:0]
 
 				prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, wasm, len(wasm), "", false)
 				inst.Close()
@@ -144,12 +142,11 @@ func BenchmarkBuildStore(b *testing.B) {
 
 	prefix := fmt.Sprintf("%s.%d.", strings.Replace(b.Name(), "/", "-", -1), b.N)
 
-	var codeMap debug.TrapMap
+	var codeMap object.CallMap
 
 	for i := 0; i < b.N; i++ {
 		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 		codeMap.CallSites = codeMap.CallSites[:0]
-		codeMap.TrapSites = codeMap.TrapSites[:0]
 
 		prog, inst, _ := buildInstance(benchExecutor, testFS, &codeMap, wasmNop, len(wasmNop), "", false)
 		err := prog.Store(prefix + strconv.Itoa(i))
@@ -177,7 +174,7 @@ func benchExecInst(b *testing.B, storage image.Storage) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var codeMap debug.TrapMap
+	var codeMap object.CallMap
 
 	prog, instProto, _ := buildInstance(benchExecutor, storage, &codeMap, wasmNop, len(wasmNop), "", false)
 	defer prog.Close()
@@ -235,7 +232,7 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
-			var codeMap debug.TrapMap
+			var codeMap object.CallMap
 
 			prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, wasm, len(wasm), "", false)
 			defer prog.Close()
