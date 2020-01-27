@@ -253,7 +253,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		startIndex = int(index)
 	}
 
-	prog, err = build.FinishProgram(sectionMap, mod, startIndex, persistent, nil, 0)
+	prog, err = build.FinishProgram(sectionMap, mod, startIndex, true, nil, 0)
 	if err != nil {
 		panic(err)
 	}

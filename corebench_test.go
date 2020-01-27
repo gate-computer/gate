@@ -40,7 +40,7 @@ var optionalBenchData = []struct {
 	name string
 	path string
 }{
-	//{"003", "../wag-bench/003.wasm"},
+	{"Doom", "../wag-bench/003.wasm"},
 }
 
 func init() {
