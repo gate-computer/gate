@@ -49,7 +49,7 @@ var remoteCommands = map[string]command{
 			var status webapi.Status
 
 			switch arg := flag.Arg(0); {
-			case !strings.Contains(arg, "/"):
+			case !(strings.Contains(arg, "/") || strings.Contains(arg, ".")):
 				status = callPost(webapi.PathModuleRefs+arg, params)
 
 			case strings.HasPrefix(arg, "/ipfs/"):
@@ -208,7 +208,7 @@ var remoteCommands = map[string]command{
 				uri string
 			)
 			switch arg := flag.Arg(0); {
-			case !strings.Contains(arg, "/"):
+			case !(strings.Contains(arg, "/") || strings.Contains(arg, ".")):
 				req.Method = http.MethodPost
 				uri = webapi.PathModuleRefs + arg
 

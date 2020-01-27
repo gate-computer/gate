@@ -60,7 +60,7 @@ var localCommands = map[string]command{
 				module *os.File
 				call   *dbus.Call
 			)
-			if !strings.Contains(flag.Arg(0), "/") {
+			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
 				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.Debug != "", c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
@@ -229,7 +229,7 @@ var localCommands = map[string]command{
 				module *os.File
 				call   *dbus.Call
 			)
-			if !strings.Contains(flag.Arg(0), "/") {
+			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
 				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.Debug != "", c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))

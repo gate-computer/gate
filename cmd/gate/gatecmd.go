@@ -82,7 +82,7 @@ For %s, the server address must be specified after the command.
 
 const moduleUsage = `
 Module can be a local wasm file, a reference, or a supported source:
-  ./wasm-file
+  file.wasm
   I4hOg1lxclcr20elFIIjlrWw4H7Twp2eMTGU1KrfX_np05M6WZ0DpcTIvSajbE9d
   /ipfs/QmQugy6674g1rJumFQ5gAtuJf8uJobxSi23GUqUaewoPLc
 `
