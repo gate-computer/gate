@@ -18,15 +18,10 @@ import (
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/trap"
-	"github.com/tsavola/wag/object/abi"
 	"github.com/tsavola/wag/object/debug"
 )
 
 const benchPrepareCount = 32
-
-type nopInstance struct{ *image.Instance }
-
-func (nopInstance) InitRoutine() uint32 { return abi.TextAddrNoFunction }
 
 var benchExecutor = newExecutor()
 var benchRegistry = serviceRegistry{new(bytes.Buffer)}
@@ -96,7 +91,7 @@ func executeProgram(ctx context.Context, prog *image.Program,
 	}
 	defer inst.Close()
 
-	err = proc.Start(prog, nopInstance{inst}, runtime.ProcessPolicy{})
+	err = proc.Start(prog, inst, runtime.ProcessPolicy{})
 	if err != nil {
 		return
 	}
@@ -193,12 +188,12 @@ func benchExecInst(b *testing.B, storage image.Storage) {
 	for i := 0; i < b.N; i++ {
 		instClone := *instProto // Hack to work around state invalidation.
 
-		_, trapID, err := executeInstance(ctx, prog, nopInstance{&instClone})
+		result, trapID, err := executeInstance(ctx, prog, &instClone)
 		if err != nil {
 			b.Fatal(err)
 		}
-		if trapID != trap.NoFunction {
-			b.Error(trapID)
+		if trapID != trap.Exit || result.Terminated() || result.Value() != runtime.ResultSuccess {
+			b.Error(trapID, result)
 		}
 	}
 
@@ -249,12 +244,12 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				_, trapID, err := executeProgram(ctx, prog)
+				result, trapID, err := executeProgram(ctx, prog)
 				if err != nil {
 					b.Fatal(err)
 				}
-				if trapID != trap.NoFunction {
-					b.Error(trapID)
+				if trapID != trap.Exit || result.Terminated() || result.Value() != runtime.ResultSuccess {
+					b.Error(trapID, result)
 				}
 			}
 
