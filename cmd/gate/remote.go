@@ -310,7 +310,7 @@ var remoteCommands = map[string]command{
 			if flag.NArg() == 1 {
 				fmt.Println(progID)
 			} else {
-				fmt.Fprintln(terminal(), progID)
+				fmt.Fprintln(terminalOr(ioutil.Discard), progID)
 				exportRemote(progID, flag.Arg(1))
 			}
 		},

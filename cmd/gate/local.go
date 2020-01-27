@@ -75,16 +75,22 @@ var localCommands = map[string]command{
 			)
 			check(call.Store(&instID, &status.State, &status.Cause, &status.Result))
 
-			switch {
-			case status.State == api.StateSuspended:
-				fmt.Println(instID)
-				fmt.Println(statusString(status))
+			switch status.State {
+			case api.StateSuspended:
+				fmt.Fprintln(terminalOr(os.Stderr), instID, statusString(status))
 
-			case status.State == api.StateTerminated:
+			case api.StateHalted:
+				fmt.Fprintln(terminalOr(os.Stderr), instID, statusString(status))
 				os.Exit(int(status.Result))
 
-			default:
+			case api.StateTerminated:
+				os.Exit(int(status.Result))
+
+			case api.StateKilled:
 				log.Fatal(statusString(status))
+
+			default:
+				log.Fatal(instID, statusString(status))
 			}
 		},
 	},
@@ -340,7 +346,7 @@ var localCommands = map[string]command{
 			if flag.NArg() == 1 {
 				fmt.Println(progID)
 			} else {
-				fmt.Fprintln(terminal(), progID)
+				fmt.Fprintln(terminalOr(ioutil.Discard), progID)
 				exportLocal(progID, flag.Arg(1))
 			}
 		},
@@ -452,7 +458,10 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 	go func() {
 		defer w.Close()
 		<-c
-		fmt.Fprint(terminal(), "\r") // Clear the ^\ in case the signal was sent via terminal.
+
+		// Newline after the ^\ in case the signal was sent via terminal.
+		fmt.Fprintln(terminalOr(ioutil.Discard))
+
 		w.Write([]byte{0})
 	}()
 

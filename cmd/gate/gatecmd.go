@@ -231,13 +231,13 @@ func openFile(name string) *os.File {
 	return f
 }
 
-func terminal() io.Writer {
+func terminalOr(fallback io.Writer) io.Writer {
 	for _, f := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
 		if _, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS); err == nil {
 			return f
 		}
 	}
-	return ioutil.Discard
+	return fallback
 }
 
 func check(err error) {
