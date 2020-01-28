@@ -188,7 +188,7 @@ func (e *Executor) sender(errorLog Logger) {
 			e.lock.Unlock()
 
 			// This is like exec_request in runtime/executor/executor.h
-			binary.LittleEndian.PutUint16(buf[0:], uint16(req.proc.id))
+			binary.LittleEndian.PutUint16(buf[0:], uint16(req.pid))
 			buf[2] = execOpCreate
 
 			cmsg = unixRights(req.fds()...)
