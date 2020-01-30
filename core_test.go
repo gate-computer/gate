@@ -487,7 +487,7 @@ func TestRandomDeficiency2(t *testing.T) {
 
 func testRandomDeficiency(t *testing.T, function string) {
 	var debug bytes.Buffer
-	runProgram(t, wasmRandomSeed, function, &debug, 26)
+	runProgram(t, wasmRandomSeed, function, &debug, trap.ABIDeficiency)
 	if s := debug.String(); s != "ping\n" {
 		t.Error(s)
 	}

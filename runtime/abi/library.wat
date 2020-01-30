@@ -70,7 +70,7 @@
        (i64.store offset=16 (get_local $envbuf) (i64.const 0x5f4554414700303d)) ;; "=0\0GATE_"
        (i64.store offset=24 (get_local $envbuf) (i64.const 0x54414700343d4446)) ;; "FD=4\0GAT"
        (i64.store offset=32 (get_local $envbuf) (i64.const 0x45535f58414d5f45)) ;; "E_MAX_SE"
-       (i64.store offset=40 (get_local $envbuf) (i64.const 0x3d455a49535f4e44)) ;; "ND_SIZE="
+       (i64.store offset=40 (get_local $envbuf) (i64.const 0x3d455a49535f444e)) ;; "ND_SIZE="
        (i64.store offset=48 (get_local $envbuf) (i64.const 0x0000003633353536)) ;; "65536\0\0\0"
        (i32.store offset=0 (get_local $env) (get_local $envbuf))
        (i32.store offset=4 (get_local $env) (i32.add (get_local $envbuf) (i32.const 19)))
