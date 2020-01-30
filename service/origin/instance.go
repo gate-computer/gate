@@ -8,8 +8,8 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
+	"log"
 	"sync"
 
 	"github.com/tsavola/gate/internal/varint"
@@ -133,7 +133,8 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		}
 		inst.mu.Unlock()
 		if !ok {
-			panic("TODO: too many simultaneous origin accept calls")
+			log.Print("TODO: too many simultaneous origin accept calls")
+			return
 		}
 
 		poke(inst.wakeup)
@@ -148,16 +149,19 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 			s := inst.streams[id]
 			inst.mu.Unlock()
 			if s == nil {
-				panic("TODO: stream not found")
+				log.Print("TODO: stream not found")
+				return
 			}
 
 			if increment != 0 {
 				if err := s.Subscribe(increment); err != nil {
-					panic(fmt.Errorf("TODO (%v)", err))
+					log.Printf("TODO: %v", err)
+					return
 				}
 			} else {
 				if err := s.SubscribeEOF(); err != nil {
-					panic(fmt.Errorf("TODO (%v)", err))
+					log.Printf("TODO: %v", err)
+					return
 				}
 			}
 		}
@@ -169,16 +173,19 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		s := inst.streams[p.ID()]
 		inst.mu.Unlock()
 		if s == nil {
-			panic("TODO: stream not found")
+			log.Print("TODO: stream not found")
+			return
 		}
 
 		if p.DataLen() != 0 {
 			if _, err := s.Write(p.Data()); err != nil {
-				panic(fmt.Errorf("TODO (%v)", err))
+				log.Printf("TODO (%v)", err)
+				return
 			}
 		} else {
 			if err := s.WriteEOF(); err != nil {
-				panic(fmt.Errorf("TODO (%v)", err))
+				log.Printf("TODO (%v)", err)
+				return
 			}
 		}
 	}
