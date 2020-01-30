@@ -4,6 +4,8 @@
 
 #include <gate.h>
 
+uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t *);
+
 int check(void)
 {
 	uint64_t t = gate_clock_realtime();

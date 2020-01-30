@@ -3,14 +3,18 @@
 // license that can be found in the LICENSE file.
 
 // This is a low-level API for Gate user programs.  It is a thin wrapper on top
-// of the Gate runtime ABI, with debug helpers.  It uses alternative ABI
-// symbols in the "env" namespace due to nascent compiler support.
+// of the Gate runtime ABI and WASI, with debug helpers.  It may use
+// alternative ABI symbols in the "env" namespace.
 
 #ifndef _GATE_H
 #define _GATE_H
 
 #include <stddef.h>
 #include <stdint.h>
+
+#ifdef __wasi__
+#include <wasi/core.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -91,17 +95,17 @@ void __gate_debug_type_not_supported(void); // No implementation.
 GATE_PURE uint32_t __GATE_FD(void) GATE_NOEXCEPT;
 void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, const struct gate_iovec *send, int sendlen, size_t *sendsize, unsigned flags) GATE_NOEXCEPT;
 
-uint16_t __wasi_clock_time_get(uint32_t clock_id, uint64_t precision, uint64_t *time) GATE_NOEXCEPT;
-uint16_t __wasi_fd_write(uint32_t fd, const struct gate_iovec *iov, size_t iovlen, size_t *nwritten) GATE_NOEXCEPT;
-uint16_t __wasi_poll_oneoff(const void *in, void *out, size_t nsubs, size_t *nevents) GATE_NOEXCEPT;
-GATE_NORETURN void __wasi_proc_exit(uint32_t val) GATE_NOEXCEPT;
-
 static inline void __gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
 {
-	const struct gate_iovec iov = {(void *) data, size};
-	size_t written;
+#ifdef __wasi__
+	__wasi_ciovec_t iov = {(void *) data, size};
+#else
+	uint16_t __wasi_fd_write(uint32_t, const struct gate_iovec *, size_t, size_t *) GATE_NOEXCEPT;
+	struct gate_iovec iov = {(void *) data, size};
+#endif
 
-	__wasi_fd_write(2, &iov, 1, &written);
+	size_t written;
+	(void) __wasi_fd_write(2, &iov, 1, &written);
 }
 
 static inline void __gate_debug_str(const char *s) GATE_NOEXCEPT
@@ -269,15 +273,23 @@ struct gate_data_packet {
 
 static inline uint64_t gate_clock_realtime(void) GATE_NOEXCEPT
 {
+#ifndef __wasi__
+	uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t *) GATE_NOEXCEPT;
+#endif
+
 	uint64_t t;
-	__wasi_clock_time_get(0, 1, &t);
+	(void) __wasi_clock_time_get(0, 1, &t);
 	return t;
 }
 
 static inline uint64_t gate_clock_monotonic(void) GATE_NOEXCEPT
 {
+#ifndef __wasi__
+	uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t *) GATE_NOEXCEPT;
+#endif
+
 	uint64_t t;
-	__wasi_clock_time_get(1, 1, &t);
+	(void) __wasi_clock_time_get(1, 1, &t);
 	return t;
 }
 
@@ -340,6 +352,10 @@ static inline void gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
 GATE_NORETURN
 static inline void gate_exit(int status) GATE_NOEXCEPT
 {
+#ifndef __wasi__
+	GATE_NORETURN void __wasi_proc_exit(uint32_t) GATE_NOEXCEPT;
+#endif
+
 	__wasi_proc_exit(status);
 }
 
