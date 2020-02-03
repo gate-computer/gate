@@ -49,8 +49,8 @@ all: lib bin
 check: lib bin
 	$(MAKE) -C runtime/executor/test check
 	$(MAKE) -C runtime/loader/test check
-	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/internal/generic-test.so ./internal/test/generic-plugin
-	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/internal/service-test.so ./internal/test/service-plugin
+	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/generic-test.so ./internal/test/generic-plugin
+	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/service-test.so ./internal/test/service-plugin
 	$(GO) build -o /dev/null ./...
 	$(GO) vet ./...
 	$(GO) test $(GOTESTFLAGS) ./...
