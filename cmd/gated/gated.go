@@ -14,7 +14,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"path"
 	goruntime "runtime"
 	"sort"
 	"strconv"
@@ -26,6 +25,7 @@ import (
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/bus"
+	"github.com/tsavola/gate/internal/cmdconf"
 	inprincipal "github.com/tsavola/gate/internal/principal"
 	"github.com/tsavola/gate/principal"
 	gateruntime "github.com/tsavola/gate/runtime"
@@ -39,15 +39,17 @@ import (
 	"github.com/tsavola/wag/compile"
 )
 
-type instanceStatusFunc func(context.Context, string) (api.Status, error)
-type instanceObjectFunc func(context.Context, string) (*server.Instance, error)
+const (
+	DefaultImageVarDir = ".gate/image" // Relative to home directory.
+)
 
-const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
+// Defaults are relative to home directory.
+var Defaults = []string{
+	".config/gate/gated.toml",
+	".config/gate/gated.d/*.toml",
+}
 
-var userID = strconv.Itoa(os.Getuid())
-var home = os.Getenv("HOME")
-
-var c struct {
+type Config struct {
 	Runtime gateruntime.Config
 
 	Image struct {
@@ -62,6 +64,15 @@ var c struct {
 
 	Principal server.AccessConfig
 }
+
+var c = new(Config)
+
+type instanceStatusFunc func(context.Context, string) (api.Status, error)
+type instanceObjectFunc func(context.Context, string) (*server.Instance, error)
+
+const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
+
+var userID = strconv.Itoa(os.Getuid())
 
 var terminate = make(chan os.Signal, 1)
 
@@ -78,17 +89,9 @@ func main() {
 	os.Exit(mainResult())
 }
 
-func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
-	flags.Var(confi.FlagReader(c, skipUnknown), "f", "read a configuration file")
-	flags.Var(confi.FlagSetter(c, skipUnknown), "o", "set a configuration option (path.to.key=value)")
-	flags.Parse(os.Args[1:])
-}
-
 func mainResult() int {
 	c.Runtime = gateruntime.DefaultConfig
-	if home != "" {
-		c.Image.VarDir = path.Join(home, ".gate", "image")
-	}
+	c.Image.VarDir = cmdconf.JoinHome(DefaultImageVarDir)
 	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9
@@ -103,7 +106,7 @@ func mainResult() int {
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
-	parseConfig(flags, true)
+	cmdconf.Parse(c, flags, true, Defaults...)
 
 	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
 	check(err)
@@ -119,7 +122,7 @@ func mainResult() int {
 		flag.PrintDefaults()
 	}
 	flag.Usage = confi.FlagUsage(nil, c)
-	parseConfig(flag.CommandLine, false)
+	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
 	serviceRegistry := new(service.Registry)
 	check(plugins.InitServices(serviceRegistry))

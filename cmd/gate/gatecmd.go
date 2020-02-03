@@ -11,17 +11,24 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/tsavola/confi"
+	"github.com/tsavola/gate/internal/cmdconf"
 	"golang.org/x/sys/unix"
 )
 
 const (
-	DefaultRef  = true
-	DefaultWait = true
+	DefaultIdentityFile = ".ssh/id_ed25519" // Relative to home directory.
+	DefaultRef          = true
+	DefaultWait         = true
 )
+
+// Defaults are relative to home directory.
+var Defaults = []string{
+	".config/gate/gate.toml",
+	".config/gate/gate.d/*.toml",
+}
 
 type Config struct {
 	IdentityFile string
@@ -37,7 +44,6 @@ type Config struct {
 	address string
 }
 
-var home = os.Getenv("HOME")
 var c = new(Config)
 
 const mainUsageHead = `Usage: %s [options] [address] command [arguments]
@@ -97,38 +103,16 @@ type command struct {
 	do    func()
 }
 
-func parseConfig(flags *flag.FlagSet, c *Config) {
-	var defaults string
-	if home != "" {
-		defaults = path.Join(home, ".config", "gate", "gate.toml")
-	}
-
-	b := confi.NewBuffer(defaults)
-
-	flags.Var(b.FileReplacer(), "F", "replace previous configuration with this file")
-	flags.Var(b.FileReader(), "f", "read an additional configuration file")
-	flags.Var(b.Assigner(), "o", "set a configuration option (path.to.key=value)")
-	flags.Parse(os.Args[1:])
-
-	if err := b.Apply(c); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: %v\n", flags.Name(), err)
-		os.Exit(2)
-	}
-}
-
 func main() {
 	log.SetFlags(0)
 
-	if home != "" {
-		c.IdentityFile = path.Join(home, ".ssh", "id_ed25519")
-	}
-
+	c.IdentityFile = cmdconf.JoinHome(DefaultIdentityFile)
 	c.Ref = DefaultRef
 	c.Wait = DefaultWait
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
-	parseConfig(flags, c)
+	cmdconf.Parse(c, flags, true, Defaults...)
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), mainUsageHead, flag.CommandLine.Name())
@@ -136,7 +120,7 @@ func main() {
 		fmt.Fprint(flag.CommandLine.Output(), mainUsageTail)
 	}
 	flag.Usage = confi.FlagUsage(nil, c)
-	parseConfig(flag.CommandLine, c)
+	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
 	if flag.NArg() < 1 {
 		flag.Usage()

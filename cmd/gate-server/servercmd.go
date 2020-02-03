@@ -25,6 +25,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/image"
+	"github.com/tsavola/gate/internal/cmdconf"
 	"github.com/tsavola/gate/runtime"
 	"github.com/tsavola/gate/server"
 	"github.com/tsavola/gate/server/database"
@@ -51,13 +52,17 @@ const (
 	DefaultExecutorCount   = 1
 	DefaultProgramStorage  = "memory"
 	DefaultInstanceStorage = "memory"
-	DefaultVarImageDir     = "/var/gate/image"
+	DefaultImageVarDir     = "/var/lib/gate/image"
 	DefaultIndexStatus     = http.StatusNotFound
+	DefaultACMECacheDir    = "/var/cache/gate/acme"
 )
 
-const shutdownTimeout = 15 * time.Second
+var Defaults = []string{
+	"/etc/gate/server.toml",
+	"/etc/gate/server.d/*.toml",
+}
 
-var c = new(struct {
+type Config struct {
 	Runtime struct {
 		runtime.Config
 		PrepareProcesses int
@@ -144,13 +149,11 @@ var c = new(struct {
 		Syslog  bool
 		Verbose bool
 	}
-})
-
-func parseConfig(flags *flag.FlagSet, skipUnknown bool) {
-	flags.Var(confi.FlagReader(c, skipUnknown), "f", "read a configuration file")
-	flags.Var(confi.FlagSetter(c, skipUnknown), "o", "set a configuration option (path.to.key=value)")
-	flags.Parse(os.Args[1:])
 }
+
+var c = new(Config)
+
+const shutdownTimeout = 15 * time.Second
 
 func main() {
 	log.SetFlags(0)
@@ -159,14 +162,14 @@ func main() {
 	c.Runtime.ExecutorCount = DefaultExecutorCount
 	c.Image.ProgramStorage = DefaultProgramStorage
 	c.Image.InstanceStorage = DefaultInstanceStorage
-	c.Image.VarDir = DefaultVarImageDir
+	c.Image.VarDir = DefaultImageVarDir
 	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = "tcp"
 	c.HTTP.Addr = "localhost:8888"
 	c.HTTP.TLS.Domains = []string{"example.invalid"}
 	c.HTTP.Index.Status = DefaultIndexStatus
-	c.ACME.CacheDir = "/var/lib/gate-server-acme"
+	c.ACME.CacheDir = DefaultACMECacheDir
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 	c.Monitor.BufSize = monitor.DefaultBufSize
 	c.Monitor.HTTP.Net = "tcp"
@@ -174,7 +177,7 @@ func main() {
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
-	parseConfig(flags, true)
+	cmdconf.Parse(c, flags, true, Defaults...)
 
 	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
 	if err != nil {
@@ -188,7 +191,7 @@ func main() {
 	c.Service[origin.ServiceName] = &originConfig
 
 	flag.Usage = confi.FlagUsage(nil, c)
-	parseConfig(flag.CommandLine, false)
+	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
 	var (
 		critLog *log.Logger
@@ -349,11 +352,10 @@ func main2(critLog *log.Logger) error {
 
 		filename := c.Access.SSH.AuthorizedKeys
 		if filename == "" {
-			home := os.Getenv("HOME")
-			if home == "" {
+			filename = cmdconf.JoinHome(".ssh/authorized_keys")
+			if filename == "" {
 				return fmt.Errorf("access.ssh.authorizedkeys option or $HOME required")
 			}
-			filename = path.Join(home, ".ssh", "authorized_keys")
 		}
 
 		if err := accessKeys.ParseFile(uid, filename); err != nil {
