@@ -4,8 +4,6 @@
 
 package localhost
 
-//go:generate flatc --go localhost.fbs
-
 import (
 	"bytes"
 	"context"
