@@ -30,7 +30,8 @@ import (
 
 var remoteCommands = map[string]command{
 	"call": {
-		usage: "module [function]",
+		usage:  "module [function]",
+		detail: moduleUsage,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
@@ -42,7 +43,7 @@ var remoteCommands = map[string]command{
 			if c.Function != "" {
 				params.Set(webapi.ParamFunction, c.Function)
 			}
-			if c.Debug != "" {
+			if c.DebugLog != "" {
 				params.Set(webapi.ParamDebug, "true")
 			}
 
@@ -177,7 +178,8 @@ var remoteCommands = map[string]command{
 	},
 
 	"launch": {
-		usage: "module [function]",
+		usage:  "module [function]",
+		detail: moduleUsage,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
@@ -199,7 +201,7 @@ var remoteCommands = map[string]command{
 			if c.Instance != "" {
 				params.Set(webapi.ParamInstance, c.Instance)
 			}
-			if c.Debug != "" {
+			if c.DebugLog != "" {
 				params.Set(webapi.ParamDebug, "true")
 			}
 
@@ -281,7 +283,7 @@ var remoteCommands = map[string]command{
 			params := url.Values{
 				webapi.ParamAction: []string{webapi.ActionResume},
 			}
-			if c.Debug != "" {
+			if c.DebugLog != "" {
 				params.Set(webapi.ParamDebug, "true")
 			}
 

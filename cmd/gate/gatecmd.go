@@ -22,6 +22,7 @@ const (
 	DefaultIdentityFile = ".ssh/id_ed25519" // Relative to home directory.
 	DefaultRef          = true
 	DefaultWait         = true
+	ShortcutDebugLog    = "/dev/stderr"
 )
 
 // Defaults are relative to home directory.
@@ -38,7 +39,7 @@ type Config struct {
 	Instance     string
 	Scope        []string
 	Suspend      bool
-	Debug        string
+	DebugLog     string
 	REPL         REPLConfig
 
 	address string
@@ -98,9 +99,19 @@ Default configuration is read from ~/.config/gate/gate.toml if it exists.
 It will be ignored if the -F option is used.
 `
 
+func parseCallFlags() {
+	debug := flag.Bool("d", c.DebugLog == ShortcutDebugLog, "write debug log to stderr")
+	flag.Parse()
+	if *debug {
+		c.DebugLog = ShortcutDebugLog
+	}
+}
+
 type command struct {
-	usage string
-	do    func()
+	usage  string
+	detail string
+	parse  func()
+	do     func()
 }
 
 func main() {
@@ -177,18 +188,20 @@ func main() {
 			usageFmt += " "
 		}
 		usageFmt += "%s\n"
-		if strings.HasPrefix(command.usage, "module") {
-			usageFmt += moduleUsage
-		}
 		if options {
 			usageFmt += "\nOptions:\n"
 		}
 
 		fmt.Fprintf(flag.CommandLine.Output(), usageFmt, progname, c.address, flag.CommandLine.Name(), command.usage)
 		flag.PrintDefaults()
+		fmt.Fprint(flag.CommandLine.Output(), command.detail)
 	}
 	flag.CommandLine.Usage = flag.Usage
-	flag.Parse()
+	if command.parse != nil {
+		command.parse()
+	} else {
+		flag.Parse()
+	}
 
 	req := command.usage
 	if i := strings.Index(req, "["); i >= 0 {

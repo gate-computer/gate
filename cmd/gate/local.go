@@ -40,7 +40,9 @@ func daemonCall(method string, args ...interface{}) *dbus.Call {
 
 var localCommands = map[string]command{
 	"call": {
-		usage: "module [function]",
+		usage:  "module [function]",
+		detail: moduleUsage,
+		parse:  parseCallFlags,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
@@ -61,11 +63,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
-				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.Debug != "", c.Scope)
+				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, suspendFD, debugFD, c.Debug != "", c.Scope)
+				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.Scope)
 			}
 			closeFiles(module, r, w, suspend, debug)
 
@@ -216,7 +218,8 @@ var localCommands = map[string]command{
 	},
 
 	"launch": {
-		usage: "module [function]",
+		usage:  "module [function]",
+		detail: moduleUsage,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
@@ -230,11 +233,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
-				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.Debug != "", c.Scope)
+				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.DebugLog != "", c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, c.Suspend, debugFD, c.Debug != "", c.Scope)
+				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, c.Suspend, debugFD, c.DebugLog != "", c.Scope)
 			}
 			closeFiles(module, debug)
 
@@ -329,7 +332,7 @@ var localCommands = map[string]command{
 
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
-			call := daemonCall("Resume", flag.Arg(0), c.Function, debugFD, c.Debug != "", c.Scope)
+			call := daemonCall("Resume", flag.Arg(0), c.Function, debugFD, c.DebugLog != "", c.Scope)
 			closeFiles(debug)
 			check(call.Store())
 		},
@@ -470,10 +473,10 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 
 func openDebugFile() *os.File {
 	var name string
-	if c.Debug == "" {
+	if c.DebugLog == "" {
 		name = os.DevNull
 	} else {
-		name = c.Debug
+		name = c.DebugLog
 	}
 	f, err := os.OpenFile(name, os.O_WRONLY, 0)
 	check(err)
