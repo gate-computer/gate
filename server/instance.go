@@ -484,8 +484,8 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		return
 	}
 
-	if req.Op != api.DebugOpConfigGet && inst.status.State != api.StateSuspended && inst.status.State != api.StateHalted {
-		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or halted")
+	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
+		err = failrequest.Errorf(event.FailInstanceStatus, "instance must be stopped")
 		return
 	}
 
@@ -548,18 +548,12 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 
 	case api.DebugOpReadGlobals:
-		res.Module = path.Join(api.ModuleRefSource, prog.hash)
-
 		panic("TODO")
 
 	case api.DebugOpReadMemory:
-		res.Module = path.Join(api.ModuleRefSource, prog.hash)
-
 		panic("TODO")
 
 	case api.DebugOpReadStack:
-		res.Module = path.Join(api.ModuleRefSource, prog.hash)
-
 		textMap := inst.altTextMap
 		if inst.altProgImage == nil {
 			textMap = &prog.image.Map
@@ -583,7 +577,8 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 			inst.image.SetBreakpoints(prog.image.Breakpoints())
 		} else {
 			rebuild = &instanceRebuild{
-				inst: inst,
+				inst:         inst,
+				origProgHash: prog.hash,
 				oldConfig: api.DebugConfig{
 					DebugInfo:   inst.image.DebugInfo(),
 					Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
@@ -596,18 +591,19 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 	}
 
+	res.Module = path.Join(api.ModuleRefSource, prog.hash)
 	res.Status = inst.status
 	res.Config = api.DebugConfig{
 		DebugInfo:   inst.image.DebugInfo(),
 		Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
 	}
-
 	return
 }
 
 type instanceRebuild struct {
-	inst      *Instance
-	oldConfig api.DebugConfig
+	inst         *Instance
+	origProgHash string
+	oldConfig    api.DebugConfig
 }
 
 func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.DebugConfig, textMap stack.TextMap,
@@ -631,6 +627,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.De
 	}
 
 	res = api.DebugResponse{
+		Module: path.Join(api.ModuleRefSource, rebuild.origProgHash),
 		Status: inst.status,
 		Config: api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),

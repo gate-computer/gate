@@ -78,9 +78,9 @@ message DebugRequest {
 }
 
 message DebugResponse {
-	Status status = 1;
-	DebugConfig config = 2;
-	string module = 3;
+	string module = 1;
+	Status status = 2;
+	DebugConfig config = 3;
 	bytes data = 4;
 }
 
