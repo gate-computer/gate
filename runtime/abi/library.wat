@@ -2,6 +2,8 @@
 ;; Use of this source code is governed by a BSD-style
 ;; license that can be found in the LICENSE file.
 
+;; library.go can be updated by running go generate.
+
 (module
  (import "rt" "debug" (func $rt_debug (param i32 i32)))
  (import "rt" "nop" (func $reserved))

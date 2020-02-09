@@ -4,6 +4,8 @@
 
 package abi
 
+//go:generate go run ../../internal/cmd/abi-library/generate.go
+
 import (
 	"bytes"
 	"strconv"
