@@ -150,8 +150,7 @@ Additional requirements for `make check`:
   - libgtest-dev
   - python
 
-Other make targets: `benchmark` `install` `install-apparmor` `install-lib` `install-bin`
-`install-capabilities` `install-lib-apparmor` `install-lib-capabilities` `install-bash`
+See Makefile for more targets.
 
 The capabilities targets grant [capabilities](Capabilities.md) for the
 installed container binary (lib).  That requires:

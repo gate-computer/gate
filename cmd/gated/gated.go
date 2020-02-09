@@ -7,10 +7,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"os/signal"
@@ -21,7 +23,6 @@ import (
 
 	"github.com/coreos/go-systemd/v22/daemon"
 	dbus "github.com/godbus/dbus/v5"
-	"github.com/godbus/dbus/v5/introspect"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/gate/image"
 	"github.com/tsavola/gate/internal/bus"
@@ -67,21 +68,20 @@ type Config struct {
 
 var c = new(Config)
 
-type instanceStatusFunc func(context.Context, string) (api.Status, error)
-type instanceObjectFunc func(context.Context, string) (*server.Instance, error)
-
-const intro = `<node><interface name="` + bus.DaemonIface + `"></interface>` + introspect.IntrospectDataString + `</node>`
+type instanceStatusFunc func(*server.Server, context.Context, string) (api.Status, error)
+type instanceObjectFunc func(*server.Server, context.Context, string) (*server.Instance, error)
 
 var userID = strconv.Itoa(os.Getuid())
 
 var terminate = make(chan os.Signal, 1)
 
 func main() {
+	log.SetFlags(0)
+
 	defer func() {
 		x := recover()
 		if err, ok := x.(error); ok {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
+			log.Fatal(err)
 		}
 		panic(x)
 	}()
@@ -158,6 +158,10 @@ func mainResult() int {
 	signal.Ignore(syscall.SIGHUP)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
+	inited := make(chan *server.Server, 1)
+	defer close(inited)
+	check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
+
 	reply, err := conn.RequestName(bus.DaemonIface, dbus.NameFlagDoNotQueue)
 	check(err)
 	switch reply {
@@ -166,7 +170,7 @@ func mainResult() int {
 	case dbus.RequestNameReplyExists:
 		return 3
 	default:
-		panic(fmt.Errorf("D-Bus name already taken: %s", bus.DaemonIface))
+		panic(reply)
 	}
 
 	s, err := server.New(server.Config{
@@ -177,12 +181,7 @@ func mainResult() int {
 	})
 	check(err)
 	defer s.Shutdown(ctx)
-
-	ctx = principal.ContextWithID(ctx, inprincipal.LocalID)
-
-	check(conn.ExportMethodTable(methods(ctx, s), bus.DaemonPath, bus.DaemonIface))
-	check(conn.Export(introspect.Introspectable(intro), bus.DaemonPath,
-		"org.freedesktop.DBus.Introspectable"))
+	inited <- s
 
 	_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 	check(err)
@@ -192,12 +191,29 @@ func mainResult() int {
 	return 0
 }
 
-func methods(ctx context.Context, s *server.Server) map[string]interface{} {
+func methods(ctx context.Context, inited <-chan *server.Server) map[string]interface{} {
+	var initedServer *server.Server
+	s := func() *server.Server {
+		if initedServer != nil {
+			return initedServer
+		}
+		if inited != nil {
+			initedServer = <-inited
+			inited = nil
+		}
+		if initedServer != nil {
+			return initedServer
+		}
+		panic(errors.New("daemon initialization was aborted"))
+	}
+
+	ctx = principal.ContextWithID(ctx, inprincipal.LocalID)
+
 	methods := map[string]interface{}{
 		"CallKey": func(key, function string, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugLogging bool, scope []string,
 		) (instID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			instID, state, cause, result = handleCall(ctx, s, nil, key, function, false, rFD, wFD, suspendFD, debugFD, debugLogging, scope)
+			instID, state, cause, result = handleCall(ctx, s(), nil, key, function, false, rFD, wFD, suspendFD, debugFD, debugLogging, scope)
 			return
 		},
 
@@ -206,20 +222,20 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			instID, state, cause, result = handleCall(ctx, s, module, "", function, ref, rFD, wFD, suspendFD, debugFD, debugLogging, scope)
+			instID, state, cause, result = handleCall(ctx, s(), module, "", function, ref, rFD, wFD, suspendFD, debugFD, debugLogging, scope)
 			return
 		},
 
 		"Debug": func(instID string, req []byte,
 		) (res []byte, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			res = handleInstanceDebug(ctx, s, instID, req)
+			res = handleInstanceDebug(ctx, s(), instID, req)
 			return
 		},
 
 		"Delete": func(instID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceDelete(ctx, s, instID)
+			handleInstanceDelete(ctx, s(), instID)
 			return
 		},
 
@@ -227,7 +243,7 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 		) (moduleLen int64, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
-			r, moduleLen := handleModuleDownload(ctx, s, key)
+			r, moduleLen := handleModuleDownload(ctx, s(), key)
 			go func() {
 				defer module.Close()
 				defer r.Close()
@@ -238,20 +254,20 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 
 		"Instances": func() (list api.Instances, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			list = handleInstanceList(ctx, s)
+			list = handleInstanceList(ctx, s())
 			return
 		},
 
 		"IO": func(instID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ok = handleInstanceConnect(ctx, s, instID, rFD, wFD)
+			ok = handleInstanceConnect(ctx, s(), instID, rFD, wFD)
 			return
 		},
 
 		"LaunchKey": func(key, function string, suspend bool, debugFD dbus.UnixFD, debugLogging bool, scope []string,
 		) (instID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			instID = handleLaunch(ctx, s, nil, key, function, false, suspend, debugFD, debugLogging, scope)
+			instID = handleLaunch(ctx, s(), nil, key, function, false, suspend, debugFD, debugLogging, scope)
 			return
 		},
 
@@ -260,32 +276,32 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			instID = handleLaunch(ctx, s, module, "", function, ref, suspend, debugFD, debugLogging, scope)
+			instID = handleLaunch(ctx, s(), module, "", function, ref, suspend, debugFD, debugLogging, scope)
 			return
 		},
 
 		"ModuleRefs": func() (list api.ModuleRefs, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			list = handleModuleList(ctx, s)
+			list = handleModuleList(ctx, s())
 			return
 		},
 
 		"Resume": func(instID, function string, debugFD dbus.UnixFD, debugLogging bool, scope []string,
 		) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceResume(ctx, s, instID, function, debugFD, debugLogging, scope)
+			handleInstanceResume(ctx, s(), instID, function, debugFD, debugLogging, scope)
 			return
 		},
 
 		"Snapshot": func(instID string) (progID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			progID = handleInstanceSnapshot(ctx, s, instID)
+			progID = handleInstanceSnapshot(ctx, s(), instID)
 			return
 		},
 
 		"Unref": func(key string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleModuleUnref(ctx, s, key)
+			handleModuleUnref(ctx, s(), key)
 			return
 		},
 
@@ -294,31 +310,31 @@ func methods(ctx context.Context, s *server.Server) map[string]interface{} {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			defer module.Close()
-			progID = handleModuleUpload(ctx, s, module, moduleLen, key)
+			progID = handleModuleUpload(ctx, s(), module, moduleLen, key)
 			return
 		},
 	}
 
 	for name, f := range map[string]instanceStatusFunc{
-		"Status": s.InstanceStatus,
-		"Wait":   s.WaitInstance,
+		"Status": (*server.Server).InstanceStatus,
+		"Wait":   (*server.Server).WaitInstance,
 	} {
 		f := f // Closure needs a local copy of the iterator's current value.
 		methods[name] = func(instID string) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			state, cause, result = handleInstanceStatus(ctx, f, instID)
+			state, cause, result = handleInstanceStatus(ctx, s(), f, instID)
 			return
 		}
 	}
 
 	for name, f := range map[string]instanceObjectFunc{
-		"Kill":    s.KillInstance,
-		"Suspend": s.SuspendInstance,
+		"Kill":    (*server.Server).KillInstance,
+		"Suspend": (*server.Server).SuspendInstance,
 	} {
 		f := f // Closure needs a local copy of the iterator's current value.
 		methods[name] = func(instID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceObject(ctx, f, instID)
+			handleInstanceObject(ctx, s(), f, instID)
 			return
 		}
 	}
@@ -446,15 +462,15 @@ func handleInstanceList(ctx context.Context, s *server.Server) api.Instances {
 	return instances
 }
 
-func handleInstanceStatus(ctx context.Context, f instanceStatusFunc, instID string,
+func handleInstanceStatus(ctx context.Context, s *server.Server, f instanceStatusFunc, instID string,
 ) (state api.State, cause api.Cause, result int32) {
-	status, err := f(ctx, instID)
+	status, err := f(s, ctx, instID)
 	check(err)
 	return status.State, status.Cause, status.Result
 }
 
-func handleInstanceObject(ctx context.Context, f instanceObjectFunc, instID string) {
-	_, err := f(ctx, instID)
+func handleInstanceObject(ctx context.Context, s *server.Server, f instanceObjectFunc, instID string) {
+	_, err := f(s, ctx, instID)
 	check(err)
 }
 
