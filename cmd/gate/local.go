@@ -98,7 +98,7 @@ var localCommands = map[string]command{
 	},
 
 	"debug": {
-		usage: "instance [command [offset]]",
+		usage: "instance [command [offset...]]",
 		do: func() {
 			debug(func(instID string, req api.DebugRequest) (res api.DebugResponse) {
 				reqBuf, err := req.Marshal()

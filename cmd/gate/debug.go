@@ -15,8 +15,12 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/gate/runtime/abi"
@@ -31,7 +35,31 @@ import (
 	"github.com/tsavola/wag/wa"
 )
 
-func debug(call func(instID string, req api.DebugRequest) api.DebugResponse) {
+type location struct {
+	file string
+	line int
+}
+
+type lineAddr struct {
+	line   int
+	addr   uint64
+	column int
+}
+
+type lineAddrs []lineAddr
+
+func (a lineAddrs) Len() int      { return len(a) }
+func (a lineAddrs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a lineAddrs) Less(i, j int) bool {
+	if a[i].line == a[j].line {
+		return a[i].addr < a[j].addr
+	}
+	return a[i].line < a[j].line
+}
+
+type debugCallFunc func(instID string, req api.DebugRequest) api.DebugResponse
+
+func debug(call debugCallFunc) {
 	var req api.DebugRequest
 
 	if flag.NArg() > 1 {
@@ -46,13 +74,13 @@ func debug(call func(instID string, req api.DebugRequest) api.DebugResponse) {
 		case "detach":
 			req.Op = api.DebugOpConfigSet
 			if flag.NArg() > 2 {
-				log.Fatal("detach command does not support offset")
+				log.Fatal("detach command does not support offsets")
 			}
 
 		case "bt", "backtrace":
 			req.Op = api.DebugOpReadStack
 			if flag.NArg() > 2 {
-				log.Fatal("stacktrace command does not support offset")
+				log.Fatal("stacktrace command does not support offsets")
 			}
 
 		default:
@@ -60,9 +88,7 @@ func debug(call func(instID string, req api.DebugRequest) api.DebugResponse) {
 		}
 
 		if flag.NArg() > 2 {
-			offset, err := strconv.ParseUint(flag.Arg(2), 0, 64)
-			check(err)
-			req.Config.Breakpoints.Offsets = []uint64{offset}
+			req.Config.Breakpoints.Offsets = parseBreakpoints(flag.Args()[2:], call, flag.Arg(0))
 		}
 	}
 
@@ -73,6 +99,11 @@ func debug(call func(instID string, req api.DebugRequest) api.DebugResponse) {
 		debugBacktrace(res)
 
 	default:
+		modkey := res.Module
+		if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == api.ModuleRefSource {
+			modkey = x[1]
+		}
+		fmt.Printf("Module:         %s\n", modkey)
 		fmt.Printf("Status:         %s\n", statusString(res.Status))
 		fmt.Printf("Debug info:     %v\n", res.Config.DebugInfo)
 		fmt.Printf("Breakpoints:")
@@ -85,13 +116,193 @@ func debug(call func(instID string, req api.DebugRequest) api.DebugResponse) {
 	}
 }
 
+func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOffs []uint64) {
+	var (
+		breakLocs  []location
+		breakFuncs []string
+	)
+
+	for _, s := range args {
+		switch tokens := strings.SplitN(s, ":", 2); len(tokens) {
+		case 1:
+			var prefix rune
+			for _, r := range s {
+				prefix = r
+				break
+			}
+
+			if prefix != 0 {
+				if unicode.IsNumber(prefix) {
+					if offset, err := strconv.ParseUint(s, 0, 64); err == nil {
+						breakOffs = append(breakOffs, offset)
+						continue
+					}
+				} else {
+					breakFuncs = append(breakFuncs, s)
+					continue
+				}
+			}
+
+		case 2:
+			file := tokens[0]
+			line, err := strconv.Atoi(tokens[1])
+			if err == nil {
+				breakLocs = append(breakLocs, location{file, line})
+				continue
+			}
+		}
+
+		log.Fatalf("invalid breakpoint expression: %q", s)
+	}
+
+	if len(breakLocs) == 0 && len(breakFuncs) == 0 {
+		return
+	}
+
+	_, _, codeMap, _, info := build(call(instID, api.DebugRequest{Op: api.DebugOpConfigGet}))
+	if info == nil {
+		log.Fatal("module contains no debug information")
+	}
+
+	var (
+		locAddrs    = make(map[string]lineAddrs)
+		funcEntries []dwarf.Entry
+	)
+
+	for r := info.Reader(); ; {
+		e, err := r.Next()
+		check(err)
+		if e == nil {
+			break
+		}
+
+		switch e.Tag {
+		case dwarf.TagCompileUnit:
+			if e.Children {
+				lr, err := info.LineReader(e)
+				check(err)
+
+				if lr != nil {
+					for {
+						var le dwarf.LineEntry
+
+						if err := lr.Next(&le); err != nil {
+							if err == io.EOF {
+								break
+							}
+							check(err)
+						}
+
+						locAddrs[le.File.Name] = append(locAddrs[le.File.Name], lineAddr{le.Line, le.Address, le.Column})
+					}
+				}
+			}
+
+		case dwarf.TagSubprogram:
+			funcEntries = append(funcEntries, *e)
+			r.SkipChildren()
+
+		default:
+			r.SkipChildren()
+		}
+	}
+
+	for _, lines := range locAddrs {
+		sort.Sort(lines)
+	}
+
+	funcAddrs := make(map[string][]uint64)
+
+	for _, e := range funcEntries {
+		x := e.Val(dwarf.AttrLowpc)
+		if x == nil {
+			continue
+		}
+		off := asUint64(x)
+		if off == 0 {
+			continue
+		}
+
+		x = e.Val(dwarf.AttrName)
+		if x == nil {
+			continue
+		}
+		name := x.(string)
+		if name == "" {
+			continue
+		}
+
+		funcAddrs[name] = append(funcAddrs[name], off)
+	}
+
+	for _, br := range breakLocs {
+		ok := false
+
+		for file, lines := range locAddrs {
+			if strings.HasSuffix(path.Join("/", file), path.Join("/", br.file)) {
+				for _, x := range lines {
+					if x.line == br.line {
+						fmt.Printf("%s:%d:%d: setting breakpoint at offset 0x%x\n", file, x.line, x.column, x.addr)
+						breakOffs = append(breakOffs, x.addr)
+						ok = true
+						break
+					}
+				}
+			}
+		}
+
+		if !ok {
+			log.Fatalf("%s:%d: source location not found", br.file, br.line)
+		}
+	}
+
+	var insnOffs []uint32
+
+	for _, insn := range codeMap.Insns {
+		if insn.SourceOffset != 0 {
+			insnOffs = append(insnOffs, insn.SourceOffset)
+		}
+	}
+
+	for _, name := range breakFuncs {
+		ok := false
+
+		for _, lowOff := range funcAddrs[name] {
+			i := sort.Search(len(insnOffs), func(i int) bool { return uint64(insnOffs[i]) >= lowOff })
+			if i == len(insnOffs) {
+				continue
+			}
+
+			off := uint64(insnOffs[i])
+			fmt.Printf("%s: setting breakpoint at offset 0x%x\n", name, off)
+			breakOffs = append(breakOffs, off)
+			ok = true
+		}
+
+		if !ok {
+			log.Fatalf("%s: function not found", name)
+		}
+	}
+
+	return
+}
+
 func debugBacktrace(res api.DebugResponse) {
 	if len(res.Data) == 0 {
 		log.Fatal("no stack")
 	}
 
-	moduleSpec := strings.SplitN(res.Module, "/", 2)
-	if len(moduleSpec) != 2 || moduleSpec[0] != webapi.ModuleRefSource {
+	mod, _, codeMap, names, info := build(res)
+	frames := traceStack(res.Data, codeMap, mod.FuncTypes())
+	check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
+}
+
+func build(res api.DebugResponse,
+) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
+	var modkey string
+	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.ModuleRefSource {
+		modkey = x[1]
+	} else {
 		log.Fatal("unsupported module specification:", res.Module)
 	}
 
@@ -99,14 +310,13 @@ func debugBacktrace(res api.DebugResponse) {
 	check(err)
 
 	wFD := dbus.UnixFD(w.Fd())
-	call := daemonCall("Download", wFD, moduleSpec[1])
+	call := daemonCall("Download", wFD, modkey)
 	closeFiles(w)
 
 	var moduleLen int64
 	check(call.Store(&moduleLen))
 
 	var reader = bufio.NewReader(r)
-	var names section.NameSection
 	var custom section.CustomSections
 	var config = compile.Config{
 		CustomSectionLoader: section.CustomLoader(map[string]section.CustomContentLoader{
@@ -120,7 +330,7 @@ func debugBacktrace(res api.DebugResponse) {
 		}),
 	}
 
-	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader)
+	mod, err = compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader)
 	check(err)
 
 	err = binding.BindImports(&mod, new(abi.ImportResolver))
@@ -129,7 +339,6 @@ func debugBacktrace(res api.DebugResponse) {
 	}
 
 	var codeReader = objectdebug.NewReadTeller(reader)
-	var codeMap objectdebug.InsnMap
 	var codeConfig = &compile.CodeConfig{
 		Mapper:      codeMap.Mapper(codeReader),
 		Breakpoints: make(map[uint32]compile.Breakpoint),
@@ -145,7 +354,7 @@ func debugBacktrace(res api.DebugResponse) {
 		return
 	}
 
-	frames := traceStack(res.Data, codeMap, mod.FuncTypes())
+	text = codeConfig.Text.Bytes()
 
 	_, err = section.CopyStandardSection(ioutil.Discard, reader, section.Data, config.CustomSectionLoader)
 	if err == nil {
@@ -156,13 +365,12 @@ func debugBacktrace(res api.DebugResponse) {
 	}
 
 	var (
-		abbrev    = custom.Sections[".debug_abbrev"]
-		info      = custom.Sections[".debug_info"]
-		line      = custom.Sections[".debug_line"]
-		pubnames  = custom.Sections[".debug_pubnames"]
-		ranges    = custom.Sections[".debug_ranges"]
-		str       = custom.Sections[".debug_str"]
-		debugInfo *dwarf.Data
+		abbrev   = custom.Sections[".debug_abbrev"]
+		info     = custom.Sections[".debug_info"]
+		line     = custom.Sections[".debug_line"]
+		pubnames = custom.Sections[".debug_pubnames"]
+		ranges   = custom.Sections[".debug_ranges"]
+		str      = custom.Sections[".debug_str"]
 	)
 	if info != nil {
 		debugInfo, err = dwarf.New(abbrev, nil, nil, info, line, pubnames, ranges, str)
@@ -171,7 +379,7 @@ func debugBacktrace(res api.DebugResponse) {
 		}
 	}
 
-	check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, debugInfo))
+	return
 }
 
 func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType,
@@ -232,4 +440,13 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 	}
 
 	panic(errors.New("ran out of stack before initial call"))
+}
+
+func asUint64(x interface{}) uint64 {
+	switch v := reflect.ValueOf(x); v.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return uint64(v.Int())
+	default:
+		return v.Uint()
+	}
 }

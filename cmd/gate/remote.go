@@ -74,7 +74,7 @@ var remoteCommands = map[string]command{
 	},
 
 	"debug": {
-		usage: "instance [command [offset]]",
+		usage: "instance [command [offset...]]",
 		do: func() {
 			debug(func(instID string, debug api.DebugRequest) (res api.DebugResponse) {
 				debugJSON, err := json.Marshal(debug)
