@@ -83,6 +83,11 @@ func debug(call debugCallFunc) {
 				log.Fatal("stacktrace command does not support offsets")
 			}
 
+		case "dumptext":
+			if flag.NArg() > 2 {
+				log.Fatal("dumptext command does not support offsets")
+			}
+
 		default:
 			log.Fatalf("unknown debug op: %s", flag.Arg(1))
 		}
@@ -97,6 +102,10 @@ func debug(call debugCallFunc) {
 	switch flag.Arg(1) {
 	case "bt", "backtrace":
 		debugBacktrace(res)
+
+	case "dumptext":
+		_, text, codeMap, names, _ := build(res)
+		check(dumpText(text, codeMap.FuncAddrs, &names))
 
 	default:
 		modkey := res.Module
