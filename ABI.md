@@ -62,7 +62,7 @@ prefix.
 
 
 ```wasm
-(import "wasi_unstable" "clock_time_get" (func (param i32 i32 i32) (result i32)))
+(import "wasi_snapshot_preview1" "clock_time_get" (func (param i32 i32 i32) (result i32)))
 ```
 > Get current wall-clock or monotonic time.  The first parameter identifies the
 > clock: 0 means realtime and 1 monotonic time.  The second parameter is
@@ -75,13 +75,13 @@ prefix.
 
 
 ```wasm
-(import "wasi_unstable" "fd_read" (func (param i32 i32 i32 i32) (result i32)))
+(import "wasi_snapshot_preview1" "fd_read" (func (param i32 i32 i32 i32) (result i32)))
 ```
 > Receive packet data through the Gate file descriptor.  Similar to `fd_write`.
 
 
 ```wasm
-(import "wasi_unstable" "fd_write" (func (param i32 i32 i32 i32) (result i32)))
+(import "wasi_snapshot_preview1" "fd_write" (func (param i32 i32 i32 i32) (result i32)))
 ```
 > Write debug messages through file descriptor 1 or 2, or send packet data
 > through the Gate file descriptor.  The first parameter is the file
@@ -98,7 +98,7 @@ prefix.
 
 
 ```wasm
-(import "wasi_unstable" "poll_oneoff" (func (param i32 i32 i32 i32) (result i32)))
+(import "wasi_snapshot_preview1" "poll_oneoff" (func (param i32 i32 i32 i32) (result i32)))
 ```
 > Wait for I/O-readiness of the Gate file descriptor.  Note that waiting only
 > for writability may lead to a deadlock.   Polling the Gate file descriptor
@@ -108,7 +108,7 @@ prefix.
 
 
 ```wasm
-(import "wasi_unstable" "proc_exit" (func (param i32)))
+(import "wasi_snapshot_preview1" "proc_exit" (func (param i32)))
 ```
 > Terminate the program, indicating that execution must not be resumed later.
 > Parameter value 0 indicates success and 1 indicates failure.  Other values
@@ -116,7 +116,7 @@ prefix.
 
 
 ```wasm
-(import "wasi_unstable" "random_get" (func (param i32 i32) (result i32)))
+(import "wasi_snapshot_preview1" "random_get" (func (param i32 i32) (result i32)))
 ```
 > Get cryptographically secure pseudorandom data.  The first parameter is the
 > buffer address and the second is the buffer length.

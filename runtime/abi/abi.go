@@ -143,7 +143,7 @@ func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (in
 			f = f[7:]
 
 		case strings.HasPrefix(f, "__wasi_"):
-			m = "wasi_unstable"
+			m = "wasi_snapshot_preview1"
 			f = f[7:]
 		}
 	}
@@ -175,7 +175,7 @@ func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (in
 			// Max receive size is just validated and thrown away.
 		}
 
-	case "wasi_unstable":
+	case "wasi_snapshot_preview1", "wasi_unstable":
 		abi = wasiFunctions[f]
 	}
 
