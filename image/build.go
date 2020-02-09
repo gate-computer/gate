@@ -25,6 +25,8 @@ import (
 	"github.com/tsavola/wag/wa"
 )
 
+const TextRevision = 0
+
 const (
 	progTextOffset     = int64(0x000000000)
 	_                  = int64(0x080000000) // Stack space; aligned against globals.
@@ -277,6 +279,8 @@ func (b *Build) FinishProgram(
 	}
 
 	man := manifest.Program{
+		LibraryChecksum:           runtimeabi.LibraryChecksum,
+		TextRevision:              TextRevision,
 		TextAddr:                  b.textAddr,
 		TextSize:                  uint32(b.prog.textSize),
 		StackUsage:                uint32(b.stackUsage),

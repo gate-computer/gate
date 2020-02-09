@@ -14,28 +14,30 @@ message ByteRange {
 }
 
 message Program {
-	uint64 text_addr = 1;
-	uint32 text_size = 2;
-	uint32 stack_usage = 3;
-	uint32 globals_size = 4;
-	uint32 memory_size = 5;
-	sint64 memory_size_limit = 6;
-	uint32 memory_data_size = 7;
-	int64 module_size = 8;
-	repeated ByteRange sections = 9;
-	ByteRange snapshot_section = 10;
-	ByteRange export_section_wrap = 11;
-	ByteRange buffer_section = 12;
-	int64 buffer_section_header_length = 13;
-	ByteRange stack_section = 14;
-	bytes global_types = 15; // Limited by wag's maxGlobals check.
-	Function start_func = 16;
-	map<string, uint32> entry_indexes = 17; // Limited by func name len and wag's maxExports check.
-	map<uint32, uint32> entry_addrs = 18;
-	uint32 call_sites_size = 19;
-	uint32 func_addrs_size = 20;
-	bool random = 21;
-	Snapshot snapshot = 22;
+	fixed64 library_checksum = 1;
+	int32 text_revision = 2;
+	uint64 text_addr = 3;
+	uint32 text_size = 4;
+	uint32 stack_usage = 5;
+	uint32 globals_size = 6;
+	uint32 memory_size = 7;
+	sint64 memory_size_limit = 8;
+	uint32 memory_data_size = 9;
+	int64 module_size = 10;
+	repeated ByteRange sections = 11;
+	ByteRange snapshot_section = 12;
+	ByteRange export_section_wrap = 13;
+	ByteRange buffer_section = 14;
+	int64 buffer_section_header_length = 15;
+	ByteRange stack_section = 16;
+	bytes global_types = 17; // Limited by wag's maxGlobals check.
+	Function start_func = 18;
+	map<string, uint32> entry_indexes = 19; // Limited by func name len and wag's maxExports check.
+	map<uint32, uint32> entry_addrs = 20;
+	uint32 call_sites_size = 21;
+	uint32 func_addrs_size = 22;
+	bool random = 23;
+	Snapshot snapshot = 24;
 }
 
 message Instance {
