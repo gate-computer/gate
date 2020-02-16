@@ -478,7 +478,7 @@ func openDebugFile() *os.File {
 	} else {
 		name = c.DebugLog
 	}
-	f, err := os.OpenFile(name, os.O_WRONLY, 0)
+	f, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	check(err)
 	return f
 }
