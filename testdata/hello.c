@@ -53,7 +53,7 @@ static int discover(int16_t *origin_code, int16_t *test_code)
 			},
 			.count = 2,
 		},
-		.names = "origin\0test",
+		.names = "\x06origin\x04test",
 	};
 
 	// Send some uninitialized bytes from stack as padding.

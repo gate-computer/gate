@@ -29,9 +29,12 @@ UUID is properly randomized.
 
 ## Call domain
 
-Each call should be answered in order to not leave the caller hanging.  Even
-services which don't implement any calls should answer them.  A convention for
-handling unsupported calls is to reply with an empty call packet (nothing but
-the header), and make sure that an empty packet is never a successful response
-to a supported call.
+Calls should be answered in order to not leave the caller hanging.  A
+convention for handling unsupported calls is to reply with an empty packet
+(nothing but the header), and make sure that an empty packet is never a
+successful response to a supported call.
+
+Services which don't implement any calls (yet) may choose to not answer them
+(yet), if that seems more appropriate.  But please note that in such a case
+programs cannot detect unsupported calls.
 

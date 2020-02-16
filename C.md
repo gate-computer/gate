@@ -191,9 +191,11 @@ struct gate_service_name_packet {
 };
 ```
 > Service discovery request, sent with the `GATE_PACKET_CODE_SERVICES` code.
-> *count* indicates how many nul-terminated service names are concatenated in
-> *names*.  The *states* array in the response packet will be in the same order
-> as *names*.
+> *count* indicates how many service names are concatenated in *names*.  The
+> *states* array in the response packet will be in the same order as *names*.
+>
+> Service names are encoded by prefixing each string with its length as a
+> single byte.
 >
 > Services may be discovered in multiple steps.
 >

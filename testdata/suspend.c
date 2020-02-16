@@ -48,7 +48,7 @@ int loop(void)
 			},
 			.count = 3,
 		},
-		.names = "origin\0test\0_nonexistent",
+		.names = "\x06origin\x04test\x0c_nonexistent",
 	};
 
 	// Send some uninitialized bytes from stack as padding.

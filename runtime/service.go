@@ -5,7 +5,6 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 
@@ -92,14 +91,22 @@ func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer Servic
 	names := make([]string, reqCount)
 
 	for i := range names {
-		nameLen := bytes.IndexByte(nameBuf, 0)
-		if nameLen < 0 {
+		if len(nameBuf) < 1 {
 			err = badprogram.Errorf("name data is truncated in service discovery packet")
 			return
 		}
-
+		nameLen := nameBuf[0]
+		nameBuf = nameBuf[1:]
+		if nameLen == 0 || nameLen > 127 {
+			err = badprogram.Errorf("service name length in discovery packet is out of bounds")
+			return
+		}
+		if len(nameBuf) < int(nameLen) {
+			err = badprogram.Errorf("name data is truncated in service discovery packet")
+			return
+		}
 		names[i] = string(nameBuf[:nameLen])
-		nameBuf = nameBuf[nameLen+1:]
+		nameBuf = nameBuf[nameLen:]
 	}
 
 	services, err := discoverer.Discover(ctx, names)
