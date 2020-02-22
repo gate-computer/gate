@@ -58,7 +58,7 @@ Programs:
 
   - **gate**:
     Command-line client for local daemon and remote servers.  Uses SSH keys
-    (ed25519) for authentication.
+    (Ed25519) for authentication.
 
   - **gated**:
     D-Bus daemon for running and managing instances and wasm modules locally.

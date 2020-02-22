@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -536,16 +537,19 @@ func makeAuthorization() string {
 
 	privateKey, ok := x.(*ed25519.PrivateKey)
 	if !ok {
-		log.Fatalf("%s: not an ed25519 private key", c.IdentityFile)
+		log.Fatalf("%s: not an Ed25519 private key", c.IdentityFile)
 	}
 
 	publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
 	jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
 
+	sort.Strings(c.Scope)
+	scope := strings.Join(c.Scope, " ")
+
 	claims := &webapi.Claims{
 		Exp:   time.Now().Unix() + 60,
 		Aud:   []string{"https://" + c.address + webapi.Path},
-		Scope: c.Scope,
+		Scope: scope,
 	}
 
 	auth, err := authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)

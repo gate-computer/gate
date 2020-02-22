@@ -6,6 +6,7 @@ package webserver
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/tsavola/gate/internal/principal"
@@ -71,11 +72,12 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 	}
 }
 
-func mustValidateScope(ctx context.Context, ew errorWriter, s *webserver, scope []string) []string {
-	if len(scope) > maxScopeLength {
-		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "scope array is too long", event.FailScopeTooLarge, nil)
+func mustValidateScope(ctx context.Context, ew errorWriter, s *webserver, scope string) []string {
+	array := strings.SplitN(scope, " ", maxScopeLength)
+	if len(array) == maxScopeLength && strings.Index(array[maxScopeLength-1], " ") >= 0 {
+		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "scope has too many tokens", event.FailScopeTooLarge, nil)
 		panic(nil)
 	}
 
-	return scope
+	return array
 }
