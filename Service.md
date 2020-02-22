@@ -38,3 +38,14 @@ Services which don't implement any calls (yet) may choose to not answer them
 (yet), if that seems more appropriate.  But please note that in such a case
 programs cannot detect unsupported calls.
 
+
+## Error codes
+
+Packets have no predefined error codes.  Call and info packets have no
+predefined error fields, but since their content is service-specific, any error
+encoding is possible.  An error can be encoded in a flow packet's increment
+field as a negative 32-bit integer, and in a data packet's note field as any
+32-bit integer.  So when designing an error code scheme for a service, it
+should be noted that error conditions which are common to all domains must be
+expressible as negative 32-bit integers.
+

@@ -238,8 +238,11 @@ struct gate_flow_packet {
 	struct gate_flow flows[0]; // Variable length.
 };
 ```
-> Reception capacity notification for one or more streams.  All streams belong
-> to the service identified by the code in the packet header.
+> Reception capacity notification for streams.  All streams belong to the
+> service identified by the code in the packet header.
+>
+> A packet may contain multiple entries for a single stream: the entries must
+> be processed in order.
 >
 > The struct declaration may contain additional reserved fields which must be
 > zeroed in sent packets.
@@ -251,10 +254,16 @@ struct gate_flow {
 	int32_t increment;
 };
 ```
-> Indicates that the reception capacity of the stream identified by *id* has
-> increased by *increment* bytes.
+> Information associated with the stream identified by *id*.  If *increment* is
+> positive, it indicates that the reception capacity has increased by as many
+> bytes.  If *increment* is zero, it indicates that no more data will be
+> subscribed to (the stream is being closed).
 >
-> The reception capacity must not exceed (2^31)-1 at any given time.
+> If *increment* is negative, it conveys service-specific information, such as
+> an error code (the stream will stay open).
+>
+> The reception capacity of a stream must not exceed (2^31)-1 at any given
+> time.
 
 
 ```c
@@ -267,9 +276,11 @@ struct gate_data_packet {
 ```
 > Data transfer for the stream identified by *id* which belongs to the service
 > identified by the code in the packet header.  The length of *data* is
-> implicitly decremented from the reception capacity.
+> implicitly decremented from the reception capacity.  If there is no data, it
+> indicates that no more data will be received (the stream is being closed).
 >
-> Note value's semantics are specified separately by each service.
+> The *note* field conveys service-specific information, such as an error code
+> (the stream will stay open if the packet contains data).
 >
 > The struct declaration may contain additional reserved fields which must be
 > zeroed in sent packets.
