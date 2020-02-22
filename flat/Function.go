@@ -5,11 +5,11 @@ package flat
 type Function = byte
 const (
 	FunctionNONE Function = 0
-	FunctionHTTPRequest Function = 1
+	FunctionRequest Function = 1
 )
 
 var EnumNamesFunction = map[Function]string{
 	FunctionNONE:"NONE",
-	FunctionHTTPRequest:"HTTPRequest",
+	FunctionRequest:"Request",
 }
 

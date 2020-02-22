@@ -6,27 +6,27 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-type HTTPRequest struct {
+type Request struct {
 	_tab flatbuffers.Table
 }
 
-func GetRootAsHTTPRequest(buf []byte, offset flatbuffers.UOffsetT) *HTTPRequest {
+func GetRootAsRequest(buf []byte, offset flatbuffers.UOffsetT) *Request {
 	n := flatbuffers.GetUOffsetT(buf[offset:])
-	x := &HTTPRequest{}
+	x := &Request{}
 	x.Init(buf, n+offset)
 	return x
 }
 
-func (rcv *HTTPRequest) Init(buf []byte, i flatbuffers.UOffsetT) {
+func (rcv *Request) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
 }
 
-func (rcv *HTTPRequest) Table() flatbuffers.Table {
+func (rcv *Request) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *HTTPRequest) Method() []byte {
+func (rcv *Request) Method() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
@@ -34,7 +34,7 @@ func (rcv *HTTPRequest) Method() []byte {
 	return nil
 }
 
-func (rcv *HTTPRequest) Uri() []byte {
+func (rcv *Request) Uri() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
@@ -42,7 +42,7 @@ func (rcv *HTTPRequest) Uri() []byte {
 	return nil
 }
 
-func (rcv *HTTPRequest) ContentType() []byte {
+func (rcv *Request) ContentType() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
@@ -50,7 +50,7 @@ func (rcv *HTTPRequest) ContentType() []byte {
 	return nil
 }
 
-func (rcv *HTTPRequest) Body(j int) byte {
+func (rcv *Request) Body(j int) byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		a := rcv._tab.Vector(o)
@@ -59,7 +59,7 @@ func (rcv *HTTPRequest) Body(j int) byte {
 	return 0
 }
 
-func (rcv *HTTPRequest) BodyLength() int {
+func (rcv *Request) BodyLength() int {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
@@ -67,7 +67,7 @@ func (rcv *HTTPRequest) BodyLength() int {
 	return 0
 }
 
-func (rcv *HTTPRequest) BodyBytes() []byte {
+func (rcv *Request) BodyBytes() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
@@ -75,7 +75,7 @@ func (rcv *HTTPRequest) BodyBytes() []byte {
 	return nil
 }
 
-func (rcv *HTTPRequest) MutateBody(j int, n byte) bool {
+func (rcv *Request) MutateBody(j int, n byte) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		a := rcv._tab.Vector(o)
@@ -84,24 +84,24 @@ func (rcv *HTTPRequest) MutateBody(j int, n byte) bool {
 	return false
 }
 
-func HTTPRequestStart(builder *flatbuffers.Builder) {
+func RequestStart(builder *flatbuffers.Builder) {
 	builder.StartObject(4)
 }
-func HTTPRequestAddMethod(builder *flatbuffers.Builder, method flatbuffers.UOffsetT) {
+func RequestAddMethod(builder *flatbuffers.Builder, method flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(method), 0)
 }
-func HTTPRequestAddUri(builder *flatbuffers.Builder, uri flatbuffers.UOffsetT) {
+func RequestAddUri(builder *flatbuffers.Builder, uri flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(uri), 0)
 }
-func HTTPRequestAddContentType(builder *flatbuffers.Builder, contentType flatbuffers.UOffsetT) {
+func RequestAddContentType(builder *flatbuffers.Builder, contentType flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(contentType), 0)
 }
-func HTTPRequestAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT) {
+func RequestAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(body), 0)
 }
-func HTTPRequestStartBodyVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func RequestStartBodyVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(1, numElems, 1)
 }
-func HTTPRequestEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
+func RequestEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }

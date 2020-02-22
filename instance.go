@@ -20,9 +20,9 @@ import (
 	"github.com/tsavola/gate/service"
 )
 
-// Any encoded flat.HTTPResponse (just the table) must not be larger than this,
+// Any encoded flat.Response (just the table) must not be larger than this,
 // excluding fields which are stored out of line.
-const maxFlatHTTPResponseSize = 100
+const maxFlatResponseSize = 100
 
 // Snapshot may contain a call packet with its size header field overwritten
 // with one of these values.
@@ -106,12 +106,12 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 
 	if call.Function(tab) {
 		switch call.FunctionType() {
-		case flat.FunctionHTTPRequest:
-			var req flat.HTTPRequest
+		case flat.FunctionRequest:
+			var req flat.Request
 			req.Init(tab.Bytes, tab.Pos)
-			restart = inst.handleHTTPRequest(ctx, build, req)
+			restart = inst.handleRequest(ctx, build, req)
 			if !restart {
-				build.Finish(flat.HTTPResponseEnd(build))
+				build.Finish(flat.ResponseEnd(build))
 			}
 		}
 	}
@@ -135,8 +135,8 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	}
 }
 
-// handleHTTPRequest builds an unfinished HTTPResponse unless restart is set.
-func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.Builder, call flat.HTTPRequest) (restart bool) {
+// handleRequest builds an unfinished Response unless restart is set.
+func (inst *instance) handleRequest(ctx context.Context, build *flatbuffers.Builder, call flat.Request) (restart bool) {
 	var req http.Request
 	var err error
 
@@ -144,13 +144,13 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 
 	callURL, err := url.Parse(string(call.Uri()))
 	if err != nil {
-		flat.HTTPResponseStart(build)
-		flat.HTTPResponseAddStatusCode(build, http.StatusBadRequest)
+		flat.ResponseStart(build)
+		flat.ResponseAddStatusCode(build, http.StatusBadRequest)
 		return
 	}
 	if callURL.IsAbs() || callURL.Host != callURL.Hostname() {
-		flat.HTTPResponseStart(build)
-		flat.HTTPResponseAddStatusCode(build, http.StatusBadRequest)
+		flat.ResponseStart(build)
+		flat.ResponseAddStatusCode(build, http.StatusBadRequest)
 		return
 	}
 	req.URL = &url.URL{
@@ -184,8 +184,8 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 			}
 		}
 
-		flat.HTTPResponseStart(build)
-		flat.HTTPResponseAddStatusCode(build, http.StatusBadGateway)
+		flat.ResponseStart(build)
+		flat.ResponseAddStatusCode(build, http.StatusBadGateway)
 		return
 	}
 	defer res.Body.Close()
@@ -195,31 +195,31 @@ func (inst *instance) handleHTTPRequest(ctx context.Context, build *flatbuffers.
 	var inlineBody flatbuffers.UOffsetT
 
 	if res.ContentLength > 0 {
-		bodySpace := inst.MaxSendSize - int(build.Offset()) - maxFlatHTTPResponseSize
+		bodySpace := inst.MaxSendSize - int(build.Offset()) - maxFlatResponseSize
 		if res.ContentLength > int64(bodySpace) {
-			flat.HTTPResponseStart(build)
-			flat.HTTPResponseAddStatusCode(build, http.StatusNotImplemented)
+			flat.ResponseStart(build)
+			flat.ResponseAddStatusCode(build, http.StatusNotImplemented)
 			return
 		}
 
 		data := make([]byte, res.ContentLength)
 		if _, err := io.ReadFull(res.Body, data); err != nil {
-			flat.HTTPResponseStart(build)
-			flat.HTTPResponseAddStatusCode(build, http.StatusInternalServerError)
+			flat.ResponseStart(build)
+			flat.ResponseAddStatusCode(build, http.StatusInternalServerError)
 			return
 		}
 
 		inlineBody = build.CreateByteVector(data)
 	}
 
-	flat.HTTPResponseStart(build)
-	flat.HTTPResponseAddStatusCode(build, int32(res.StatusCode))
-	flat.HTTPResponseAddContentLength(build, res.ContentLength)
-	flat.HTTPResponseAddContentType(build, contentType)
+	flat.ResponseStart(build)
+	flat.ResponseAddStatusCode(build, uint16(res.StatusCode))
+	flat.ResponseAddContentLength(build, res.ContentLength)
+	flat.ResponseAddContentType(build, contentType)
 	if inlineBody != 0 {
-		flat.HTTPResponseAddBody(build, inlineBody)
+		flat.ResponseAddBody(build, inlineBody)
 	}
-	flat.HTTPResponseAddBodyStreamId(build, -1)
+	flat.ResponseAddBodyStreamId(build, -1)
 	return
 }
 

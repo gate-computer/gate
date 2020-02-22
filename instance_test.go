@@ -24,7 +24,7 @@ const testMaxSendSize = 65536
 
 var testCode = packet.Code(time.Now().UnixNano() & 0x7fff)
 
-func TestHTTPRequest(t *testing.T) {
+func TestRequest(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != "bogus" {
 			t.Error(r.Host)
@@ -56,12 +56,12 @@ func TestHTTPRequest(t *testing.T) {
 	b := flatbuffers.NewBuilder(0)
 	method := b.CreateString(http.MethodGet)
 	uri := b.CreateString("//bogus/test")
-	flat.HTTPRequestStart(b)
-	flat.HTTPRequestAddMethod(b, method)
-	flat.HTTPRequestAddUri(b, uri)
-	request := flat.HTTPRequestEnd(b)
+	flat.RequestStart(b)
+	flat.RequestAddMethod(b, method)
+	flat.RequestAddUri(b, uri)
+	request := flat.RequestEnd(b)
 	flat.CallStart(b)
-	flat.CallAddFunctionType(b, flat.FunctionHTTPRequest)
+	flat.CallAddFunctionType(b, flat.FunctionRequest)
 	flat.CallAddFunction(b, request)
 	b.Finish(flat.CallEnd(b))
 
@@ -80,7 +80,7 @@ func TestHTTPRequest(t *testing.T) {
 		t.Error(p)
 	}
 
-	r := flat.GetRootAsHTTPResponse(p, packet.HeaderSize)
+	r := flat.GetRootAsResponse(p, packet.HeaderSize)
 	if r.StatusCode() != http.StatusCreated {
 		t.Error(r.StatusCode())
 	}

@@ -6,39 +6,39 @@ import (
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-type HTTPResponse struct {
+type Response struct {
 	_tab flatbuffers.Table
 }
 
-func GetRootAsHTTPResponse(buf []byte, offset flatbuffers.UOffsetT) *HTTPResponse {
+func GetRootAsResponse(buf []byte, offset flatbuffers.UOffsetT) *Response {
 	n := flatbuffers.GetUOffsetT(buf[offset:])
-	x := &HTTPResponse{}
+	x := &Response{}
 	x.Init(buf, n+offset)
 	return x
 }
 
-func (rcv *HTTPResponse) Init(buf []byte, i flatbuffers.UOffsetT) {
+func (rcv *Response) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Bytes = buf
 	rcv._tab.Pos = i
 }
 
-func (rcv *HTTPResponse) Table() flatbuffers.Table {
+func (rcv *Response) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *HTTPResponse) StatusCode() int32 {
+func (rcv *Response) StatusCode() uint16 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
-		return rcv._tab.GetInt32(o + rcv._tab.Pos)
+		return rcv._tab.GetUint16(o + rcv._tab.Pos)
 	}
 	return 0
 }
 
-func (rcv *HTTPResponse) MutateStatusCode(n int32) bool {
-	return rcv._tab.MutateInt32Slot(4, n)
+func (rcv *Response) MutateStatusCode(n uint16) bool {
+	return rcv._tab.MutateUint16Slot(4, n)
 }
 
-func (rcv *HTTPResponse) ContentLength() int64 {
+func (rcv *Response) ContentLength() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.GetInt64(o + rcv._tab.Pos)
@@ -46,11 +46,11 @@ func (rcv *HTTPResponse) ContentLength() int64 {
 	return 0
 }
 
-func (rcv *HTTPResponse) MutateContentLength(n int64) bool {
+func (rcv *Response) MutateContentLength(n int64) bool {
 	return rcv._tab.MutateInt64Slot(6, n)
 }
 
-func (rcv *HTTPResponse) ContentType() []byte {
+func (rcv *Response) ContentType() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
@@ -58,7 +58,7 @@ func (rcv *HTTPResponse) ContentType() []byte {
 	return nil
 }
 
-func (rcv *HTTPResponse) Body(j int) byte {
+func (rcv *Response) Body(j int) byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		a := rcv._tab.Vector(o)
@@ -67,7 +67,7 @@ func (rcv *HTTPResponse) Body(j int) byte {
 	return 0
 }
 
-func (rcv *HTTPResponse) BodyLength() int {
+func (rcv *Response) BodyLength() int {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
@@ -75,7 +75,7 @@ func (rcv *HTTPResponse) BodyLength() int {
 	return 0
 }
 
-func (rcv *HTTPResponse) BodyBytes() []byte {
+func (rcv *Response) BodyBytes() []byte {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
@@ -83,7 +83,7 @@ func (rcv *HTTPResponse) BodyBytes() []byte {
 	return nil
 }
 
-func (rcv *HTTPResponse) MutateBody(j int, n byte) bool {
+func (rcv *Response) MutateBody(j int, n byte) bool {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
 	if o != 0 {
 		a := rcv._tab.Vector(o)
@@ -92,7 +92,7 @@ func (rcv *HTTPResponse) MutateBody(j int, n byte) bool {
 	return false
 }
 
-func (rcv *HTTPResponse) BodyStreamId() int32 {
+func (rcv *Response) BodyStreamId() int32 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(12))
 	if o != 0 {
 		return rcv._tab.GetInt32(o + rcv._tab.Pos)
@@ -100,31 +100,31 @@ func (rcv *HTTPResponse) BodyStreamId() int32 {
 	return 0
 }
 
-func (rcv *HTTPResponse) MutateBodyStreamId(n int32) bool {
+func (rcv *Response) MutateBodyStreamId(n int32) bool {
 	return rcv._tab.MutateInt32Slot(12, n)
 }
 
-func HTTPResponseStart(builder *flatbuffers.Builder) {
+func ResponseStart(builder *flatbuffers.Builder) {
 	builder.StartObject(5)
 }
-func HTTPResponseAddStatusCode(builder *flatbuffers.Builder, statusCode int32) {
-	builder.PrependInt32Slot(0, statusCode, 0)
+func ResponseAddStatusCode(builder *flatbuffers.Builder, statusCode uint16) {
+	builder.PrependUint16Slot(0, statusCode, 0)
 }
-func HTTPResponseAddContentLength(builder *flatbuffers.Builder, contentLength int64) {
+func ResponseAddContentLength(builder *flatbuffers.Builder, contentLength int64) {
 	builder.PrependInt64Slot(1, contentLength, 0)
 }
-func HTTPResponseAddContentType(builder *flatbuffers.Builder, contentType flatbuffers.UOffsetT) {
+func ResponseAddContentType(builder *flatbuffers.Builder, contentType flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(contentType), 0)
 }
-func HTTPResponseAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT) {
+func ResponseAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(body), 0)
 }
-func HTTPResponseStartBodyVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
+func ResponseStartBodyVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(1, numElems, 1)
 }
-func HTTPResponseAddBodyStreamId(builder *flatbuffers.Builder, bodyStreamId int32) {
+func ResponseAddBodyStreamId(builder *flatbuffers.Builder, bodyStreamId int32) {
 	builder.PrependInt32Slot(4, bodyStreamId, 0)
 }
-func HTTPResponseEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
+func ResponseEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()
 }

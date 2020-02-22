@@ -4,15 +4,15 @@
 
 namespace localhost.flat;
 
-table HTTPRequest {
+table Request {
     method: string;
     uri: string;
     content_type: string;
     body: [ubyte];
 }
 
-table HTTPResponse {
-    status_code: int;
+table Response {
+    status_code: uint16;
     content_length: int64;
     content_type: string;
     body: [ubyte];
@@ -20,7 +20,7 @@ table HTTPResponse {
 }
 
 union Function {
-    HTTPRequest,
+    Request,
 }
 
 table Call {
