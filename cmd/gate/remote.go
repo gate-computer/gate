@@ -265,12 +265,19 @@ var remoteCommands = map[string]command{
 				webapi.ParamAction: []string{webapi.ActionIO},
 			}
 
-			ok, err := remoteREPL(webapi.PathInstances+flag.Arg(0), params)
+			var d websocket.Dialer
+			conn, _, err := d.Dial(makeWebsocketURL(webapi.PathInstances+flag.Arg(0), params), nil)
 			check(err)
 
-			if !ok {
-				os.Exit(1)
+			check(conn.WriteJSON(webapi.IO{Authorization: makeAuthorization()}))
+
+			var reply webapi.IOConnection
+			check(conn.ReadJSON(&reply))
+			if !reply.Connected {
+				log.Fatal("connection rejected")
 			}
+
+			replWebsocket(conn)
 		},
 	},
 

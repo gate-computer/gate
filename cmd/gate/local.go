@@ -323,6 +323,39 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"repl": {
+		usage: "instance",
+		do: func() {
+			ir, iw, err := os.Pipe()
+			check(err)
+			or, ow, err := os.Pipe()
+			check(err)
+
+			orFD := dbus.UnixFD(or.Fd())
+			iwFD := dbus.UnixFD(iw.Fd())
+
+			call := make(chan *dbus.Call, 1)
+			go func() {
+				defer close(call)
+				call <- daemonCall("IO", flag.Arg(0), orFD, iwFD)
+				closeFiles(or, iw)
+			}()
+
+			repl(ir, ow)
+			ow.Close()
+			ir.Close()
+
+			var ok bool
+			if c := <-call; c != nil {
+				check(c.Store(&ok))
+			}
+
+			if !ok {
+				os.Exit(1)
+			}
+		},
+	},
+
 	"resume": {
 		usage: "instance [function]",
 		do: func() {
