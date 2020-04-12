@@ -242,3 +242,7 @@ func check(err error) {
 		log.Fatal(err)
 	}
 }
+
+func check_(_ interface{}, err error) {
+	check(err)
+}
