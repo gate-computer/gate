@@ -116,8 +116,9 @@ type Config struct {
 		AccessLog string
 
 		TLS struct {
-			Enabled bool
-			Domains []string
+			Enabled  bool
+			Domains  []string
+			HTTPAddr string
 		}
 
 		Index struct {
@@ -475,8 +476,13 @@ func main2(critLog *log.Logger) error {
 		}
 		l = tls.NewListener(l, httpServer.TLSConfig)
 
+		httpAddr := c.HTTP.TLS.HTTPAddr
+		if !strings.Contains(httpAddr, ":") {
+			httpAddr += ":http"
+		}
+
 		go func() {
-			critLog.Fatal(http.ListenAndServe(":http", m.HTTPHandler(http.HandlerFunc(handleHTTP))))
+			critLog.Fatal(http.ListenAndServe(httpAddr, m.HTTPHandler(http.HandlerFunc(handleHTTP))))
 		}()
 	}
 
