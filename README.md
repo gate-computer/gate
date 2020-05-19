@@ -148,7 +148,7 @@ Running the D-Bus enabled programs (gate and gated) requires:
 Additional requirements for `make check`:
 
   - libgtest-dev
-  - python
+  - python3
 
 See Makefile for more targets.
 

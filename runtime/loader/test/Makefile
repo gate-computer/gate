@@ -1,4 +1,4 @@
-PYTHON		?= python
+PYTHON		?= python3
 
 ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
 
