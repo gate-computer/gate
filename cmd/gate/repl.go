@@ -54,7 +54,7 @@ func repl(r io.Reader, w io.Writer) {
 		line, err := rl.ReadSlice()
 		if err != nil {
 			if err == io.EOF {
-				return
+				break
 			}
 			check(err)
 		}
