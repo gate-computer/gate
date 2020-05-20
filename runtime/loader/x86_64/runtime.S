@@ -92,7 +92,7 @@ runtime_init:
 	// Unmap loader .text and .rodata sections
 
 	mov	$GATE_LOADER_ADDR, %rdi		// munmap addr
-	mov	$GATE_LOADER_SIZE, %esi		// munmap length
+	mov	$65536, %esi			// munmap length
 	mov	$SYS_munmap, %eax
 	syscall
 	mov	$ERR_LOAD_MUNMAP_LOADER, %edi

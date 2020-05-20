@@ -6,7 +6,7 @@ CC_S		:= $(CC)
 
 ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
 
-CPPFLAGS	+= -I$(ARCH) -I../include/$(ARCH) -I../include -DNDEBUG -DPIE -DGATE_LOADER_ADDR=0x200000000 -DGATE_LOADER_SIZE=0x1000
+CPPFLAGS	+= -I$(ARCH) -I../include/$(ARCH) -I../include -DNDEBUG -DPIE -DGATE_LOADER_ADDR=0x200000000
 CFLAGS		+= -std=gnu99 -Os -fPIE -fomit-frame-pointer -fno-stack-protector -g -Wall -Wextra -Wno-unused-parameter
 LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segment=0x200000000 -Wl,--build-id=none
 

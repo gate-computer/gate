@@ -100,8 +100,8 @@ runtime_init:
 
 	// Unmap loader .text and .rodata sections
 
-	mov	x0, #GATE_LOADER_ADDR
-	mov	x1, #GATE_LOADER_SIZE
+	mov	x0, #GATE_LOADER_ADDR		// munmap addr
+	mov	x1, #65536			// munmap length
 	mov	w8, #SYS_munmap
 	svc	0
 	cmp	w0, #0
