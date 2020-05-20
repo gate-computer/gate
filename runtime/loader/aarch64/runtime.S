@@ -73,6 +73,7 @@
 
 .section .text
 
+.align	4096
 .globl	runtime_code_begin
 
 runtime_code_begin:

@@ -96,7 +96,7 @@ extern code trap_handler;
 
 static uintptr_t runtime_func_addr(const void *new_base, code *func_ptr)
 {
-	return (uintptr_t) new_base + ((uintptr_t) func_ptr - GATE_LOADER_ADDR);
+	return (uintptr_t) new_base + ((uintptr_t) func_ptr - (uintptr_t) &runtime_code_begin);
 }
 
 static int sys_close(int fd)
@@ -353,7 +353,7 @@ clock_gettime_found:
 		return ERR_LOAD_MMAP_VECTOR;
 
 	uintptr_t runtime_size = (uintptr_t) &runtime_code_end - (uintptr_t) &runtime_code_begin;
-	memcpy(runtime_ptr + ((uintptr_t) &runtime_code_begin - GATE_LOADER_ADDR), &runtime_code_begin, runtime_size);
+	memcpy(runtime_ptr, &runtime_code_begin, runtime_size);
 
 	uint64_t *vector_end = (uint64_t *) (runtime_ptr + info.page_size);
 
