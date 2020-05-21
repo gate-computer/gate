@@ -59,24 +59,24 @@ func NewHandler(pattern string, config Config) http.Handler {
 	}
 
 	p := strings.TrimRight(pattern, "/")                                // host/path
-	patternAPI := p + webapi.Path                                       // host/path/gate/
-	patternModule := p + webapi.PathModule                              // host/path/gate/module
-	patternModules := p + webapi.PathModules                            // host/path/gate/module/
-	patternModuleRef := p + webapi.PathModules + webapi.ModuleRefSource // host/path/gate/module/hash
-	patternModuleRefs := p + webapi.PathModuleRefs                      // host/path/gate/module/hash/
-	patternInstances := p + webapi.PathInstances                        // host/path/gate/instance/
-	patternInstance := patternInstances[:len(patternInstances)-1]       // host/path/gate/instance
+	patternAPI := p + webapi.Path                                       // host/path/api/
+	patternModule := p + webapi.PathModule                              // host/path/api/module
+	patternModules := p + webapi.PathModules                            // host/path/api/module/
+	patternModuleRef := p + webapi.PathModules + webapi.ModuleRefSource // host/path/api/module/hash
+	patternModuleRefs := p + webapi.PathModuleRefs                      // host/path/api/module/hash/
+	patternInstances := p + webapi.PathInstances                        // host/path/api/instance/
+	patternInstance := patternInstances[:len(patternInstances)-1]       // host/path/api/instance
 
 	p = strings.TrimLeftFunc(p, func(r rune) bool { return r != '/' }) // /path
-	pathAPI := p + webapi.Path                                         // /path/gate/
-	pathModule := p + webapi.PathModule                                // /path/gate/module
-	pathModules := p + webapi.PathModules                              // /path/gate/module/
-	pathModuleRef := p + webapi.PathModules + webapi.ModuleRefSource   // /path/gate/module/hash
-	s.pathModuleRefs = p + webapi.PathModuleRefs                       // /path/gate/module/hash/
-	pathInstances := p + webapi.PathInstances                          // /path/gate/instance/
-	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/gate/instance
+	pathAPI := p + webapi.Path                                         // /path/api/
+	pathModule := p + webapi.PathModule                                // /path/api/module
+	pathModules := p + webapi.PathModules                              // /path/api/module/
+	pathModuleRef := p + webapi.PathModules + webapi.ModuleRefSource   // /path/api/module/hash
+	s.pathModuleRefs = p + webapi.PathModuleRefs                       // /path/api/module/hash/
+	pathInstances := p + webapi.PathInstances                          // /path/api/instance/
+	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/api/instance
 
-	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/gate/
+	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/api/
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(patternAPI, newOpaqueHandler(s, pathAPI))

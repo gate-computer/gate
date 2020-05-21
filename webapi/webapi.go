@@ -26,11 +26,11 @@ const ModuleRefHash crypto.Hash = serverapi.ModuleRefHash
 
 // Request URL paths.
 const (
-	Path           = "/gate/"               // The API.
-	PathModule     = "/gate/module"         // Base of relative module URIs.
-	PathModules    = "/gate/module/"        // Module sources.
-	PathModuleRefs = "/gate/module/sha384/" // Module reference ids.
-	PathInstances  = "/gate/instance/"      // Instance ids.
+	Path           = "/gate-0/"              // The API.
+	PathModule     = Path + "module"         // Base of relative module URIs.
+	PathModules    = Path + "module/"        // Module sources.
+	PathModuleRefs = Path + "module/sha384/" // Module reference ids.
+	PathInstances  = Path + "instance/"      // Instance ids.
 )
 
 // Query parameters.

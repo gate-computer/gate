@@ -132,7 +132,7 @@ func newHandler(t *testing.T) http.Handler {
 
 	config := webserver.Config{
 		Server:        s,
-		Authority:     "test",
+		Authority:     "example.invalid",
 		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
 	}
@@ -157,7 +157,7 @@ func newSignedRequest(pri principalKey, method, path string, content []byte) (re
 	req = newRequest(method, path, content)
 	req.Header.Set(webapi.HeaderAuthorization, pri.authorization(&webapi.Claims{
 		Exp:   time.Now().Add(time.Minute).Unix(),
-		Aud:   []string{"no", "https://test/gate/"},
+		Aud:   []string{"no", "https://example.invalid/gate-0/"},
 		Nonce: strconv.Itoa(rand.Int()),
 	}))
 	return
