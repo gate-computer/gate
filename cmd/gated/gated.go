@@ -24,7 +24,6 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/bus"
 	"gate.computer/gate/internal/cmdconf"
-	inprincipal "gate.computer/gate/internal/principal"
 	"gate.computer/gate/principal"
 	gateruntime "gate.computer/gate/runtime"
 	"gate.computer/gate/scope/program/system"
@@ -158,6 +157,8 @@ func mainResult() int {
 	signal.Ignore(syscall.SIGHUP)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
+	ctx = principal.ContextWithLocalID(ctx)
+
 	inited := make(chan *server.Server, 1)
 	defer close(inited)
 	check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
@@ -177,7 +178,7 @@ func mainResult() int {
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
-		XXX_Owner:      inprincipal.LocalID,
+		XXX_Owner:      principal.ContextID(ctx),
 	})
 	check(err)
 	defer s.Shutdown(ctx)
@@ -206,8 +207,6 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 		}
 		panic(errors.New("daemon initialization was aborted"))
 	}
-
-	ctx = principal.ContextWithID(ctx, inprincipal.LocalID)
 
 	methods := map[string]interface{}{
 		"CallKey": func(key, function string, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugLogging bool, scope []string,

@@ -13,7 +13,6 @@ import (
 
 	"gate.computer/gate/internal/error/public"
 	inprincipal "gate.computer/gate/internal/principal"
-	"gate.computer/gate/principal"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/webapi"
@@ -81,7 +80,7 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	// information about its validity.
 	mustVerifyNonce(ctx, ew, s, pri, claims.Nonce, claims.Exp)
 
-	ctx = principal.ContextWithID(ctx, pri.PrincipalID())
+	ctx = inprincipal.ContextWithID(ctx, pri.PrincipalID())
 	ctx = server.ContextWithScope(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
 	return ctx
 }
