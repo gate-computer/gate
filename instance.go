@@ -5,93 +5,44 @@
 package localhost
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
-	"errors"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"net/url"
+	"sync"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service"
-	"gate.computer/localhost/flat"
-	flatbuffers "github.com/google/flatbuffers/go"
 )
 
-// Any encoded flat.Response (just the table) must not be larger than this,
-// excluding fields which are stored out of line.
-const maxFlatResponseSize = 100
-
-// Snapshot may contain a call packet with its size header field overwritten
-// with one of these values.
-const (
-	pendingIncoming uint32 = iota
-	pendingOutgoing
-)
+const maxRequests = 10 // Cannot be greater than 256.
 
 type instance struct {
 	local *localhost
 	packet.Service
 
-	pending packet.Buf
+	handlers sync.WaitGroup
+	handled  chan<- handled
+	unsent   <-chan []packet.Buf
+	s        sender
 }
 
 func newInstance(local *localhost, config service.InstanceConfig) *instance {
-	return &instance{
+	inst := &instance{
 		local:   local,
 		Service: config.Service,
 	}
+	inst.s.init()
+	return inst
 }
 
-func (inst *instance) restore(snapshot []byte) (err error) {
-	if len(snapshot) == 0 {
-		return
+func (inst *instance) restore(snapshot []byte) error {
+	if len(snapshot) > 0 {
+		panic("TODO")
 	}
-
-	p, err := packet.ImportCall(snapshot, inst.Code)
-	if err != nil {
-		return
-	}
-
-	switch binary.LittleEndian.Uint32(p) {
-	case pendingIncoming:
-
-	case pendingOutgoing:
-		if len(snapshot) > inst.MaxSendSize {
-			err = errors.New("snapshot of outgoing packet exceeds maximum send size")
-			return
-		}
-
-	default:
-		err = errors.New("snapshot is invalid")
-		return
-	}
-
-	inst.pending = append(packet.Buf{}, p...)
-	return
+	return nil
 }
 
 func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
-	p := inst.pending
-	inst.pending = nil
-	if len(p) == 0 {
-		return
-	}
-
-	switch binary.LittleEndian.Uint32(p) {
-	case pendingIncoming:
-		inst.Handle(ctx, send, p)
-
-	case pendingOutgoing:
-		select {
-		case send <- p:
-
-		case <-ctx.Done():
-			inst.pending = p
-		}
-	}
+	// TODO
 }
 
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
@@ -99,129 +50,173 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		return
 	}
 
-	build := flatbuffers.NewBuilder(0)
-	restart := false
-	tab := new(flatbuffers.Table)
-	call := flat.GetRootAsCall(p, packet.HeaderSize)
-
-	if call.Function(tab) {
-		switch call.FunctionType() {
-		case flat.FunctionRequest:
-			var req flat.Request
-			req.Init(tab.Bytes, tab.Pos)
-			restart = inst.handleRequest(ctx, build, req)
-			if !restart {
-				build.Finish(flat.ResponseEnd(build))
-			}
-		}
+	if inst.handled == nil {
+		handled := make(chan handled)
+		inst.unsent = inst.s.start(send, handled)
+		inst.handled = handled
 	}
 
-	if restart {
-		binary.LittleEndian.PutUint32(p, pendingIncoming)
-		inst.pending = p
+	if !inst.s.registerRequest(p) {
 		return
 	}
 
-	p = packet.Make(inst.Code, packet.DomainCall, packet.HeaderSize+len(build.FinishedBytes()))
-	copy(p.Content(), build.FinishedBytes())
-
-	select {
-	case send <- p:
-
-	case <-ctx.Done():
-		binary.LittleEndian.PutUint32(p, pendingOutgoing)
-		inst.pending = p
-		return
-	}
+	inst.handlers.Add(1)
+	go func() {
+		defer inst.handlers.Done()
+		inst.handled <- handle(ctx, inst.local, inst.Service, p)
+	}()
 }
 
-// handleRequest builds an unfinished Response unless restart is set.
-func (inst *instance) handleRequest(ctx context.Context, build *flatbuffers.Builder, call flat.Request) (restart bool) {
-	var req http.Request
-	var err error
+func (inst *instance) Suspend() []byte {
+	requests, unsent := inst.shut()
 
-	req.Method = string(call.Method())
-
-	callURL, err := url.Parse(string(call.Uri()))
-	if err != nil {
-		flat.ResponseStart(build)
-		flat.ResponseAddStatusCode(build, http.StatusBadRequest)
-		return
+	n := binary.MaxVarintLen32 * 2
+	for _, p := range requests {
+		n += len(p)
 	}
-	if callURL.IsAbs() || callURL.Host != callURL.Hostname() {
-		flat.ResponseStart(build)
-		flat.ResponseAddStatusCode(build, http.StatusBadRequest)
-		return
-	}
-	req.URL = &url.URL{
-		Scheme:   inst.local.scheme,
-		Host:     inst.local.host,
-		Path:     callURL.Path,
-		RawQuery: callURL.RawQuery,
-	}
-	req.Host = callURL.Hostname()
-
-	if b := call.ContentType(); len(b) > 0 {
-		req.Header = http.Header{
-			"Content-Type": []string{string(b)},
-		}
+	for _, p := range unsent {
+		n += len(p)
 	}
 
-	if n := call.BodyLength(); n > 0 {
-		req.ContentLength = int64(n)
-		req.Body = ioutil.NopCloser(bytes.NewReader(call.BodyBytes()))
+	b := make([]byte, 0, n)
+
+	b = appendUvarint(b, len(requests))
+	for _, p := range requests {
+		b = append(b, p...)
 	}
 
-	res, err := inst.local.client.Do(req.WithContext(ctx))
-	if err != nil {
-		if req.Method == http.MethodGet || req.Method == http.MethodHead {
-			select {
-			case <-ctx.Done():
-				restart = true
-				return
-
-			default:
-			}
-		}
-
-		flat.ResponseStart(build)
-		flat.ResponseAddStatusCode(build, http.StatusBadGateway)
-		return
-	}
-	defer res.Body.Close()
-
-	contentType := build.CreateString(res.Header.Get("Content-Type"))
-
-	var inlineBody flatbuffers.UOffsetT
-
-	if res.ContentLength > 0 {
-		bodySpace := inst.MaxSendSize - int(build.Offset()) - maxFlatResponseSize
-		if res.ContentLength > int64(bodySpace) {
-			flat.ResponseStart(build)
-			flat.ResponseAddStatusCode(build, http.StatusNotImplemented)
-			return
-		}
-
-		data := make([]byte, res.ContentLength)
-		if _, err := io.ReadFull(res.Body, data); err != nil {
-			flat.ResponseStart(build)
-			flat.ResponseAddStatusCode(build, http.StatusInternalServerError)
-			return
-		}
-
-		inlineBody = build.CreateByteVector(data)
+	b = appendUvarint(b, len(unsent))
+	for _, p := range unsent {
+		b = append(b, p...)
 	}
 
-	flat.ResponseStart(build)
-	flat.ResponseAddStatusCode(build, uint16(res.StatusCode))
-	flat.ResponseAddContentLength(build, res.ContentLength)
-	flat.ResponseAddContentType(build, contentType)
-	if inlineBody != 0 {
-		flat.ResponseAddBody(build, inlineBody)
+	return b
+}
+
+func (inst *instance) Shutdown() {
+	inst.shut()
+}
+
+func (inst *instance) shut() (requests, unsent []packet.Buf) {
+	inst.handlers.Wait()
+
+	if inst.handled != nil {
+		close(inst.handled)
+		inst.handled = nil
 	}
-	flat.ResponseAddBodyStreamId(build, -1)
+
+	requests = inst.s.wait()
+
+	if inst.unsent != nil {
+		unsent = <-inst.unsent
+		inst.unsent = nil
+	}
+
 	return
 }
 
-func (inst *instance) Suspend() []byte { return inst.pending }
-func (inst *instance) Shutdown()       {}
+type sender struct {
+	mu       sync.Mutex
+	cond     sync.Cond
+	requests []packet.Buf // Nil means not started or shut down.
+	sending  bool
+}
+
+func (s *sender) init() {
+	s.cond.L = &s.mu
+}
+
+func (s *sender) start(send chan<- packet.Buf, handled <-chan handled) <-chan []packet.Buf {
+	unsent := make(chan []packet.Buf, 1)
+
+	// Locking not necessary.
+	s.requests = []packet.Buf{}
+	s.sending = true
+	go s.loop(unsent, send, handled)
+
+	return unsent
+}
+
+func (s *sender) loop(unsent chan<- []packet.Buf, send chan<- packet.Buf, handled <-chan handled) {
+	var buffered []packet.Buf
+
+	defer func() {
+		unsent <- buffered
+	}()
+
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		s.sending = false
+		s.cond.Signal()
+	}()
+
+	for {
+		var (
+			sending  chan<- packet.Buf
+			sendable packet.Buf
+		)
+		if len(buffered) > 0 {
+			sending = send
+			sendable = buffered[0]
+		}
+
+		select {
+		case h, ok := <-handled:
+			if !ok {
+				return
+			}
+
+			index := func() uint8 {
+				s.mu.Lock()
+				defer s.mu.Unlock()
+
+				// See maxRequests.
+				for i, req := range s.requests {
+					if &req[0] == &h.req[0] {
+						s.requests = append(s.requests[:i], s.requests[i+1:]...)
+						return uint8(i)
+					}
+				}
+				panic("request not found")
+			}()
+
+			p := h.res
+			p[packet.OffsetIndex] = index
+			buffered = append(buffered, p)
+
+		case sending <- sendable:
+			buffered = buffered[1:]
+		}
+	}
+}
+
+func (s *sender) registerRequest(req packet.Buf) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for len(s.requests) >= maxRequests && s.sending {
+		s.cond.Wait()
+	}
+	s.requests = append(s.requests, req)
+	return s.sending
+}
+
+func (s *sender) wait() (requests []packet.Buf) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for s.requests != nil && s.sending {
+		s.cond.Wait()
+	}
+	requests = s.requests
+	s.requests = nil
+	return
+}
+
+// appendUvarint without reallocating the underlying array.
+func appendUvarint(b []byte, value int) []byte {
+	n := binary.PutUvarint(b[len(b):len(b)+binary.MaxVarintLen32], uint64(value))
+	return b[:len(b)+n]
+}

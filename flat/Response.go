@@ -38,20 +38,8 @@ func (rcv *Response) MutateStatusCode(n uint16) bool {
 	return rcv._tab.MutateUint16Slot(4, n)
 }
 
-func (rcv *Response) ContentLength() int64 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
-	if o != 0 {
-		return rcv._tab.GetInt64(o + rcv._tab.Pos)
-	}
-	return 0
-}
-
-func (rcv *Response) MutateContentLength(n int64) bool {
-	return rcv._tab.MutateInt64Slot(6, n)
-}
-
 func (rcv *Response) ContentType() []byte {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(6))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
 	}
@@ -59,7 +47,7 @@ func (rcv *Response) ContentType() []byte {
 }
 
 func (rcv *Response) Body(j int) byte {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		a := rcv._tab.Vector(o)
 		return rcv._tab.GetByte(a + flatbuffers.UOffsetT(j*1))
@@ -68,7 +56,7 @@ func (rcv *Response) Body(j int) byte {
 }
 
 func (rcv *Response) BodyLength() int {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		return rcv._tab.VectorLen(o)
 	}
@@ -76,7 +64,7 @@ func (rcv *Response) BodyLength() int {
 }
 
 func (rcv *Response) BodyBytes() []byte {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		return rcv._tab.ByteVector(o + rcv._tab.Pos)
 	}
@@ -84,7 +72,7 @@ func (rcv *Response) BodyBytes() []byte {
 }
 
 func (rcv *Response) MutateBody(j int, n byte) bool {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
+	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		a := rcv._tab.Vector(o)
 		return rcv._tab.MutateByte(a+flatbuffers.UOffsetT(j*1), n)
@@ -92,38 +80,20 @@ func (rcv *Response) MutateBody(j int, n byte) bool {
 	return false
 }
 
-func (rcv *Response) BodyStreamId() int32 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(12))
-	if o != 0 {
-		return rcv._tab.GetInt32(o + rcv._tab.Pos)
-	}
-	return 0
-}
-
-func (rcv *Response) MutateBodyStreamId(n int32) bool {
-	return rcv._tab.MutateInt32Slot(12, n)
-}
-
 func ResponseStart(builder *flatbuffers.Builder) {
-	builder.StartObject(5)
+	builder.StartObject(3)
 }
 func ResponseAddStatusCode(builder *flatbuffers.Builder, statusCode uint16) {
 	builder.PrependUint16Slot(0, statusCode, 0)
 }
-func ResponseAddContentLength(builder *flatbuffers.Builder, contentLength int64) {
-	builder.PrependInt64Slot(1, contentLength, 0)
-}
 func ResponseAddContentType(builder *flatbuffers.Builder, contentType flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(contentType), 0)
+	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(contentType), 0)
 }
 func ResponseAddBody(builder *flatbuffers.Builder, body flatbuffers.UOffsetT) {
-	builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(body), 0)
+	builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(body), 0)
 }
 func ResponseStartBodyVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT {
 	return builder.StartVector(1, numElems, 1)
-}
-func ResponseAddBodyStreamId(builder *flatbuffers.Builder, bodyStreamId int32) {
-	builder.PrependInt32Slot(4, bodyStreamId, 0)
 }
 func ResponseEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT {
 	return builder.EndObject()

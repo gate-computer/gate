@@ -46,7 +46,7 @@ func TestRequest(t *testing.T) {
 		panic(err)
 	}
 
-	i := newInstance(&localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
+	inst := newInstance(&localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
 		Service: packet.Service{
 			MaxSendSize: testMaxSendSize,
 			Code:        testCode,
@@ -73,7 +73,7 @@ func TestRequest(t *testing.T) {
 	}
 
 	c := make(chan packet.Buf, 1)
-	i.Handle(context.Background(), c, p)
+	inst.Handle(context.Background(), c, p)
 	p = <-c
 
 	if !packet.IsValidCall(p, testCode) {
@@ -87,16 +87,10 @@ func TestRequest(t *testing.T) {
 	if string(r.ContentType()) != "text/plain" {
 		t.Errorf("%q", r.ContentType())
 	}
-	if r.ContentLength() != 13 {
-		t.Error(r.ContentLength())
-	}
 	if r.BodyLength() != 13 {
 		t.Error(r.BodyLength())
 	}
 	if !bytes.Equal(r.BodyBytes(), []byte("hellocalhost\n")) {
 		t.Errorf("%q", r.BodyBytes())
-	}
-	if r.BodyStreamId() != -1 {
-		t.Error(r.BodyStreamId())
 	}
 }

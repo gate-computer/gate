@@ -13,10 +13,8 @@ table Request {
 
 table Response {
     status_code: uint16;
-    content_length: int64;
     content_type: string;
     body: [ubyte];
-    body_stream_id: int32;
 }
 
 union Function {
