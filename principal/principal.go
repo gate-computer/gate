@@ -11,6 +11,12 @@ import (
 )
 
 type ID = internal.ID
+type Type = internal.Type
+
+const (
+	TypeLocal   Type = internal.TypeLocal
+	TypeEd25519      = internal.TypeEd25519
+)
 
 // ContextWithLocalID returns a context for local access.
 func ContextWithLocalID(ctx context.Context) context.Context {
