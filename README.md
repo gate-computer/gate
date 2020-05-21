@@ -15,7 +15,7 @@ See [Introduction to Gate](https://savo.la/introduction-to-gate.html).
 [WebAssembly](https://webassembly.org) is the interchange format of the user
 programs.  However, the APIs are different from the browsers' usual WebAssembly
 environments.  See low-level [C API](C.md) or the higher-level
-[Rust crate](https://github.com/tsavola/gain) for details.
+[Rust crate](https://crates.io/crates/gain) for details.
 
 The sandboxing and containerization features of the Linux kernel provide layers
 of security in addition to WebAssembly.  See [Security](Security.md) for
@@ -117,8 +117,7 @@ of continually running programs.
 User program support:
 
   - [x] Low-level C API
-  - [ ] [Rust](https://github.com/tsavola/gain) support (out of date)
-  - [ ] Improved Rust support
+  - [x] [Rust](https://crates.io/crates/gain) support
   - [ ] Go support
   - [ ] Approach for splitting WebAssembly app between browser (UI) and server (state)
 
@@ -157,7 +156,7 @@ installed container binary (lib).  That requires:
 
 ## See also
 
-- [Gain crate for Rust user programs](https://github.com/tsavola/gain)
+- [Gain crate for Rust user programs](https://crates.io/crates/gain)
 - [C API for user programs](C.md)
 - [ABI for user programs](ABI.md)
 - [Web server API](Web.md)
