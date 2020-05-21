@@ -7,10 +7,10 @@ package facile
 import (
 	"bytes"
 
-	"github.com/tsavola/gate/build"
-	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/runtime/abi"
-	"github.com/tsavola/gate/snapshot"
+	"gate.computer/gate/build"
+	"gate.computer/gate/image"
+	"gate.computer/gate/runtime/abi"
+	"gate.computer/gate/snapshot"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/wa"

@@ -5,7 +5,7 @@
 package resourcenotfound
 
 import (
-	"github.com/tsavola/gate/internal/error/notfound"
+	"gate.computer/gate/internal/error/notfound"
 )
 
 type ModuleError interface {

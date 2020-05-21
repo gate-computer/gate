@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tsavola/gate/server"
+	"gate.computer/gate/server"
 )
 
 type NonceChecker interface {

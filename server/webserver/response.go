@@ -14,16 +14,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tsavola/gate/internal/error/badmodule"
-	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/gate/internal/error/notfound"
-	"github.com/tsavola/gate/internal/error/public"
-	"github.com/tsavola/gate/internal/error/resourcelimit"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/server/internal/error/failrequest"
-	"github.com/tsavola/gate/server/internal/error/resourcenotfound"
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/internal/error/badmodule"
+	"gate.computer/gate/internal/error/badprogram"
+	"gate.computer/gate/internal/error/notfound"
+	"gate.computer/gate/internal/error/public"
+	"gate.computer/gate/internal/error/resourcelimit"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/internal/error/failrequest"
+	"gate.computer/gate/server/internal/error/resourcenotfound"
+	"gate.computer/gate/webapi"
 )
 
 const (

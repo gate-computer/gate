@@ -7,8 +7,8 @@ package server_test
 import (
 	"testing"
 
-	"github.com/tsavola/gate/internal/jsonproto"
-	api "github.com/tsavola/gate/serverapi"
+	"gate.computer/gate/internal/jsonproto"
+	api "gate.computer/gate/serverapi"
 	"github.com/tsavola/wag/trap"
 )
 

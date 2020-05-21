@@ -8,8 +8,8 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/tsavola/gate/internal/runtimeapi"
-	"github.com/tsavola/gate/internal/sys"
+	"gate.computer/gate/internal/runtimeapi"
+	"gate.computer/gate/internal/sys"
 )
 
 func startContainer(config Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {

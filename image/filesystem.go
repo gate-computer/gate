@@ -12,8 +12,8 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/internal/manifest"
+	"gate.computer/gate/internal/file"
+	"gate.computer/gate/internal/manifest"
 	"github.com/tsavola/wag/object"
 	"golang.org/x/sys/unix"
 )

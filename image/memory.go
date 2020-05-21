@@ -9,8 +9,8 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/internal/manifest"
+	"gate.computer/gate/internal/file"
+	"gate.computer/gate/internal/manifest"
 )
 
 const (

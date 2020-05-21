@@ -15,15 +15,15 @@ import (
 	"strconv"
 	"strings"
 
+	"gate.computer/gate/internal/jsonproto"
+	api "gate.computer/gate/internal/webserverapi"
+	"gate.computer/gate/principal"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/detail"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/serverapi"
+	"gate.computer/gate/webapi"
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/gate/internal/jsonproto"
-	api "github.com/tsavola/gate/internal/webserverapi"
-	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/detail"
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/serverapi"
-	"github.com/tsavola/gate/webapi"
 )
 
 const maxWebsocketRequestSize = 4096

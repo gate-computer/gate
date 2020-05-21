@@ -9,7 +9,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/file"
+	"gate.computer/gate/internal/file"
 	"golang.org/x/sys/unix"
 )
 

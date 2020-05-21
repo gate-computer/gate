@@ -9,11 +9,11 @@ import (
 	"fmt"
 	"io"
 
+	"gate.computer/gate/image"
+	"gate.computer/gate/principal"
+	"gate.computer/gate/runtime"
+	"gate.computer/gate/server/detail"
 	"github.com/gogo/protobuf/proto"
-	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/server/detail"
 )
 
 type InstanceConnector interface {

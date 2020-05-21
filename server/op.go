@@ -5,7 +5,7 @@
 package server
 
 import (
-	"github.com/tsavola/gate/server/detail"
+	"gate.computer/gate/server/detail"
 )
 
 // Server operation types.  Returned by ContextOp(context.Context) function.

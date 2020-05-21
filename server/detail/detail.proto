@@ -6,7 +6,7 @@ syntax = "proto3";
 
 package server.detail;
 
-option go_package = "github.com/tsavola/gate/server/detail";
+option go_package = "gate.computer/gate/server/detail";
 
 enum Iface {
 	DEFAULT = 0;

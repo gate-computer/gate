@@ -38,20 +38,20 @@ Important Go packages:
     The WebAssembly compiler
     (implemented in a [separate repository](https://github.com/tsavola/wag)).
 
-  - [**gate/runtime**](https://godoc.org/github.com/tsavola/gate/runtime):
+  - [**gate/runtime**](https://godoc.org/gate.computer/gate/runtime):
     Core functionality.  Interface to the execution mechanism.
 
-  - [**gate/image**](https://godoc.org/github.com/tsavola/gate/image):
+  - [**gate/image**](https://godoc.org/gate.computer/gate/image):
     Low-level executable building and instance management.
 
-  - [**gate/build**](https://godoc.org/github.com/tsavola/gate/build):
+  - [**gate/build**](https://godoc.org/gate.computer/gate/build):
     High-level executable building and snapshot restoration.
 
-  - [**gate/server/webserver**](https://godoc.org/github.com/tsavola/gate/server/webserver):
+  - [**gate/server/webserver**](https://godoc.org/gate.computer/gate/server/webserver):
     HTTP server component which executes your code on purpose.  It has a
     [RESTful API](Web.md), but some actions can be invoked also via websocket.
 
-  - [**gate/service**](https://godoc.org/github.com/tsavola/gate/service):
+  - [**gate/service**](https://godoc.org/gate.computer/gate/service):
     Service implementation support and built-in services.
 
 Programs:
@@ -73,7 +73,7 @@ Programs:
   - **gate-run**:
     Run programs locally.  (Being superseded by **gate**.)
 
-See the complete [list of Go packages](https://godoc.org/github.com/tsavola/gate).
+See the complete [list of Go packages](https://godoc.org/gate.computer/gate).
 
 
 ## Objectives
@@ -107,9 +107,9 @@ of continually running programs.
   - [x] Restore
   - [ ] Programs can discover and communicate with their peers on a server
   - [ ] Full ARM64 host support
-  - [ ] [milestone/1](https://github.com/tsavola/gate/milestone/1)
+  - [ ] [milestone/1](https://gate.computer/gate/milestone/1)
   - [ ] Clone programs locally or remotely (with or without snapshotting)
-  - [ ] [milestone/2](https://github.com/tsavola/gate/milestone/2)
+  - [ ] [milestone/2](https://gate.computer/gate/milestone/2)
   - [ ] Expose program instance at some type of internet endpoint to implement ad-hoc servers
   - [ ] Mechanism for implementing services in a programmer-friendly way
   - [ ] Useful resource control policies need more thought (cgroup configuration etc.)
@@ -167,6 +167,6 @@ installed container binary (lib).  That requires:
 - [Service implementation](Service.md)
 - [Security](Security.md)
 - [Container capabilities](Capabilities.md)
-- [Go packages](https://godoc.org/github.com/tsavola/gate)
+- [Go packages](https://godoc.org/gate.computer/gate)
 - [wag](https://github.com/tsavola/wag)
 

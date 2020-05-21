@@ -7,7 +7,7 @@ package server
 import (
 	"log"
 
-	"github.com/tsavola/gate/server/event"
+	"gate.computer/gate/server/event"
 )
 
 // defaultMonitor prints internal errors to default log.

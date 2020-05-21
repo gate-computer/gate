@@ -9,7 +9,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/tsavola/gate/packet"
+	"gate.computer/gate/packet"
 )
 
 func TestWriteStreamEnd(t *testing.T) {

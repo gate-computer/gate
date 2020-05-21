@@ -1,4 +1,4 @@
-module github.com/tsavola/gate
+module gate.computer/gate
 
 go 1.11
 
@@ -19,7 +19,8 @@ require (
 	github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c
 	github.com/tsavola/wag v0.30.0
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
-	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
+	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/sys v0.0.0-20190911201528-7ad0cfa0b7b5
-	golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7
+	golang.org/x/tools v0.0.0-20200520220537-cf2d1e09c845 // indirect
+	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
 )

@@ -10,12 +10,12 @@ import (
 	goruntime "runtime"
 	"time"
 
-	"github.com/tsavola/gate/internal/error/resourcelimit"
-	"github.com/tsavola/gate/runtime"
-	gateruntime "github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/serverapi"
-	"github.com/tsavola/gate/service"
+	"gate.computer/gate/internal/error/resourcelimit"
+	"gate.computer/gate/runtime"
+	gateruntime "gate.computer/gate/runtime"
+	"gate.computer/gate/server"
+	"gate.computer/gate/serverapi"
+	"gate.computer/gate/service"
 	werrors "github.com/tsavola/wag/errors"
 	errors "golang.org/x/xerrors"
 )

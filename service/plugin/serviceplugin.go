@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/tsavola/gate/plugin"
-	"github.com/tsavola/gate/service"
+	"gate.computer/gate/plugin"
+	"gate.computer/gate/service"
 )
 
 // Function names exported by service plugins.

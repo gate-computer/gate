@@ -5,7 +5,7 @@
 /*
 
 Package gate contains general documentation for its subpackages.  See
-https://github.com/tsavola/gate for information about the Gate project.
+https://gate.computer/gate for information about the Gate project.
 
 
 Errors

@@ -8,8 +8,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/gate/packet/packetio"
+	"gate.computer/gate/packet"
+	"gate.computer/gate/packet/packetio"
 )
 
 type stream struct {

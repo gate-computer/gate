@@ -8,7 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/webapi"
 	"golang.org/x/crypto/ed25519"
 )
 

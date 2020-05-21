@@ -7,8 +7,8 @@ package packetio
 import (
 	"errors"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/gate/internal/varint"
+	"gate.computer/gate/internal/error/badprogram"
+	"gate.computer/gate/internal/varint"
 )
 
 const (

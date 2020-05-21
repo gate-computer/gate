@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/source/http"
-	"github.com/tsavola/gate/source/ipfs"
+	"gate.computer/gate/server"
+	"gate.computer/gate/source/http"
+	"gate.computer/gate/source/ipfs"
 )
 
 const (

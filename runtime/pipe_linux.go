@@ -8,7 +8,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/file"
+	"gate.computer/gate/internal/file"
 )
 
 func pipe2(flags int) (r *os.File, w *file.File, err error) {

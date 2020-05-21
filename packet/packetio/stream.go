@@ -12,7 +12,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/tsavola/gate/packet"
+	"gate.computer/gate/packet"
 )
 
 // Stream is a bidirectional stream between a connection and a channel.

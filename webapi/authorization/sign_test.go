@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/webapi"
 	"golang.org/x/crypto/ed25519"
 )
 

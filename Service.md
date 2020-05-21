@@ -1,8 +1,8 @@
 # Service implementation
 
 See
-[ServiceRegistry](https://godoc.org/github.com/tsavola/gate/runtime#ServiceRegistry),
-[service package](https://godoc.org/github.com/tsavola/gate/service) and
+[ServiceRegistry](https://godoc.org/gate.computer/gate/runtime#ServiceRegistry),
+[service package](https://godoc.org/gate.computer/gate/service) and
 [C API](C.md#packet-header) documentation.
 
 

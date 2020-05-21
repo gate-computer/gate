@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
+	"gate.computer/gate/internal/error/badprogram"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/wa"
 	errors "golang.org/x/xerrors"

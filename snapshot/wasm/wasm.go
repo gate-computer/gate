@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/gate/internal/manifest"
-	"github.com/tsavola/gate/snapshot"
-	"github.com/tsavola/gate/trap"
+	"gate.computer/gate/internal/error/badprogram"
+	"gate.computer/gate/internal/manifest"
+	"gate.computer/gate/snapshot"
+	"gate.computer/gate/trap"
 	"github.com/tsavola/wag/section"
 )
 

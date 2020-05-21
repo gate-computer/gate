@@ -7,9 +7,9 @@ package webserver
 import (
 	"context"
 
-	"github.com/tsavola/gate/internal/error/subsystem"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/event"
+	"gate.computer/gate/internal/error/subsystem"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/event"
 )
 
 func reportInternalError(ctx context.Context, s *webserver, sourceURI, progHash, function, instID string, err error) {

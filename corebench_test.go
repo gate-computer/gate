@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tsavola/gate/image"
-	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/trap"
+	"gate.computer/gate/image"
+	"gate.computer/gate/runtime"
+	"gate.computer/gate/trap"
 	"github.com/tsavola/wag/object"
 )
 

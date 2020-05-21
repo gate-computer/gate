@@ -8,7 +8,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/tsavola/gate/internal/runtimeapi"
+	"gate.computer/gate/internal/runtimeapi"
 )
 
 const MaxProcs = 16384 // Per Executor.

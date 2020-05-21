@@ -8,7 +8,7 @@ package webserverapi;
 
 import "serverapi/serverapi.proto";
 
-option go_package = "github.com/tsavola/gate/internal/webserverapi";
+option go_package = "gate.computer/gate/internal/webserverapi";
 
 message IOConnection {
 	bool connected = 1;

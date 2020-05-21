@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
+	"gate.computer/gate/internal/error/badprogram"
 )
 
 const MaxLen = binary.MaxVarintLen32

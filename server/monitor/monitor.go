@@ -8,8 +8,8 @@ package monitor
 import (
 	"context"
 
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/event"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/event"
 )
 
 const (

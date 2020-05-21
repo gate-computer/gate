@@ -7,7 +7,7 @@
 package image
 
 import (
-	"github.com/tsavola/gate/internal/file"
+	"gate.computer/gate/internal/file"
 )
 
 const memoryFileWriteSupported = true

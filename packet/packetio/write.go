@@ -11,8 +11,8 @@ import (
 	"math/bits"
 	"sync/atomic"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/gate/packet"
+	"gate.computer/gate/internal/error/badprogram"
+	"gate.computer/gate/packet"
 )
 
 const errWriteBufferOverflow = badprogram.Err("write stream buffer overflow")

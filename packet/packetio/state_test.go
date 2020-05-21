@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/tsavola/gate/packet"
+	"gate.computer/gate/packet"
 )
 
 type state interface {

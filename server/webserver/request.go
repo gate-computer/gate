@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/webapi"
 )
 
 func acceptsText(r *http.Request) bool {

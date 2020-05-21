@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/file"
+	"gate.computer/gate/internal/file"
 )
 
 func socketPipe() (r *file.Ref, w *file.File, err error) {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unsafe"
 
-	internal "github.com/tsavola/gate/internal/executable"
+	internal "gate.computer/gate/internal/executable"
 )
 
 func TestStackVars(*testing.T) {

@@ -16,12 +16,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
-	internal "github.com/tsavola/gate/internal/error/runtime"
-	"github.com/tsavola/gate/internal/executable"
-	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/snapshot"
-	"github.com/tsavola/gate/trap"
+	"gate.computer/gate/internal/error/badprogram"
+	internal "gate.computer/gate/internal/error/runtime"
+	"gate.computer/gate/internal/executable"
+	"gate.computer/gate/internal/file"
+	"gate.computer/gate/snapshot"
+	"gate.computer/gate/trap"
 	"github.com/tsavola/wag/object/abi"
 )
 

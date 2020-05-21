@@ -14,7 +14,7 @@ import (
 	"database/sql/driver"
 	"time"
 
-	"github.com/tsavola/gate/server/database"
+	"gate.computer/gate/server/database"
 )
 
 func init() {

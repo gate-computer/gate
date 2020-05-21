@@ -8,9 +8,9 @@ import (
 	"context"
 	"log"
 
-	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/service"
+	"gate.computer/gate/packet"
+	"gate.computer/gate/principal"
+	"gate.computer/gate/service"
 )
 
 const (

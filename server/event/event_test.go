@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/detail"
-	"github.com/tsavola/gate/server/event"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/detail"
+	"gate.computer/gate/server/event"
 )
 
 func TestFailInternal(t *testing.T) {

@@ -7,7 +7,7 @@ package sshkey
 import (
 	"fmt"
 
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/webapi"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 )

@@ -5,7 +5,7 @@
 package snapshot
 
 import (
-	"github.com/tsavola/gate/trap"
+	"gate.computer/gate/trap"
 )
 
 type Flags uint64

@@ -3,7 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Package webapi contains definitions useful for accessing the HTTP and
-// websocket APIs.  See https://github.com/tsavola/gate/blob/master/Web.md for
+// websocket APIs.  See https://gate.computer/gate/blob/master/Web.md for
 // general documentation.
 package webapi
 
@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/tsavola/gate/serverapi"
+	"gate.computer/gate/serverapi"
 )
 
 // Name of the module reference source and associated content hash algorithm.

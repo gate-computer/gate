@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tsavola/gate/internal/principal"
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/internal/principal"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/webapi"
 	"golang.org/x/crypto/ed25519"
 )
 

@@ -12,8 +12,8 @@ import (
 	"log"
 	"sync"
 
-	"github.com/tsavola/gate/internal/varint"
-	"github.com/tsavola/gate/packet"
+	"gate.computer/gate/internal/varint"
+	"gate.computer/gate/packet"
 )
 
 type instance struct {

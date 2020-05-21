@@ -11,7 +11,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/test/fuzz/fuzzutil"
+	"gate.computer/gate/internal/test/fuzz/fuzzutil"
 )
 
 var s = fuzzutil.NewServer(context.Background(), os.Getenv("GATE_FUZZ_RUNTIME_LIBDIR"))

@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	inprincipal "github.com/tsavola/gate/internal/principal"
-	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/scope/program/system"
-	"github.com/tsavola/gate/server"
+	inprincipal "gate.computer/gate/internal/principal"
+	"gate.computer/gate/principal"
+	"gate.computer/gate/scope/program/system"
+	"gate.computer/gate/server"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 )

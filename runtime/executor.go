@@ -16,9 +16,9 @@ import (
 	"sync/atomic"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/defaultlog"
-	"github.com/tsavola/gate/internal/file"
-	"github.com/tsavola/gate/internal/runtimeapi"
+	"gate.computer/gate/internal/defaultlog"
+	"gate.computer/gate/internal/file"
+	"gate.computer/gate/internal/runtimeapi"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")

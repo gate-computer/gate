@@ -11,12 +11,12 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/tsavola/gate/internal/error/public"
-	inprincipal "github.com/tsavola/gate/internal/principal"
-	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/internal/error/public"
+	inprincipal "gate.computer/gate/internal/principal"
+	"gate.computer/gate/principal"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/webapi"
 )
 
 func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) context.Context {

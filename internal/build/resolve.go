@@ -5,7 +5,7 @@
 package build
 
 import (
-	"github.com/tsavola/gate/internal/error/notfound"
+	"gate.computer/gate/internal/error/notfound"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/wa"

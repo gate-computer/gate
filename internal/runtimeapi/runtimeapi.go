@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/tsavola/gate/internal/cred"
-	runtimeerrors "github.com/tsavola/gate/internal/error/runtime"
+	"gate.computer/gate/internal/cred"
+	runtimeerrors "gate.computer/gate/internal/error/runtime"
 )
 
 const (

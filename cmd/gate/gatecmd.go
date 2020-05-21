@@ -13,8 +13,8 @@ import (
 	"os"
 	"strings"
 
+	"gate.computer/gate/internal/cmdconf"
 	"github.com/tsavola/confi"
-	"github.com/tsavola/gate/internal/cmdconf"
 	"golang.org/x/sys/unix"
 )
 

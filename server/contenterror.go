@@ -5,8 +5,8 @@
 package server
 
 import (
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/server/internal/error/failrequest"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/internal/error/failrequest"
 )
 
 func wrapContentError(err error) error {

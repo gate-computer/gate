@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/webserver"
-	"github.com/tsavola/gate/webapi"
+	"gate.computer/gate/runtime"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/webserver"
+	"gate.computer/gate/webapi"
 )
 
 func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/gate/runtime"
-	"github.com/tsavola/gate/snapshot"
+	"gate.computer/gate/packet"
+	"gate.computer/gate/runtime"
+	"gate.computer/gate/snapshot"
 )
 
 const maxServiceNameLen = 127
@@ -37,8 +37,8 @@ type Instance interface {
 
 // Factory creates instances of a particular service implementation.
 //
-// See https://github.com/tsavola/gate/blob/master/Service.md for service
-// naming conventions.
+// See https://gate.computer/gate/blob/master/Service.md for service naming
+// conventions.
 type Factory interface {
 	ServiceName() string
 	ServiceVersion() string

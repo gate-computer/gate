@@ -6,7 +6,7 @@ syntax = "proto3";
 
 package manifest;
 
-option go_package = "github.com/tsavola/gate/internal/manifest";
+option go_package = "gate.computer/gate/internal/manifest";
 
 message ByteRange {
 	int64 offset = 1;

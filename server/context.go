@@ -7,8 +7,8 @@ package server
 import (
 	"context"
 
-	"github.com/tsavola/gate/principal"
-	"github.com/tsavola/gate/server/detail"
+	"gate.computer/gate/principal"
+	"gate.computer/gate/server/detail"
 )
 
 type contextKey int

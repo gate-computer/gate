@@ -7,7 +7,7 @@ package image
 import (
 	"context"
 
-	"github.com/tsavola/gate/internal/file"
+	"gate.computer/gate/internal/file"
 )
 
 // PreparePrograms wraps a ProgramStorage.  The wrapper creates program

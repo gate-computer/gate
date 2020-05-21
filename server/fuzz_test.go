@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tsavola/gate/internal/test/fuzz/fuzzutil"
-	"github.com/tsavola/gate/server"
+	"gate.computer/gate/internal/test/fuzz/fuzzutil"
+	"gate.computer/gate/server"
 )
 
 func TestFuzz(t *testing.T) {

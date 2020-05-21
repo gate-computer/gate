@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/gate/service"
+	"gate.computer/gate/packet"
+	"gate.computer/gate/service"
 )
 
 const (

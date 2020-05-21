@@ -7,7 +7,7 @@ package failrequest
 import (
 	"fmt"
 
-	"github.com/tsavola/gate/server/event"
+	"gate.computer/gate/server/event"
 )
 
 type Error interface {

@@ -5,7 +5,7 @@
 package image
 
 import (
-	"github.com/tsavola/gate/internal/manifest"
+	"gate.computer/gate/internal/manifest"
 	"github.com/tsavola/wag/section"
 )
 

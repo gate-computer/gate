@@ -10,12 +10,12 @@ import (
 	"path"
 	"time"
 
+	"gate.computer/gate/internal/defaultlog"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/detail"
+	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/monitor"
 	"github.com/gorilla/websocket"
-	"github.com/tsavola/gate/internal/defaultlog"
-	"github.com/tsavola/gate/server"
-	"github.com/tsavola/gate/server/detail"
-	"github.com/tsavola/gate/server/event"
-	"github.com/tsavola/gate/server/monitor"
 )
 
 var (

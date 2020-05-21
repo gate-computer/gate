@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"unsafe"
 
-	"github.com/tsavola/gate/internal/file"
+	"gate.computer/gate/internal/file"
 	"github.com/tsavola/wag/object"
 )
 

@@ -7,7 +7,7 @@ package principal
 import (
 	"context"
 
-	internal "github.com/tsavola/gate/internal/principal"
+	internal "gate.computer/gate/internal/principal"
 )
 
 type ID = internal.ID

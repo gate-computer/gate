@@ -22,10 +22,10 @@ import (
 	"strings"
 	"unicode"
 
+	"gate.computer/gate/runtime/abi"
+	api "gate.computer/gate/serverapi"
+	"gate.computer/gate/webapi"
 	dbus "github.com/godbus/dbus/v5"
-	"github.com/tsavola/gate/runtime/abi"
-	api "github.com/tsavola/gate/serverapi"
-	"github.com/tsavola/gate/webapi"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	objectdebug "github.com/tsavola/wag/object/debug"

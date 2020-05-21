@@ -8,7 +8,7 @@ package serverapi;
 
 import "internal/manifest/manifest.proto";
 
-option go_package = "github.com/tsavola/gate/serverapi";
+option go_package = "gate.computer/gate/serverapi";
 
 message ModuleRef {
 	string id = 1;

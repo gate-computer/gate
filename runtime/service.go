@@ -8,9 +8,9 @@ import (
 	"context"
 	"encoding/binary"
 
-	"github.com/tsavola/gate/internal/error/badprogram"
-	"github.com/tsavola/gate/packet"
-	"github.com/tsavola/gate/snapshot"
+	"gate.computer/gate/internal/error/badprogram"
+	"gate.computer/gate/packet"
+	"gate.computer/gate/snapshot"
 )
 
 const maxServices = 256

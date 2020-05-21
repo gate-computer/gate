@@ -8,7 +8,7 @@ package server.monitor;
 
 import "server/event/event.proto";
 
-option go_package = "github.com/tsavola/gate/server/monitor";
+option go_package = "gate.computer/gate/server/monitor";
 
 message State {
 	uint32 programs_loaded = 1;

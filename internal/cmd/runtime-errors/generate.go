@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/tsavola/gate/internal/error/runtime"
+	"gate.computer/gate/internal/error/runtime"
 )
 
 const (

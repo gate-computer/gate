@@ -7,7 +7,7 @@ package packetio
 import (
 	"testing"
 
-	"github.com/tsavola/gate/packet"
+	"gate.computer/gate/packet"
 )
 
 var (

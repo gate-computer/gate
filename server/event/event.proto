@@ -8,7 +8,7 @@ package server.event;
 
 import "server/detail/detail.proto";
 
-option go_package = "github.com/tsavola/gate/server/event";
+option go_package = "gate.computer/gate/server/event";
 
 enum Type {
 	FAIL_INTERNAL = 0;
