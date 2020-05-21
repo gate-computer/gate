@@ -39,7 +39,6 @@ lib: $(GEN_LIB_SOURCES)
 .PHONY: bin
 bin: $(GEN_BIN_SOURCES)
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate ./cmd/gate
-	$(GO) build $(GOBUILDFLAGS) -o bin/gate-run ./cmd/gate-run
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtimed ./cmd/gate-runtimed
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
 	$(GO) build $(GOBUILDFLAGS) -o bin/gated ./cmd/gated
@@ -79,7 +78,7 @@ install-lib-capabilities: install-lib
 .PHONY: install-bin
 install-bin:
 	install -m 755 -d $(DESTDIR)$(BINDIR)
-	install -m 755 bin/gate bin/gate-runtimed bin/gate-run bin/gate-server bin/gated $(DESTDIR)$(BINDIR)
+	install -m 755 bin/gate bin/gate-runtimed bin/gate-server bin/gated $(DESTDIR)$(BINDIR)
 
 .PHONY: install
 install: install-lib install-bin

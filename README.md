@@ -70,9 +70,6 @@ Programs:
     For optionally preconfiguring the execution environment, e.g. as a system
     service.
 
-  - **gate-run**:
-    Run programs locally.  (Being superseded by **gate**.)
-
 See the complete [list of Go packages](https://godoc.org/gate.computer/gate).
 
 
