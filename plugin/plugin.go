@@ -5,8 +5,8 @@
 package main
 
 import (
+	"gate.computer/gate/service"
 	"gate.computer/localhost"
-	"github.com/tsavola/gate/service"
 )
 
 func ServiceConfig() interface{} {

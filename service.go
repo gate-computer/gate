@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/tsavola/gate/service"
+	"gate.computer/gate/service"
 )
 
 const (
