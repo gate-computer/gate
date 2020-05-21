@@ -24,7 +24,7 @@ func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 	}
 
-	return server.New(config)
+	return server.New(context.Background(), config)
 }
 
 func newBenchHandler(s *server.Server) http.Handler {

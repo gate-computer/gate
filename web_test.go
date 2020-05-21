@@ -116,7 +116,7 @@ func newServices() func(context.Context) server.InstanceServices {
 }
 
 func newServer() (*server.Server, error) {
-	return server.New(server.Config{
+	return server.New(context.Background(), server.Config{
 		ProcessFactory: newExecutor(),
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 	})

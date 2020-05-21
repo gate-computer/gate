@@ -397,7 +397,7 @@ func main2(critLog *log.Logger) error {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server, err = server.New(c.Server.Config)
+	c.HTTP.Server, err = server.New(ctx, c.Server.Config)
 	if err != nil {
 		return err
 	}

@@ -62,7 +62,7 @@ type Server struct {
 	anonymous map[*Instance]struct{}
 }
 
-func New(config Config) (*Server, error) {
+func New(ctx context.Context, config Config) (*Server, error) {
 	if config.ImageStorage == nil {
 		config.ImageStorage = image.Memory
 	}
@@ -101,9 +101,9 @@ func New(config Config) (*Server, error) {
 	defer s.mu.Unlock()
 
 	var owner *account
-	if s.XXX_Owner != nil {
-		owner = newAccount(s.XXX_Owner)
-		s.accounts[inprincipal.Raw(s.XXX_Owner)] = owner
+	if id := principal.ContextID(ctx); id != nil {
+		owner = newAccount(id)
+		s.accounts[inprincipal.Raw(id)] = owner
 	}
 
 	for _, hash := range progList {

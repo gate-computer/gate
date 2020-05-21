@@ -174,11 +174,10 @@ func mainResult() int {
 		panic(reply)
 	}
 
-	s, err := server.New(server.Config{
+	s, err := server.New(ctx, server.Config{
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
-		XXX_Owner:      principal.ContextID(ctx),
 	})
 	check(err)
 	defer s.Shutdown(ctx)

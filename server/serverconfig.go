@@ -10,7 +10,6 @@ import (
 	"io"
 
 	"gate.computer/gate/image"
-	"gate.computer/gate/principal"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server/detail"
 	"github.com/gogo/protobuf/proto"
@@ -50,9 +49,6 @@ type Config struct {
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
 	Monitor        func(Event, error)
-
-	// TODO: remove this after there is some kind of ownership database
-	XXX_Owner *principal.ID
 }
 
 func (c *Config) Configured() bool {
