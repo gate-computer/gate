@@ -9,8 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	inprincipal "gate.computer/gate/internal/principal"
-	"gate.computer/gate/principal"
+	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	"golang.org/x/crypto/ed25519"
@@ -83,7 +82,7 @@ func (ak *AuthorizedKeys) Authorize(ctx context.Context) (context.Context, error
 		return ctx, errUnauthorized
 	}
 
-	uid, found := ak.publicKeys[inprincipal.Raw(pri)]
+	uid, found := ak.publicKeys[principal.Raw(pri)]
 	if !found {
 		return ctx, errForbidden
 	}

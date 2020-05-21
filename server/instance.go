@@ -18,8 +18,7 @@ import (
 	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/error/subsystem"
 	"gate.computer/gate/internal/manifest"
-	inprincipal "gate.computer/gate/internal/principal"
-	"gate.computer/gate/principal"
+	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
@@ -56,7 +55,7 @@ func parseInstanceStorageKey(key string) (pri *principal.ID, instID string, err 
 		return
 	}
 
-	pri, err = inprincipal.ParseID(key[:i])
+	pri, err = principal.ParseID(key[:i])
 	if err != nil {
 		return
 	}

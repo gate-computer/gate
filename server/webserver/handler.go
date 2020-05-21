@@ -16,8 +16,8 @@ import (
 	"strings"
 
 	"gate.computer/gate/internal/jsonproto"
+	"gate.computer/gate/internal/principal"
 	api "gate.computer/gate/internal/webserverapi"
-	"gate.computer/gate/principal"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"

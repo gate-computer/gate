@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"gate.computer/gate/internal/error/public"
-	inprincipal "gate.computer/gate/internal/principal"
+	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/webapi"
@@ -80,7 +80,7 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	// information about its validity.
 	mustVerifyNonce(ctx, ew, s, pri, claims.Nonce, claims.Exp)
 
-	ctx = inprincipal.ContextWithID(ctx, pri.PrincipalID())
+	ctx = principal.ContextWithID(ctx, pri.PrincipalID())
 	ctx = server.ContextWithScope(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
 	return ctx
 }
@@ -129,11 +129,11 @@ func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, 
 }
 
 func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *webapi.PublicKey,
-) (pri *inprincipal.Key) {
+) (pri *principal.Key) {
 	var err error
 
 	if jwk.Kty == webapi.KeyTypeOctetKeyPair && jwk.Crv == webapi.KeyCurveEd25519 {
-		pri, err = inprincipal.ParseEd25519Key(jwk.X)
+		pri, err = principal.ParseEd25519Key(jwk.X)
 		if err == nil {
 			return pri
 		}

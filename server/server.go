@@ -13,8 +13,7 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/error/resourcelimit"
-	inprincipal "gate.computer/gate/internal/principal"
-	"gate.computer/gate/principal"
+	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
@@ -103,7 +102,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	var owner *account
 	if id := principal.ContextID(ctx); id != nil {
 		owner = newAccount(id)
-		s.accounts[inprincipal.Raw(id)] = owner
+		s.accounts[principal.Raw(id)] = owner
 	}
 
 	for _, hash := range progList {
@@ -688,7 +687,7 @@ func (s *Server) ModuleRefs(ctx context.Context) (refs api.ModuleRefs, err error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	acc := s.accounts[inprincipal.Raw(pri)]
+	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
 		return
 	}
@@ -721,7 +720,7 @@ func (s *Server) ModuleContent(ctx context.Context, hash string,
 		lock := s.mu.Lock()
 		defer s.mu.Unlock()
 
-		acc := s.accounts[inprincipal.Raw(pri)]
+		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
 			return nil
 		}
@@ -792,7 +791,7 @@ func (s *Server) UnrefModule(ctx context.Context, hash string) (err error) {
 		lock := s.mu.Lock()
 		defer s.mu.Unlock()
 
-		acc := s.accounts[inprincipal.Raw(pri)]
+		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
 			return false
 		}
@@ -1175,7 +1174,7 @@ func (s *Server) Instances(ctx context.Context) (statuses api.Instances, err err
 		s.mu.Lock()
 		defer s.mu.Unlock()
 
-		if acc := s.accounts[inprincipal.Raw(pri)]; acc != nil {
+		if acc := s.accounts[principal.Raw(pri)]; acc != nil {
 			is = make([]*Instance, 0, len(acc.instances))
 			for _, x := range acc.instances {
 				is = append(is, x.inst)
@@ -1196,10 +1195,10 @@ func (s *Server) Instances(ctx context.Context) (statuses api.Instances, err err
 
 // ensureAccount must not be called while the server is shutting down.
 func (s *Server) ensureAccount(_ serverLock, pri *principal.ID) (acc *account) {
-	acc = s.accounts[inprincipal.Raw(pri)]
+	acc = s.accounts[principal.Raw(pri)]
 	if acc == nil {
 		acc = newAccount(pri)
-		s.accounts[inprincipal.Raw(pri)] = acc
+		s.accounts[principal.Raw(pri)] = acc
 	}
 	return
 }
@@ -1374,7 +1373,7 @@ func (s *Server) getInstanceRefProgram(ctx context.Context, instID string,
 
 func (s *Server) getInstanceBorrowProgram(_ serverLock, pri *principal.ID, instID string,
 ) (x accountInstance, err error) {
-	acc := s.accounts[inprincipal.Raw(pri)]
+	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
 		err = resourcenotfound.ErrInstance
 		return

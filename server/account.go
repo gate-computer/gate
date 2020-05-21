@@ -5,7 +5,7 @@
 package server
 
 import (
-	"gate.computer/gate/principal"
+	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 )

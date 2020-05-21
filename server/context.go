@@ -7,7 +7,7 @@ package server
 import (
 	"context"
 
-	"gate.computer/gate/principal"
+	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server/detail"
 )
 
