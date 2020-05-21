@@ -119,6 +119,7 @@ internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-
 server/event/event.pb.go: server/detail/detail.proto
 
 server/event/type.gen.go: server/event/event.pb.go internal/cmd/event-types/generate.go
+	mkdir -p tmp
 	[ ! -e $@ ] || (echo "package event" > tmp/empty.go && touch --reference=$@ tmp/empty.go)
 	$(GO) run ./internal/cmd/event-types/generate.go | $(GOFMT) > tmp/$(notdir $@)
 	mv tmp/$(notdir $@) $@
