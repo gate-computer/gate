@@ -45,8 +45,8 @@ const (
 
 // Defaults are relative to home directory.
 var Defaults = []string{
-	".config/gate/gated.toml",
-	".config/gate/gated.d/*.toml",
+	".config/gate/daemon.toml",
+	".config/gate/daemon.d/*.toml",
 }
 
 type Config struct {

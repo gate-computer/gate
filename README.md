@@ -60,7 +60,7 @@ Programs:
     Command-line client for local daemon and remote servers.  Uses SSH keys
     (Ed25519) for authentication.
 
-  - **gated**:
+  - **gate-daemon**:
     D-Bus daemon for running and managing instances and wasm modules locally.
 
   - **gate-server**:
@@ -137,7 +137,7 @@ The non-Go components can be built with `make`.  They require:
 `make bin` builds the programs using the Go 1.11 module mechanism.
 (Individual packages may be buildable with older Go versions.)
 
-Running the D-Bus enabled programs (gate and gated) requires:
+Running the D-Bus enabled programs (gate and gate-daemon) requires:
 
   - dbus-user-session
 
