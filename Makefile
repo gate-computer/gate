@@ -4,11 +4,11 @@ PREFIX		:= /usr/local
 LIBDIR		:= $(PREFIX)/lib/gate
 FILENAME	:= $(notdir $(shell $(GO) list)).so
 
-check: build
-	GO111MODULE=on $(GO) test $(GOTESTFLAGS) ./...
-
 build:
 	GO111MODULE=on $(GO) build -trimpath $(GOBUILDFLAGS) -buildmode=plugin -o $(FILENAME) ./plugin
+
+check: build
+	GO111MODULE=on $(GO) test $(GOTESTFLAGS) ./...
 	GO111MODULE=on $(GO) vet $(GOVETFLAGS) ./...
 
 install:
@@ -18,4 +18,4 @@ install:
 clean:
 	rm -f *.so
 
-.PHONY: check build install clean
+.PHONY: build check install clean
