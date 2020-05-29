@@ -4,6 +4,8 @@ PREFIX		:= /usr/local
 LIBDIR		:= $(PREFIX)/lib/gate
 FILENAME	:= $(notdir $(shell $(GO) list)).so
 
+-include config.mk
+
 build:
 	GO111MODULE=on $(GO) build -trimpath $(GOBUILDFLAGS) -buildmode=plugin -o $(FILENAME) ./plugin
 
