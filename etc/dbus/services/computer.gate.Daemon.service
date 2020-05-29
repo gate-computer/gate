@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=computer.gate.Daemon
 Exec=/usr/local/bin/gated
-SystemdService=gated.service
+SystemdService=gate.service

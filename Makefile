@@ -101,7 +101,7 @@ install-systemd: install-systemd-user
 .PHONY: install-systemd-user
 install-systemd-user:
 	install -m 755 -d $(PREFIX)/share/dbus-1/services $(PREFIX)/share/systemd/user
-	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/systemd/user/gated.service > $(PREFIX)/share/systemd/user/gated.service
+	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/systemd/user/gate.service > $(PREFIX)/share/systemd/user/gate.service
 	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/dbus/services/computer.gate.Daemon.service > $(PREFIX)/share/dbus-1/services/computer.gate.Daemon.service
 
 internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
