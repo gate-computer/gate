@@ -7,7 +7,7 @@ FILENAME	:= $(notdir $(shell $(GO) list)).so
 -include config.mk
 
 build:
-	GO111MODULE=on $(GO) build -trimpath $(GOBUILDFLAGS) -buildmode=plugin -o $(FILENAME) ./plugin
+	GO111MODULE=on $(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o $(FILENAME) ./plugin
 
 check: build
 	GO111MODULE=on $(GO) test $(GOTESTFLAGS) ./...
