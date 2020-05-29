@@ -66,9 +66,9 @@ Programs:
   - **gate-server**:
     Standalone web server which can serve the public or require authentication.
 
-  - **gate-runtimed**:
-    For optionally preconfiguring the execution environment, e.g. as a system
-    service.
+  - **gate-runtime**:
+    For optionally preconfiguring the execution environment for daemon/server,
+    e.g. as a system service.
 
 See the complete [list of Go packages](https://godoc.org/gate.computer/gate).
 
