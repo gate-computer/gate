@@ -39,9 +39,9 @@ lib: $(GEN_LIB_SOURCES)
 .PHONY: bin
 bin: $(GEN_BIN_SOURCES)
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate ./cmd/gate
-	$(GO) build -trimpath $(GOBUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
+	$(GO) build $(GOBUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtime ./cmd/gate-runtime
-	$(GO) build -trimpath $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
+	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
 
 .PHONY: generate
 generate: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
@@ -53,15 +53,15 @@ all: lib bin
 check: lib bin
 	$(MAKE) -C runtime/executor/test check
 	$(MAKE) -C runtime/loader/test check
-	$(GO) build -trimpath $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/generic-test.so ./internal/test/generic-plugin
-	$(GO) build -trimpath $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/service-test.so ./internal/test/service-plugin
+	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/generic-test.so ./internal/test/generic-plugin
+	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/service-test.so ./internal/test/service-plugin
 	$(GO) build -o /dev/null ./...
 	$(GO) vet ./...
-	$(GO) test -trimpath $(GOTESTFLAGS) ./...
+	$(GO) test $(GOTESTFLAGS) ./...
 
 .PHONY: benchmark
 benchmark: lib bin
-	$(PERFLOCK) $(GO) test -trimpath -run=^$$ $(GOBENCHFLAGS) ./... | tee bench-new.txt
+	$(PERFLOCK) $(GO) test -run=^$$ $(GOBENCHFLAGS) ./... | tee bench-new.txt
 	[ ! -e bench-old.txt ] || benchstat bench-old.txt bench-new.txt
 
 .PHONY: install-lib
