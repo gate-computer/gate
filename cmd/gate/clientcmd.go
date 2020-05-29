@@ -27,8 +27,8 @@ const (
 
 // Defaults are relative to home directory.
 var Defaults = []string{
-	".config/gate/gate.toml",
-	".config/gate/gate.d/*.toml",
+	".config/gate/client.toml",
+	".config/gate/client.d/*.toml",
 }
 
 type Config struct {
@@ -95,8 +95,8 @@ Module can be a local wasm file, a reference, or a supported source:
 `
 
 const mainUsageTail = `
-Default configuration is read from ~/.config/gate/gate.toml if it exists.
-It will be ignored if the -F option is used.
+Default configuration is read from ~/.config/gate/client.toml and/or
+~/.config/gate/client.d/*.toml.  They will be ignored if the -F option is used.
 `
 
 func parseCallFlags() {
