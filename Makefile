@@ -8,7 +8,7 @@ check: build
 	GO111MODULE=on $(GO) test $(GOTESTFLAGS) ./...
 
 build:
-	GO111MODULE=on $(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o $(FILENAME) ./plugin
+	GO111MODULE=on $(GO) build -trimpath $(GOBUILDFLAGS) -buildmode=plugin -o $(FILENAME) ./plugin
 	GO111MODULE=on $(GO) vet $(GOVETFLAGS) ./...
 
 install:
