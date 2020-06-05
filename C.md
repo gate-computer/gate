@@ -162,6 +162,7 @@ struct gate_packet {
 	uint32_t size;
 	int16_t code;
 	uint8_t domain;
+	uint8_t index;
 };
 ```
 > The size includes the header and the trailing contents, but not the padding.
@@ -169,9 +170,17 @@ struct gate_packet {
 > Non-negative codes identify discovered services.  Negative codes are for
 > built-in functionality.
 >
+> The index field must be zero in sent packets.  It must be ignored in received
+> packets unless it is specified for a domain.
+>
+> The four least significant bits of the domain field specify the domain.  The
+> four most significant bits must be unset in sent packets and ignored in
+> received packets.
+>
 > The `GATE_PACKET_DOMAIN_CALL` domain is used for sending requests to
-> services.  Each request is matched with one response.  The responses are
-> received in the same order as requests are sent (per service).
+> services.  Each request is matched with one response.  Pending requests form
+> a queue (per service); a response resolves the request in the queue at the
+> index specified in the response packet.
 >
 > The `GATE_PACKET_DOMAIN_INFO` domain is for receiving state change
 > notifications from services.  A service won't start sending notifications

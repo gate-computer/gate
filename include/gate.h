@@ -239,7 +239,7 @@ struct gate_packet {
 	uint32_t size;
 	int16_t code;
 	uint8_t domain;
-	uint8_t __reserved[1];
+	uint8_t index;
 } GATE_PACKED;
 
 struct gate_service_name_packet {

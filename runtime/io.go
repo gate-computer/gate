@@ -19,10 +19,6 @@ import (
 	"gate.computer/gate/snapshot"
 )
 
-const (
-	packetReservedOffset = 7
-)
-
 func popServiceBuffers(frozen *snapshot.Buffers) (services []snapshot.Service) {
 	if frozen == nil {
 		return
@@ -311,16 +307,8 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 		panic(errors.New("invalid outgoing message packet buffer length"))
 	}
 
-	if p[packetReservedOffset] != 0 {
-		panic(errors.New("reserved byte is nonzero in outgoing message packet header"))
-	}
-
 	if p.Code() < 0 {
 		panic(errors.New("negative service code in outgoing message packet header"))
-	}
-
-	if p.Domain() > packet.DomainData {
-		panic(errors.New("invalid domain in outgoing message packet header"))
 	}
 
 	// Service implementations only need to initialize code and domain fields.
@@ -392,11 +380,6 @@ func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer,
 }
 
 func checkServicePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg packet.Buf, err error) {
-	if x := p[packetReservedOffset]; x != 0 {
-		err = badprogram.Errorf("reserved byte has value 0x%02x in buffered packet header", x)
-		return
-	}
-
 	if int(p.Code()) >= discoverer.NumServices() {
 		err = badprogram.Errorf("invalid service code in packet: %d", p.Code())
 		return

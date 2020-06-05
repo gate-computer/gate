@@ -224,7 +224,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		}
 	}
 
-	reply := packet.MakeCall(inst.Code, 8)
+	reply := packet.MakeCall(inst.Code, 0, 8)
 	binary.LittleEndian.PutUint32(reply.Content(), uint32(id))
 
 	var cancel bool

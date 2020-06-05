@@ -77,5 +77,5 @@ func ImportData(b []byte, c Code) (p DataBuf, err error) {
 }
 
 func isValidHeader(b []byte, n int, c Code, d Domain) bool {
-	return len(b) >= n && Buf(b).Code() == c && Buf(b).Domain() == d && b[offsetReserved] == 0
+	return len(b) >= n && Buf(b).Code() == c && Buf(b).Domain() == d
 }

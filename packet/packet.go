@@ -48,11 +48,11 @@ const (
 	Alignment = 8
 
 	// Packet header
-	OffsetSize     = 0
-	OffsetCode     = 4
-	OffsetDomain   = 6
-	offsetReserved = 7
-	HeaderSize     = 8
+	OffsetSize   = 0
+	OffsetCode   = 4
+	OffsetDomain = 6
+	OffsetIndex  = 7
+	HeaderSize   = 8
 
 	// Services packet header
 	OffsetServicesCount = HeaderSize + 0
@@ -88,8 +88,10 @@ func Make(code Code, domain Domain, packetSize int) Buf {
 	return b
 }
 
-func MakeCall(code Code, contentSize int) Buf {
-	return Make(code, DomainCall, HeaderSize+contentSize)
+func MakeCall(code Code, index uint8, contentSize int) Buf {
+	b := Make(code, DomainCall, HeaderSize+contentSize)
+	b[OffsetIndex] = index
+	return b
 }
 
 func MakeInfo(code Code, contentSize int) Buf {
@@ -133,7 +135,11 @@ func (b Buf) Code() Code {
 }
 
 func (b Buf) Domain() Domain {
-	return Domain(b[OffsetDomain])
+	return Domain(b[OffsetDomain] & 15)
+}
+
+func (b Buf) Index() uint8 {
+	return b[OffsetIndex]
 }
 
 // Content of a received packet, or buffer for initializing sent packet.

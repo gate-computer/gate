@@ -27,8 +27,8 @@ func (code Code) String() string {
 
 func (b Buf) String() (s string) {
 	var (
-		size     string
-		reserved string
+		size  string
+		index string
 	)
 
 	if n := binary.LittleEndian.Uint32(b); n == 0 || n == uint32(len(b)) {
@@ -37,11 +37,11 @@ func (b Buf) String() (s string) {
 		size = fmt.Sprintf("%d/%d", n, len(b))
 	}
 
-	if x := b[offsetReserved]; x != 0 {
-		reserved = fmt.Sprintf(" reserved=0x%02x", x)
+	if i := b.Index(); i != 0 {
+		index = fmt.Sprintf(" index=%d", i)
 	}
 
-	s = fmt.Sprintf("size=%s code=%s domain=%s%s", size, b.Code(), b.Domain(), reserved)
+	s = fmt.Sprintf("size=%s code=%s domain=%s%s", size, b.Code(), b.Domain(), index)
 
 	switch b.Domain() {
 	case DomainFlow:
