@@ -38,6 +38,15 @@ Services which don't implement any calls (yet) may choose to not answer them
 (yet), if that seems more appropriate.  But please note that in such a case
 programs cannot detect unsupported calls.
 
+A service may respond to calls out-of-order by setting the index field to a
+nonzero value in the reply packets.  The window is limited to 256 calls;
+additional calls will cause head-of-line blocking.
+
+If a service processes calls asynchronously, there is a danger of unbounded
+resource usage, as the user program may queue lots of calls.  The service
+should avoid that by specifying an API contract, such as a maximum number of
+calls after which further calls block or kill the whole instance.
+
 
 ## Error codes
 
