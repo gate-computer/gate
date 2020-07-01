@@ -17,7 +17,7 @@ require (
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
 	github.com/tsavola/confi v1.4.0
 	github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c
-	github.com/tsavola/wag v0.30.0
+	github.com/tsavola/wag v0.31.0
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/sys v0.0.0-20190911201528-7ad0cfa0b7b5
