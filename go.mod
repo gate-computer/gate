@@ -20,7 +20,7 @@ require (
 	github.com/tsavola/wag v0.31.0
 	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
-	golang.org/x/sys v0.0.0-20190911201528-7ad0cfa0b7b5
+	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
 	golang.org/x/tools v0.0.0-20200520220537-cf2d1e09c845 // indirect
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
 )
