@@ -8,7 +8,7 @@ require (
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
 	github.com/coreos/go-systemd/v22 v22.0.0
 	github.com/godbus/dbus/v5 v5.0.3
-	github.com/gogo/protobuf v0.0.0-20180829064059-3cefc55c28cf
+	github.com/gogo/protobuf v1.3.1
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.3.0
