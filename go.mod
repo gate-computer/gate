@@ -11,7 +11,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/handlers v1.2.1
-	github.com/gorilla/websocket v1.3.0
+	github.com/gorilla/websocket v1.4.1
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.8.0
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
