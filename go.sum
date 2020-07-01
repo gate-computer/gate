@@ -1,5 +1,3 @@
-github.com/bnagy/gapstone v0.0.0-20180903222833-a85919f1441b h1:O4CVbgOA/EptWddt/B0WPYP81BIxmftaXPWr9d/0EF8=
-github.com/bnagy/gapstone v0.0.0-20180903222833-a85919f1441b/go.mod h1:d1o1fFyYsZmHPaDFsSrWMD1fwRqU/KMZiY0//gtBIdc=
 github.com/chzyer/logex v1.1.10 h1:Swpa1K6QvQznwJRcfTfQJmTE72DqScAa40E+fbHEXEE=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e h1:fY5BOSpyZCqRo5OhCuC+XN+r/bBCmeuuJtjz+bCNIf8=
@@ -27,6 +25,7 @@ github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
+github.com/knightsc/gapstone v0.0.0-20180903222833-a85919f1441b/go.mod h1:N9Q82fxOi8Fp9pHE2eflNZf5/FSg1815WZFhV8Gc2PE=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/mattn/go-sqlite3 v1.8.0 h1:n4Yp7m+83/fCZWiO7nnf6WZAB41luGNFae+GMQPPe50=
@@ -47,8 +46,8 @@ github.com/tsavola/confi v1.4.0 h1:ayRGdRNdUL7bx0ZWrT1N2ok4iG6wmCszc+oGHt7NB0c=
 github.com/tsavola/confi v1.4.0/go.mod h1:jDz8ndC0blU/9D7QrKGKULsFxiDqoLZ2rCoaC6CsbJ0=
 github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c h1:COmD00ZkQXghtpt+b6xuY6PuCRb00pM7io8k4aMJ6vE=
 github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c/go.mod h1:mvjKRkLD4rvc91gFN0bwazjw9lMm0JvJHnohO+OaXcU=
-github.com/tsavola/wag v0.31.0 h1:pY4IicAIdjVB2FAC1vGjWaUzfta5zBCoU6x/epdmlZo=
-github.com/tsavola/wag v0.31.0/go.mod h1:xIUyXe10Wd1w4V+vb7hcuZBwyxPXfihJBRRCKwfUMJg=
+github.com/tsavola/wag v0.31.1 h1:2kKgC3NTefi/Q3PfQp2jIyVN+LChYtq4AFjDeLsIeUw=
+github.com/tsavola/wag v0.31.1/go.mod h1:uUNDYhPO5J9oaBGEW2pe5rGmawoD6wd7JP0SijFGXTQ=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/crypto v0.0.0-20191011190513-0e8c3a9068a2 h1:ZnJ9xVq6YV8+NMXpa/eTusBVcqpbkrKbKIuhJrfIE9s=
