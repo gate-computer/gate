@@ -88,10 +88,8 @@ func Make(code Code, domain Domain, packetSize int) Buf {
 	return b
 }
 
-func MakeCall(code Code, index uint8, contentSize int) Buf {
-	b := Make(code, DomainCall, HeaderSize+contentSize)
-	b[OffsetIndex] = index
-	return b
+func MakeCall(code Code, contentSize int) Buf {
+	return Make(code, DomainCall, HeaderSize+contentSize)
 }
 
 func MakeInfo(code Code, contentSize int) Buf {
@@ -140,6 +138,10 @@ func (b Buf) Domain() Domain {
 
 func (b Buf) Index() uint8 {
 	return b[OffsetIndex]
+}
+
+func (b Buf) SetIndex(i uint8) {
+	b[OffsetIndex] = i
 }
 
 // Content of a received packet, or buffer for initializing sent packet.

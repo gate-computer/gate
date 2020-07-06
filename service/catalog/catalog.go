@@ -93,7 +93,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 
 func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	// TODO: correct buf size in advance
-	b := bytes.NewBuffer(packet.MakeCall(inst.Code, 0, 128)[:packet.HeaderSize])
+	b := bytes.NewBuffer(packet.MakeCall(inst.Code, 128)[:packet.HeaderSize])
 
 	if inst.pending == pendingJSON {
 		res := response{inst.r.Catalog(ctx)}
