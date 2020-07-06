@@ -183,7 +183,7 @@ func (s *sender) loop(unsent chan<- []packet.Buf, send chan<- packet.Buf, handle
 			}()
 
 			p := h.res
-			p[packet.OffsetIndex] = index
+			p.SetIndex(index)
 			buffered = append(buffered, p)
 
 		case sending <- sendable:
