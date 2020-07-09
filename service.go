@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	ServiceName    = "gate.computer/localhost"
-	ServiceVersion = "0"
+	serviceName     = "gate.computer/localhost"
+	serviceRevision = "0"
 )
 
 type Config struct {
@@ -114,8 +114,8 @@ type localhost struct {
 	client *http.Client
 }
 
-func (*localhost) ServiceName() string               { return ServiceName }
-func (*localhost) ServiceVersion() string            { return ServiceVersion }
+func (*localhost) ServiceName() string               { return serviceName }
+func (*localhost) ServiceRevision() string           { return serviceRevision }
 func (*localhost) Discoverable(context.Context) bool { return true }
 
 func (l *localhost) CreateInstance(ctx context.Context, config service.InstanceConfig) service.Instance {
