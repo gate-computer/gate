@@ -12,9 +12,11 @@ import (
 )
 
 const (
-	ServiceName    = "origin"
-	ServiceVersion = "0"
+	serviceName     = "origin"
+	serviceRevision = "0"
+)
 
+const (
 	DefaultMaxConns = 3
 	DefaultBufSize  = 32768
 )
@@ -63,8 +65,8 @@ func (cr *Connector) Close() (err error) {
 	return
 }
 
-func (cr *Connector) ServiceName() string               { return ServiceName }
-func (cr *Connector) ServiceVersion() string            { return ServiceVersion }
+func (cr *Connector) ServiceName() string               { return serviceName }
+func (cr *Connector) ServiceRevision() string           { return serviceRevision }
 func (cr *Connector) Discoverable(context.Context) bool { return true }
 
 func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig,

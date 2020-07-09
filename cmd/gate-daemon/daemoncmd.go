@@ -114,7 +114,7 @@ func mainResult() int {
 	originConfig := origin.DefaultConfig
 	originConfig.MaxConns = 1e9
 	originConfig.BufSize = origin.DefaultBufSize
-	c.Service[origin.ServiceName] = &originConfig
+	c.Service["origin"] = &originConfig
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n\nOptions:\n", flag.CommandLine.Name())

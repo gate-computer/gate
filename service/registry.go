@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"unicode"
 
@@ -14,12 +15,12 @@ import (
 	"gate.computer/gate/snapshot"
 )
 
-const maxServiceNameLen = 127
+const maxServiceStringLen = 127
 
 // Service metadata.
 type Service struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name     string `json:"name"`
+	Revision string `json:"revision"`
 }
 
 // InstanceConfig for a service instance.
@@ -41,7 +42,7 @@ type Instance interface {
 // conventions.
 type Factory interface {
 	ServiceName() string
-	ServiceVersion() string
+	ServiceRevision() string
 	Discoverable(ctx context.Context) bool
 	CreateInstance(ctx context.Context, config InstanceConfig) Instance
 	RestoreInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
@@ -56,27 +57,32 @@ type Registry struct {
 
 // Register a service implementation.
 func (r *Registry) Register(f Factory) {
-	name := f.ServiceName()
-	if len(name) == 0 {
-		panic("service name is empty")
-	}
-	if len(name) > maxServiceNameLen {
-		panic("service name is too long")
-	}
-	for _, r := range name {
-		if !(unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.IsPunct(r)) {
-			panic("service name contains invalid characters")
-		}
-	}
-
-	if f.ServiceVersion() == "" {
-		panic("service version string is empty")
-	}
+	checkString("name", f.ServiceName(), unicode.IsLetter, unicode.IsNumber, unicode.IsPunct)
+	checkString("revision", f.ServiceRevision(), unicode.IsLetter, unicode.IsMark, unicode.IsNumber, unicode.IsPunct, unicode.IsSymbol)
 
 	if r.factories == nil {
 		r.factories = make(map[string]Factory)
 	}
-	r.factories[name] = f
+	r.factories[f.ServiceName()] = f
+}
+
+func checkString(what, s string, categories ...func(rune) bool) {
+	if len(s) == 0 {
+		panic(fmt.Sprintf("service %s string is empty", what))
+	}
+	if len(s) > maxServiceStringLen {
+		panic(fmt.Sprintf("service %s string is too long", what))
+	}
+
+	for _, r := range s {
+		for _, f := range categories {
+			if f(r) {
+				goto ok
+			}
+		}
+		panic(fmt.Sprintf("service %s string contains invalid characters", what))
+	ok:
+	}
 }
 
 // Clone the registry shallowly.  The new registry may be used to add or
@@ -93,9 +99,9 @@ func (r *Registry) Catalog(ctx context.Context) (services []Service) {
 	m := make(map[string]string)
 	r.catalog(ctx, m)
 
-	for name, version := range m {
-		if version != "" {
-			services = append(services, Service{name, version})
+	for name, revision := range m {
+		if revision != "" {
+			services = append(services, Service{name, revision})
 		}
 	}
 
@@ -109,7 +115,7 @@ func (r *Registry) catalog(ctx context.Context, m map[string]string) {
 
 	for name, f := range r.factories {
 		if f.Discoverable(ctx) {
-			m[name] = f.ServiceVersion()
+			m[name] = f.ServiceRevision()
 		} else {
 			m[name] = ""
 		}

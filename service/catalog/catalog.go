@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	ServiceName    = "catalog"
-	ServiceVersion = "0"
+	serviceName     = "catalog"
+	serviceRevision = "0"
 )
 
 type catalog struct {
@@ -27,8 +27,8 @@ type catalog struct {
 // made to the registry, but not its clones.
 func New(r *service.Registry) service.Factory { return catalog{r} }
 
-func (c catalog) ServiceName() string               { return ServiceName }
-func (c catalog) ServiceVersion() string            { return ServiceVersion }
+func (c catalog) ServiceName() string               { return serviceName }
+func (c catalog) ServiceRevision() string           { return serviceRevision }
 func (c catalog) Discoverable(context.Context) bool { return true }
 
 func (c catalog) CreateInstance(ctx context.Context, config service.InstanceConfig,

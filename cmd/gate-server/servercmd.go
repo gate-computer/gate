@@ -189,7 +189,7 @@ func main() {
 	c.DB = database.DefaultConfig
 
 	originConfig := origin.DefaultConfig
-	c.Service[origin.ServiceName] = &originConfig
+	c.Service["origin"] = &originConfig
 
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)

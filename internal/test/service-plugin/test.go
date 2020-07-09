@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	ServiceName    = "internal/test"
-	ServiceVersion = "10.23.456-7"
+	serviceName     = "internal/test"
+	serviceRevision = "10.23.456-7"
 )
 
 var testConfig struct {
@@ -34,11 +34,11 @@ func InitServices(r *service.Registry) (err error) {
 type testService struct{}
 
 func (testService) ServiceName() string {
-	return ServiceName
+	return serviceName
 }
 
-func (testService) ServiceVersion() string {
-	return ServiceVersion
+func (testService) ServiceRevision() string {
+	return serviceRevision
 }
 
 func (testService) Discoverable(ctx context.Context) bool {

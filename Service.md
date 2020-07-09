@@ -27,6 +27,27 @@ be used, as long as the domain name is controlled by the service author or the
 UUID is properly randomized.
 
 
+## Revisions
+
+Services must be backward- and forward-compatible, so their APIs cannot really
+be evolved without changing the name of the service.  Therefore any major
+version number reflecting API changes should be incorporated into the name
+string.
+
+In order to communicate implementation details such as fixes or alternative
+implementations, services have a human-readable revision string.  It has
+otherwise the same constraints as the service name, except that it can also
+contain mark and symbol characters.
+
+Example revision strings:
+
+  `0`
+  `1`
+  `123-acme`
+  `2346~nextgen/345`
+  `4365.984532`
+
+
 ## Call domain
 
 Calls should be answered in order to not leave the caller hanging.  A
