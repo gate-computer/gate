@@ -44,7 +44,7 @@ type InstancePolicy struct {
 
 	// Services function defines which services are discoverable by the
 	// instance.
-	Services func(ctx context.Context) InstanceServices
+	Services func(context.Context) InstanceServices
 }
 
 // Authorizer and moderator of server access.

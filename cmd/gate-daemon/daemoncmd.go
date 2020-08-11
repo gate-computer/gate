@@ -24,13 +24,12 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/bus"
 	"gate.computer/gate/internal/cmdconf"
+	"gate.computer/gate/internal/services"
 	"gate.computer/gate/principal"
 	gateruntime "gate.computer/gate/runtime"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	api "gate.computer/gate/serverapi"
-	"gate.computer/gate/service"
-	"gate.computer/gate/service/catalog"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -123,16 +122,8 @@ func mainResult() int {
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
-	serviceRegistry := new(service.Registry)
-	check(plugins.InitServices(serviceRegistry))
-
-	c.Principal.Services = func(ctx context.Context) server.InstanceServices {
-		o := origin.New(originConfig)
-		r := serviceRegistry.Clone()
-		r.Register(o)
-		r.Register(catalog.New(r))
-		return server.NewInstanceServices(o, r)
-	}
+	c.Principal.Services, err = services.Init(context.Background(), plugins, originConfig)
+	check(err)
 
 	var storage image.Storage = image.Memory
 	if c.Image.VarDir != "" {

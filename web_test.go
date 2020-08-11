@@ -102,7 +102,7 @@ func newServices() func(context.Context) server.InstanceServices {
 		panic(err)
 	}
 
-	err = plugins.InitServices(registry)
+	err = plugins.InitServices(context.Background(), registry)
 	if err != nil {
 		panic(err)
 	}

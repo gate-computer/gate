@@ -26,7 +26,7 @@ func ServiceConfig() interface{} {
 	return &testConfig
 }
 
-func InitServices(r *service.Registry) (err error) {
+func InitServices(ctx context.Context, r *service.Registry) (err error) {
 	r.Register(testService{})
 	return
 }

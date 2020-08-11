@@ -23,6 +23,7 @@ import (
 
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/cmdconf"
+	"gate.computer/gate/internal/services"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
@@ -31,8 +32,6 @@ import (
 	"gate.computer/gate/server/monitor/webmonitor"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/webserver"
-	"gate.computer/gate/service"
-	"gate.computer/gate/service/catalog"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/source/ipfs"
@@ -237,17 +236,9 @@ func main() {
 	}
 	c.Monitor.HTTP.ErrorLog = errLog
 
-	serviceRegistry := new(service.Registry)
-	if err := plugins.InitServices(serviceRegistry); err != nil {
+	c.Principal.Services, err = services.Init(context.Background(), plugins, originConfig)
+	if err != nil {
 		critLog.Fatal(err)
-	}
-
-	c.Principal.Services = func(ctx context.Context) server.InstanceServices {
-		o := origin.New(originConfig)
-		r := serviceRegistry.Clone()
-		r.Register(o)
-		r.Register(catalog.New(r))
-		return server.NewInstanceServices(o, r)
 	}
 
 	critLog.Fatal(main2(critLog))

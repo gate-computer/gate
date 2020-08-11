@@ -5,6 +5,7 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -65,11 +66,11 @@ func getServiceConfig(p plugin.Plugin) (interface{}, error) {
 	return f(), nil
 }
 
-func (ps ServicePlugins) InitServices(r *service.Registry) (err error) {
+func (ps ServicePlugins) InitServices(ctx context.Context, r *service.Registry) (err error) {
 	for _, p := range ps.Plugins.Plugins {
 		_, hasConfig := ps.ServiceConfig[p.Name]
 
-		err = initServices(r, p, hasConfig)
+		err = initServices(ctx, r, p, hasConfig)
 		if err != nil {
 			return
 		}
@@ -78,7 +79,7 @@ func (ps ServicePlugins) InitServices(r *service.Registry) (err error) {
 	return
 }
 
-func initServices(r *service.Registry, p plugin.Plugin, require bool) error {
+func initServices(ctx context.Context, r *service.Registry, p plugin.Plugin, require bool) error {
 	x, err := p.Lookup(SymbolInitServices)
 	if err != nil {
 		if require {
@@ -88,10 +89,10 @@ func initServices(r *service.Registry, p plugin.Plugin, require bool) error {
 		}
 	}
 
-	f, ok := x.(func(*service.Registry) error)
+	f, ok := x.(func(context.Context, *service.Registry) error)
 	if !ok {
 		return fmt.Errorf("%s: %s is a %s; expected a %s", p, SymbolInitServices, reflect.TypeOf(x), reflect.TypeOf(f))
 	}
 
-	return f(r)
+	return f(ctx, r)
 }
