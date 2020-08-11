@@ -12,13 +12,13 @@ import (
 	"math"
 	"net"
 	"os/exec"
-	"sync"
 	"sync/atomic"
 	"syscall"
 
 	"gate.computer/gate/internal/defaultlog"
 	"gate.computer/gate/internal/file"
 	"gate.computer/gate/internal/runtimeapi"
+	"github.com/tsavola/mu"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -38,7 +38,7 @@ type Executor struct {
 	doneSending   chan struct{}
 	doneReceiving chan struct{}
 
-	lock  sync.Mutex
+	mu    mu.Mutex
 	procs map[int16]*execProcess
 }
 
@@ -183,9 +183,9 @@ func (e *Executor) sender(errorLog Logger) {
 
 		select {
 		case req = <-e.execRequests:
-			e.lock.Lock()
-			e.procs[req.pid] = req.proc
-			e.lock.Unlock()
+			e.mu.Guard(func() {
+				e.procs[req.pid] = req.proc
+			})
 
 			// This is like exec_request in runtime/executor/executor.h
 			binary.LittleEndian.PutUint16(buf[0:], uint16(req.pid))
@@ -242,22 +242,20 @@ func (e *Executor) receiver(errorLog Logger) {
 		buffered += n
 		b := buf[:buffered]
 
-		e.lock.Lock()
+		e.mu.Guard(func() {
+			for ; len(b) >= 8; b = b[8:] {
+				// This is like exec_status in runtime/executor/executor.h
+				var (
+					id     = int16(binary.LittleEndian.Uint16(b[0:]))
+					status = int32(binary.LittleEndian.Uint32(b[4:]))
+				)
 
-		for ; len(b) >= 8; b = b[8:] {
-			// This is like exec_status in runtime/executor/executor.h
-			var (
-				id     = int16(binary.LittleEndian.Uint16(b[0:]))
-				status = int32(binary.LittleEndian.Uint32(b[4:]))
-			)
-
-			p := e.procs[id]
-			delete(e.procs, id)
-			p.status = syscall.WaitStatus(status)
-			close(p.dead)
-		}
-
-		e.lock.Unlock()
+				p := e.procs[id]
+				delete(e.procs, id)
+				p.status = syscall.WaitStatus(status)
+				close(p.dead)
+			}
+		})
 
 		buffered = copy(buf, b)
 	}

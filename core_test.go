@@ -14,7 +14,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"github.com/tsavola/mu"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"
 	"github.com/tsavola/wag/object"
@@ -81,9 +81,10 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 		var originInstance service.Instance
 
 		for p := range recv {
-			d.nameLock.Lock()
-			name := d.names[p.Code()]
-			d.nameLock.Unlock()
+			var name string
+			d.nameMu.Guard(func() {
+				name = d.names[p.Code()]
+			})
 
 			switch name {
 			case "origin":
@@ -115,7 +116,7 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 
 type serviceDiscoverer struct {
 	services []runtime.ServiceState
-	nameLock sync.Mutex
+	nameMu   mu.Mutex
 	names    []string
 }
 
@@ -130,9 +131,9 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 
 		d.services = append(d.services, s)
 
-		d.nameLock.Lock()
-		d.names = append(d.names, name)
-		d.nameLock.Unlock()
+		d.nameMu.Guard(func() {
+			d.names = append(d.names, name)
+		})
 	}
 
 	return d.services, nil

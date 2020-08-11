@@ -14,6 +14,7 @@ import (
 
 	"gate.computer/gate/internal/varint"
 	"gate.computer/gate/packet"
+	"github.com/tsavola/mu"
 )
 
 type instance struct {
@@ -22,7 +23,7 @@ type instance struct {
 
 	send      chan<- packet.Buf // Send packets to the user program.
 	wakeup    chan struct{}     // accepting, replying or shutting changed.
-	mu        sync.Mutex        // Protects the fields below.
+	mu        mu.Mutex          // Protects the fields below.
 	streams   map[int32]*stream
 	accepting int32
 	replying  bool
@@ -124,15 +125,13 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 
 	switch p.Domain() {
 	case packet.DomainCall:
-		var ok bool
-
-		inst.mu.Lock()
-		if n := inst.accepting + 1; n > 0 {
-			inst.accepting = n
-			ok = true
-		}
-		inst.mu.Unlock()
-		if !ok {
+		if !inst.mu.GuardBool(func() bool {
+			if n := inst.accepting + 1; n > 0 {
+				inst.accepting = n
+				return true
+			}
+			return false
+		}) {
 			log.Print("TODO: too many simultaneous origin accept calls")
 			return
 		}
@@ -145,9 +144,10 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		for i := 0; i < p.Num(); i++ {
 			id, increment := p.Get(i)
 
-			inst.mu.Lock()
-			s := inst.streams[id]
-			inst.mu.Unlock()
+			var s *stream
+			inst.mu.Guard(func() {
+				s = inst.streams[id]
+			})
 			if s == nil {
 				log.Print("TODO: stream not found")
 				return
@@ -169,9 +169,10 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	case packet.DomainData:
 		p := packet.DataBuf(p)
 
-		inst.mu.Lock()
-		s := inst.streams[p.ID()]
-		inst.mu.Unlock()
+		var s *stream
+		inst.mu.Guard(func() {
+			s = inst.streams[p.ID()]
+		})
 		if s == nil {
 			log.Print("TODO: stream not found")
 			return
@@ -201,18 +202,16 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 	for s == nil {
 		select {
 		case <-inst.wakeup:
-			inst.mu.Lock()
-			shut := inst.shutting
-			if inst.accepting > 0 && !inst.replying && !shut {
-				for id = 0; inst.streams[id] != nil; id++ {
+			if inst.mu.GuardBool(func() bool {
+				if inst.accepting > 0 && !inst.replying && !inst.shutting {
+					for id = 0; inst.streams[id] != nil; id++ {
+					}
+					s = newStream(inst.BufSize)
+					inst.streams[id] = s
+					inst.replying = true
 				}
-				s = newStream(inst.BufSize)
-				inst.streams[id] = s
-				inst.replying = true
-			}
-			inst.mu.Unlock()
-
-			if shut {
+				return inst.shutting
+			}) {
 				return nil
 			}
 
@@ -235,9 +234,9 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 			reply = nil
 
 		case <-inst.wakeup:
-			inst.mu.Lock()
-			cancel = inst.shutting
-			inst.mu.Unlock()
+			cancel = inst.mu.GuardBool(func() bool {
+				return inst.shutting
+			})
 
 		case <-connectorClosed:
 			cancel = true
@@ -247,17 +246,17 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		}
 	}
 
-	inst.mu.Lock()
-	if cancel {
-		delete(inst.streams, id)
-	} else {
-		inst.accepting--
-	}
-	inst.replying = false
-	if inst.shutting {
-		inst.notify.Broadcast()
-	}
-	inst.mu.Unlock()
+	inst.mu.Guard(func() {
+		if cancel {
+			delete(inst.streams, id)
+		} else {
+			inst.accepting--
+		}
+		inst.replying = false
+		if inst.shutting {
+			inst.notify.Broadcast()
+		}
+	})
 
 	poke(inst.wakeup)
 
@@ -269,11 +268,11 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		err := s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
 		if !s.Live() {
-			inst.mu.Lock()
-			if !inst.shutting {
-				delete(inst.streams, id)
-			}
-			inst.mu.Unlock()
+			inst.mu.Guard(func() {
+				if !inst.shutting {
+					delete(inst.streams, id)
+				}
+			})
 		}
 
 		return err
@@ -287,18 +286,19 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	// exit immediately, so just loop through and collect the states.
 
 	for _, id := range restored {
-		inst.mu.Lock()
-		s := inst.streams[id]
-		inst.mu.Unlock()
+		var s *stream
+		inst.mu.Guard(func() {
+			s = inst.streams[id]
+		})
 
 		// Errors would be I/O errors, but there is no connection.
 		_ = s.transfer(ctx, inst.Service, id, nil, nil, inst.send)
 
-		inst.mu.Lock()
-		if !inst.shutting {
-			delete(inst.streams, id)
-		}
-		inst.mu.Unlock()
+		inst.mu.Guard(func() {
+			if !inst.shutting {
+				delete(inst.streams, id)
+			}
+		})
 	}
 }
 
@@ -333,12 +333,12 @@ func (inst *instance) Suspend() (output []byte) {
 }
 
 func (inst *instance) Shutdown() {
-	inst.mu.Lock()
-	inst.shutting = true
-	for inst.replying {
-		inst.notify.Wait()
-	}
-	inst.mu.Unlock()
+	inst.mu.Guard(func() {
+		inst.shutting = true
+		for inst.replying {
+			inst.notify.Wait()
+		}
+	})
 
 	poke(inst.wakeup)
 

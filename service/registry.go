@@ -238,20 +238,20 @@ type discoverer struct {
 	registry   *Registry
 	discovered map[Factory]struct{}
 	stopped    chan map[packet.Code]Instance
-	lock       sync.Mutex
+	mu         sync.Mutex
 	services   []discoveredService
 }
 
 func (d *discoverer) getServices() []discoveredService {
-	d.lock.Lock()
-	defer d.lock.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	return d.services
 }
 
 func (d *discoverer) setServices(services []discoveredService) {
-	d.lock.Lock()
-	defer d.lock.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	d.services = services
 }

@@ -220,7 +220,7 @@ func finalizeProgram(prog *program) {
 	}
 }
 
-func (prog *program) ref(serverLock) *program {
+func (prog *program) ref(lock serverLock) *program {
 	if prog.refCount <= 0 {
 		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.hash, prog.refCount))
 	}
@@ -229,7 +229,7 @@ func (prog *program) ref(serverLock) *program {
 	return prog
 }
 
-func (prog *program) unref(serverLock) {
+func (prog *program) unref(lock serverLock) {
 	if prog.refCount <= 0 {
 		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.hash, prog.refCount))
 	}

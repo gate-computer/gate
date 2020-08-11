@@ -8,7 +8,6 @@ import (
 	"context"
 	"io"
 	"log"
-	"sync"
 
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/error/public"
@@ -42,14 +41,6 @@ type instProgPolicy struct {
 	res  ResourcePolicy
 	prog ProgramPolicy
 	inst InstancePolicy
-}
-
-type serverLock struct{}
-type serverMutex struct{ sync.Mutex }
-
-func (m *serverMutex) Lock() serverLock {
-	m.Mutex.Lock()
-	return serverLock{}
 }
 
 type Server struct {
@@ -176,10 +167,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		accInsts  []*Instance
 		anonInsts map[*Instance]struct{}
 	)
-	func() {
-		lock := s.mu.Lock()
-		defer s.mu.Unlock()
-
+	s.mu.Guard(func(lock serverLock) {
 		progs := s.programs
 		s.programs = nil
 
@@ -199,7 +187,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 		anonInsts = s.anonymous
 		s.anonymous = nil
-	}()
+	})
 
 	for _, inst := range accInsts {
 		inst.suspend()
@@ -388,17 +376,14 @@ func (s *Server) CreateInstance(ctx context.Context, progHash, instID, function 
 		return
 	}
 
-	prog := func() *program {
-		lock := s.mu.Lock()
-		defer s.mu.Unlock()
-
+	prog := s.mu.GuardProgram(func(lock serverLock) *program {
 		prog := s.programs[progHash]
 		if prog == nil {
 			return nil
 		}
 
 		return acc.refProgram(lock, prog)
-	}()
+	})
 	if prog == nil {
 		err = resourcenotfound.ErrModule
 		return
@@ -716,10 +701,7 @@ func (s *Server) ModuleContent(ctx context.Context, hash string,
 		return
 	}
 
-	prog := func() *program {
-		lock := s.mu.Lock()
-		defer s.mu.Unlock()
-
+	prog := s.mu.GuardProgram(func(lock serverLock) *program {
 		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
 			return nil
@@ -731,7 +713,7 @@ func (s *Server) ModuleContent(ctx context.Context, hash string,
 		}
 
 		return acc.refProgram(lock, prog)
-	}()
+	})
 	if prog == nil {
 		err = resourcenotfound.ErrModule
 		return
@@ -787,10 +769,7 @@ func (s *Server) UnrefModule(ctx context.Context, hash string) (err error) {
 		return
 	}
 
-	found := func() bool {
-		lock := s.mu.Lock()
-		defer s.mu.Unlock()
-
+	found := s.mu.GuardBool(func(lock serverLock) bool {
 		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
 			return false
@@ -802,7 +781,7 @@ func (s *Server) UnrefModule(ctx context.Context, hash string) (err error) {
 		}
 
 		return acc.unrefProgram(lock, prog)
-	}()
+	})
 	if !found {
 		err = resourcenotfound.ErrModule
 		return
@@ -1170,19 +1149,15 @@ func (s *Server) Instances(ctx context.Context) (statuses api.Instances, err err
 	})
 
 	// Get instance references while holding server lock.
-	is := func() (is []*Instance) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-
+	var is []*Instance
+	s.mu.Guard(func(lock serverLock) {
 		if acc := s.accounts[principal.Raw(pri)]; acc != nil {
 			is = make([]*Instance, 0, len(acc.instances))
 			for _, x := range acc.instances {
 				is = append(is, x.inst)
 			}
 		}
-
-		return
-	}()
+	})
 
 	// Get instance statuses.  Each instance has its own lock.
 	statuses.Instances = make([]api.InstanceStatus, len(is))
@@ -1226,10 +1201,7 @@ func (s *Server) unrefProgram(p **program) {
 		return
 	}
 
-	lock := s.mu.Lock()
-	defer s.mu.Unlock()
-
-	prog.unref(lock)
+	s.mu.Guard(prog.unref)
 }
 
 // registerProgramRef with the server and an account.  Caller's program

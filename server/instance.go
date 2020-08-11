@@ -11,7 +11,6 @@ import (
 	"path"
 	"reflect"
 	"strings"
-	"sync"
 	"time"
 
 	"gate.computer/gate/image"
@@ -80,14 +79,6 @@ func trapStatus(id trap.ID) (api.State, api.Cause) {
 	default:
 		return api.StateKilled, api.Cause(id)
 	}
-}
-
-type instanceLock struct{}
-type instanceMutex struct{ sync.Mutex }
-
-func (m *instanceMutex) Lock() instanceLock {
-	m.Mutex.Lock()
-	return instanceLock{}
 }
 
 type Instance struct {
@@ -232,10 +223,11 @@ func (inst *Instance) instanceStatus() api.InstanceStatus {
 }
 
 func (inst *Instance) Wait(ctx context.Context) (status api.Status) {
-	inst.mu.Lock()
-	status = inst.status
-	stopped := inst.stopped
-	inst.mu.Unlock()
+	var stopped <-chan struct{}
+	inst.mu.Guard(func(lock instanceLock) {
+		status = inst.status
+		stopped = inst.stopped
+	})
 
 	if status.State != api.StateRunning {
 		return
@@ -250,37 +242,44 @@ func (inst *Instance) Wait(ctx context.Context) (status api.Status) {
 }
 
 func (inst *Instance) Kill() {
-	inst.mu.Lock()
-	proc := inst.process
-	inst.mu.Unlock()
-
-	if proc != nil {
-		proc.Kill()
+	proc := inst.getProcess()
+	if proc == nil {
+		return
 	}
+
+	proc.Kill()
 }
 
 // Suspend the instance and make it non-transient.
 func (inst *Instance) Suspend() {
-	inst.mu.Lock()
-	if inst.status.State == api.StateRunning {
-		inst.transient = false
+	var proc *runtime.Process
+	inst.mu.Guard(func(lock instanceLock) {
+		if inst.status.State == api.StateRunning {
+			inst.transient = false
+		}
+		proc = inst.process
+	})
+	if proc == nil {
+		return
 	}
-	proc := inst.process
-	inst.mu.Unlock()
 
-	if proc != nil {
-		proc.Suspend()
-	}
+	proc.Suspend()
 }
 
 func (inst *Instance) suspend() {
-	inst.mu.Lock()
-	proc := inst.process
-	inst.mu.Unlock()
-
-	if proc != nil {
-		proc.Suspend()
+	proc := inst.getProcess()
+	if proc == nil {
+		return
 	}
+
+	proc.Suspend()
+}
+
+func (inst *Instance) getProcess() *runtime.Process {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
+	return inst.process
 }
 
 func (inst *Instance) checkResume(function string) error {
@@ -350,10 +349,10 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) err
 }
 
 func (inst *Instance) connect(ctx context.Context) func(context.Context, io.Reader, io.Writer) error {
-	inst.mu.Lock()
-	s := inst.services
-	inst.mu.Unlock()
-
+	var s InstanceServices
+	inst.mu.Guard(func(lock instanceLock) {
+		s = inst.services
+	})
 	if s == nil {
 		return nil
 	}
