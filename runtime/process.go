@@ -269,7 +269,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 ) (result Result, trapID trap.ID, err error) {
 	trapID = trap.InternalError
 
-	err = ioLoop(ctx, services, p, buffers)
+	err = ioLoop(contextWithProcess(ctx, p), services, p, buffers)
 	if err != nil {
 		if _, ok := err.(badprogram.Error); ok {
 			trapID = trap.ABIViolation
@@ -378,6 +378,20 @@ func (p *Process) Close() (err error) {
 	}
 
 	return
+}
+
+type contextProcessValueKey struct{}
+
+func contextWithProcess(ctx context.Context, p *Process) context.Context {
+	return context.WithValue(ctx, contextProcessValueKey{}, p)
+}
+
+// ProcessKey is an opaque handle to a single instance of a program image being
+// executed.
+type ProcessKey struct{ _ *Process }
+
+func MustContextProcessKey(ctx context.Context) ProcessKey {
+	return ProcessKey{ctx.Value(contextProcessValueKey{}).(*Process)}
 }
 
 func getRand(fixedTextAddr uint64, needData bool,

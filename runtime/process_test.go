@@ -16,3 +16,11 @@ func TestImageInfo(*testing.T) {
 		panic("imageInfo size mismatch")
 	}
 }
+
+func TestProcessKey(t *testing.T) {
+	var a, b ProcessKey
+
+	if a != b {
+		t.Fail()
+	}
+}
