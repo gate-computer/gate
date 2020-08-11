@@ -302,8 +302,8 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	}
 }
 
-func (inst *instance) Suspend() (output []byte) {
-	inst.Shutdown()
+func (inst *instance) Suspend(ctx context.Context) (output []byte) {
+	inst.Shutdown(ctx)
 
 	numStreams := int32(len(inst.streams))
 	if inst.accepting == 0 && numStreams == 0 {
@@ -332,7 +332,7 @@ func (inst *instance) Suspend() (output []byte) {
 	return
 }
 
-func (inst *instance) Shutdown() {
+func (inst *instance) Shutdown(ctx context.Context) {
 	inst.mu.Guard(func() {
 		inst.shutting = true
 		for inst.replying {

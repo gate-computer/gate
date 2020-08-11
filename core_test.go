@@ -103,7 +103,7 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 							MaxSendSize: config.MaxSendSize,
 						},
 					})
-					defer originInstance.Shutdown()
+					defer originInstance.Shutdown(context.Background())
 				}
 
 				originInstance.Handle(ctx, send, p)
@@ -139,9 +139,9 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 	return d.services, nil
 }
 
-func (d *serviceDiscoverer) NumServices() int            { return len(d.services) }
-func (d *serviceDiscoverer) Suspend() []snapshot.Service { return nil }
-func (d *serviceDiscoverer) Shutdown()                   {}
+func (d *serviceDiscoverer) NumServices() int                           { return len(d.services) }
+func (d *serviceDiscoverer) Suspend(context.Context) []snapshot.Service { return nil }
+func (d *serviceDiscoverer) Shutdown(context.Context)                   {}
 
 var testFS *image.Filesystem
 

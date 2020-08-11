@@ -57,6 +57,7 @@ type read struct {
 // ioLoop mutates Process and Buffers (if any).
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers,
 ) (err error) {
+	shutdownCtx := ctx
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -83,9 +84,9 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		cancel()
 		close(messageOutput)
 		if frozen != nil {
-			frozen.Services = discoverer.Suspend()
+			frozen.Services = discoverer.Suspend(shutdownCtx)
 		} else {
-			discoverer.Shutdown()
+			discoverer.Shutdown(shutdownCtx)
 		}
 	}()
 

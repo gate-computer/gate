@@ -64,8 +64,8 @@ type ServiceRegistry interface {
 type ServiceDiscoverer interface {
 	Discover(ctx context.Context, newNames []string) (all []ServiceState, err error)
 	NumServices() int
-	Suspend() (snapshots []snapshot.Service)
-	Shutdown()
+	Suspend(context.Context) (snapshots []snapshot.Service)
+	Shutdown(context.Context)
 }
 
 func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer ServiceDiscoverer) (resp packet.Buf, err error) {

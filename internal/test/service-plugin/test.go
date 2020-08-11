@@ -67,11 +67,11 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 	}
 }
 
-func (testInstance) Suspend() []byte {
+func (testInstance) Suspend(ctx context.Context) []byte {
 	return []byte{0x73, 0x57}
 }
 
-func (testInstance) Shutdown() {
+func (testInstance) Shutdown(ctx context.Context) {
 }
 
 func main() {}
