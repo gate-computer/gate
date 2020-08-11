@@ -182,9 +182,10 @@ struct gate_packet {
 > a queue (per service); a response resolves the request in the queue at the
 > index specified in the response packet.
 >
-> The `GATE_PACKET_DOMAIN_INFO` domain is for receiving state change
-> notifications from services.  A service won't start sending notifications
-> before at least one call is made to that service.
+> The `GATE_PACKET_DOMAIN_INFO` domain is used for sending signals to services,
+> and receiving state change notifications from services.  Sent and received
+> info packets don't necessarily have any relation.  A service won't start
+> sending notifications before at least one packet is sent to that service.
 >
 > The struct declaration may contain additional reserved fields which must be
 > zeroed in sent packets.

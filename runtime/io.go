@@ -387,7 +387,7 @@ func checkServicePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg packet.
 	}
 
 	switch p.Domain() {
-	case packet.DomainCall, packet.DomainFlow:
+	case packet.DomainCall, packet.DomainInfo, packet.DomainFlow:
 
 	case packet.DomainData:
 		if n := len(p); n < packet.DataHeaderSize {

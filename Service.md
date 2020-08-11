@@ -48,7 +48,9 @@ Example revision strings:
   `4365.984532`
 
 
-## Call domain
+## Packet domains
+
+### Call
 
 Calls should be answered in order to not leave the caller hanging.  A
 convention for handling unsupported calls is to reply with an empty packet
@@ -67,6 +69,22 @@ If a service processes calls asynchronously, there is a danger of unbounded
 resource usage, as the user program may queue lots of calls.  The service
 should avoid that by specifying an API contract, such as a maximum number of
 calls after which further calls block or kill the whole instance.
+
+
+### Info
+
+A service can choose how to handle info packets received from programs; an
+unexpected info packet may be ignored, cause an ABI violation trap, or cause a
+error condition which can be observed by the program via some mechanism.
+
+An empty info packet could be used for service initialization.
+
+
+### Flow and data
+
+Unexpected stream-specific packets shouldn't be ignored.  If a service does not
+(and will not) support streams, it should cause an ABI violation trap if it
+receives a stream packet.
 
 
 ## Error codes

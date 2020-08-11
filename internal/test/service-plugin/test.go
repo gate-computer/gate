@@ -61,9 +61,12 @@ func (testInstance) Resume(ctx context.Context, replies chan<- packet.Buf) {
 }
 
 func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {
-	switch p.Domain() {
-	case packet.DomainCall:
+	switch dom := p.Domain(); {
+	case dom == packet.DomainCall:
 		replies <- p
+
+	case dom.IsStream():
+		panic("unexpected stream packet")
 	}
 }
 

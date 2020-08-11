@@ -80,7 +80,8 @@ func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
 }
 
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
-	if p.Domain() == packet.DomainCall {
+	switch dom := p.Domain(); {
+	case dom == packet.DomainCall:
 		if string(p.Content()) == "json" {
 			inst.pending = pendingJSON
 		} else {
@@ -88,6 +89,9 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		}
 
 		inst.handleCall(ctx, send)
+
+	case dom.IsStream():
+		panic("TODO")
 	}
 }
 
