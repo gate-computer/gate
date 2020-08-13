@@ -25,8 +25,6 @@ const ErrServerClosed = public.Err("server closed")
 
 var errAnonymous = AccessUnauthorized("anonymous access not supported")
 
-type rawPrincipalKey [32]byte
-
 type progPolicy struct {
 	res  ResourcePolicy
 	prog ProgramPolicy
@@ -48,7 +46,7 @@ type Server struct {
 
 	mu        serverMutex
 	programs  map[string]*program
-	accounts  map[rawPrincipalKey]*account
+	accounts  map[principal.RawKey]*account
 	anonymous map[*Instance]struct{}
 }
 
@@ -66,7 +64,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	s := &Server{
 		Config:    config,
 		programs:  make(map[string]*program),
-		accounts:  make(map[rawPrincipalKey]*account),
+		accounts:  make(map[principal.RawKey]*account),
 		anonymous: make(map[*Instance]struct{}),
 	}
 

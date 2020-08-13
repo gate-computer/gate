@@ -17,8 +17,10 @@ const (
 	TypeEd25519      = "ed25519"
 )
 
+type RawKey [keySize]byte
+
 type ID struct {
-	key [keySize]byte
+	key RawKey
 	s   string
 }
 
@@ -69,7 +71,7 @@ func Split(id *ID) (Type, string) {
 	return Type(id.s), ""
 }
 
-func Raw(id *ID) [keySize]byte {
+func Raw(id *ID) RawKey {
 	return id.key
 }
 
