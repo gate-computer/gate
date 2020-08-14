@@ -18,6 +18,7 @@ import (
 	"gate.computer/gate/internal/error/subsystem"
 	"gate.computer/gate/internal/manifest"
 	"gate.computer/gate/internal/principal"
+	pprincipal "gate.computer/gate/principal"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
@@ -41,6 +42,10 @@ func validateInstanceID(s string) error {
 	}
 
 	return failrequest.New(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4")
+}
+
+func contextWithInstanceID(ctx context.Context, id string) context.Context {
+	return pprincipal.ContextWithInstanceUUID(ctx, uuid.Must(uuid.Parse(id)))
 }
 
 func instanceStorageKey(pri *principal.ID, instID string) string {
@@ -424,7 +429,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		}
 	}()
 
-	result, trapID, err := inst.process.Serve(ctx, inst.services, &inst.buffers)
+	result, trapID, err := inst.process.Serve(contextWithInstanceID(ctx, inst.ID), inst.services, &inst.buffers)
 	if err != nil {
 		res.Error = public.Error(err, res.Error)
 		if trapID == trap.ABIViolation {
