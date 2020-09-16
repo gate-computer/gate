@@ -33,6 +33,7 @@ import (
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
 	webapi "gate.computer/gate/server/web/api"
+	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/source/ipfs"
@@ -187,6 +188,8 @@ func main() {
 	c.Service = plugins.ServiceConfig
 	c.DB = database.DefaultConfig
 
+	c.Service["grpc"] = grpc.Config
+
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig
 
@@ -236,7 +239,7 @@ func main() {
 	}
 	c.Monitor.HTTP.ErrorLog = errLog
 
-	c.Principal.Services, err = services.Init(context.Background(), plugins, originConfig)
+	c.Principal.Services, err = services.Init(context.Background(), plugins, originConfig, errLog)
 	if err != nil {
 		critLog.Fatal(err)
 	}

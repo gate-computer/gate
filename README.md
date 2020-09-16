@@ -131,6 +131,7 @@ The non-Go components can be built with `make`.  They require:
   - pkg-config
   - uidmap (shadow-utils)
   - protobuf-compiler
+  - libprotobuf-dev
   - libc-dev
   - libsystemd-dev, unless CGROUP_BACKEND=none is specified for make
 

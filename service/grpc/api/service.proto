@@ -1,0 +1,91 @@
+// Copyright (c) 2020 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package gate.service.grpc.api;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
+
+option go_package = "gate.computer/gate/service/grpc/api";
+
+message ServiceInfo {
+	string name = 1;
+	string revision = 2;
+	bool require_principal = 3;
+}
+
+message InitRequest {
+}
+
+message InitResponse {
+	repeated ServiceInfo services = 1;
+}
+
+message InstanceConfig {
+	int32 max_send_size = 1;
+	bytes process_key = 2;
+	string principal_id = 3;
+}
+
+message CreateInstanceRequest {
+	string name = 1;
+	InstanceConfig config = 2;
+}
+
+message CreateInstanceResponse {
+	bytes id = 1;
+}
+
+message RestoreInstanceRequest {
+	string name = 1;
+	InstanceConfig config = 2;
+	bytes snapshot = 3;
+}
+
+message RestoreInstanceResponse {
+	bytes id = 1;
+	string error = 2;
+}
+
+message ReceiveRequest {
+	bytes id = 1;
+}
+
+message HandleRequest {
+	bytes id = 1;
+	bytes data = 2;
+}
+
+message SuspendRequest {
+	bytes id = 1;
+}
+
+message SnapshotRequest {
+	bytes id = 1;
+	bytes outgoing = 2;
+	bytes incoming = 3;
+}
+
+message ShutdownRequest {
+	bytes id = 1;
+}
+
+service Root {
+	rpc Init (InitRequest) returns (InitResponse) {}
+}
+
+service Service {
+	rpc CreateInstance (CreateInstanceRequest) returns (CreateInstanceResponse) {}
+	rpc RestoreInstance (RestoreInstanceRequest) returns (RestoreInstanceResponse) {}
+}
+
+service Instance {
+	rpc Receive (ReceiveRequest) returns (stream google.protobuf.BytesValue) {}
+	rpc Handle (HandleRequest) returns (google.protobuf.Empty) {}
+	rpc Shutdown (ShutdownRequest) returns (google.protobuf.Empty) {}
+	rpc Suspend (SuspendRequest) returns (google.protobuf.Empty) {}
+	rpc Snapshot (SnapshotRequest) returns (google.protobuf.BytesValue) {}
+}

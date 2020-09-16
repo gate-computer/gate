@@ -22,7 +22,9 @@ GEN_BIN_SOURCES := \
 	server/detail/detail.pb.go \
 	server/event/event.pb.go \
 	server/event/type.gen.go \
-	server/monitor/monitor.pb.go
+	server/monitor/monitor.pb.go \
+	service/grpc/api/service.pb.go \
+	service/grpc/api/service_grpc.pb.go
 
 GOBENCHFLAGS	:= -bench=.*
 
@@ -55,6 +57,7 @@ check: lib bin
 	$(MAKE) -C runtime/loader/test check
 	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/generic-test.so ./internal/test/generic-plugin
 	$(GO) build $(GOBUILDFLAGS) -buildmode=plugin -o lib/gate/plugin/service-test.so ./internal/test/service-plugin
+	$(GO) build $(GOBUILDFLAGS) -o lib/gate/service/test ./internal/test/grpc-service
 	$(GO) build -o /dev/null ./...
 	$(GO) vet ./...
 	$(GO) test $(GOTESTFLAGS) ./...
@@ -113,6 +116,10 @@ internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-
 %.pb.go: %.proto go.mod
 	$(GO) build -o tmp/bin/protoc-gen-go google.golang.org/protobuf/cmd/protoc-gen-go
 	PATH=$(shell pwd)/tmp/bin:$(PATH) $(PROTOC) --go_out=. --go_opt=paths=source_relative $*.proto
+
+%_grpc.pb.go: %.proto go.mod
+	$(GO) build -o tmp/bin/protoc-gen-go-grpc google.golang.org/grpc/cmd/protoc-gen-go-grpc
+	PATH=$(shell pwd)/tmp/bin:$(PATH) $(PROTOC) --go-grpc_out=. --go-grpc_opt=paths=source_relative $*.proto
 
 server/event/event.pb.go: server/detail/detail.proto
 
