@@ -7,6 +7,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"unicode"
 
@@ -16,6 +17,11 @@ import (
 )
 
 const maxServiceStringLen = 127
+
+type existenceError string
+
+func (e existenceError) Error() string { return string(e) }
+func (e existenceError) Unwrap() error { return os.ErrExist }
 
 // Service metadata.
 type Service struct {
@@ -55,23 +61,47 @@ type Registry struct {
 	parent    *Registry
 }
 
-// Register a service implementation.
-func (r *Registry) Register(f Factory) {
-	checkString("name", f.ServiceName(), unicode.IsLetter, unicode.IsNumber, unicode.IsPunct)
-	checkString("revision", f.ServiceRevision(), unicode.IsLetter, unicode.IsMark, unicode.IsNumber, unicode.IsPunct, unicode.IsSymbol)
+// Register a service implementation.  Doesn't replace an existing service.
+func (r *Registry) Register(f Factory) error {
+	return r.register(f, false)
+}
+
+// MustRegister a service implementation.  May replace an existing service.
+// Panicks if service information is invalid.
+func (r *Registry) MustRegister(f Factory) {
+	if err := r.register(f, true); err != nil {
+		panic(err)
+	}
+}
+
+func (r *Registry) register(f Factory, replace bool) error {
+	name := f.ServiceName()
+	if err := checkString("name", name, unicode.IsLetter, unicode.IsNumber, unicode.IsPunct); err != nil {
+		return err
+	}
+
+	if err := checkString("revision", f.ServiceRevision(), unicode.IsLetter, unicode.IsMark, unicode.IsNumber, unicode.IsPunct, unicode.IsSymbol); err != nil {
+		return err
+	}
 
 	if r.factories == nil {
 		r.factories = make(map[string]Factory)
 	}
-	r.factories[f.ServiceName()] = f
+	if !replace {
+		if _, found := r.factories[name]; found {
+			return existenceError(fmt.Sprintf("service %q already registered", name))
+		}
+	}
+	r.factories[name] = f
+	return nil
 }
 
-func checkString(what, s string, categories ...func(rune) bool) {
+func checkString(what, s string, categories ...func(rune) bool) error {
 	if len(s) == 0 {
-		panic(fmt.Sprintf("service %s string is empty", what))
+		return fmt.Errorf("service %s string is empty", what)
 	}
 	if len(s) > maxServiceStringLen {
-		panic(fmt.Sprintf("service %s string is too long", what))
+		return fmt.Errorf("service %s string is too long", what)
 	}
 
 	for _, r := range s {
@@ -80,9 +110,11 @@ func checkString(what, s string, categories ...func(rune) bool) {
 				goto ok
 			}
 		}
-		panic(fmt.Sprintf("service %s string contains invalid characters", what))
+		return fmt.Errorf("service %s string contains invalid characters", what)
 	ok:
 	}
+
+	return nil
 }
 
 // Clone the registry shallowly.  The new registry may be used to add or

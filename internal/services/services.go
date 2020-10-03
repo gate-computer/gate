@@ -28,8 +28,8 @@ func Init(ctx context.Context, plugins plugin.ServicePlugins, originConfig origi
 		o := origin.New(originConfig)
 
 		r := registry.Clone()
-		r.Register(o)
-		r.Register(catalog.New(r))
+		r.MustRegister(o)
+		r.MustRegister(catalog.New(r))
 
 		return server.NewInstanceServices(o, r)
 	}

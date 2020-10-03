@@ -167,7 +167,10 @@ func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) (
 	}()
 
 	var services service.Registry
-	services.Register(connector)
+	err = services.Register(connector)
+	if err != nil {
+		return
+	}
 
 	_, trapID, err := process.p.Serve(context.Background(), &services, &state.buffers)
 	if err != nil {

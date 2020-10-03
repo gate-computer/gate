@@ -110,7 +110,7 @@ func newServices() func(context.Context) server.InstanceServices {
 	return func(ctx context.Context) server.InstanceServices {
 		connector := origin.New(origin.Config{})
 		r := registry.Clone()
-		r.Register(connector)
+		r.MustRegister(connector)
 		return server.NewInstanceServices(connector, r)
 	}
 }
