@@ -88,7 +88,7 @@ type Buf []byte
 
 func Make(code Code, domain Domain, packetSize int) Buf {
 	b := Buf(make([]byte, packetSize))
-	binary.LittleEndian.PutUint16(b[OffsetCode:], uint16(code))
+	b.SetCode(code)
 	b[OffsetDomain] = byte(domain)
 	return b
 }
@@ -135,6 +135,10 @@ func MustBeInfo(b Buf) Buf {
 
 func (b Buf) Code() Code {
 	return Code(binary.LittleEndian.Uint16(b[OffsetCode:]))
+}
+
+func (b Buf) SetCode(code Code) {
+	binary.LittleEndian.PutUint16(b[OffsetCode:], uint16(code))
 }
 
 func (b Buf) Domain() Domain {
