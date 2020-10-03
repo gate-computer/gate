@@ -6,6 +6,7 @@ package packet
 
 import (
 	"encoding/binary"
+	"math"
 )
 
 // Code represents the source or destination of a packet.  It is specific to a
@@ -131,6 +132,19 @@ func MustBeInfo(b Buf) Buf {
 		panic("not an info packet")
 	}
 	return b
+}
+
+// SetSize encodes the current slice length into the packet header.
+func (b Buf) SetSize() {
+	if n := len(b); n > math.MaxUint32 {
+		panic(n)
+	}
+	binary.LittleEndian.PutUint32(b[OffsetSize:], uint32(len(b)))
+}
+
+// EncodedSize decodes the packet header field.
+func (b Buf) EncodedSize() int {
+	return int(binary.LittleEndian.Uint32(b[OffsetSize:]))
 }
 
 func (b Buf) Code() Code {

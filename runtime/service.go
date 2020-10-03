@@ -120,7 +120,7 @@ func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer Servic
 
 func makeServicesPacket(domain packet.Domain, services []ServiceState) (resp packet.Buf) {
 	resp = packet.Make(packet.CodeServices, domain, packet.ServicesHeaderSize+len(services))
-	binary.LittleEndian.PutUint32(resp[packet.OffsetSize:], uint32(len(resp)))
+	resp.SetSize()
 	binary.LittleEndian.PutUint16(resp[packet.OffsetServicesCount:], uint16(len(services)))
 
 	for i, s := range services {
