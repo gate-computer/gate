@@ -10,6 +10,7 @@ import (
 	"syscall"
 )
 
+// SocketFilePair returns a blocking (f1) and a pollable (f2) file.
 func SocketFilePair(flags int) (f1, f2 *os.File, err error) {
 	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC|flags, 0)
 	if err != nil {
