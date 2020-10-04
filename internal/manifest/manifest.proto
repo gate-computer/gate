@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package manifest;
+package gate.internal.manifest;
 
 option go_package = "gate.computer/gate/internal/manifest";
 

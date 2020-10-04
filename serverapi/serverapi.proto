@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package serverapi;
+package gate.serverapi;
 
 import "internal/manifest/manifest.proto";
 
@@ -86,5 +86,5 @@ message DebugResponse {
 
 message DebugConfig {
 	bool debug_info = 1; // TODO: specify semantics
-	manifest.Breakpoints breakpoints = 2;
+	gate.internal.manifest.Breakpoints breakpoints = 2;
 }

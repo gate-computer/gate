@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package server.event;
+package gate.server.event;
 
 import "server/detail/detail.proto";
 
