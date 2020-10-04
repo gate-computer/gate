@@ -7,6 +7,7 @@ package localhost
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"sync"
 
 	"gate.computer/gate/packet"
@@ -16,6 +17,8 @@ import (
 const maxRequests = 10 // Cannot be greater than 256.
 
 type instance struct {
+	service.InstanceBase
+
 	local *localhost
 	packet.Service
 
@@ -38,24 +41,30 @@ func (inst *instance) restore(snapshot []byte) error {
 	if len(snapshot) > 0 {
 		panic("TODO")
 	}
+
 	return nil
 }
 
-func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
-	// TODO
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error {
+	c := make(chan handled)
+	inst.unsent = inst.s.start(send, c)
+	inst.handled = c
+	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
-	if p.Domain() != packet.DomainCall {
-		return
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
+	switch dom := p.Domain(); {
+	case dom == packet.DomainCall:
+		inst.handleCall(ctx, p)
+
+	case dom.IsStream():
+		return errors.New("localhost: unexpected stream packet")
 	}
 
-	if inst.handled == nil {
-		handled := make(chan handled)
-		inst.unsent = inst.s.start(send, handled)
-		inst.handled = handled
-	}
+	return nil
+}
 
+func (inst *instance) handleCall(ctx context.Context, p packet.Buf) {
 	if !inst.s.registerRequest(p) {
 		return
 	}
@@ -67,7 +76,30 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	}()
 }
 
-func (inst *instance) Suspend() []byte {
+func (inst *instance) shut() (requests, unsent []packet.Buf) {
+	inst.handlers.Wait()
+
+	if inst.handled != nil {
+		close(inst.handled)
+		inst.handled = nil
+	}
+
+	requests = inst.s.wait()
+
+	if inst.unsent != nil {
+		unsent = <-inst.unsent
+		inst.unsent = nil
+	}
+
+	return
+}
+
+func (inst *instance) Shutdown(ctx context.Context) error {
+	inst.shut()
+	return nil
+}
+
+func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	requests, unsent := inst.shut()
 
 	n := binary.MaxVarintLen32 * 2
@@ -90,29 +122,7 @@ func (inst *instance) Suspend() []byte {
 		b = append(b, p...)
 	}
 
-	return b
-}
-
-func (inst *instance) Shutdown() {
-	inst.shut()
-}
-
-func (inst *instance) shut() (requests, unsent []packet.Buf) {
-	inst.handlers.Wait()
-
-	if inst.handled != nil {
-		close(inst.handled)
-		inst.handled = nil
-	}
-
-	requests = inst.s.wait()
-
-	if inst.unsent != nil {
-		unsent = <-inst.unsent
-		inst.unsent = nil
-	}
-
-	return
+	return b, nil
 }
 
 type sender struct {

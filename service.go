@@ -31,7 +31,7 @@ func ServiceConfig() interface{} {
 	return &serviceConfig
 }
 
-func InitServices(registry *service.Registry) (err error) {
+func InitServices(ctx context.Context, registry *service.Registry) (err error) {
 	if serviceConfig.Address == "" {
 		err = errors.New("localhost service: no address")
 		return
@@ -104,7 +104,7 @@ func InitServices(registry *service.Registry) (err error) {
 		return
 	}
 
-	registry.Register(l)
+	err = registry.Register(l)
 	return
 }
 
@@ -114,15 +114,18 @@ type localhost struct {
 	client *http.Client
 }
 
-func (*localhost) ServiceName() string               { return serviceName }
-func (*localhost) ServiceRevision() string           { return serviceRevision }
-func (*localhost) Discoverable(context.Context) bool { return true }
-
-func (l *localhost) CreateInstance(ctx context.Context, config service.InstanceConfig) service.Instance {
-	return newInstance(l, config)
+func (*localhost) Service() service.Service {
+	return service.Service{
+		Name:     serviceName,
+		Revision: serviceRevision,
+	}
 }
 
-func (l *localhost) RestoreInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
+func (*localhost) Discoverable(context.Context) bool {
+	return true
+}
+
+func (l *localhost) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
 	inst := newInstance(l, config)
 	if err := inst.restore(snapshot); err != nil {

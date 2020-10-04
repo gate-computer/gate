@@ -5,6 +5,8 @@
 package main
 
 import (
+	"context"
+
 	"gate.computer/gate/service"
 	"gate.computer/localhost"
 )
@@ -13,8 +15,8 @@ func ServiceConfig() interface{} {
 	return localhost.ServiceConfig()
 }
 
-func InitServices(r *service.Registry) error {
-	return localhost.InitServices(r)
+func InitServices(ctx context.Context, r *service.Registry) error {
+	return localhost.InitServices(ctx, r)
 }
 
 func main() {}
