@@ -471,7 +471,7 @@ func makeSnapshotSection(snap manifest.Snapshot) []byte {
 		binary.MaxVarintLen32 + // Result
 		binary.MaxVarintLen64 + // Monotonic time
 		binary.MaxVarintLen32 + // Breakpoint count
-		binary.MaxVarintLen64*len(snap.Breakpoints.Offsets)) // Breakpoint array
+		binary.MaxVarintLen64*len(snap.Breakpoints)) // Breakpoint array
 
 	b := make([]byte, maxSectionFrameSize+maxPayloadSize)
 	i := maxSectionFrameSize
@@ -484,8 +484,8 @@ func makeSnapshotSection(snap manifest.Snapshot) []byte {
 	i += binary.PutUvarint(b[i:], uint64(snap.Trap))
 	i += binary.PutUvarint(b[i:], uint64(snap.Result))
 	i += binary.PutUvarint(b[i:], snap.MonotonicTime)
-	i += binary.PutUvarint(b[i:], uint64(len(snap.Breakpoints.Offsets)))
-	for _, offset := range snap.Breakpoints.Offsets {
+	i += binary.PutUvarint(b[i:], uint64(len(snap.Breakpoints)))
+	for _, offset := range snap.Breakpoints {
 		i += binary.PutUvarint(b[i:], uint64(offset))
 	}
 

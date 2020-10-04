@@ -6,8 +6,6 @@ syntax = "proto3";
 
 package gate.serverapi;
 
-import "internal/manifest/manifest.proto";
-
 option go_package = "gate.computer/gate/serverapi";
 
 message ModuleRef {
@@ -86,5 +84,5 @@ message DebugResponse {
 
 message DebugConfig {
 	bool debug_info = 1; // TODO: specify semantics
-	gate.internal.manifest.Breakpoints breakpoints = 2;
+	repeated uint64 breakpoints = 2;
 }

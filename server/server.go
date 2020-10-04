@@ -1106,7 +1106,7 @@ func (s *Server) DebugInstance(ctx context.Context, instID string, req api.Debug
 			ok        bool
 		)
 
-		progImage, textMap, err = rebuildProgramImage(s.ImageStorage, &pol.prog, defaultProg.image.NewModuleReader(), config.DebugInfo, config.Breakpoints.Offsets)
+		progImage, textMap, err = rebuildProgramImage(s.ImageStorage, &pol.prog, defaultProg.image.NewModuleReader(), config.DebugInfo, config.Breakpoints)
 		if err != nil {
 			return
 		}

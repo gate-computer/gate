@@ -32,7 +32,7 @@ func (prog *Program) Random() bool      { return prog.man.Random }
 func (prog *Program) DebugInfo() bool   { return snapshot.Flags(prog.man.Snapshot.Flags).DebugInfo() }
 
 // Breakpoints are in ascending order and unique.
-func (prog *Program) Breakpoints() []uint64 { return prog.man.Snapshot.Breakpoints.Offsets }
+func (prog *Program) Breakpoints() []uint64 { return prog.man.Snapshot.Breakpoints }
 
 // ResolveEntryFunc or the implicit _start function.  The started argument is
 // disregarded if the program is a snapshot.

@@ -93,7 +93,7 @@ func debug(call debugCallFunc) {
 		}
 
 		if flag.NArg() > 2 {
-			req.Config.Breakpoints.Offsets = parseBreakpoints(flag.Args()[2:], call, flag.Arg(0))
+			req.Config.Breakpoints = parseBreakpoints(flag.Args()[2:], call, flag.Arg(0))
 		}
 	}
 
@@ -117,7 +117,7 @@ func debug(call debugCallFunc) {
 		fmt.Printf("Debug info:     %v\n", res.Config.DebugInfo)
 		fmt.Printf("Breakpoints:")
 		sep := "    "
-		for _, offset := range res.Config.Breakpoints.Offsets {
+		for _, offset := range res.Config.Breakpoints {
 			fmt.Printf("%s0x%x", sep, offset)
 			sep = " "
 		}
@@ -354,7 +354,7 @@ func build(res api.DebugResponse,
 		Config:      config,
 	}
 
-	for _, offset := range res.Config.Breakpoints.Offsets {
+	for _, offset := range res.Config.Breakpoints {
 		codeConfig.Breakpoints[uint32(offset)] = compile.Breakpoint{}
 	}
 

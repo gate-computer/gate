@@ -220,7 +220,7 @@ func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.Monotoni
 
 // Breakpoints are in ascending order and unique.
 func (inst *Instance) Breakpoints() []uint64 {
-	return inst.man.Snapshot.Breakpoints.Offsets
+	return inst.man.Snapshot.Breakpoints
 }
 
 func (inst *Instance) SetFinal() {
@@ -264,8 +264,8 @@ func (inst *Instance) SetResult(n int32) {
 
 // SetBreakpoints which must have been sorted and deduplicated.
 func (inst *Instance) SetBreakpoints(a []uint64) {
-	if len(inst.man.Snapshot.Breakpoints.Offsets) == len(a) {
-		for i, x := range inst.man.Snapshot.Breakpoints.Offsets {
+	if len(inst.man.Snapshot.Breakpoints) == len(a) {
+		for i, x := range inst.man.Snapshot.Breakpoints {
 			if x != a[i] {
 				goto changed
 			}
@@ -273,7 +273,7 @@ func (inst *Instance) SetBreakpoints(a []uint64) {
 		return
 	}
 changed:
-	inst.man.Snapshot.Breakpoints.Offsets = a
+	inst.man.Snapshot.Breakpoints = a
 	inst.manDirty = true
 }
 

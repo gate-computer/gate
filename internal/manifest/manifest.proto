@@ -63,9 +63,5 @@ message Snapshot {
 	int32 trap = 2;
 	int32 result = 3;
 	uint64 monotonic_time = 4;
-	Breakpoints breakpoints = 5;
-}
-
-message Breakpoints {
-	repeated uint64 offsets = 1;
+	repeated uint64 breakpoints = 5;
 }

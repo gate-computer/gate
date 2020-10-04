@@ -493,7 +493,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 
 	switch req.Op {
 	case api.DebugOpConfigSet:
-		if len(req.Config.Breakpoints.Offsets) > manifest.MaxBreakpoints {
+		if len(req.Config.Breakpoints) > manifest.MaxBreakpoints {
 			err = public.Err("too many breakpoints")
 			return
 		}
@@ -503,13 +503,13 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 			modified = true
 		}
 
-		breaks = manifest.SortDedupUint64(req.Config.Breakpoints.Offsets)
+		breaks = manifest.SortDedupUint64(req.Config.Breakpoints)
 		if !reflect.DeepEqual(breaks, inst.image.Breakpoints()) {
 			modified = true
 		}
 
 	case api.DebugOpConfigUnion:
-		if len(breaks)+len(req.Config.Breakpoints.Offsets) > manifest.MaxBreakpoints {
+		if len(breaks)+len(req.Config.Breakpoints) > manifest.MaxBreakpoints {
 			err = public.Err("too many breakpoints")
 			return
 		}
@@ -522,7 +522,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 
 		breaks = append([]uint64{}, breaks...)
-		for _, x := range req.Config.Breakpoints.Offsets {
+		for _, x := range req.Config.Breakpoints {
 			if i := searchUint64(breaks, x); i == len(breaks) || breaks[i] != x {
 				breaks = append(breaks[:i], append([]uint64{x}, breaks[i:]...)...)
 				modified = true
@@ -538,7 +538,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 
 		breaks = append([]uint64{}, breaks...)
-		for _, x := range req.Config.Breakpoints.Offsets {
+		for _, x := range req.Config.Breakpoints {
 			if i := searchUint64(breaks, x); i < len(breaks) && breaks[i] == x {
 				breaks = append(breaks[:i], breaks[i+1:]...)
 				modified = true
@@ -579,12 +579,12 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 				origProgHash: prog.hash,
 				oldConfig: api.DebugConfig{
 					DebugInfo:   inst.image.DebugInfo(),
-					Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
+					Breakpoints: inst.image.Breakpoints(),
 				},
 			}
 			newConfig = api.DebugConfig{
 				DebugInfo:   info,
-				Breakpoints: manifest.Breakpoints{Offsets: breaks},
+				Breakpoints: breaks,
 			}
 		}
 	}
@@ -593,7 +593,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 	res.Status = inst.status
 	res.Config = api.DebugConfig{
 		DebugInfo:   inst.image.DebugInfo(),
-		Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
+		Breakpoints: inst.image.Breakpoints(),
 	}
 	return
 }
@@ -612,7 +612,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.De
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	if inst.image.DebugInfo() == oldConfig.DebugInfo && reflect.DeepEqual(inst.image.Breakpoints(), oldConfig.Breakpoints.Offsets) {
+	if inst.image.DebugInfo() == oldConfig.DebugInfo && reflect.DeepEqual(inst.image.Breakpoints(), oldConfig.Breakpoints) {
 		if inst.altProgImage != nil {
 			inst.altProgImage.Close()
 		}
@@ -620,7 +620,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.De
 		inst.altTextMap = textMap
 
 		inst.image.SetDebugInfo(newConfig.DebugInfo)
-		inst.image.SetBreakpoints(newConfig.Breakpoints.Offsets)
+		inst.image.SetBreakpoints(newConfig.Breakpoints)
 		ok = true
 	}
 
@@ -629,7 +629,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.De
 		Status: inst.status,
 		Config: api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),
-			Breakpoints: manifest.Breakpoints{Offsets: inst.image.Breakpoints()},
+			Breakpoints: inst.image.Breakpoints(),
 		},
 	}
 	return
