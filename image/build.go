@@ -278,7 +278,7 @@ func (b *Build) FinishProgram(
 		return
 	}
 
-	man := manifest.Program{
+	man := &manifest.Program{
 		LibraryChecksum:           runtimeabi.LibraryChecksum,
 		TextRevision:              TextRevision,
 		TextAddr:                  b.textAddr,
@@ -295,14 +295,13 @@ func (b *Build) FinishProgram(
 		BufferSectionHeaderLength: int64(bufferSectionHeaderLength),
 		StackSection:              manifestByteRange(sectionMap.Stack),
 		GlobalTypes:               globalTypeBytes(mod.GlobalTypes()),
-		StartFunc:                 manifest.NoFunction,
 		CallSitesSize:             uint32(callSitesSize(b.prog.objectMap)),
 		FuncAddrsSize:             uint32(funcAddrsSize(b.prog.objectMap)),
 		Random:                    b.imports.Random,
 	}
 	if startFuncIndex >= 0 {
-		man.StartFunc = manifest.Function{
-			Index: int64(startFuncIndex),
+		man.StartFunc = &manifest.Function{
+			Index: uint32(startFuncIndex),
 			Addr:  b.prog.objectMap.FuncAddrs[startFuncIndex],
 		}
 	}
@@ -310,8 +309,10 @@ func (b *Build) FinishProgram(
 		man.InitEntryFuncs(mod, b.prog.objectMap.FuncAddrs)
 	}
 	if snap != nil {
-		man.Snapshot.MonotonicTime = snap.MonotonicTime
-		man.Snapshot.Breakpoints = manifest.SortDedupUint64(snap.Breakpoints)
+		man.Snapshot = &manifest.Snapshot{
+			MonotonicTime: snap.MonotonicTime,
+			Breakpoints:   manifest.SortDedupUint64(snap.Breakpoints),
+		}
 	}
 
 	b.stack = nil
@@ -345,7 +346,7 @@ func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int,
 	}
 
 	inst = &Instance{
-		man: manifest.Instance{
+		man: &manifest.Instance{
 			TextAddr:      b.textAddr,
 			StackSize:     uint32(b.inst.stackSize),
 			StackUsage:    uint32(b.stackUsage),
@@ -354,7 +355,7 @@ func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int,
 			MaxMemorySize: uint32(maxMemorySize),
 			StartFunc:     prog.man.StartFunc,
 			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
-			Snapshot:      prog.man.Snapshot,
+			Snapshot:      prog.man.Snapshot.Clone(),
 		},
 		file:     b.inst.file,
 		coherent: true,

@@ -54,7 +54,7 @@ message Instance {
 }
 
 message Function {
-	sint64 index = 1;
+	uint32 index = 1;
 	uint32 addr = 2;
 }
 

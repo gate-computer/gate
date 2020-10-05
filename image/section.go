@@ -18,16 +18,16 @@ type SectionMap struct {
 	Stack      section.ByteRange
 }
 
-func (mappings *SectionMap) manifestSections() (sections []manifest.ByteRange) {
-	sections = make([]manifest.ByteRange, len(mappings.Sections))
+func (mappings *SectionMap) manifestSections() (sections []*manifest.ByteRange) {
+	sections = make([]*manifest.ByteRange, len(mappings.Sections))
 	for i, mapping := range mappings.Sections {
 		sections[i] = manifestByteRange(mapping)
 	}
 	return
 }
 
-func manifestByteRange(mapping section.ByteRange) manifest.ByteRange {
-	return manifest.ByteRange{
+func manifestByteRange(mapping section.ByteRange) *manifest.ByteRange {
+	return &manifest.ByteRange{
 		Offset: mapping.Offset,
 		Length: mapping.Length,
 	}

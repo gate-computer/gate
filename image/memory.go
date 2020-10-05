@@ -93,7 +93,7 @@ func (pmem persistMem) storeInstance(inst *Instance, name string) (err error) {
 	}
 
 	// TODO: cache serialized form
-	err = marshalManifest(f, &inst.man, instManifestOffset, instanceFileTag)
+	err = marshalManifest(f, inst.man, instManifestOffset, instanceFileTag)
 	if err != nil {
 		return
 	}
@@ -155,7 +155,7 @@ func (pmem persistMem) LoadInstance(name string) (inst *Instance, err error) {
 	return
 }
 
-func copyInstance(dest, src *file.File, man manifest.Instance) (err error) {
+func copyInstance(dest, src *file.File, man *manifest.Instance) (err error) {
 	o := int64(man.StackSize - man.StackUsage)
 	l := int64(man.StackUsage)
 

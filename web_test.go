@@ -275,9 +275,7 @@ func TestModuleRef(t *testing.T) {
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{},
-		})
+		checkModuleList(t, handler, pri, map[string]interface{}{})
 	})
 
 	t.Run("Put", func(t *testing.T) {
@@ -293,9 +291,7 @@ func TestModuleRef(t *testing.T) {
 			t.Error(content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{},
-		})
+		checkModuleList(t, handler, pri, map[string]interface{}{})
 	})
 
 	t.Run("PutRef", func(t *testing.T) {
@@ -427,9 +423,7 @@ func TestModuleRef(t *testing.T) {
 			t.Error(content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{},
-		})
+		checkModuleList(t, handler, pri, map[string]interface{}{})
 	})
 
 	t.Run("UnrefNotFound", func(t *testing.T) {
@@ -462,9 +456,7 @@ func TestModuleRef(t *testing.T) {
 			t.Errorf("trailer: %v", resp.Trailer)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{},
-		})
+		checkModuleList(t, handler, pri, map[string]interface{}{})
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
@@ -524,9 +516,7 @@ func TestModuleRef(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{},
-		})
+		checkModuleList(t, handler, pri, map[string]interface{}{})
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
@@ -647,9 +637,7 @@ func TestModuleSource(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{},
-		})
+		checkModuleList(t, handler, pri, map[string]interface{}{})
 
 		req = newSignedRequest(pri, http.MethodGet, api.PathModuleRefs+hashHello, nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
@@ -907,9 +895,7 @@ func TestInstance(t *testing.T) {
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
-		checkInstanceList(t, handler, pri, map[string]interface{}{
-			"instances": []interface{}{},
-		})
+		checkInstanceList(t, handler, pri, map[string]interface{}{})
 	})
 
 	var instID string
@@ -989,9 +975,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("ListEmptyAgain", func(t *testing.T) {
-		checkInstanceList(t, handler, pri, map[string]interface{}{
-			"instances": []interface{}{},
-		})
+		checkInstanceList(t, handler, pri, map[string]interface{}{})
 	})
 }
 

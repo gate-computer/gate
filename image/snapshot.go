@@ -66,7 +66,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// New module sections.
 	oldRanges := oldProg.man.Sections
-	newRanges := make([]manifest.ByteRange, section.Data+1)
+	newRanges := make([]*manifest.ByteRange, section.Data+1)
 
 	off := int64(wasmModuleHeaderSize)
 	off = mapOldSection(off, newRanges, oldRanges, section.Type)
@@ -85,25 +85,25 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	off += int64(len(snapshotSection))
 
 	var (
-		exportSectionWrap      manifest.ByteRange
+		exportSectionWrap      *manifest.ByteRange
 		exportSectionWrapFrame []byte
 	)
 	if suspended || inst.Final() {
 		if oldRanges[section.Export].Length != 0 {
-			if oldProg.man.ExportSectionWrap.Length != 0 {
-				exportSectionWrap = manifest.ByteRange{
+			if oldLen := oldProg.man.ExportSectionWrap.GetLength(); oldLen != 0 {
+				exportSectionWrap = &manifest.ByteRange{
 					Offset: off,
-					Length: oldProg.man.ExportSectionWrap.Length,
+					Length: oldLen,
 				}
 			} else {
 				exportSectionWrapFrame = makeExportSectionWrapFrame(oldRanges[section.Export].Length)
-				exportSectionWrap = manifest.ByteRange{
+				exportSectionWrap = &manifest.ByteRange{
 					Offset: off,
 					Length: int64(len(exportSectionWrapFrame)) + oldRanges[section.Export].Length,
 				}
 			}
 			off += exportSectionWrap.Length
-			newRanges[section.Export] = manifest.ByteRange{
+			newRanges[section.Export] = &manifest.ByteRange{
 				Offset: off - oldRanges[section.Export].Length,
 				Length: oldRanges[section.Export].Length,
 			}
@@ -140,21 +140,21 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	newModuleSize -= oldRanges[section.Memory].Length
 	newModuleSize -= oldRanges[section.Global].Length
-	newModuleSize -= oldProg.man.SnapshotSection.Length
-	newModuleSize -= oldProg.man.ExportSectionWrap.Length
-	if oldProg.man.ExportSectionWrap.Length == 0 {
+	newModuleSize -= oldProg.man.SnapshotSection.GetLength()
+	newModuleSize -= oldProg.man.ExportSectionWrap.GetLength()
+	if oldProg.man.ExportSectionWrap.GetLength() == 0 {
 		newModuleSize -= oldRanges[section.Export].Length
 	}
 	newModuleSize -= oldRanges[section.Start].Length
-	newModuleSize -= oldProg.man.BufferSection.Length
-	newModuleSize -= oldProg.man.StackSection.Length
+	newModuleSize -= oldProg.man.BufferSection.GetLength()
+	newModuleSize -= oldProg.man.StackSection.GetLength()
 	newModuleSize -= oldRanges[section.Data].Length
 
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
 	newModuleSize += int64(len(snapshotSection))
-	newModuleSize += exportSectionWrap.Length
-	if exportSectionWrap.Length == 0 {
+	newModuleSize += exportSectionWrap.GetLength()
+	if exportSectionWrap.GetLength() == 0 {
 		newModuleSize += newRanges[section.Export].Length
 	}
 	newModuleSize += bufferSectionSize
@@ -202,13 +202,13 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		return
 	}
 	newOff += int64(n)
-	oldOff += oldProg.man.SnapshotSection.Length
+	oldOff += oldProg.man.SnapshotSection.GetLength()
 
 	// Copy export section, possibly writing or skipping wrapper.
 	copyLen = int(oldRanges[section.Export].Length)
-	if exportSectionWrap.Length != 0 {
-		if oldProg.man.ExportSectionWrap.Length != 0 {
-			copyLen = int(oldProg.man.ExportSectionWrap.Length)
+	if exportSectionWrap.GetLength() != 0 {
+		if oldLen := oldProg.man.ExportSectionWrap.GetLength(); oldLen != 0 {
+			copyLen = int(oldLen)
 		} else {
 			n, err = newFile.WriteAt(exportSectionWrapFrame, newOff)
 			if err != nil {
@@ -217,8 +217,8 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 			newOff += int64(n)
 		}
 	} else {
-		if oldProg.man.ExportSectionWrap.Length != 0 {
-			oldOff += oldProg.man.ExportSectionWrap.Length - oldRanges[section.Export].Length
+		if oldLen := oldProg.man.ExportSectionWrap.GetLength(); oldLen != 0 {
+			oldOff += oldLen - oldRanges[section.Export].Length
 		}
 	}
 	err = copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen)
@@ -250,7 +250,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		}
 		newOff += int64(n)
 	}
-	oldOff += oldProg.man.BufferSection.Length
+	oldOff += oldProg.man.BufferSection.GetLength()
 
 	// Write new stack section, and skip old one.
 	if stackSectionSize > 0 {
@@ -265,7 +265,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 				return
 			}
 		} else {
-			putInitStack(newStack, inst.man.StartFunc.Index, inst.man.EntryFunc.Index)
+			putInitStack(newStack, inst.man.StartFunc, inst.man.EntryFunc)
 		}
 
 		n, err = newFile.WriteAt(newStackSection, newOff)
@@ -274,7 +274,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		}
 		newOff += int64(n)
 	}
-	oldOff += oldProg.man.StackSection.Length
+	oldOff += oldProg.man.StackSection.GetLength()
 
 	// Copy new data section from instance, and skip old one.
 	n, err = newFile.WriteAt(dataHeader, newOff)
@@ -335,28 +335,42 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	newProg = &Program{
 		Map:     oldProg.Map,
 		storage: oldProg.storage,
-		man:     oldProg.man,
-		file:    newFile,
-	}
-	newProg.man.TextAddr = newTextAddr
-	newProg.man.StackUsage = uint32(stackUsage)
-	newProg.man.MemoryDataSize = inst.man.MemorySize
-	newProg.man.MemorySize = inst.man.MemorySize
-	newProg.man.ModuleSize = newModuleSize
-	newProg.man.Sections = newRanges
-	newProg.man.SnapshotSection = manifest.ByteRange{
-		Offset: snapshotSectionOffset,
-		Length: int64(len(snapshotSection)),
-	}
-	newProg.man.ExportSectionWrap = exportSectionWrap
-	newProg.man.BufferSection = manifest.ByteRange{
-		Offset: bufferSectionOffset,
-		Length: bufferSectionSize,
-	}
-	newProg.man.BufferSectionHeaderLength = int64(len(bufferHeader))
-	newProg.man.StackSection = manifest.ByteRange{
-		Offset: stackSectionOffset,
-		Length: int64(stackSectionSize),
+		man: &manifest.Program{
+			LibraryChecksum: oldProg.man.LibraryChecksum,
+			TextRevision:    oldProg.man.TextRevision,
+			TextAddr:        newTextAddr,
+			TextSize:        oldProg.man.TextSize,
+			StackUsage:      uint32(stackUsage),
+			GlobalsSize:     oldProg.man.GlobalsSize,
+			MemorySize:      inst.man.MemorySize,
+			MemorySizeLimit: oldProg.man.MemorySizeLimit,
+			MemoryDataSize:  inst.man.MemorySize,
+			ModuleSize:      newModuleSize,
+			Sections:        newRanges,
+			SnapshotSection: &manifest.ByteRange{
+				Offset: snapshotSectionOffset,
+				Length: int64(len(snapshotSection)),
+			},
+			ExportSectionWrap: exportSectionWrap,
+			BufferSection: &manifest.ByteRange{
+				Offset: bufferSectionOffset,
+				Length: bufferSectionSize,
+			},
+			BufferSectionHeaderLength: int64(len(bufferHeader)),
+			StackSection: &manifest.ByteRange{
+				Offset: stackSectionOffset,
+				Length: int64(stackSectionSize),
+			},
+			GlobalTypes:   oldProg.man.GlobalTypes,
+			StartFunc:     oldProg.man.StartFunc,
+			EntryIndexes:  oldProg.man.EntryIndexes,
+			EntryAddrs:    oldProg.man.EntryAddrs,
+			CallSitesSize: oldProg.man.CallSitesSize,
+			FuncAddrsSize: oldProg.man.FuncAddrsSize,
+			Random:        oldProg.man.Random,
+			Snapshot:      oldProg.man.Snapshot.Clone(),
+		},
+		file: newFile,
 	}
 	return
 }
@@ -458,7 +472,9 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 	return
 }
 
-func makeSnapshotSection(snap manifest.Snapshot) []byte {
+func makeSnapshotSection(snap *manifest.Snapshot) []byte {
+	manifest.InflateSnapshot(&snap)
+
 	// Section id, payload length.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
@@ -650,9 +666,9 @@ func putVaruint32Before(dest []byte, offset int, x uint32) (n int) {
 	return
 }
 
-func mapOldSection(offset int64, dest, src []manifest.ByteRange, i section.ID) int64 {
+func mapOldSection(offset int64, dest, src []*manifest.ByteRange, i section.ID) int64 {
 	if src[i].Length != 0 {
-		dest[i] = manifest.ByteRange{
+		dest[i] = &manifest.ByteRange{
 			Offset: offset,
 			Length: src[i].Length,
 		}
@@ -661,9 +677,9 @@ func mapOldSection(offset int64, dest, src []manifest.ByteRange, i section.ID) i
 	return offset
 }
 
-func mapNewSection(offset int64, dest []manifest.ByteRange, length int, i section.ID) int64 {
+func mapNewSection(offset int64, dest []*manifest.ByteRange, length int, i section.ID) int64 {
 	if length != 0 {
-		dest[i] = manifest.ByteRange{
+		dest[i] = &manifest.ByteRange{
 			Offset: offset,
 			Length: int64(length),
 		}

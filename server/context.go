@@ -50,9 +50,11 @@ func detachedContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, contextKeyDetail, c)
 }
 
-func ContextDetail(ctx context.Context) (c detail.Context) {
+func ContextDetail(ctx context.Context) (c *detail.Context) {
 	if x := ctx.Value(contextKeyDetail); x != nil {
-		c = x.(detail.Context)
+		c = x.(*detail.Context)
+	} else {
+		c = new(detail.Context)
 	}
 
 	if pri := principal.ContextID(ctx); pri != nil {
@@ -65,7 +67,7 @@ func ContextDetail(ctx context.Context) (c detail.Context) {
 // ContextOp returns the server operation type.
 func ContextOp(ctx context.Context) (op detail.Op) {
 	if x := ctx.Value(contextKeyDetail); x != nil {
-		op = x.(detail.Context).Op
+		op = x.(*detail.Context).Op
 	}
 	return
 }

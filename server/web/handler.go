@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gate.computer/gate/internal/jsonproto"
 	"gate.computer/gate/internal/principal"
+	"gate.computer/gate/internal/protojson"
 	internalapi "gate.computer/gate/internal/webserverapi"
 	"gate.computer/gate/server"
 	serverapi "gate.computer/gate/server/api"
@@ -34,7 +34,7 @@ type errorWriter interface {
 }
 
 type instanceMethod func(s *server.Server, ctx context.Context, instance string) error
-type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (serverapi.Status, error)
+type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (*serverapi.Status, error)
 type instanceWaiterMethod func(s *server.Server, ctx context.Context, instance string) (*server.Instance, error)
 
 type webserver struct {
@@ -562,10 +562,6 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 
 	sort.Sort(refs)
 
-	if refs.Modules == nil {
-		refs.Modules = []api.ModuleRef{} // For JSON.
-	}
-
 	w.Header().Set(api.HeaderContentType, contentTypeJSON)
 
 	json.NewEncoder(w).Encode(refs)
@@ -703,7 +699,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	inst.Connect(ctx, r.Body, w)
 	status := inst.Wait(ctx)
-	w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+	w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
 }
 
 func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function string, debug bool) {
@@ -833,7 +829,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
 	status := inst.Wait(ctx)
-	statusJSON := jsonproto.MustMarshal(&status) // TODO: send ConnectionStatus
+	statusJSON := protojson.MustMarshal(status) // TODO: send ConnectionStatus
 	if conn.WriteMessage(websocket.TextMessage, statusJSON) == nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 	}
@@ -910,13 +906,9 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 
 	sort.Sort(instances)
 
-	if instances.Instances == nil {
-		instances.Instances = []serverapi.InstanceStatus{} // For JSON.
-	}
-
 	w.Header().Set(api.HeaderContentType, contentTypeJSON)
 
-	jsonproto.Marshaler.Marshal(w, &instances)
+	protojson.Write(w, instances)
 }
 
 func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceMethod, instID string) {
@@ -944,7 +936,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+	w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -961,7 +953,7 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 
 	if wait {
 		status := inst.Wait(ctx)
-		w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+		w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -1009,7 +1001,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	status := inst.Status()
-	w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+	w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
 }
 
 func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, instID string) {
@@ -1049,7 +1041,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 	}
 
 	reply := &internalapi.IOConnection{Connected: connIO != nil}
-	err = conn.WriteMessage(websocket.TextMessage, jsonproto.MustMarshal(reply))
+	err = conn.WriteMessage(websocket.TextMessage, protojson.MustMarshal(reply))
 	if err != nil {
 		reportNetworkError(ctx, s, err)
 		return
@@ -1066,7 +1058,8 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	data, err := jsonproto.Marshal(&internalapi.ConnectionStatus{Status: inst.Status()})
+	status := inst.Status()
+	data, err := protojson.Marshal(&internalapi.ConnectionStatus{Status: status})
 	if err != nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		reportInternalError(ctx, s, "", "", "", "", err)
@@ -1103,7 +1096,7 @@ func handleInstanceDebug(w http.ResponseWriter, r *http.Request, s *webserver, i
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	var req serverapi.DebugRequest
+	req := new(serverapi.DebugRequest)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		respondContentParseError(ctx, wr, s, err)
 		return

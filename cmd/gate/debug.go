@@ -57,10 +57,10 @@ func (a lineAddrs) Less(i, j int) bool {
 	return a[i].line < a[j].line
 }
 
-type debugCallFunc func(instID string, req api.DebugRequest) api.DebugResponse
+type debugCallFunc func(instID string, req *api.DebugRequest) *api.DebugResponse
 
 func debug(call debugCallFunc) {
-	var req api.DebugRequest
+	req := new(api.DebugRequest)
 
 	if flag.NArg() > 1 {
 		switch flag.Arg(1) {
@@ -168,7 +168,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 		return
 	}
 
-	_, _, codeMap, _, info := build(call(instID, api.DebugRequest{Op: api.DebugOpConfigGet}))
+	_, _, codeMap, _, info := build(call(instID, &api.DebugRequest{Op: api.DebugOpConfigGet}))
 	if info == nil {
 		log.Fatal("module contains no debug information")
 	}
@@ -296,7 +296,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 	return
 }
 
-func debugBacktrace(res api.DebugResponse) {
+func debugBacktrace(res *api.DebugResponse) {
 	if len(res.Data) == 0 {
 		log.Fatal("no stack")
 	}
@@ -306,7 +306,7 @@ func debugBacktrace(res api.DebugResponse) {
 	check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
 }
 
-func build(res api.DebugResponse,
+func build(res *api.DebugResponse,
 ) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
 	var modkey string
 	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.ModuleRefSource {

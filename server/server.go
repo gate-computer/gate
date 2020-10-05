@@ -651,7 +651,7 @@ func (s *Server) loadUnknownModuleInstance(ctx context.Context, acc *account, re
 	return
 }
 
-func (s *Server) ModuleRefs(ctx context.Context) (refs api.ModuleRefs, err error) {
+func (s *Server) ModuleRefs(ctx context.Context) (refs *api.ModuleRefs, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -670,14 +670,16 @@ func (s *Server) ModuleRefs(ctx context.Context) (refs api.ModuleRefs, err error
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	refs = new(api.ModuleRefs)
+
 	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
 		return
 	}
 
-	refs.Modules = make([]api.ModuleRef, 0, len(acc.programs))
+	refs.Modules = make([]*api.ModuleRef, 0, len(acc.programs))
 	for prog := range acc.programs {
-		refs.Modules = append(refs.Modules, api.ModuleRef{
+		refs.Modules = append(refs.Modules, &api.ModuleRef{
 			Id: prog.hash,
 		})
 	}
@@ -729,7 +731,7 @@ func (s *Server) ModuleContent(ctx context.Context, hash string,
 }
 
 type moduleContent struct {
-	ctx   detail.Context
+	ctx   *detail.Context
 	r     io.Reader
 	s     *Server
 	prog  *program
@@ -833,7 +835,7 @@ func (s *Server) InstanceConnection(ctx context.Context, instID string,
 
 // InstanceStatus of an existing instance.
 func (s *Server) InstanceStatus(ctx context.Context, instID string,
-) (status api.Status, err error) {
+) (status *api.Status, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -854,7 +856,7 @@ func (s *Server) InstanceStatus(ctx context.Context, instID string,
 }
 
 func (s *Server) WaitInstance(ctx context.Context, instID string,
-) (status api.Status, err error) {
+) (status *api.Status, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -1077,8 +1079,8 @@ func (s *Server) snapshot(ctx context.Context, instID string) (moduleKey string,
 	return
 }
 
-func (s *Server) DebugInstance(ctx context.Context, instID string, req api.DebugRequest,
-) (res api.DebugResponse, err error) {
+func (s *Server) DebugInstance(ctx context.Context, instID string, req *api.DebugRequest,
+) (res *api.DebugResponse, err error) {
 	var pol progPolicy
 
 	ctx, err = s.AccessPolicy.AuthorizeProgram(ctx, &pol.res, &pol.prog)
@@ -1130,7 +1132,7 @@ func (s *Server) DebugInstance(ctx context.Context, instID string, req api.Debug
 	return
 }
 
-func (s *Server) Instances(ctx context.Context) (statuses api.Instances, err error) {
+func (s *Server) Instances(ctx context.Context) (statuses *api.Instances, err error) {
 	ctx, err = s.AccessPolicy.Authorize(ctx)
 	if err != nil {
 		return
@@ -1158,7 +1160,9 @@ func (s *Server) Instances(ctx context.Context) (statuses api.Instances, err err
 	})
 
 	// Get instance statuses.  Each instance has its own lock.
-	statuses.Instances = make([]api.InstanceStatus, len(is))
+	statuses = &api.Instances{
+		Instances: make([]*api.InstanceStatus, len(is)),
+	}
 	for i, inst := range is {
 		statuses.Instances[i] = inst.instanceStatus()
 	}

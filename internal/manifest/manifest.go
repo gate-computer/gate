@@ -12,8 +12,6 @@ import (
 const MaxSize = 4096 // Including header.
 const MaxBreakpoints = 100
 
-var NoFunction = Function{Index: -1}
-
 func (man *Program) InitEntryFuncs(mod compile.Module, funcAddrs []uint32) {
 	man.EntryIndexes = make(map[string]uint32)
 	man.EntryAddrs = make(map[uint32]uint32)
@@ -32,9 +30,9 @@ func (man *Program) InitEntryFuncs(mod compile.Module, funcAddrs []uint32) {
 	}
 }
 
-func (man Program) EntryFunc(entryIndex int) Function {
+func (man *Program) EntryFunc(entryIndex int) *Function {
 	if entryIndex < 0 {
-		return NoFunction
+		return nil
 	}
 
 	addr, found := man.EntryAddrs[uint32(entryIndex)]
@@ -42,8 +40,28 @@ func (man Program) EntryFunc(entryIndex int) Function {
 		panic(entryIndex)
 	}
 
-	return Function{
-		Index: int64(entryIndex),
+	return &Function{
+		Index: uint32(entryIndex),
 		Addr:  addr,
+	}
+}
+
+func InflateSnapshot(s **Snapshot) *Snapshot {
+	if *s == nil {
+		*s = new(Snapshot)
+	}
+	return *s
+}
+
+func (s *Snapshot) Clone() *Snapshot {
+	if s == nil {
+		return nil
+	}
+	return &Snapshot{
+		Flags:         s.Flags,
+		Trap:          s.Trap,
+		Result:        s.Result,
+		MonotonicTime: s.MonotonicTime,
+		Breakpoints:   append([]uint64(nil), s.Breakpoints...),
 	}
 }

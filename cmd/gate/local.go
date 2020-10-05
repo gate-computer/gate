@@ -23,6 +23,7 @@ import (
 	webapi "gate.computer/gate/server/web/api"
 	dbus "github.com/godbus/dbus/v5"
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/proto"
 )
 
 var daemon dbus.BusObject
@@ -73,7 +74,7 @@ var localCommands = map[string]command{
 
 			var (
 				instID string
-				status api.Status
+				status = new(api.Status)
 			)
 			check(call.Store(&instID, &status.State, &status.Cause, &status.Result))
 
@@ -100,8 +101,8 @@ var localCommands = map[string]command{
 	"debug": {
 		usage: "instance [command [offset...]]",
 		do: func() {
-			debug(func(instID string, req api.DebugRequest) (res api.DebugResponse) {
-				reqBuf, err := req.Marshal()
+			debug(func(instID string, req *api.DebugRequest) *api.DebugResponse {
+				reqBuf, err := proto.Marshal(req)
 				check(err)
 
 				call := daemonCall("Debug", instID, reqBuf)
@@ -109,8 +110,9 @@ var localCommands = map[string]command{
 				var resBuf []byte
 				check(call.Store(&resBuf))
 
-				check(res.Unmarshal(resBuf))
-				return
+				res := new(api.DebugResponse)
+				check(proto.Unmarshal(resBuf, res))
+				return res
 			})
 		},
 	},
@@ -182,7 +184,7 @@ var localCommands = map[string]command{
 		do: func() {
 			call := daemonCall("Instances")
 
-			var is api.Instances
+			is := new(api.Instances)
 			check(call.Store(&is))
 
 			for _, inst := range is.Instances {
@@ -252,7 +254,7 @@ var localCommands = map[string]command{
 		do: func() {
 			call := daemonCall("ModuleRefs")
 
-			var refs api.ModuleRefs
+			refs := new(api.ModuleRefs)
 			check(call.Store(&refs))
 
 			for _, m := range refs.Modules {
@@ -434,7 +436,7 @@ func exportLocal(module, filename string) {
 func daemonCallInstanceStatus(name string) {
 	call := daemonCall(name, flag.Arg(0))
 
-	var status api.Status
+	status := new(api.Status)
 	check(call.Store(&status.State, &status.Cause, &status.Result))
 	fmt.Println(statusString(status))
 }
@@ -528,14 +530,14 @@ func closeFiles(files ...*os.File) {
 	}
 }
 
-func statusString(s api.Status) string {
+func statusString(s *api.Status) string {
 	t := webapi.Status{
-		State:  s.State.String(),
-		Cause:  s.Cause.String(),
-		Result: int(s.Result),
-		Error:  s.Error,
+		State:  s.GetState().String(),
+		Cause:  s.GetCause().String(),
+		Result: int(s.GetResult()),
+		Error:  s.GetError(),
 	}
-	if s.Cause == 0 {
+	if s.GetCause() == 0 {
 		t.Cause = ""
 	}
 	return t.String()

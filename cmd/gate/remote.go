@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 )
 
 var remoteCommands = map[string]command{
@@ -77,8 +78,8 @@ var remoteCommands = map[string]command{
 	"debug": {
 		usage: "instance [command [offset...]]",
 		do: func() {
-			debug(func(instID string, debug api.DebugRequest) (res api.DebugResponse) {
-				debugJSON, err := json.Marshal(debug)
+			debug(func(instID string, debug *api.DebugRequest) *api.DebugResponse {
+				debugJSON, err := proto.Marshal(debug)
 				check(err)
 
 				params := url.Values{
@@ -95,8 +96,10 @@ var remoteCommands = map[string]command{
 				}
 
 				_, resp := doHTTP(req, webapi.PathInstances+instID, params)
-				check(json.NewDecoder(resp.Body).Decode(&res))
-				return
+
+				res := new(api.DebugResponse)
+				decodeProto(resp.Body, res)
+				return res
 			})
 		},
 	},
@@ -571,6 +574,13 @@ func unmarshalStatus(serialized string) (status webapi.Status) {
 		log.Fatal(status.String())
 	}
 	return
+}
+
+func decodeProto(r io.Reader, m proto.Message) {
+	b, err := ioutil.ReadAll(r)
+	check(err)
+
+	check(proto.Unmarshal(b, m))
 }
 
 func checkCopy(w io.Writer, r io.Reader) (n int64) {

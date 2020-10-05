@@ -16,6 +16,7 @@ import (
 	"gate.computer/gate/internal/manifest"
 	"github.com/tsavola/wag/object"
 	"golang.org/x/sys/unix"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -89,7 +90,7 @@ func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 func (fs *Filesystem) protectProgramFile(*file.File) error { return nil }
 
 func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
-	err = marshalManifest(prog.file, &prog.man, progManifestOffset, programFileTag)
+	err = marshalManifest(prog.file, prog.man, progManifestOffset, programFileTag)
 	if err != nil {
 		return
 	}
@@ -138,7 +139,7 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 		file:    f,
 	}
 
-	err = unmarshalManifest(f, &prog.man, progManifestOffset, programFileTag)
+	err = unmarshalManifest(f, prog.man, progManifestOffset, programFileTag)
 	if err != nil {
 		return
 	}
@@ -182,7 +183,7 @@ func (fs *Filesystem) storeInstanceSupported() bool     { return true }
 
 func (fs *Filesystem) storeInstance(inst *Instance, name string) (err error) {
 	if inst.manDirty {
-		err = marshalManifest(inst.file, &inst.man, instManifestOffset, instanceFileTag)
+		err = marshalManifest(inst.file, inst.man, instManifestOffset, instanceFileTag)
 		if err != nil {
 			return
 		}
@@ -234,7 +235,7 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 		name:     name,
 	}
 
-	err = unmarshalManifest(f, &inst.man, instManifestOffset, instanceFileTag)
+	err = unmarshalManifest(f, inst.man, instManifestOffset, instanceFileTag)
 	return
 }
 
@@ -258,31 +259,23 @@ func (fs *Filesystem) listNames(dirFD uintptr) (names []string, err error) {
 	return
 }
 
-type marshaler interface {
-	Size() int
-	MarshalTo([]byte) (int, error)
-}
-
-func marshalManifest(f *file.File, man marshaler, offset int64, tag uint32) (err error) {
-	size := manifestHeaderSize + man.Size()
-	b := make([]byte, size)
-	binary.LittleEndian.PutUint32(b, tag)
-	binary.LittleEndian.PutUint32(b[4:], uint32(size))
-
-	_, err = man.MarshalTo(b[manifestHeaderSize:])
+func marshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) (err error) {
+	marsh, err := proto.Marshal(man)
 	if err != nil {
 		return
 	}
+
+	size := manifestHeaderSize + len(marsh)
+	b := make([]byte, size)
+	binary.LittleEndian.PutUint32(b, tag)
+	binary.LittleEndian.PutUint32(b[4:], uint32(size))
+	copy(b[manifestHeaderSize:], marsh)
 
 	_, err = f.WriteAt(b, offset)
 	return
 }
 
-type unmarshaler interface {
-	Unmarshal([]byte) error
-}
-
-func unmarshalManifest(f *file.File, man unmarshaler, offset int64, tag uint32) (err error) {
+func unmarshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) (err error) {
 	b := make([]byte, manifest.MaxSize)
 	_, err = io.ReadFull(io.NewSectionReader(f, offset, manifest.MaxSize), b)
 	if err != nil {
@@ -300,5 +293,5 @@ func unmarshalManifest(f *file.File, man unmarshaler, offset int64, tag uint32) 
 		return
 	}
 
-	return man.Unmarshal(b[manifestHeaderSize:size])
+	return proto.Unmarshal(b[manifestHeaderSize:size], man)
 }

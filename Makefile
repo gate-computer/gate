@@ -110,10 +110,9 @@ internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-
 	test -s tmp/errors.go
 	mv tmp/errors.go internal/error/runtime/errors.go
 
-%.pb.go: %.proto go.mod internal/cmd/protoc/generate.go
-	$(GO) build -o tmp/bin/protoc-gen-gate ./internal/cmd/protoc
-	PATH=$(shell pwd)/tmp/bin:$(PATH) $(PROTOC) --gate_out=tmp $*.proto
-	find tmp -name $(notdir $@) -exec cp {} $@ \;
+%.pb.go: %.proto go.mod
+	$(GO) build -o tmp/bin/protoc-gen-go google.golang.org/protobuf/cmd/protoc-gen-go
+	PATH=$(shell pwd)/tmp/bin:$(PATH) $(PROTOC) --go_out=. --go_opt=paths=source_relative $*.proto
 
 server/event/event.pb.go: server/detail/detail.proto
 

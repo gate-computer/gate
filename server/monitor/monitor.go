@@ -27,11 +27,11 @@ type Item struct {
 
 type req struct {
 	sub       chan<- Item
-	subscribe chan<- State
+	subscribe chan<- *State
 }
 
 type MonitorState struct {
-	current State
+	current *State
 	items   chan Item
 	kill    chan struct{}
 	reqs    chan req
@@ -58,8 +58,8 @@ func New(ctx context.Context, config Config) (func(server.Event, error), *Monito
 	return s.monitor, s
 }
 
-func (s *MonitorState) Subscribe(ctx context.Context, sub chan<- Item) (snapshot State, err error) {
-	resp := make(chan State)
+func (s *MonitorState) Subscribe(ctx context.Context, sub chan<- Item) (snapshot *State, err error) {
+	resp := make(chan *State)
 
 	select {
 	case s.reqs <- req{sub, resp}:

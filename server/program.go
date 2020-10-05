@@ -302,7 +302,7 @@ func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, conte
 	if b.Snapshot == nil {
 		b.Snapshot = new(snapshot.Snapshot)
 	}
-	b.Snapshot.Breakpoints = append([]uint64{}, breakpoints...)
+	b.Snapshot.Breakpoints = append([]uint64(nil), breakpoints...)
 
 	codeReader := compile.Reader(reader)
 	if len(breakpoints) > 0 {

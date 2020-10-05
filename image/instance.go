@@ -56,7 +56,7 @@ type InstanceStorage interface {
 
 // Instance is a program state.  It may be undergoing mutation.
 type Instance struct {
-	man      manifest.Instance
+	man      *manifest.Instance
 	manDirty bool // Manifest needs to be written to file.
 	coherent bool // File is not being mutated and looks okay.
 	file     *file.File
@@ -134,7 +134,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 	}
 
 	inst = &Instance{
-		man: manifest.Instance{
+		man: &manifest.Instance{
 			TextAddr:      instTextAddr,
 			StackSize:     uint32(instStackSize),
 			StackUsage:    uint32(instStackUsage),
@@ -143,7 +143,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 			MaxMemorySize: uint32(maxMemorySize),
 			StartFunc:     prog.man.StartFunc,
 			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
-			Snapshot:      prog.man.Snapshot,
+			Snapshot:      prog.man.Snapshot.Clone(),
 		},
 		manDirty: true,
 		coherent: true,
@@ -209,26 +209,26 @@ func (inst *Instance) StackUsage() int       { return int(inst.man.StackUsage) }
 func (inst *Instance) GlobalsSize() int      { return alignPageSize32(inst.man.GlobalsSize) }
 func (inst *Instance) MemorySize() int       { return int(inst.man.MemorySize) }
 func (inst *Instance) MaxMemorySize() int    { return int(inst.man.MaxMemorySize) }
-func (inst *Instance) StartAddr() uint32     { return inst.man.StartFunc.Addr }
-func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryFunc.Addr }
-func (inst *Instance) Flags() snapshot.Flags { return snapshot.Flags(inst.man.Snapshot.Flags) }
+func (inst *Instance) StartAddr() uint32     { return inst.man.StartFunc.GetAddr() }
+func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryFunc.GetAddr() }
+func (inst *Instance) Flags() snapshot.Flags { return snapshot.Flags(inst.man.Snapshot.GetFlags()) }
 func (inst *Instance) Final() bool           { return inst.Flags().Final() }
 func (inst *Instance) DebugInfo() bool       { return inst.Flags().DebugInfo() }
-func (inst *Instance) Trap() trap.ID         { return trap.ID(inst.man.Snapshot.Trap) }
-func (inst *Instance) Result() int32         { return inst.man.Snapshot.Result }
-func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.MonotonicTime }
+func (inst *Instance) Trap() trap.ID         { return trap.ID(inst.man.Snapshot.GetTrap()) }
+func (inst *Instance) Result() int32         { return inst.man.Snapshot.GetResult() }
+func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.GetMonotonicTime() }
 
 // Breakpoints are in ascending order and unique.
 func (inst *Instance) Breakpoints() []uint64 {
-	return inst.man.Snapshot.Breakpoints
+	return inst.man.Snapshot.GetBreakpoints()
 }
 
 func (inst *Instance) SetFinal() {
 	flags := uint64(inst.Flags() | snapshot.FlagFinal)
-	if inst.man.Snapshot.Flags == flags {
+	if inst.man.Snapshot.GetFlags() == flags {
 		return
 	}
-	inst.man.Snapshot.Flags = flags
+	manifest.InflateSnapshot(&inst.man.Snapshot).Flags = flags
 	inst.manDirty = true
 }
 
@@ -239,33 +239,33 @@ func (inst *Instance) SetDebugInfo(enabled bool) {
 	} else {
 		flags = uint64(inst.Flags() &^ snapshot.FlagDebugInfo)
 	}
-	if inst.man.Snapshot.Flags == flags {
+	if inst.man.Snapshot.GetFlags() == flags {
 		return
 	}
-	inst.man.Snapshot.Flags = flags
+	manifest.InflateSnapshot(&inst.man.Snapshot).Flags = flags
 	inst.manDirty = true
 }
 
 func (inst *Instance) SetTrap(id trap.ID) {
-	if inst.man.Snapshot.Trap == int32(id) {
+	if inst.man.Snapshot.GetTrap() == int32(id) {
 		return
 	}
-	inst.man.Snapshot.Trap = int32(id)
+	manifest.InflateSnapshot(&inst.man.Snapshot).Trap = int32(id)
 	inst.manDirty = true
 }
 
 func (inst *Instance) SetResult(n int32) {
-	if inst.man.Snapshot.Result == n {
+	if inst.man.Snapshot.GetResult() == n {
 		return
 	}
-	inst.man.Snapshot.Result = n
+	manifest.InflateSnapshot(&inst.man.Snapshot).Result = n
 	inst.manDirty = true
 }
 
 // SetBreakpoints which must have been sorted and deduplicated.
 func (inst *Instance) SetBreakpoints(a []uint64) {
-	if len(inst.man.Snapshot.Breakpoints) == len(a) {
-		for i, x := range inst.man.Snapshot.Breakpoints {
+	if len(inst.man.Snapshot.GetBreakpoints()) == len(a) {
+		for i, x := range inst.man.Snapshot.GetBreakpoints() {
 			if x != a[i] {
 				goto changed
 			}
@@ -273,7 +273,7 @@ func (inst *Instance) SetBreakpoints(a []uint64) {
 		return
 	}
 changed:
-	inst.man.Snapshot.Breakpoints = a
+	manifest.InflateSnapshot(&inst.man.Snapshot).Breakpoints = a
 	inst.manDirty = true
 }
 
@@ -328,9 +328,9 @@ func (inst *Instance) CheckMutation() (err error) {
 			inst.man.InitRoutine = abi.TextAddrResume
 		}
 		inst.man.MemorySize = vars.CurrentMemoryPages << wa.PageBits
-		inst.man.StartFunc = manifest.NoFunction
-		inst.man.EntryFunc = manifest.NoFunction
-		inst.man.Snapshot.MonotonicTime = vars.MonotonicTimeSnapshot
+		inst.man.StartFunc = nil
+		inst.man.EntryFunc = nil
+		manifest.InflateSnapshot(&inst.man.Snapshot).MonotonicTime = vars.MonotonicTimeSnapshot
 		inst.manDirty = true
 	}
 

@@ -13,9 +13,9 @@ const (
 	ModuleRefHash   = crypto.SHA384
 )
 
-func (x ModuleRefs) Len() int           { return len(x.Modules) }
-func (x ModuleRefs) Swap(i, j int)      { x.Modules[i], x.Modules[j] = x.Modules[j], x.Modules[i] }
-func (x ModuleRefs) Less(i, j int) bool { return x.Modules[i].Id < x.Modules[j].Id }
+func (x *ModuleRefs) Len() int           { return len(x.Modules) }
+func (x *ModuleRefs) Swap(i, j int)      { x.Modules[i], x.Modules[j] = x.Modules[j], x.Modules[i] }
+func (x *ModuleRefs) Less(i, j int) bool { return x.Modules[i].Id < x.Modules[j].Id }
 
 const (
 	StateRunning    = State_RUNNING
@@ -40,9 +40,21 @@ const (
 	CauseInternal                      = Cause_INTERNAL
 )
 
-func (x Instances) Len() int           { return len(x.Instances) }
-func (x Instances) Swap(i, j int)      { x.Instances[i], x.Instances[j] = x.Instances[j], x.Instances[i] }
-func (x Instances) Less(i, j int) bool { return x.Instances[i].Instance < x.Instances[j].Instance }
+func (s *Status) Clone() *Status {
+	if s == nil {
+		return nil
+	}
+	return &Status{
+		State:  s.State,
+		Cause:  s.Cause,
+		Result: s.Result,
+		Error:  s.Error,
+	}
+}
+
+func (x *Instances) Len() int           { return len(x.Instances) }
+func (x *Instances) Swap(i, j int)      { x.Instances[i], x.Instances[j] = x.Instances[j], x.Instances[i] }
+func (x *Instances) Less(i, j int) bool { return x.Instances[i].Instance < x.Instances[j].Instance }
 
 const (
 	DebugOpConfigGet        = DebugOp_CONFIG_GET

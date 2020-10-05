@@ -21,7 +21,7 @@ type Program struct {
 	Map object.CallMap
 
 	storage Storage
-	man     manifest.Program
+	man     *manifest.Program
 	file    *file.File
 }
 

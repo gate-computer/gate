@@ -93,7 +93,7 @@ type Instance struct {
 	mu           instanceMutex // Guards the fields below.
 	exists       bool
 	transient    bool
-	status       api.Status
+	status       *api.Status
 	altProgImage *image.Program
 	altTextMap   stack.TextMap
 	image        *image.Instance
@@ -111,6 +111,7 @@ func newInstance(id string, acc *account, transient bool, image *image.Instance,
 		ID:        id,
 		acc:       acc,
 		transient: transient,
+		status:    new(api.Status),
 		image:     image,
 		buffers:   buffers,
 		process:   proc,
@@ -208,29 +209,29 @@ func (inst *Instance) Transient() bool {
 	return inst.transient
 }
 
-func (inst *Instance) Status() api.Status {
+func (inst *Instance) Status() *api.Status {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	return inst.status
+	return inst.status.Clone()
 }
 
-func (inst *Instance) instanceStatus() api.InstanceStatus {
+func (inst *Instance) instanceStatus() *api.InstanceStatus {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	return api.InstanceStatus{
+	return &api.InstanceStatus{
 		Instance:  inst.ID,
-		Status:    inst.status,
+		Status:    inst.status.Clone(),
 		Transient: inst.transient,
 		Debugging: inst.image.DebugInfo() || len(inst.image.Breakpoints()) > 0,
 	}
 }
 
-func (inst *Instance) Wait(ctx context.Context) (status api.Status) {
+func (inst *Instance) Wait(ctx context.Context) (status *api.Status) {
 	var stopped <-chan struct{}
 	inst.mu.Guard(func(lock instanceLock) {
-		status = inst.status
+		status = inst.status.Clone()
 		stopped = inst.stopped
 	})
 
@@ -333,7 +334,7 @@ func (inst *Instance) doResume(function string, proc *runtime.Process, services 
 		return
 	}
 
-	inst.status = api.Status{State: api.StateRunning}
+	inst.status = &api.Status{State: api.StateRunning}
 	inst.process = proc
 	inst.services = services
 	inst.timeReso = timeReso
@@ -407,7 +408,7 @@ func (inst *Instance) annihilate() (err error) {
 
 func (inst *Instance) drive(ctx context.Context, prog *program, function string) (Event, error) {
 	trapID := trap.InternalError
-	res := api.Status{
+	res := &api.Status{
 		State: api.StateKilled,
 		Cause: api.CauseInternal,
 	}
@@ -477,8 +478,8 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 	return nil, nil
 }
 
-func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugRequest,
-) (rebuild *instanceRebuild, newConfig api.DebugConfig, res api.DebugResponse, err error) {
+func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRequest,
+) (rebuild *instanceRebuild, newConfig *api.DebugConfig, res *api.DebugResponse, err error) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
@@ -498,28 +499,32 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 
 	switch req.Op {
 	case api.DebugOpConfigSet:
-		if len(req.Config.Breakpoints) > manifest.MaxBreakpoints {
+		config := req.GetConfig()
+
+		if len(config.Breakpoints) > manifest.MaxBreakpoints {
 			err = public.Err("too many breakpoints")
 			return
 		}
 
-		info = req.Config.DebugInfo
+		info = config.DebugInfo
 		if info != inst.image.DebugInfo() {
 			modified = true
 		}
 
-		breaks = manifest.SortDedupUint64(req.Config.Breakpoints)
+		breaks = manifest.SortDedupUint64(config.Breakpoints)
 		if !reflect.DeepEqual(breaks, inst.image.Breakpoints()) {
 			modified = true
 		}
 
 	case api.DebugOpConfigUnion:
-		if len(breaks)+len(req.Config.Breakpoints) > manifest.MaxBreakpoints {
+		config := req.GetConfig()
+
+		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
 			err = public.Err("too many breakpoints")
 			return
 		}
 
-		if req.Config.DebugInfo {
+		if config.DebugInfo {
 			if !info {
 				modified = true
 			}
@@ -527,7 +532,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 
 		breaks = append([]uint64{}, breaks...)
-		for _, x := range req.Config.Breakpoints {
+		for _, x := range config.Breakpoints {
 			if i := searchUint64(breaks, x); i == len(breaks) || breaks[i] != x {
 				breaks = append(breaks[:i], append([]uint64{x}, breaks[i:]...)...)
 				modified = true
@@ -535,7 +540,9 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 
 	case api.DebugOpConfigComplement:
-		if req.Config.DebugInfo {
+		config := req.GetConfig()
+
+		if config.DebugInfo {
 			if info {
 				modified = true
 			}
@@ -543,7 +550,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 		}
 
 		breaks = append([]uint64{}, breaks...)
-		for _, x := range req.Config.Breakpoints {
+		for _, x := range config.Breakpoints {
 			if i := searchUint64(breaks, x); i < len(breaks) && breaks[i] == x {
 				breaks = append(breaks[:i], breaks[i+1:]...)
 				modified = true
@@ -582,12 +589,12 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 			rebuild = &instanceRebuild{
 				inst:         inst,
 				origProgHash: prog.hash,
-				oldConfig: api.DebugConfig{
+				oldConfig: &api.DebugConfig{
 					DebugInfo:   inst.image.DebugInfo(),
 					Breakpoints: inst.image.Breakpoints(),
 				},
 			}
-			newConfig = api.DebugConfig{
+			newConfig = &api.DebugConfig{
 				DebugInfo:   info,
 				Breakpoints: breaks,
 			}
@@ -595,8 +602,8 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 	}
 
 	res.Module = path.Join(api.ModuleRefSource, prog.hash)
-	res.Status = inst.status
-	res.Config = api.DebugConfig{
+	res.Status = inst.status.Clone()
+	res.Config = &api.DebugConfig{
 		DebugInfo:   inst.image.DebugInfo(),
 		Breakpoints: inst.image.Breakpoints(),
 	}
@@ -606,11 +613,11 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req api.DebugReq
 type instanceRebuild struct {
 	inst         *Instance
 	origProgHash string
-	oldConfig    api.DebugConfig
+	oldConfig    *api.DebugConfig
 }
 
-func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.DebugConfig, textMap stack.TextMap,
-) (res api.DebugResponse, ok bool) {
+func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.DebugConfig, textMap stack.TextMap,
+) (res *api.DebugResponse, ok bool) {
 	inst := rebuild.inst
 	oldConfig := rebuild.oldConfig
 
@@ -629,10 +636,10 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig api.De
 		ok = true
 	}
 
-	res = api.DebugResponse{
+	res = &api.DebugResponse{
 		Module: path.Join(api.ModuleRefSource, rebuild.origProgHash),
-		Status: inst.status,
-		Config: api.DebugConfig{
+		Status: inst.status.Clone(),
+		Config: &api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),
 			Breakpoints: inst.image.Breakpoints(),
 		},

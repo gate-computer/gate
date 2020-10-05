@@ -7,7 +7,7 @@ package server_test
 import (
 	"testing"
 
-	"gate.computer/gate/internal/jsonproto"
+	"gate.computer/gate/internal/protojson"
 	"gate.computer/gate/server/api"
 	"github.com/tsavola/wag/trap"
 )
@@ -18,7 +18,7 @@ func TestStatusJSON(t *testing.T) {
 		Cause: api.Cause(trap.MemoryAccessOutOfBounds),
 	}
 
-	data := jsonproto.MustMarshal(status)
+	data := protojson.MustMarshal(status)
 
 	if s := string(data); s != `{"state":"KILLED","cause":"MEMORY_ACCESS_OUT_OF_BOUNDS"}` {
 		t.Error(s)

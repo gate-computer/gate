@@ -6,13 +6,11 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"gate.computer/gate/image"
 	"gate.computer/gate/runtime"
-	"gate.computer/gate/server/detail"
-	"github.com/gogo/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
 type InstanceConnector interface {
@@ -57,25 +55,4 @@ func (c *Config) Configured() bool {
 
 func (c *Config) monitor(e Event) {
 	c.Monitor(e, nil)
-}
-
-func AllocateIface(name string) detail.Iface {
-	value, found := detail.Iface_value[name]
-	if !found {
-		value = int32(len(detail.Iface_name))
-		detail.Iface_name[value] = name
-		detail.Iface_value[name] = value
-	}
-	return detail.Iface(value)
-}
-
-func RegisterIface(value int32, name string) {
-	if n, found := detail.Iface_name[value]; found && n != name {
-		panic(fmt.Errorf("iface %d (%s) already exists with different name: %s", value, name, n))
-	}
-	if v, found := detail.Iface_value[name]; found && v != value {
-		panic(fmt.Errorf("iface %s (%d) already exists with different value: %d", name, value, v))
-	}
-	detail.Iface_name[value] = name
-	detail.Iface_value[name] = value
 }

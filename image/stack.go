@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 
+	"gate.computer/gate/internal/manifest"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/object"
 	"github.com/tsavola/wag/object/stack"
@@ -19,17 +20,28 @@ import (
 
 const initStackSize = 24
 
-func putInitStack(portable []byte, startFuncIndex, entryFuncIndex int64) {
+func putInitStack(portable []byte, start, entry *manifest.Function) {
 	if n := len(portable); n != initStackSize {
 		panic(n)
+	}
+
+	var (
+		startIndex uint64 = math.MaxUint64
+		entryIndex uint64 = math.MaxUint64
+	)
+	if start != nil {
+		startIndex = uint64(start.Index)
+	}
+	if entry != nil {
+		entryIndex = uint64(entry.Index)
 	}
 
 	const callIndex = 0    // Virtual call site at beginning of enter routine.
 	const stackOffset = 16 // The function address are on the stack.
 
 	binary.LittleEndian.PutUint64(portable[0:], stackOffset<<32|callIndex)
-	binary.LittleEndian.PutUint64(portable[8:], uint64(startFuncIndex))
-	binary.LittleEndian.PutUint64(portable[16:], uint64(entryFuncIndex))
+	binary.LittleEndian.PutUint64(portable[8:], startIndex)
+	binary.LittleEndian.PutUint64(portable[16:], entryIndex)
 }
 
 // exportStack from native source buffer to portable target buffer.

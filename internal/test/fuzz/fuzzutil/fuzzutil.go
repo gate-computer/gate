@@ -74,7 +74,11 @@ func IsFine(err error) bool {
 	return false
 }
 
-func IsGood(s api.Status) bool {
+func IsGood(s *api.Status) bool {
+	if s == nil {
+		return false
+	}
+
 	switch s.State {
 	case api.StateRunning, api.StateSuspended, api.StateHalted, api.StateTerminated, api.StateKilled:
 	default:

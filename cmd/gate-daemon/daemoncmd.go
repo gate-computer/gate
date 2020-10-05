@@ -36,6 +36,7 @@ import (
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/confi"
 	"github.com/tsavola/wag/compile"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -66,7 +67,7 @@ type Config struct {
 
 var c = new(Config)
 
-type instanceStatusFunc func(*server.Server, context.Context, string) (api.Status, error)
+type instanceStatusFunc func(*server.Server, context.Context, string) (*api.Status, error)
 type instanceObjectFunc func(*server.Server, context.Context, string) (*server.Instance, error)
 
 var userID = strconv.Itoa(os.Getuid())
@@ -241,7 +242,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
-		"Instances": func() (list api.Instances, err *dbus.Error) {
+		"Instances": func() (list *api.Instances, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = handleInstanceList(ctx, s())
 			return
@@ -269,7 +270,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
-		"ModuleRefs": func() (list api.ModuleRefs, err *dbus.Error) {
+		"ModuleRefs": func() (list *api.ModuleRefs, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = handleModuleList(ctx, s())
 			return
@@ -331,7 +332,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	return methods
 }
 
-func handleModuleList(ctx context.Context, s *server.Server) api.ModuleRefs {
+func handleModuleList(ctx context.Context, s *server.Server) *api.ModuleRefs {
 	refs, err := s.ModuleRefs(ctx)
 	check(err)
 	sort.Sort(refs)
@@ -444,7 +445,7 @@ func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, f
 	return inst.ID
 }
 
-func handleInstanceList(ctx context.Context, s *server.Server) api.Instances {
+func handleInstanceList(ctx context.Context, s *server.Server) *api.Instances {
 	instances, err := s.Instances(ctx)
 	check(err)
 	sort.Sort(instances)
@@ -517,13 +518,13 @@ func handleInstanceSnapshot(ctx context.Context, s *server.Server, instID string
 
 func handleInstanceDebug(ctx context.Context, s *server.Server, instID string, reqBuf []byte,
 ) (resBuf []byte) {
-	var req api.DebugRequest
-	check(req.Unmarshal(reqBuf))
+	req := new(api.DebugRequest)
+	check(proto.Unmarshal(reqBuf, req))
 
 	res, err := s.DebugInstance(ctx, instID, req)
 	check(err)
 
-	resBuf, err = res.Marshal()
+	resBuf, err = proto.Marshal(res)
 	check(err)
 	return
 }
