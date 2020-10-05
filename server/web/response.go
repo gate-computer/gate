@@ -23,7 +23,7 @@ import (
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/resourcenotfound"
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 )
 
 const (
@@ -86,7 +86,7 @@ func setOptions(w http.ResponseWriter, allow string) {
 
 func respond(w http.ResponseWriter, r *http.Request, status int, text string) {
 	if acceptsText(r) {
-		w.Header().Set(webapi.HeaderContentType, contentTypeText)
+		w.Header().Set(api.HeaderContentType, contentTypeText)
 		w.WriteHeader(status)
 		fmt.Fprintln(w, text)
 	} else {
@@ -179,19 +179,19 @@ func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserv
 }
 
 func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver) {
-	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
+	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
 	ew.WriteError(http.StatusUnauthorized, "missing authentication credentials")
 	reportRequestFailure(ctx, s, event.FailAuthMissing)
 }
 
 func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver, errorCode string) {
-	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode))
+	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q", api.AuthorizationTypeBearer, s.identity, errorCode))
 	ew.WriteError(http.StatusUnauthorized, errorCode)
 	reportRequestFailure(ctx, s, event.FailAuthInvalid)
 }
 
 func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
-	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q error_description=%q", webapi.AuthorizationTypeBearer, s.identity, errorCode, errorDesc))
+	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q error_description=%q", api.AuthorizationTypeBearer, s.identity, errorCode, errorDesc))
 	ew.WriteError(http.StatusUnauthorized, errorDesc)
 	reportRequestError(ctx, s, failType, "", "", "", "", err)
 }
@@ -226,7 +226,7 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, sourc
 		internal = false
 		request = event.FailAuthDenied
 
-		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", webapi.AuthorizationTypeBearer, s.identity))
+		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
 
 	case resourcelimit.Error:
 		status = http.StatusForbidden

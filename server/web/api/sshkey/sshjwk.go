@@ -7,12 +7,12 @@ package sshkey
 import (
 	"fmt"
 
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 )
 
-func ParsePublicKey(line []byte) (jwk *webapi.PublicKey, err error) {
+func ParsePublicKey(line []byte) (jwk *api.PublicKey, err error) {
 	sshKey, _, _, _, err := ssh.ParseAuthorizedKey(line)
 	if err != nil {
 		return
@@ -21,7 +21,7 @@ func ParsePublicKey(line []byte) (jwk *webapi.PublicKey, err error) {
 	switch algo := sshKey.Type(); algo {
 	case ssh.KeyAlgoED25519:
 		cryptoKey := sshKey.(ssh.CryptoPublicKey).CryptoPublicKey()
-		jwk = webapi.PublicKeyEd25519(cryptoKey.(ed25519.PublicKey))
+		jwk = api.PublicKeyEd25519(cryptoKey.(ed25519.PublicKey))
 		return
 
 	default:

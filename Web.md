@@ -2,8 +2,8 @@
 
 This document is very much unfinished.
 
-The [Go webapi package](https://godoc.org/gate.computer/gate/webapi) has
-definitions useful for clients.
+The [Go server/web/api package](https://godoc.org/gate.computer/gate/server/web/api)
+has definitions useful for clients.
 
 
 ## Authorization header
@@ -13,7 +13,8 @@ requests.  It's not required for requests which query general information, or
 if server configuration allows anonymous access to a module action.
 
 The JWT must identify a principal by specifying an Ed25519 public key via the
-`jwk` header.  See the [PublicKey](https://godoc.org/gate.computer/gate/webapi#PublicKey)
+`jwk` header.  See the
+[PublicKey](https://godoc.org/gate.computer/gate/server/web/api#PublicKey)
 struct for details.  The JWT must be signed using the EdDSA algorithm (`alg`
 header).
 

@@ -15,7 +15,7 @@ import (
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/event"
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 )
 
 func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) context.Context {
@@ -28,7 +28,7 @@ func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, s
 }
 
 func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str string) string {
-	const bearer = webapi.AuthorizationTypeBearer
+	const bearer = api.AuthorizationTypeBearer
 
 	str = strings.Trim(str, " ")
 	i := strings.IndexByte(str, ' ')
@@ -105,7 +105,7 @@ func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, d
 }
 
 func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, serialized []byte,
-) (header webapi.TokenHeader) {
+) (header api.TokenHeader) {
 	err := json.Unmarshal(serialized, &header)
 	if err == nil {
 		if header.JWK != nil {
@@ -118,7 +118,7 @@ func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, s
 }
 
 func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, serialized []byte,
-) (claims webapi.Claims) {
+) (claims api.Claims) {
 	err := json.Unmarshal(serialized, &claims)
 	if err == nil {
 		return
@@ -128,11 +128,11 @@ func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, 
 	panic(nil)
 }
 
-func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *webapi.PublicKey,
+func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *api.PublicKey,
 ) (pri *principal.Key) {
 	var err error
 
-	if jwk.Kty == webapi.KeyTypeOctetKeyPair && jwk.Crv == webapi.KeyCurveEd25519 {
+	if jwk.Kty == api.KeyTypeOctetKeyPair && jwk.Crv == api.KeyCurveEd25519 {
 		pri, err = principal.ParseEd25519Key(jwk.X)
 		if err == nil {
 			return pri

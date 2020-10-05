@@ -25,12 +25,12 @@ import (
 	"gate.computer/gate/server/database"
 	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/web"
+	"gate.computer/gate/server/web/api"
+	"gate.computer/gate/server/web/api/authorization"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/snapshot/wasm"
-	"gate.computer/gate/webapi"
-	"gate.computer/gate/webapi/authorization"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tsavola/wag"
@@ -53,10 +53,10 @@ func newPrincipalKey() principalKey {
 		panic(err)
 	}
 
-	return principalKey{pri, webapi.TokenHeaderEdDSA(webapi.PublicKeyEd25519(pub)).MustEncode()}
+	return principalKey{pri, api.TokenHeaderEdDSA(api.PublicKeyEd25519(pub)).MustEncode()}
 }
 
-func (pri principalKey) authorization(claims *webapi.Claims) (s string) {
+func (pri principalKey) authorization(claims *api.Claims) (s string) {
 	s, err := authorization.BearerEd25519(pri.privateKey, pri.tokenHeader, claims)
 	if err != nil {
 		panic(err)
@@ -155,7 +155,7 @@ func newRequest(method, path string, content []byte) (req *http.Request) {
 
 func newSignedRequest(pri principalKey, method, path string, content []byte) (req *http.Request) {
 	req = newRequest(method, path, content)
-	req.Header.Set(webapi.HeaderAuthorization, pri.authorization(&webapi.Claims{
+	req.Header.Set(api.HeaderAuthorization, pri.authorization(&api.Claims{
 		Exp:   time.Now().Add(time.Minute).Unix(),
 		Aud:   []string{"no", "https://example.invalid/gate-0/"},
 		Nonce: strconv.Itoa(rand.Int()),
@@ -193,10 +193,10 @@ func checkResponse(t *testing.T, handler http.Handler, req *http.Request, expect
 	return
 }
 
-func checkStatusHeader(t *testing.T, statusHeader string, expect webapi.Status) {
+func checkStatusHeader(t *testing.T, statusHeader string, expect api.Status) {
 	t.Helper()
 
-	var status webapi.Status
+	var status api.Status
 
 	if err := json.Unmarshal([]byte(statusHeader), &status); err != nil {
 		t.Error(err)
@@ -211,14 +211,14 @@ func TestMethodNotAllowed(t *testing.T) {
 	all := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut}
 
 	for path, methods := range map[string][]string{
-		webapi.Path:                                 all,
-		webapi.PathModule:                           all,
-		webapi.PathModules:                          []string{http.MethodPost, http.MethodPut},
-		webapi.Path + "instance":                    all,
-		webapi.PathInstances:                        []string{http.MethodPost, http.MethodPut},
-		webapi.PathInstances + "id":                 []string{http.MethodHead, http.MethodPut},
-		webapi.PathModules + webapi.ModuleRefSource: all,
-		webapi.PathModuleRefs:                       []string{http.MethodPost, http.MethodPut},
+		api.Path:                              all,
+		api.PathModule:                        all,
+		api.PathModules:                       []string{http.MethodPost, http.MethodPut},
+		api.Path + "instance":                 all,
+		api.PathInstances:                     []string{http.MethodPost, http.MethodPut},
+		api.PathInstances + "id":              []string{http.MethodHead, http.MethodPut},
+		api.PathModules + api.ModuleRefSource: all,
+		api.PathModuleRefs:                    []string{http.MethodPost, http.MethodPut},
 	} {
 		for _, method := range methods {
 			req := httptest.NewRequest(method, path, nil)
@@ -228,10 +228,10 @@ func TestMethodNotAllowed(t *testing.T) {
 }
 
 func TestModuleSourceList(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, webapi.PathModules, nil)
+	req := httptest.NewRequest(http.MethodGet, api.PathModules, nil)
 	resp, content := checkResponse(t, newHandler(t), req, http.StatusOK)
 
-	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
+	if x := resp.Header.Get(api.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
 	}
 
@@ -242,7 +242,7 @@ func TestModuleSourceList(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(sources, []interface{}{
-		webapi.ModuleRefSource,
+		api.ModuleRefSource,
 		"test",
 	}) {
 		t.Errorf("%#v", sources)
@@ -252,10 +252,10 @@ func TestModuleSourceList(t *testing.T) {
 func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expect interface{}) {
 	t.Helper()
 
-	req := newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs, nil)
+	req := newSignedRequest(pri, http.MethodGet, api.PathModuleRefs, nil)
 	resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
+	if x := resp.Header.Get(api.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
 	}
 
@@ -281,11 +281,11 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("Put", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello, wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello, wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
@@ -299,11 +299,11 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("PutRef", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=ref", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
@@ -323,8 +323,8 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("PutWrongHash", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384([]byte("asdf")), wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+sha384([]byte("asdf")), wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		checkResponse(t, handler, req, http.StatusBadRequest)
 	})
 
@@ -339,10 +339,10 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("Get", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs+hashHello, nil)
+		req := newSignedRequest(pri, http.MethodGet, api.PathModuleRefs+hashHello, nil)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-		if x := resp.Header.Get(webapi.HeaderContentType); x != webapi.ContentTypeWebAssembly {
+		if x := resp.Header.Get(api.HeaderContentType); x != api.ContentTypeWebAssembly {
 			t.Error(x)
 		}
 
@@ -352,10 +352,10 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("GetNotFound", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs+"3R_g4HTkvIb0sx8-ppwrrJRu3T6rT5mpA3SvAmifGMmGzYB7xIAMbS9qmax5WigT", nil)
+		req := newSignedRequest(pri, http.MethodGet, api.PathModuleRefs+"3R_g4HTkvIb0sx8-ppwrrJRu3T6rT5mpA3SvAmifGMmGzYB7xIAMbS9qmax5WigT", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusNotFound)
 
-		if x := resp.Header.Get(webapi.HeaderContentType); x != "text/plain; charset=utf-8" {
+		if x := resp.Header.Get(api.HeaderContentType); x != "text/plain; charset=utf-8" {
 			t.Error(x)
 		}
 
@@ -373,14 +373,14 @@ func TestModuleRef(t *testing.T) {
 		expect := spec[1]
 
 		t.Run("Call"+strings.Title(fn), func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=call&function="+fn, nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=call&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 				t.Error(err)
 			}
 
@@ -388,8 +388,8 @@ func TestModuleRef(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: webapi.StateTerminated,
+			checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+				State: api.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -398,14 +398,14 @@ func TestModuleRef(t *testing.T) {
 		})
 
 		t.Run("Launch"+strings.Title(fn), func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=launch&function="+fn, nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 				t.Error(err)
 			}
 
@@ -416,10 +416,10 @@ func TestModuleRef(t *testing.T) {
 	}
 
 	t.Run("Unref", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
@@ -433,20 +433,20 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("UnrefNotFound", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
 	t.Run("PutCall", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=call", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=call", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+		if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 			t.Error(err)
 		}
 
@@ -454,8 +454,8 @@ func TestModuleRef(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateTerminated,
+		checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+			State: api.StateTerminated,
 		})
 
 		if len(resp.Trailer) != 1 {
@@ -466,20 +466,20 @@ func TestModuleRef(t *testing.T) {
 			"modules": []interface{}{},
 		})
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
 	t.Run("PutRefCall", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=call", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=ref&action=call", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+		if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 			t.Error(err)
 		}
 
@@ -487,8 +487,8 @@ func TestModuleRef(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateTerminated,
+		checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+			State: api.StateTerminated,
 		})
 
 		if len(resp.Trailer) != 1 {
@@ -503,20 +503,20 @@ func TestModuleRef(t *testing.T) {
 			},
 		})
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 	})
 
 	t.Run("PutLaunch", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=launch", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+		if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 			t.Error(err)
 		}
 
@@ -528,20 +528,20 @@ func TestModuleRef(t *testing.T) {
 			"modules": []interface{}{},
 		})
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
 	t.Run("PutRefLaunch", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=ref&action=launch", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+		if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 			t.Error(err)
 		}
 
@@ -557,24 +557,24 @@ func TestModuleRef(t *testing.T) {
 			},
 		})
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 	})
 
 	t.Run("LaunchUpload", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=launch", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if s, found := resp.Header[webapi.HeaderLocation]; found {
+		if s, found := resp.Header[api.HeaderLocation]; found {
 			t.Errorf("%q", s)
 		}
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+		if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 			t.Error(err)
 		}
 
@@ -582,24 +582,24 @@ func TestModuleRef(t *testing.T) {
 			t.Error(content)
 		}
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
 	t.Run("RefLaunchUpload", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&action=ref", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=launch&action=ref", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-		if x := resp.Header.Get(webapi.HeaderLocation); x != webapi.PathModuleRefs+hashHello {
+		if x := resp.Header.Get(api.HeaderLocation); x != api.PathModuleRefs+hashHello {
 			t.Error(x)
 		}
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+		if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 			t.Error(err)
 		}
 
@@ -607,20 +607,20 @@ func TestModuleRef(t *testing.T) {
 			t.Error(content)
 		}
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 	})
 
 	t.Run("ActionNotImplemented", func(t *testing.T) {
-		req := newRequest(http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=bad", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newRequest(http.MethodPut, api.PathModuleRefs+hashHello+"?action=bad", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 
-		req = newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=bad", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req = newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=bad", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=bad", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=bad", nil)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 	})
 }
@@ -630,16 +630,16 @@ func TestModuleSource(t *testing.T) {
 	pri := newPrincipalKey()
 
 	t.Run("Post", func(t *testing.T) {
-		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello", nil)
+		req := newRequest(http.MethodPost, api.PathModule+"/test/hello", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
-		if s, found := resp.Header[webapi.HeaderLocation]; found {
+		if s, found := resp.Header[api.HeaderLocation]; found {
 			t.Errorf("%q", s)
 		}
-		if s, found := resp.Header[webapi.HeaderInstance]; found {
+		if s, found := resp.Header[api.HeaderInstance]; found {
 			t.Errorf("%q", s)
 		}
 
@@ -651,21 +651,21 @@ func TestModuleSource(t *testing.T) {
 			"modules": []interface{}{},
 		})
 
-		req = newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs+hashHello, nil)
+		req = newSignedRequest(pri, http.MethodGet, api.PathModuleRefs+hashHello, nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
 	t.Run("PostRef", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=ref", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=ref", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
-		if s := resp.Header.Get(webapi.HeaderLocation); s != webapi.PathModuleRefs+hashHello {
+		if s := resp.Header.Get(api.HeaderLocation); s != api.PathModuleRefs+hashHello {
 			t.Errorf("%q", s)
 		}
-		if s, found := resp.Header[webapi.HeaderInstance]; found {
+		if s, found := resp.Header[api.HeaderInstance]; found {
 			t.Errorf("%q", s)
 		}
 
@@ -677,7 +677,7 @@ func TestModuleSource(t *testing.T) {
 			},
 		})
 
-		req = newSignedRequest(pri, http.MethodGet, webapi.PathModuleRefs+hashHello, nil)
+		req = newSignedRequest(pri, http.MethodGet, api.PathModuleRefs+hashHello, nil)
 		checkResponse(t, handler, req, http.StatusOK)
 	})
 
@@ -690,16 +690,16 @@ func TestModuleSource(t *testing.T) {
 		expect := spec[1]
 
 		t.Run("AnonCall"+strings.Title(fn), func(t *testing.T) {
-			req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello?action=call&function="+fn, nil)
+			req := newRequest(http.MethodPost, api.PathModule+"/test/hello?action=call&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
-			if s, found := resp.Header[webapi.HeaderLocation]; found {
+			if s, found := resp.Header[api.HeaderLocation]; found {
 				t.Errorf("%q", s)
 			}
-			if s, found := resp.Header[webapi.HeaderInstance]; found {
+			if s, found := resp.Header[api.HeaderInstance]; found {
 				t.Errorf("%q", s)
 			}
 
@@ -707,8 +707,8 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: webapi.StateTerminated,
+			checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+				State: api.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -717,26 +717,26 @@ func TestModuleSource(t *testing.T) {
 		})
 
 		t.Run("AnonRefCallUnauthorized"+strings.Title(fn), func(t *testing.T) {
-			req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello?action=ref&action=call&function="+fn, nil)
+			req := newRequest(http.MethodPost, api.PathModule+"/test/hello?action=ref&action=call&function="+fn, nil)
 			checkResponse(t, handler, req, http.StatusUnauthorized)
 		})
 
 		t.Run("Call"+strings.Title(fn), func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 			doRequest(t, handler, req)
 
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=call&function="+fn, nil)
+			req = newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=call&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if s, found := resp.Header[webapi.HeaderLocation]; found {
+			if s, found := resp.Header[api.HeaderLocation]; found {
 				t.Errorf("%q", s)
 			}
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 				t.Error(err)
 			}
 
@@ -744,31 +744,31 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: webapi.StateTerminated,
+			checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+				State: api.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
 				t.Errorf("trailer: %v", resp.Trailer)
 			}
 
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+			req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 			checkResponse(t, handler, req, http.StatusNotFound)
 		})
 
 		t.Run("RefCall"+strings.Title(fn), func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=ref&action=call&function="+fn, nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=ref&action=call&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-			if x := resp.Header.Get(webapi.HeaderLocation); x != webapi.PathModuleRefs+hashHello {
+			if x := resp.Header.Get(api.HeaderLocation); x != api.PathModuleRefs+hashHello {
 				t.Error(x)
 			}
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 				t.Error(err)
 			}
 
@@ -776,31 +776,31 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: webapi.StateTerminated,
+			checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+				State: api.StateTerminated,
 			})
 
 			if len(resp.Trailer) != 1 {
 				t.Errorf("trailer: %v", resp.Trailer)
 			}
 
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+			req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 			checkResponse(t, handler, req, http.StatusNoContent)
 		})
 
 		t.Run("Launch"+strings.Title(fn), func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=launch&function="+fn, nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-			if s, found := resp.Header[webapi.HeaderLocation]; found {
+			if s, found := resp.Header[api.HeaderLocation]; found {
 				t.Errorf("%q", s)
 			}
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 				t.Error(err)
 			}
 
@@ -808,23 +808,23 @@ func TestModuleSource(t *testing.T) {
 				t.Error(content)
 			}
 
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+			req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 			checkResponse(t, handler, req, http.StatusNotFound)
 		})
 
 		t.Run("RefLaunch"+strings.Title(fn), func(t *testing.T) {
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=ref&action=launch&function="+fn, nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=ref&action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-			if x := resp.Header.Get(webapi.HeaderLocation); x != webapi.PathModuleRefs+hashHello {
+			if x := resp.Header.Get(api.HeaderLocation); x != api.PathModuleRefs+hashHello {
 				t.Error(x)
 			}
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(webapi.HeaderInstance)); err != nil {
+			if _, err := uuid.Parse(resp.Header.Get(api.HeaderInstance)); err != nil {
 				t.Error(err)
 			}
 
@@ -832,21 +832,21 @@ func TestModuleSource(t *testing.T) {
 				t.Error(content)
 			}
 
-			req = newSignedRequest(pri, http.MethodPost, webapi.PathModuleRefs+hashHello+"?action=unref", nil)
+			req = newSignedRequest(pri, http.MethodPost, api.PathModuleRefs+hashHello+"?action=unref", nil)
 			checkResponse(t, handler, req, http.StatusNoContent)
 		})
 	}
 
 	t.Run("CallPluginTest", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=call&function=test_plugin&action=ref", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=call&function=test_plugin&action=ref", nil)
 		checkResponse(t, handler, req, http.StatusCreated)
 	})
 
 	t.Run("Ref", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodHead, webapi.PathModuleRefs+hashHello, nil)
+		req := newSignedRequest(pri, http.MethodHead, api.PathModuleRefs+hashHello, nil)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-		if x := resp.Header.Get(webapi.HeaderContentType); x != webapi.ContentTypeWebAssembly {
+		if x := resp.Header.Get(api.HeaderContentType); x != api.ContentTypeWebAssembly {
 			t.Error(x)
 		}
 
@@ -856,10 +856,10 @@ func TestModuleSource(t *testing.T) {
 	})
 
 	t.Run("ActionNotImplemented", func(t *testing.T) {
-		req := newRequest(http.MethodPost, webapi.PathModule+"/test/hello?action=bad", nil)
+		req := newRequest(http.MethodPost, api.PathModule+"/test/hello?action=bad", nil)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathModule+"/test/hello?action=bad", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=bad", nil)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 	})
 }
@@ -867,10 +867,10 @@ func TestModuleSource(t *testing.T) {
 func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, expect interface{}) {
 	t.Helper()
 
-	req := newSignedRequest(pri, http.MethodGet, webapi.PathInstances, nil)
+	req := newSignedRequest(pri, http.MethodGet, api.PathInstances, nil)
 	resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-	if x := resp.Header.Get(webapi.HeaderContentType); x != "application/json; charset=utf-8" {
+	if x := resp.Header.Get(api.HeaderContentType); x != "application/json; charset=utf-8" {
 		t.Error(x)
 	}
 
@@ -885,13 +885,13 @@ func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, exp
 	}
 }
 
-func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, instID string, expect webapi.Status) {
+func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, instID string, expect api.Status) {
 	t.Helper()
 
-	req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=status", nil)
+	req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=status", nil)
 	resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
-	if s, found := resp.Header[webapi.HeaderContentType]; found {
+	if s, found := resp.Header[api.HeaderContentType]; found {
 		t.Errorf("%q", s)
 	}
 
@@ -899,7 +899,7 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 		t.Error(content)
 	}
 
-	checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), expect)
+	checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), expect)
 }
 
 func TestInstance(t *testing.T) {
@@ -915,16 +915,16 @@ func TestInstance(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=greet", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=ref&action=launch&function=greet", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
-		instID = resp.Header.Get(webapi.HeaderInstance)
+		instID = resp.Header.Get(api.HeaderInstance)
 	}
 
 	t.Run("StatusRunning", func(t *testing.T) {
-		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: webapi.StateRunning,
+		checkInstanceStatus(t, handler, pri, instID, api.Status{
+			State: api.StateRunning,
 		})
 	})
 
@@ -934,7 +934,7 @@ func TestInstance(t *testing.T) {
 				map[string]interface{}{
 					"instance": instID,
 					"status": map[string]interface{}{
-						"state": webapi.StateRunning,
+						"state": api.StateRunning,
 					},
 				},
 			},
@@ -942,15 +942,15 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("DeleteFail", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=delete", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=delete", nil)
 		checkResponse(t, handler, req, http.StatusBadRequest)
 	})
 
 	t.Run("IO", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=io", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-		if s, found := resp.Header[webapi.HeaderContentType]; found {
+		if s, found := resp.Header[api.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
@@ -958,33 +958,33 @@ func TestInstance(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		if !(resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"RUNNING"}` || resp.Trailer.Get(webapi.HeaderStatus) == `{"state":"HALTED"}`) || len(resp.Trailer) != 1 {
+		if !(resp.Trailer.Get(api.HeaderStatus) == `{"state":"RUNNING"}` || resp.Trailer.Get(api.HeaderStatus) == `{"state":"HALTED"}`) || len(resp.Trailer) != 1 {
 			t.Errorf("trailer: %v", resp.Trailer)
 		}
 	})
 
 	t.Run("Wait", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateHalted,
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State: api.StateHalted,
 		})
 	})
 
 	t.Run("StatusHalted", func(t *testing.T) {
-		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: webapi.StateHalted,
+		checkInstanceStatus(t, handler, pri, instID, api.Status{
+			State: api.StateHalted,
 		})
 	})
 
 	t.Run("ActionNotImplemented", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=bad", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=bad", nil)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=delete", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=delete", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 	})
 
@@ -1002,11 +1002,11 @@ func TestInstanceMultiIO(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=ref&action=launch&function=multi", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=ref&action=launch&function=multi", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
-		instID = resp.Header.Get(webapi.HeaderInstance)
+		instID = resp.Header.Get(api.HeaderInstance)
 	}
 
 	done := make(chan struct{}, 10)
@@ -1015,10 +1015,10 @@ func TestInstanceMultiIO(t *testing.T) {
 		go func() {
 			defer func() { done <- struct{}{} }()
 
-			req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=io", nil)
+			req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=io", nil)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-			if s, found := resp.Header[webapi.HeaderContentType]; found {
+			if s, found := resp.Header[api.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
@@ -1026,8 +1026,8 @@ func TestInstanceMultiIO(t *testing.T) {
 				t.Errorf("%q", content)
 			}
 
-			checkStatusHeader(t, resp.Trailer.Get(webapi.HeaderStatus), webapi.Status{
-				State: webapi.StateRunning,
+			checkStatusHeader(t, resp.Trailer.Get(api.HeaderStatus), api.Status{
+				State: api.StateRunning,
 			})
 
 			if len(resp.Trailer) != 1 {
@@ -1048,25 +1048,25 @@ func TestInstanceKill(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&function=multi", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=launch&function=multi", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		instID = resp.Header.Get(webapi.HeaderInstance)
+		instID = resp.Header.Get(api.HeaderInstance)
 	}
 
 	t.Run("KillWait", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=kill&action=wait", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=kill&action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateKilled,
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State: api.StateKilled,
 		})
 	})
 
 	t.Run("Status", func(t *testing.T) {
-		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: webapi.StateKilled,
+		checkInstanceStatus(t, handler, pri, instID, api.Status{
+			State: api.StateKilled,
 		})
 	})
 }
@@ -1078,11 +1078,11 @@ func TestInstanceSuspend(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=true", wasmSuspend)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashSuspend+"?action=launch&function=loop&debug=true", wasmSuspend)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		instID = resp.Header.Get(webapi.HeaderInstance)
+		instID = resp.Header.Get(api.HeaderInstance)
 	}
 
 	if testing.Verbose() {
@@ -1090,30 +1090,30 @@ func TestInstanceSuspend(t *testing.T) {
 	}
 
 	t.Run("Suspend", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=suspend", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		if x := resp.Header[webapi.HeaderStatus]; x != nil {
+		if x := resp.Header[api.HeaderStatus]; x != nil {
 			t.Error(x)
 		}
 	})
 
 	t.Run("Wait", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateSuspended,
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State: api.StateSuspended,
 		})
 	})
 
 	var snapshot []byte
 
 	t.Run("Snapshot", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=snapshot", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
-		location := resp.Header.Get(webapi.HeaderLocation)
+		location := resp.Header.Get(api.HeaderLocation)
 		if location == "" {
 			t.Fatal("no module location")
 		}
@@ -1140,57 +1140,57 @@ func TestInstanceSuspend(t *testing.T) {
 	})
 
 	t.Run("ResumeFunction", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&function=loop", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=resume&function=loop", nil)
 		checkResponse(t, handler, req, http.StatusBadRequest)
 	})
 
 	t.Run("Resume", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=resume&debug=true", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=resume&debug=true", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 
 		if testing.Verbose() {
 			time.Sleep(time.Second / 3)
 		}
 
-		checkInstanceStatus(t, handler, pri, instID, webapi.Status{
-			State: webapi.StateRunning,
+		checkInstanceStatus(t, handler, pri, instID, api.Status{
+			State: api.StateRunning,
 		})
 
 		if testing.Verbose() {
 			time.Sleep(time.Second / 3)
 		}
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=suspend", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=suspend", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateSuspended,
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State: api.StateSuspended,
 		})
 	})
 
 	handler2 := newHandler(t)
 
 	t.Run("Restore", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=true", snapshot)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=true", snapshot)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
-		restoredID := resp.Header.Get(webapi.HeaderInstance)
+		restoredID := resp.Header.Get(api.HeaderInstance)
 
 		if testing.Verbose() {
 			time.Sleep(time.Second / 3)
 		}
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=suspend", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+restoredID+"?action=suspend", nil)
 		checkResponse(t, handler2, req, http.StatusNoContent)
 
-		req = newSignedRequest(pri, http.MethodPost, webapi.PathInstances+restoredID+"?action=wait", nil)
+		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+restoredID+"?action=wait", nil)
 		resp, _ = checkResponse(t, handler2, req, http.StatusNoContent)
 
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State: webapi.StateSuspended,
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State: api.StateSuspended,
 		})
 	})
 }
@@ -1202,28 +1202,28 @@ func TestInstanceTerminated(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, webapi.PathModuleRefs+hashHello+"?action=launch&function=fail", wasmHello)
-		req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+hashHello+"?action=launch&function=fail", wasmHello)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		instID = resp.Header.Get(webapi.HeaderInstance)
+		instID = resp.Header.Get(api.HeaderInstance)
 	}
 
 	t.Run("Wait", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=wait", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=wait", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
-		checkStatusHeader(t, resp.Header.Get(webapi.HeaderStatus), webapi.Status{
-			State:  webapi.StateTerminated,
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State:  api.StateTerminated,
 			Result: 1,
 		})
 	})
 
 	t.Run("Snapshot", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, webapi.PathInstances+instID+"?action=snapshot", nil)
+		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=snapshot", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
-		location := resp.Header.Get(webapi.HeaderLocation)
+		location := resp.Header.Get(api.HeaderLocation)
 		if location == "" {
 			t.Fatal("no module location")
 		}

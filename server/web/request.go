@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"gate.computer/gate/server/event"
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 )
 
 func acceptsText(r *http.Request) bool {
@@ -121,17 +121,17 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 }
 
 func popOptionalLastDebugParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) bool {
-	return popOptionalLastParam(w, r, s, query, webapi.ParamDebug) == "true"
+	return popOptionalLastParam(w, r, s, query, api.ParamDebug) == "true"
 }
 
 func popOptionalActionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) bool {
-	values := query[webapi.ParamAction]
+	values := query[api.ParamAction]
 	for i, s := range values {
 		if s == key {
 			if len(values) > 1 {
-				query[webapi.ParamAction] = append(values[:i], values[i+1:]...)
+				query[api.ParamAction] = append(values[:i], values[i+1:]...)
 			} else {
-				delete(query, webapi.ParamAction)
+				delete(query, api.ParamAction)
 			}
 			return true
 		}
@@ -140,8 +140,8 @@ func popOptionalActionParam(w http.ResponseWriter, r *http.Request, s *webserver
 }
 
 func mustPopOptionalLastFunctionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) (value string) {
-	value = popOptionalLastParam(w, r, s, query, webapi.ParamFunction)
-	if value != "" && !webapi.FunctionRegexp.MatchString(value) {
+	value = popOptionalLastParam(w, r, s, query, api.ParamFunction)
+	if value != "" && !api.FunctionRegexp.MatchString(value) {
 		respondInvalidFunction(w, r, s, value)
 		panic(nil)
 	}
@@ -156,7 +156,7 @@ func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, que
 }
 
 func mustHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver, contentType string) {
-	switch values := r.Header[webapi.HeaderContentType]; len(values) {
+	switch values := r.Header[api.HeaderContentType]; len(values) {
 	case 1:
 		tokens := strings.SplitN(values[0], ";", 2)
 		if strings.TrimSpace(tokens[0]) != contentType {
@@ -169,7 +169,7 @@ func mustHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver, c
 		panic(nil)
 
 	default:
-		respondDuplicateHeader(w, r, s, webapi.HeaderContentType)
+		respondDuplicateHeader(w, r, s, api.HeaderContentType)
 		panic(nil)
 	}
 }
@@ -182,7 +182,7 @@ func mustHaveContentLength(w http.ResponseWriter, r *http.Request, s *webserver)
 }
 
 func mustNotHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver) {
-	if _, found := r.Header[webapi.HeaderContentType]; found {
+	if _, found := r.Header[api.HeaderContentType]; found {
 		respondUnsupportedMediaType(w, r, s)
 		panic(nil)
 	}
@@ -196,7 +196,7 @@ func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 }
 
 func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) context.Context {
-	switch values := wr.request.Header[webapi.HeaderAuthorization]; len(values) {
+	switch values := wr.request.Header[api.HeaderAuthorization]; len(values) {
 	case 1:
 		return mustParseAuthorization(ctx, wr, s, values[0], true)
 

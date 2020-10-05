@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"gate.computer/gate/server/api"
-	"gate.computer/gate/webapi"
-	"gate.computer/gate/webapi/authorization"
+	webapi "gate.computer/gate/server/web/api"
+	"gate.computer/gate/server/web/api/authorization"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"

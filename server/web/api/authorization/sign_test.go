@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -19,11 +19,11 @@ func TestBearerEd25519(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	header := webapi.TokenHeaderEdDSA(webapi.PublicKeyEd25519(pub))
+	header := api.TokenHeaderEdDSA(api.PublicKeyEd25519(pub))
 
 	t.Logf("JWK: %#v", *header.JWK)
 
-	claims := &webapi.Claims{
+	claims := &api.Claims{
 		Exp: time.Now().Unix() + 300,
 		Aud: []string{"test"},
 	}

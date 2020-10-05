@@ -8,19 +8,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 	"golang.org/x/crypto/ed25519"
 )
 
 // BearerEd25519 creates a signed JWT token (JWS).  TokenHeader must have been
 // encoded beforehand.
-func BearerEd25519(privateKey ed25519.PrivateKey, encodedTokenHeader []byte, claims *webapi.Claims) (string, error) {
+func BearerEd25519(privateKey ed25519.PrivateKey, encodedTokenHeader []byte, claims *api.Claims) (string, error) {
 	claimsJSON, err := json.Marshal(claims)
 	if err != nil {
 		return "", err
 	}
 
-	const authType = webapi.AuthorizationTypeBearer
+	const authType = api.AuthorizationTypeBearer
 	var enc = base64.RawURLEncoding
 	var sigLen = enc.EncodedLen(ed25519.SignatureSize)
 	var claimsLen = enc.EncodedLen(len(claimsJSON))

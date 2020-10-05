@@ -17,12 +17,12 @@ import (
 
 	"gate.computer/gate/internal/jsonproto"
 	"gate.computer/gate/internal/principal"
-	api "gate.computer/gate/internal/webserverapi"
+	internalapi "gate.computer/gate/internal/webserverapi"
 	"gate.computer/gate/server"
 	serverapi "gate.computer/gate/server/api"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 	"github.com/gorilla/websocket"
 )
 
@@ -58,25 +58,25 @@ func NewHandler(pattern string, config Config) http.Handler {
 		panic("incomplete webserver configuration")
 	}
 
-	p := strings.TrimRight(pattern, "/")                                // host/path
-	patternAPI := p + webapi.Path                                       // host/path/api/
-	patternModule := p + webapi.PathModule                              // host/path/api/module
-	patternModules := p + webapi.PathModules                            // host/path/api/module/
-	patternModuleRef := p + webapi.PathModules + webapi.ModuleRefSource // host/path/api/module/hash
-	patternModuleRefs := p + webapi.PathModuleRefs                      // host/path/api/module/hash/
-	patternInstances := p + webapi.PathInstances                        // host/path/api/instance/
-	patternInstance := patternInstances[:len(patternInstances)-1]       // host/path/api/instance
+	p := strings.TrimRight(pattern, "/")                          // host/path
+	patternAPI := p + api.Path                                    // host/path/api/
+	patternModule := p + api.PathModule                           // host/path/api/module
+	patternModules := p + api.PathModules                         // host/path/api/module/
+	patternModuleRef := p + api.PathModules + api.ModuleRefSource // host/path/api/module/hash
+	patternModuleRefs := p + api.PathModuleRefs                   // host/path/api/module/hash/
+	patternInstances := p + api.PathInstances                     // host/path/api/instance/
+	patternInstance := patternInstances[:len(patternInstances)-1] // host/path/api/instance
 
 	p = strings.TrimLeftFunc(p, func(r rune) bool { return r != '/' }) // /path
-	pathAPI := p + webapi.Path                                         // /path/api/
-	pathModule := p + webapi.PathModule                                // /path/api/module
-	pathModules := p + webapi.PathModules                              // /path/api/module/
-	pathModuleRef := p + webapi.PathModules + webapi.ModuleRefSource   // /path/api/module/hash
-	s.pathModuleRefs = p + webapi.PathModuleRefs                       // /path/api/module/hash/
-	pathInstances := p + webapi.PathInstances                          // /path/api/instance/
+	pathAPI := p + api.Path                                            // /path/api/
+	pathModule := p + api.PathModule                                   // /path/api/module
+	pathModules := p + api.PathModules                                 // /path/api/module/
+	pathModuleRef := p + api.PathModules + api.ModuleRefSource         // /path/api/module/hash
+	s.pathModuleRefs = p + api.PathModuleRefs                          // /path/api/module/hash/
+	pathInstances := p + api.PathInstances                             // /path/api/instance/
 	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/api/instance
 
-	s.identity = "https://" + s.Authority + p + webapi.Path // https://authority/path/api/
+	s.identity = "https://" + s.Authority + p + api.Path // https://authority/path/api/
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(patternAPI, newOpaqueHandler(s, pathAPI))
@@ -86,7 +86,7 @@ func NewHandler(pattern string, config Config) http.Handler {
 	mux.HandleFunc(patternModuleRef, newOpaqueHandler(s, pathModuleRef))
 	mux.HandleFunc(patternModuleRefs, newModuleRefHandler(s))
 
-	moduleSources := []string{webapi.ModuleRefSource}
+	moduleSources := []string{api.ModuleRefSource}
 
 	for relURI, source := range s.ModuleSources {
 		patternSource := patternModule + relURI // host/path/api/module/source
@@ -173,9 +173,9 @@ func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerF
 
 func newModuleRefHandler(s *webserver) http.HandlerFunc {
 	var (
-		headersList = join(webapi.HeaderAuthorization)
-		headersRef  = join(webapi.HeaderAuthorization, webapi.HeaderContentType)
-		exposed     = join(webapi.HeaderLocation, webapi.HeaderInstance, webapi.HeaderStatus)
+		headersList = join(api.HeaderAuthorization)
+		headersRef  = join(api.HeaderAuthorization, api.HeaderContentType)
+		exposed     = join(api.HeaderLocation, api.HeaderInstance, api.HeaderStatus)
 	)
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -224,8 +224,8 @@ func newModuleRefHandler(s *webserver) http.HandlerFunc {
 
 func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, source server.Source) http.HandlerFunc {
 	var (
-		headers = join(webapi.HeaderAuthorization)
-		exposed = join(webapi.HeaderLocation, webapi.HeaderInstance, webapi.HeaderStatus)
+		headers = join(api.HeaderAuthorization)
+		exposed = join(api.HeaderLocation, api.HeaderInstance, api.HeaderStatus)
 	)
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -273,9 +273,9 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, sour
 
 func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 	var (
-		headersGet  = join(webapi.HeaderAuthorization)
-		headersPost = join(webapi.HeaderAuthorization, webapi.HeaderContentType)
-		exposed     = join(webapi.HeaderStatus)
+		headersGet  = join(api.HeaderAuthorization)
+		headersPost = join(api.HeaderAuthorization, api.HeaderContentType)
+		exposed     = join(api.HeaderStatus)
 	)
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -338,11 +338,11 @@ func handleGetModuleRefs(w http.ResponseWriter, r *http.Request, s *webserver) {
 
 func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	query := mustParseOptionalQuery(w, r, s)
-	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
+	ref := popOptionalActionParam(w, r, s, query, api.ActionRef)
 
-	if _, found := query[webapi.ParamAction]; found {
-		switch popLastParam(w, r, s, query, webapi.ParamAction) {
-		case webapi.ActionCall:
+	if _, found := query[api.ParamAction]; found {
+		switch popLastParam(w, r, s, query, api.ParamAction) {
+		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
@@ -363,23 +363,23 @@ func handleGetModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 }
 
 func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
-	mustHaveContentType(w, r, s, webapi.ContentTypeWebAssembly)
+	mustHaveContentType(w, r, s, api.ContentTypeWebAssembly)
 	mustHaveContentLength(w, r, s)
 	query := mustParseOptionalQuery(w, r, s)
-	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
-	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
+	ref := popOptionalActionParam(w, r, s, query, api.ActionRef)
+	suspend := popOptionalActionParam(w, r, s, query, api.ActionSuspend)
 
-	if _, found := query[webapi.ParamAction]; found {
-		switch popLastParam(w, r, s, query, webapi.ParamAction) {
-		case webapi.ActionCall:
+	if _, found := query[api.ParamAction]; found {
+		switch popLastParam(w, r, s, query, api.ParamAction) {
+		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleCall(w, r, s, server.OpCallUpload, ref, true, nil, key, function, debug)
 
-		case webapi.ActionLaunch:
+		case api.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
+			instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleLaunchUpload(w, r, s, ref, key, function, instance, debug, suspend)
@@ -395,24 +395,24 @@ func handlePutModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, ke
 
 func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
 	query := mustParseQuery(w, r, s)
-	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
+	suspend := popOptionalActionParam(w, r, s, query, api.ActionSuspend)
 
-	switch popLastParam(w, r, s, query, webapi.ParamAction) {
-	case webapi.ActionCall:
+	switch popLastParam(w, r, s, query, api.ParamAction) {
+	case api.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleCall(w, r, s, server.OpCallExtant, false, false, nil, key, function, debug)
 
-	case webapi.ActionLaunch:
+	case api.ActionLaunch:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
-		instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
+		instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContent(w, r, s)
 		handleLaunch(w, r, s, server.OpLaunchExtant, false, nil, key, function, instance, debug, suspend)
 
-	case webapi.ActionUnref:
+	case api.ActionUnref:
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContentType(w, r, s)
 		mustNotHaveContent(w, r, s)
@@ -425,10 +425,10 @@ func handlePostModuleRef(w http.ResponseWriter, r *http.Request, s *webserver, k
 
 func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
 	query := mustParseQuery(w, r, s)
-	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
+	ref := popOptionalActionParam(w, r, s, query, api.ActionRef)
 
-	switch popLastParam(w, r, s, query, webapi.ParamAction) {
-	case webapi.ActionCall:
+	switch popLastParam(w, r, s, query, api.ParamAction) {
+	case api.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
@@ -441,20 +441,20 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 
 func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
 	query := mustParseQuery(w, r, s)
-	ref := popOptionalActionParam(w, r, s, query, webapi.ActionRef)
-	suspend := popOptionalActionParam(w, r, s, query, webapi.ActionSuspend)
+	ref := popOptionalActionParam(w, r, s, query, api.ActionRef)
+	suspend := popOptionalActionParam(w, r, s, query, api.ActionSuspend)
 
-	if _, found := query[webapi.ParamAction]; found {
-		switch popLastParam(w, r, s, query, webapi.ParamAction) {
-		case webapi.ActionCall:
+	if _, found := query[api.ParamAction]; found {
+		switch popLastParam(w, r, s, query, api.ParamAction) {
+		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			handleCall(w, r, s, server.OpCallSource, ref, false, source, key, function, debug)
 
-		case webapi.ActionLaunch:
+		case api.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			instance := popOptionalLastParam(w, r, s, query, webapi.ParamInstance)
+			instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 			debug := popOptionalLastDebugParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			mustNotHaveContentType(w, r, s)
@@ -481,8 +481,8 @@ func handleGetInstances(w http.ResponseWriter, r *http.Request, s *webserver) {
 func handleGetInstance(w http.ResponseWriter, r *http.Request, s *webserver, instance string) {
 	query := mustParseQuery(w, r, s)
 
-	switch popLastParam(w, r, s, query, webapi.ParamAction) {
-	case webapi.ActionIO:
+	switch popLastParam(w, r, s, query, api.ParamAction) {
+	case api.ActionIO:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceConnectWebsocket(w, r, s, instance)
 
@@ -493,45 +493,45 @@ func handleGetInstance(w http.ResponseWriter, r *http.Request, s *webserver, ins
 
 func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, instance string) {
 	query := mustParseQuery(w, r, s)
-	wait := popOptionalActionParam(w, r, s, query, webapi.ActionWait)
+	wait := popOptionalActionParam(w, r, s, query, api.ActionWait)
 
-	if wait && len(query[webapi.ParamAction]) == 0 {
+	if wait && len(query[api.ParamAction]) == 0 {
 		handleInstanceStatus(w, r, s, server.OpInstanceWait, (*server.Server).WaitInstance, instance)
 		return
 	}
 
-	switch popLastParam(w, r, s, query, webapi.ParamAction) {
-	case webapi.ActionIO:
+	switch popLastParam(w, r, s, query, api.ParamAction) {
+	case api.ActionIO:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceConnect(w, r, s, instance)
 
-	case webapi.ActionStatus:
+	case api.ActionStatus:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceStatus(w, r, s, server.OpInstanceStatus, (*server.Server).InstanceStatus, instance)
 
-	case webapi.ActionKill:
+	case api.ActionKill:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceWaiter(w, r, s, server.OpInstanceKill, (*server.Server).KillInstance, instance, wait)
 
-	case webapi.ActionSuspend:
+	case api.ActionSuspend:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceWaiter(w, r, s, server.OpInstanceSuspend, (*server.Server).SuspendInstance, instance, wait)
 
-	case webapi.ActionResume:
+	case api.ActionResume:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		debug := popOptionalLastDebugParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceResume(w, r, s, function, instance, debug)
 
-	case webapi.ActionSnapshot:
+	case api.ActionSnapshot:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceSnapshot(w, r, s, instance)
 
-	case webapi.ActionDelete:
+	case api.ActionDelete:
 		mustNotHaveParams(w, r, s, query)
 		handleInstance(w, r, s, server.OpInstanceDelete, (*server.Server).DeleteInstance, instance)
 
-	case webapi.ActionDebug:
+	case api.ActionDebug:
 		mustNotHaveParams(w, r, s, query)
 		handleInstanceDebug(w, r, s, instance)
 
@@ -544,8 +544,8 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 func handleStatic(w http.ResponseWriter, r *http.Request, s *webserver, contentLength string, content []byte) {
 	w.Header().Set("Cache-Control", cacheControlStatic)
-	w.Header().Set(webapi.HeaderContentLength, contentLength)
-	w.Header().Set(webapi.HeaderContentType, contentTypeJSON)
+	w.Header().Set(api.HeaderContentLength, contentLength)
+	w.Header().Set(api.HeaderContentType, contentTypeJSON)
 	w.Write(content)
 }
 
@@ -563,10 +563,10 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 	sort.Sort(refs)
 
 	if refs.Modules == nil {
-		refs.Modules = []webapi.ModuleRef{} // For JSON.
+		refs.Modules = []api.ModuleRef{} // For JSON.
 	}
 
-	w.Header().Set(webapi.HeaderContentType, contentTypeJSON)
+	w.Header().Set(api.HeaderContentType, contentTypeJSON)
 
 	json.NewEncoder(w).Encode(refs)
 }
@@ -583,8 +583,8 @@ func handleModuleDownload(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 	defer content.Close()
 
-	w.Header().Set(webapi.HeaderContentLength, strconv.FormatInt(length, 10))
-	w.Header().Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+	w.Header().Set(api.HeaderContentLength, strconv.FormatInt(length, 10))
+	w.Header().Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 	w.WriteHeader(http.StatusOK)
 
 	if r.Method != "HEAD" {
@@ -636,7 +636,7 @@ func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, re
 	}
 
 	if ref {
-		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
+		w.Header().Set(api.HeaderLocation, s.pathModuleRefs+progHash)
 		w.WriteHeader(http.StatusCreated)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -686,13 +686,13 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	}
 	defer inst.Kill()
 
-	w.Header().Set("Trailer", webapi.HeaderStatus)
+	w.Header().Set("Trailer", api.HeaderStatus)
 
 	if principal.ContextID(ctx) != nil {
 		if ref {
-			w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
+			w.Header().Set(api.HeaderLocation, s.pathModuleRefs+progHash)
 		}
-		w.Header().Set(webapi.HeaderInstance, inst.ID)
+		w.Header().Set(api.HeaderInstance, inst.ID)
 	}
 
 	if ref {
@@ -703,7 +703,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	inst.Connect(ctx, r.Body, w)
 	status := inst.Wait(ctx)
-	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+	w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 }
 
 func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, ref bool, source server.Source, key, function string, debug bool) {
@@ -725,7 +725,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	conn.SetReadLimit(maxWebsocketRequestSize)
 
-	var r webapi.Call
+	var r api.Call
 
 	err = conn.ReadJSON(&r)
 	if err != nil {
@@ -742,7 +742,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	var content bool
 
 	switch r.ContentType {
-	case webapi.ContentTypeWebAssembly:
+	case api.ContentTypeWebAssembly:
 		if source != nil {
 			conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedContent)
 			reportProtocolError(ctx, s, errUnsupportedWebsocketContent)
@@ -816,7 +816,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 	defer inst.Kill()
 
-	var reply webapi.CallConnection
+	var reply api.CallConnection
 
 	if principal.ContextID(ctx) != nil {
 		if ref {
@@ -866,10 +866,10 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 		}
 	}
 
-	w.Header().Set(webapi.HeaderInstance, inst.ID)
+	w.Header().Set(api.HeaderInstance, inst.ID)
 
 	if ref {
-		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+progHash)
+		w.Header().Set(api.HeaderLocation, s.pathModuleRefs+progHash)
 		w.WriteHeader(http.StatusCreated)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -887,10 +887,10 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, re
 		return
 	}
 
-	w.Header().Set(webapi.HeaderInstance, inst.ID)
+	w.Header().Set(api.HeaderInstance, inst.ID)
 
 	if ref {
-		w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+key)
+		w.Header().Set(api.HeaderLocation, s.pathModuleRefs+key)
 		w.WriteHeader(http.StatusCreated)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -914,7 +914,7 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 		instances.Instances = []serverapi.InstanceStatus{} // For JSON.
 	}
 
-	w.Header().Set(webapi.HeaderContentType, contentTypeJSON)
+	w.Header().Set(api.HeaderContentType, contentTypeJSON)
 
 	jsonproto.Marshaler.Marshal(w, &instances)
 }
@@ -944,7 +944,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+	w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -961,7 +961,7 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 
 	if wait {
 		status := inst.Wait(ctx)
-		w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+		w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -999,7 +999,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 		return
 	}
 
-	w.Header().Set("Trailer", webapi.HeaderStatus)
+	w.Header().Set("Trailer", api.HeaderStatus)
 	w.WriteHeader(http.StatusOK)
 
 	err = connIO(ctx, content, w)
@@ -1009,7 +1009,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	status := inst.Status()
-	w.Header().Set(webapi.HeaderStatus, string(jsonproto.MustMarshal(&status)))
+	w.Header().Set(api.HeaderStatus, string(jsonproto.MustMarshal(&status)))
 }
 
 func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, instID string) {
@@ -1024,7 +1024,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 
 	conn.SetReadLimit(maxWebsocketRequestSize)
 
-	var r webapi.IO
+	var r api.IO
 
 	err = conn.ReadJSON(&r)
 	if err != nil {
@@ -1048,7 +1048,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	reply := &api.IOConnection{Connected: connIO != nil}
+	reply := &internalapi.IOConnection{Connected: connIO != nil}
 	err = conn.WriteMessage(websocket.TextMessage, jsonproto.MustMarshal(reply))
 	if err != nil {
 		reportNetworkError(ctx, s, err)
@@ -1066,7 +1066,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	data, err := jsonproto.Marshal(&api.ConnectionStatus{Status: inst.Status()})
+	data, err := jsonproto.Marshal(&internalapi.ConnectionStatus{Status: inst.Status()})
 	if err != nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketInternalServerErr)
 		reportInternalError(ctx, s, "", "", "", "", err)
@@ -1093,12 +1093,12 @@ func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver
 		return
 	}
 
-	w.Header().Set(webapi.HeaderLocation, s.pathModuleRefs+moduleKey)
+	w.Header().Set(api.HeaderLocation, s.pathModuleRefs+moduleKey)
 	w.WriteHeader(http.StatusCreated)
 }
 
 func handleInstanceDebug(w http.ResponseWriter, r *http.Request, s *webserver, instID string) {
-	mustHaveContentType(w, r, s, webapi.ContentTypeJSON)
+	mustHaveContentType(w, r, s, api.ContentTypeJSON)
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceDebug)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -1120,8 +1120,8 @@ func handleInstanceDebug(w http.ResponseWriter, r *http.Request, s *webserver, i
 		panic(err)
 	}
 
-	w.Header().Set(webapi.HeaderContentLength, strconv.Itoa(len(resContent)))
-	w.Header().Set(webapi.HeaderContentType, webapi.ContentTypeJSON+"; charset=utf-8")
+	w.Header().Set(api.HeaderContentLength, strconv.Itoa(len(resContent)))
+	w.Header().Set(api.HeaderContentType, api.ContentTypeJSON+"; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	w.Write(resContent)
 }

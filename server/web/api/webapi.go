@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package webapi contains definitions useful for accessing the HTTP and
-// websocket APIs.  See https://gate.computer/gate/blob/master/Web.md for
-// general documentation.
-package webapi
+// Package api contains definitions useful for accessing the HTTP and websocket
+// APIs.  See https://gate.computer/gate/blob/master/Web.md for general
+// documentation.
+package api
 
 import (
 	"crypto"

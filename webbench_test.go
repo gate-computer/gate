@@ -15,7 +15,7 @@ import (
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/web"
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 )
 
 func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
@@ -78,7 +78,7 @@ func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory
 	defer server.Shutdown(ctx)
 
 	handler := newBenchHandler(server)
-	uri := webapi.PathModuleRefs + hashNop + "?action=call"
+	uri := api.PathModuleRefs + hashNop + "?action=call"
 
 	procs := goruntime.GOMAXPROCS(0)
 	loops := (b.N + procs - 1) / procs
@@ -94,7 +94,7 @@ func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory
 
 			for i := 0; i < loops; i++ {
 				req := newRequest(http.MethodPut, uri, wasmNop)
-				req.Header.Set(webapi.HeaderContentType, webapi.ContentTypeWebAssembly)
+				req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 				w := httptest.NewRecorder()
 				handler.ServeHTTP(w, req)
 				resp := w.Result()

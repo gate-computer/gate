@@ -24,7 +24,7 @@ import (
 
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/server/api"
-	"gate.computer/gate/webapi"
+	webapi "gate.computer/gate/server/web/api"
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/wag/binding"
 	"github.com/tsavola/wag/compile"

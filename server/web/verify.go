@@ -11,7 +11,7 @@ import (
 
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server/event"
-	"gate.computer/gate/webapi"
+	"gate.computer/gate/server/web/api"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -46,7 +46,7 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, audie
 }
 
 func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, algorithm string, signedData, signature []byte) {
-	if algorithm == webapi.SignAlgEdDSA {
+	if algorithm == api.SignAlgEdDSA {
 		if ed25519.Verify(pri.PublicKey(), signedData, signature) {
 			return
 		}
