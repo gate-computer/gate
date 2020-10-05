@@ -31,7 +31,7 @@ import (
 	"gate.computer/gate/server/monitor"
 	"gate.computer/gate/server/monitor/webmonitor"
 	"gate.computer/gate/server/sshkeys"
-	"gate.computer/gate/server/webserver"
+	"gate.computer/gate/server/web"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/source/ipfs"
@@ -110,7 +110,7 @@ type Config struct {
 	HTTP struct {
 		Net  string
 		Addr string
-		webserver.Config
+		web.Config
 		AccessDB  string
 		AccessLog string
 
@@ -392,7 +392,7 @@ func main2(critLog *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	handler := newHTTPSHandler(webserver.NewHandler("/", c.HTTP.Config))
+	handler := newHTTPSHandler(web.NewHandler("/", c.HTTP.Config))
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)

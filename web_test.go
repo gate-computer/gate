@@ -24,7 +24,7 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
 	"gate.computer/gate/server/database/sql"
-	"gate.computer/gate/server/webserver"
+	"gate.computer/gate/server/web"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
@@ -130,14 +130,14 @@ func newHandler(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 
-	config := webserver.Config{
+	config := web.Config{
 		Server:        s,
 		Authority:     "example.invalid",
 		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
 	}
 
-	h := webserver.NewHandler("/", config)
+	h := web.NewHandler("/", config)
 	// h = handlers.LoggingHandler(os.Stdout, h)
 
 	return h

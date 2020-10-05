@@ -14,7 +14,7 @@ import (
 
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server"
-	"gate.computer/gate/server/webserver"
+	"gate.computer/gate/server/web"
 	"gate.computer/gate/webapi"
 )
 
@@ -28,12 +28,12 @@ func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
 }
 
 func newBenchHandler(s *server.Server) http.Handler {
-	config := webserver.Config{
+	config := web.Config{
 		Server:    s,
 		Authority: "bench",
 	}
 
-	return webserver.NewHandler("/", config)
+	return web.NewHandler("/", config)
 }
 
 func BenchmarkCall(b *testing.B) {
