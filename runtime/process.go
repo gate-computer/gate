@@ -386,6 +386,12 @@ func contextWithProcess(ctx context.Context, p *Process) context.Context {
 	return context.WithValue(ctx, contextProcessValueKey{}, p)
 }
 
+// ContextWithDummyProcessKey for testing.
+func ContextWithDummyProcessKey(ctx context.Context) context.Context {
+	invalid := new(Process)
+	return context.WithValue(ctx, contextProcessValueKey{}, invalid)
+}
+
 // ProcessKey is an opaque handle to a single instance of a program image being
 // executed.
 type ProcessKey struct{ _ *Process }
