@@ -4,9 +4,9 @@
 
 syntax = "proto3";
 
-package gate.serverapi;
+package gate.server.api;
 
-option go_package = "gate.computer/gate/serverapi";
+option go_package = "gate.computer/gate/server/api";
 
 message ModuleRef {
 	string id = 1;

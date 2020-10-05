@@ -18,11 +18,11 @@ GEN_BIN_SOURCES := \
 	internal/error/runtime/errors.go \
 	internal/manifest/manifest.pb.go \
 	internal/webserverapi/webserverapi.pb.go \
+	server/api/server.pb.go \
 	server/detail/detail.pb.go \
 	server/event/event.pb.go \
 	server/event/type.gen.go \
-	server/monitor/monitor.pb.go \
-	serverapi/serverapi.pb.go
+	server/monitor/monitor.pb.go
 
 GOBENCHFLAGS	:= -bench=.*
 

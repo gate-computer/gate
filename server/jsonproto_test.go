@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"gate.computer/gate/internal/jsonproto"
-	api "gate.computer/gate/serverapi"
+	"gate.computer/gate/server/api"
 	"github.com/tsavola/wag/trap"
 )
 

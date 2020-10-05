@@ -29,7 +29,7 @@ import (
 	gateruntime "gate.computer/gate/runtime"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
-	api "gate.computer/gate/serverapi"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"github.com/coreos/go-systemd/v22/daemon"

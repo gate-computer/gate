@@ -19,9 +19,9 @@ import (
 	"gate.computer/gate/internal/principal"
 	api "gate.computer/gate/internal/webserverapi"
 	"gate.computer/gate/server"
+	serverapi "gate.computer/gate/server/api"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
-	"gate.computer/gate/serverapi"
 	"gate.computer/gate/webapi"
 	"github.com/gorilla/websocket"
 )

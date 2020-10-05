@@ -6,7 +6,7 @@ syntax = "proto3";
 
 package gate.internal.webserverapi;
 
-import "serverapi/serverapi.proto";
+import "server/api/server.proto";
 
 option go_package = "gate.computer/gate/internal/webserverapi";
 
@@ -15,5 +15,5 @@ message IOConnection {
 }
 
 message ConnectionStatus {
-	serverapi.Status status = 1;
+	gate.server.api.Status status = 1;
 }

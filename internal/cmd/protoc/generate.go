@@ -11,7 +11,7 @@ import (
 )
 
 var filenamesWithoutXXX = map[string]struct{}{
-	"serverapi/serverapi.proto": struct{}{},
+	"server/api/server.proto": struct{}{},
 }
 
 func main() {

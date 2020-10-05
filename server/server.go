@@ -14,10 +14,10 @@ import (
 	"gate.computer/gate/internal/error/resourcelimit"
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/runtime"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/resourcenotfound"
-	api "gate.computer/gate/serverapi"
 	"github.com/tsavola/wag/object/stack"
 )
 

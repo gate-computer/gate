@@ -14,15 +14,15 @@ import (
 	"fmt"
 	"regexp"
 
-	"gate.computer/gate/serverapi"
+	server "gate.computer/gate/server/api"
 )
 
 // Name of the module reference source and associated content hash algorithm.
-const ModuleRefSource = serverapi.ModuleRefSource
+const ModuleRefSource = server.ModuleRefSource
 
 // Algorithm for converting module content to reference id.  A reference id
 // string can be formed by encoding a hash digest with base64.RawURLEncoding.
-const ModuleRefHash crypto.Hash = serverapi.ModuleRefHash
+const ModuleRefHash crypto.Hash = server.ModuleRefHash
 
 // Request URL paths.
 const (
@@ -218,10 +218,10 @@ func (status Status) String() (s string) {
 }
 
 // Response to PathModuleRefs request.
-type ModuleRefs = serverapi.ModuleRefs
+type ModuleRefs = server.ModuleRefs
 
 // An item in a ModuleRefs response.
-type ModuleRef = serverapi.ModuleRef
+type ModuleRef = server.ModuleRef
 
 // Response to a PathInstances request.
 type Instances struct {

@@ -14,7 +14,7 @@ import (
 	"gate.computer/gate/runtime"
 	gateruntime "gate.computer/gate/runtime"
 	"gate.computer/gate/server"
-	"gate.computer/gate/serverapi"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/service"
 	werrors "github.com/tsavola/wag/errors"
 	errors "golang.org/x/xerrors"
@@ -74,9 +74,9 @@ func IsFine(err error) bool {
 	return false
 }
 
-func IsGood(s serverapi.Status) bool {
+func IsGood(s api.Status) bool {
 	switch s.State {
-	case serverapi.StateRunning, serverapi.StateSuspended, serverapi.StateHalted, serverapi.StateTerminated, serverapi.StateKilled:
+	case api.StateRunning, api.StateSuspended, api.StateHalted, api.StateTerminated, api.StateKilled:
 	default:
 		return false
 	}

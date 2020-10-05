@@ -23,7 +23,7 @@ import (
 	"unicode"
 
 	"gate.computer/gate/runtime/abi"
-	api "gate.computer/gate/serverapi"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/webapi"
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/wag/binding"

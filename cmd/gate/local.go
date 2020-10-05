@@ -19,7 +19,7 @@ import (
 	"syscall"
 
 	"gate.computer/gate/internal/bus"
-	api "gate.computer/gate/serverapi"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/webapi"
 	dbus "github.com/godbus/dbus/v5"
 	"golang.org/x/sys/unix"

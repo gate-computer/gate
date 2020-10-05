@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	api "gate.computer/gate/serverapi"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/webapi"
 	"gate.computer/gate/webapi/authorization"
 	"github.com/gorilla/websocket"
