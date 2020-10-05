@@ -15,6 +15,7 @@ import (
 	"os"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"gate.computer/gate/internal/error/badprogram"
 	internal "gate.computer/gate/internal/error/runtime"
@@ -394,7 +395,19 @@ func ContextWithDummyProcessKey(ctx context.Context) context.Context {
 
 // ProcessKey is an opaque handle to a single instance of a program image being
 // executed.
-type ProcessKey struct{ _ *Process }
+type ProcessKey struct{ p *Process }
+
+func (key ProcessKey) Compare(other ProcessKey) int {
+	a := uintptr(unsafe.Pointer(key.p))
+	b := uintptr(unsafe.Pointer(other.p))
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
+}
 
 func MustContextProcessKey(ctx context.Context) ProcessKey {
 	return ProcessKey{ctx.Value(contextProcessValueKey{}).(*Process)}
