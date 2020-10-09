@@ -227,6 +227,10 @@ func newInstanceConfig(ctx context.Context, config service.InstanceConfig, key [
 		r.PrincipalId = pri.String()
 	}
 
+	if id, ok := principal.ContextInstanceUUID(ctx); ok {
+		r.InstanceUuid = id[:]
+	}
+
 	return r
 }
 

@@ -28,6 +28,7 @@ message InstanceConfig {
 	int32 max_send_size = 1;
 	bytes process_key = 2;
 	string principal_id = 3;
+	bytes instance_uuid = 4;
 }
 
 message CreateInstanceRequest {
