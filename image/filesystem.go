@@ -136,6 +136,7 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 
 	prog = &Program{
 		storage: storage,
+		man:     new(manifest.Program),
 		file:    f,
 	}
 
@@ -229,6 +230,7 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 	}()
 
 	inst = &Instance{
+		man:      new(manifest.Instance),
 		coherent: true,
 		file:     f,
 		dir:      fs.instDir,
