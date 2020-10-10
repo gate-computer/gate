@@ -139,9 +139,17 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 	return d.services, nil
 }
 
-func (d *serviceDiscoverer) NumServices() int                           { return len(d.services) }
-func (d *serviceDiscoverer) Suspend(context.Context) []snapshot.Service { return nil }
-func (d *serviceDiscoverer) Shutdown(context.Context)                   {}
+func (d *serviceDiscoverer) NumServices() int {
+	return len(d.services)
+}
+
+func (*serviceDiscoverer) Suspend(context.Context) ([]snapshot.Service, error) {
+	return nil, nil
+}
+
+func (*serviceDiscoverer) Shutdown(context.Context) error {
+	return nil
+}
 
 var testFS *image.Filesystem
 

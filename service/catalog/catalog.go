@@ -119,14 +119,17 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	}
 }
 
-func (inst *instance) Suspend(ctx context.Context) (snapshot []byte) {
+func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	if inst.pending != pendingNone {
-		snapshot = []byte{inst.pending}
+		return []byte{inst.pending}, nil
 	}
-	return
+
+	return nil, nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context) {}
+func (inst *instance) Shutdown(ctx context.Context) error {
+	return nil
+}
 
 type response struct {
 	Services []service.Service `json:"services"`

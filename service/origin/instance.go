@@ -302,12 +302,12 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	}
 }
 
-func (inst *instance) Suspend(ctx context.Context) (output []byte) {
-	inst.Shutdown(ctx)
+func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
+	inst.shutdown()
 
 	numStreams := int32(len(inst.streams))
 	if inst.accepting == 0 && numStreams == 0 {
-		return
+		return nil, nil
 	}
 
 	size := varint.Len(inst.accepting)
@@ -319,7 +319,7 @@ func (inst *instance) Suspend(ctx context.Context) (output []byte) {
 		}
 	}
 
-	output = make([]byte, size)
+	output := make([]byte, size)
 	b := varint.Put(output, inst.accepting)
 	if numStreams > 0 {
 		b = varint.Put(b, numStreams)
@@ -329,10 +329,15 @@ func (inst *instance) Suspend(ctx context.Context) (output []byte) {
 		}
 	}
 
-	return
+	return output, nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context) {
+func (inst *instance) Shutdown(ctx context.Context) error {
+	inst.shutdown()
+	return nil
+}
+
+func (inst *instance) shutdown() {
 	inst.mu.Guard(func() {
 		inst.shutting = true
 		for inst.replying {

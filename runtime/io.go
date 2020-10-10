@@ -83,10 +83,15 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	defer func() {
 		cancel()
 		close(messageOutput)
+
+		var e error
 		if frozen != nil {
-			frozen.Services = discoverer.Suspend(shutdownCtx)
+			frozen.Services, e = discoverer.Suspend(shutdownCtx)
 		} else {
-			discoverer.Shutdown(shutdownCtx)
+			e = discoverer.Shutdown(shutdownCtx)
+		}
+		if err == nil {
+			err = e
 		}
 	}()
 

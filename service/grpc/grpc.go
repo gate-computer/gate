@@ -287,25 +287,23 @@ func (inst *instance) Handle(ctx context.Context, out chan<- packet.Buf, p packe
 	inst.incoming = append(inst.incoming, p...)
 }
 
-func (inst *instance) Shutdown(ctx context.Context) {
+func (inst *instance) Shutdown(ctx context.Context) error {
 	putProcKey(ctx)
 
 	_, err := inst.c.Shutdown(ctx, &api.ShutdownRequest{
 		Id: inst.id,
 	})
-	if err != nil {
-		panic(err)
-	}
+	return err
 }
 
-func (inst *instance) Suspend(ctx context.Context) []byte {
+func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	putProcKey(ctx)
 
 	_, err := inst.c.Suspend(ctx, &api.SuspendRequest{
 		Id: inst.id,
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var outgoing []byte
@@ -319,10 +317,10 @@ func (inst *instance) Suspend(ctx context.Context) []byte {
 		Incoming: inst.incoming,
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return r.Value
+	return r.Value, nil
 }
 
 func (inst *instance) initReception(ctx context.Context, out chan<- packet.Buf) {
