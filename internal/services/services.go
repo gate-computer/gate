@@ -11,6 +11,7 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/catalog"
 	grpc "gate.computer/gate/service/grpc/config"
+	"gate.computer/gate/service/identity"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 )
@@ -37,6 +38,7 @@ func Init(ctx context.Context, plugins plugin.ServicePlugins, originConfig origi
 		r := registry.Clone()
 		r.MustRegister(o)
 		r.MustRegister(catalog.New(r))
+		r.MustRegister(identity.Service)
 
 		return server.NewInstanceServices(o, r)
 	}
