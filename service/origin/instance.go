@@ -102,10 +102,8 @@ func (inst *instance) restore(input []byte) (err error) {
 	return
 }
 
-func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
-	if inst.send == nil {
-		inst.send = send
-	}
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) {
+	inst.send = send
 
 	// All streams at this point are restored ones.
 	if len(inst.streams) > 0 {
@@ -119,10 +117,6 @@ func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
 }
 
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
-	if inst.send == nil {
-		inst.send = send
-	}
-
 	switch p.Domain() {
 	case packet.DomainCall:
 		if !inst.mu.GuardBool(func() bool {

@@ -56,7 +56,7 @@ func (testService) RestoreInstance(context.Context, service.InstanceConfig, []by
 
 type testInstance struct{}
 
-func (testInstance) Resume(ctx context.Context, replies chan<- packet.Buf) {
+func (testInstance) Start(ctx context.Context, replies chan<- packet.Buf) {
 }
 
 func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {

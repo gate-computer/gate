@@ -245,7 +245,7 @@ type instance struct {
 }
 
 func newInstance(ctx context.Context, c api.InstanceClient, id []byte, config service.InstanceConfig) *instance {
-	// This receive function doesn't operate in the inner Resume/Handle context
+	// This receive function doesn't operate in the inner Start/Handle context
 	// so that the reception can continue during shutdown; its cancellation is
 	// governed by this outer context (matching Shutdown/Suspend).
 	receive := func(c api.InstanceClient, req *api.ReceiveRequest) (api.Instance_ReceiveClient, error) {
@@ -260,13 +260,20 @@ func newInstance(ctx context.Context, c api.InstanceClient, id []byte, config se
 	}
 }
 
-func (inst *instance) Resume(ctx context.Context, out chan<- packet.Buf) {
-	inst.initReception(ctx, out)
+func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf) {
+	stream, err := inst.receive(inst.c, &api.ReceiveRequest{
+		Id: inst.id,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	leftout := make(chan []byte, 1)
+	inst.leftout = leftout
+	go receiveForward(ctx, inst.code, out, stream, leftout)
 }
 
 func (inst *instance) Handle(ctx context.Context, out chan<- packet.Buf, p packet.Buf) {
-	inst.initReception(ctx, out)
-
 	if len(inst.incoming) == 0 {
 		_, err := inst.c.Handle(ctx, &api.HandleRequest{
 			Id:   inst.id,
@@ -321,23 +328,6 @@ func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	}
 
 	return r.Value, nil
-}
-
-func (inst *instance) initReception(ctx context.Context, out chan<- packet.Buf) {
-	if inst.leftout != nil {
-		return
-	}
-
-	stream, err := inst.receive(inst.c, &api.ReceiveRequest{
-		Id: inst.id,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	leftout := make(chan []byte, 1)
-	inst.leftout = leftout
-	go receiveForward(ctx, inst.code, out, stream, leftout)
 }
 
 func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Buf, stream api.Instance_ReceiveClient, leftout chan<- []byte) {

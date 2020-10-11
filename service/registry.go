@@ -36,7 +36,7 @@ type InstanceConfig struct {
 
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
-	Resume(ctx context.Context, send chan<- packet.Buf)
+	Start(ctx context.Context, send chan<- packet.Buf)
 	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf)
 	Suspend(ctx context.Context) (snapshot []byte, err error)
 	Shutdown(ctx context.Context) error
@@ -234,7 +234,7 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 
 	for _, inst := range instances {
 		if inst != nil {
-			inst.Resume(ctx, send)
+			inst.Start(ctx, send)
 		}
 	}
 
@@ -250,7 +250,12 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 				}}
 				inst = s.factory.CreateInstance(ctx, instConfig)
 			}
+
 			instances[code] = inst
+
+			if inst != nil {
+				inst.Start(ctx, send)
+			}
 		}
 
 		if inst != nil {

@@ -73,7 +73,7 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 	return
 }
 
-func (inst *instance) Resume(ctx context.Context, send chan<- packet.Buf) {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) {
 	if inst.pending != pendingNone {
 		inst.handleCall(ctx, send)
 	}

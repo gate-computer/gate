@@ -104,6 +104,8 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 						},
 					})
 					defer originInstance.Shutdown(context.Background())
+
+					originInstance.Start(ctx, send)
 				}
 
 				originInstance.Handle(ctx, send, p)

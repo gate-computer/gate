@@ -195,6 +195,8 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
+		inst.Start(ctx, recv)
+
 		i := 0
 		if restore {
 			i = count / 2
