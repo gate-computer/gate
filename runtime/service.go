@@ -43,6 +43,9 @@ type ServiceConfig struct {
 // The snapshot buffers must not be mutated, and references to them shouldn't
 // be retained for long as they may be parts of a large memory allocation.
 //
+// The returned channel will deliver up to one error if one occurs after
+// initialization.
+//
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
 	StartServing(
@@ -54,6 +57,7 @@ type ServiceRegistry interface {
 	) (
 		ServiceDiscoverer,
 		[]ServiceState,
+		<-chan error,
 		error,
 	)
 }

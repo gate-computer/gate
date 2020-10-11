@@ -174,28 +174,7 @@ func (s *Service) Discoverable(ctx context.Context) bool {
 	return true
 }
 
-func (s *Service) CreateInstance(ctx context.Context, config service.InstanceConfig,
-) service.Instance {
-	key := getProcKey(ctx)
-	defer func() {
-		if key != nil {
-			putProcKey(ctx)
-		}
-	}()
-
-	r, err := s.c.CreateInstance(ctx, &api.CreateInstanceRequest{
-		Name:   s.info.Name,
-		Config: newInstanceConfig(ctx, config, key),
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	key = nil
-	return newInstance(ctx, s.instClient, r.Id, config)
-}
-
-func (s *Service) RestoreInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
+func (s *Service) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
 	key := getProcKey(ctx)
 	defer func() {
@@ -204,13 +183,13 @@ func (s *Service) RestoreInstance(ctx context.Context, config service.InstanceCo
 		}
 	}()
 
-	r, err := s.c.RestoreInstance(ctx, &api.RestoreInstanceRequest{
+	r, err := s.c.CreateInstance(ctx, &api.CreateInstanceRequest{
 		Name:     s.info.Name,
 		Config:   newInstanceConfig(ctx, config, key),
 		Snapshot: snapshot,
 	})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if r.Error != "" {
@@ -258,43 +237,47 @@ func newInstance(ctx context.Context, c api.InstanceClient, id []byte, config se
 	}
 }
 
-func (inst *instance) Ready(ctx context.Context) {
+func (inst *instance) Ready(ctx context.Context) error {
 	stream, err := inst.c.Receive(ctx, &api.ReceiveRequest{
 		Id: inst.id,
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	inst.stream = stream
+	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf) {
+func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf) error {
 	c := make(chan []byte, 1)
 	go receiveForward(ctx, inst.code, out, inst.stream, c)
 	inst.leftout = c
 	inst.stream = nil
+	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, out chan<- packet.Buf, p packet.Buf) {
+func (inst *instance) Handle(ctx context.Context, out chan<- packet.Buf, p packet.Buf) error {
 	if len(inst.incoming) == 0 {
 		_, err := inst.c.Handle(ctx, &api.HandleRequest{
 			Id:   inst.id,
 			Data: p,
 		})
 		if err == nil {
-			return
+			return nil
 		}
 
 		select {
 		case <-ctx.Done():
 
 		default:
-			panic(err)
+			return err
 		}
+
 	}
 
 	inst.incoming = append(inst.incoming, p...)
+	return nil
 }
 
 func (inst *instance) Shutdown(ctx context.Context) error {

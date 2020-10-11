@@ -74,7 +74,7 @@ func newExecutor() (tester *executor) {
 type serviceRegistry struct{ origin io.Writer }
 
 func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
-) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
+) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
 	d := new(serviceDiscoverer)
 
 	go func() {
@@ -97,24 +97,34 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 						}
 					}()
 
-					originInstance = connector.CreateInstance(ctx, service.InstanceConfig{
+					var err error
+					originInstance, err = connector.CreateInstance(ctx, service.InstanceConfig{
 						Service: packet.Service{
 							Code:        p.Code(),
 							MaxSendSize: config.MaxSendSize,
 						},
-					})
+					}, nil)
+					if err != nil {
+						panic(err)
+					}
 					defer originInstance.Shutdown(context.Background())
 
-					originInstance.Ready(ctx)
-					originInstance.Start(ctx, send)
+					if err := originInstance.Ready(ctx); err != nil {
+						panic(err)
+					}
+					if err := originInstance.Start(ctx, send); err != nil {
+						panic(err)
+					}
 				}
 
-				originInstance.Handle(ctx, send, p)
+				if err := originInstance.Handle(ctx, send, p); err != nil {
+					panic(err)
+				}
 			}
 		}
 	}()
 
-	return d, nil, nil
+	return d, nil, make(chan error), nil
 }
 
 type serviceDiscoverer struct {

@@ -34,19 +34,10 @@ message InstanceConfig {
 message CreateInstanceRequest {
 	string name = 1;
 	InstanceConfig config = 2;
-}
-
-message CreateInstanceResponse {
-	bytes id = 1;
-}
-
-message RestoreInstanceRequest {
-	string name = 1;
-	InstanceConfig config = 2;
 	bytes snapshot = 3;
 }
 
-message RestoreInstanceResponse {
+message CreateInstanceResponse {
 	bytes id = 1;
 	string error = 2;
 }
@@ -80,7 +71,6 @@ service Root {
 
 service Service {
 	rpc CreateInstance (CreateInstanceRequest) returns (CreateInstanceResponse) {}
-	rpc RestoreInstance (RestoreInstanceRequest) returns (RestoreInstanceResponse) {}
 }
 
 service Instance {

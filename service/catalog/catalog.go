@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"sort"
 
 	"gate.computer/gate/packet"
@@ -38,12 +39,7 @@ func (c catalog) Discoverable(context.Context) bool {
 	return true
 }
 
-func (c catalog) CreateInstance(ctx context.Context, config service.InstanceConfig,
-) service.Instance {
-	return newInstance(c.r, config.Service)
-}
-
-func (c catalog) RestoreInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
+func (c catalog) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
 	inst := newInstance(c.r, config.Service)
 	if err := inst.restore(snapshot); err != nil {
@@ -79,16 +75,19 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 	if len(snapshot) > 0 {
 		inst.pending = snapshot[0]
 	}
+
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) error {
 	if inst.pending != pendingNone {
 		inst.handleCall(ctx, send)
 	}
+
+	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
 	switch dom := p.Domain(); {
 	case dom == packet.DomainCall:
 		if string(p.Content()) == "json" {
@@ -100,8 +99,10 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		inst.handleCall(ctx, send)
 
 	case dom.IsStream():
-		panic("TODO")
+		return errors.New("TODO: unexpected stream packet")
 	}
+
+	return nil
 }
 
 func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {

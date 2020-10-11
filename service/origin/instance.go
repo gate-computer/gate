@@ -8,8 +8,8 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
-	"log"
 	"sync"
 
 	"gate.computer/gate/internal/varint"
@@ -105,7 +105,7 @@ func (inst *instance) restore(input []byte) (err error) {
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) error {
 	inst.send = send
 
 	// All streams at this point are restored ones.
@@ -117,9 +117,11 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) {
 
 		go inst.drainRestored(ctx, restored)
 	}
+
+	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
 	switch p.Domain() {
 	case packet.DomainCall:
 		if !inst.mu.GuardBool(func() bool {
@@ -129,8 +131,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 			}
 			return false
 		}) {
-			log.Print("TODO: too many simultaneous origin accept calls")
-			return
+			return errors.New("TODO: too many simultaneous origin accept calls")
 		}
 
 		poke(inst.wakeup)
@@ -146,19 +147,16 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 				s = inst.streams[id]
 			})
 			if s == nil {
-				log.Print("TODO: stream not found")
-				return
+				return errors.New("TODO: stream not found")
 			}
 
 			if increment != 0 {
 				if err := s.Subscribe(increment); err != nil {
-					log.Printf("TODO: %v", err)
-					return
+					return fmt.Errorf("TODO: %v", err)
 				}
 			} else {
 				if err := s.SubscribeEOF(); err != nil {
-					log.Printf("TODO: %v", err)
-					return
+					return fmt.Errorf("TODO: %v", err)
 				}
 			}
 		}
@@ -171,22 +169,21 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 			s = inst.streams[p.ID()]
 		})
 		if s == nil {
-			log.Print("TODO: stream not found")
-			return
+			return errors.New("TODO: stream not found")
 		}
 
 		if p.DataLen() != 0 {
 			if _, err := s.Write(p.Data()); err != nil {
-				log.Printf("TODO (%v)", err)
-				return
+				return fmt.Errorf("TODO (%v)", err)
 			}
 		} else {
 			if err := s.WriteEOF(); err != nil {
-				log.Printf("TODO (%v)", err)
-				return
+				return fmt.Errorf("TODO (%v)", err)
 			}
 		}
 	}
+
+	return nil
 }
 
 func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{},

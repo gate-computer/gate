@@ -76,13 +76,7 @@ func (cr *Connector) Discoverable(context.Context) bool {
 	return true
 }
 
-func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig,
-) service.Instance {
-	cr.inst.init(config.Service)
-	return &cr.inst
-}
-
-func (cr *Connector) RestoreInstance(ctx context.Context, config service.InstanceConfig, state []byte,
+func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig, state []byte,
 ) (service.Instance, error) {
 	cr.inst.init(config.Service)
 	if err := cr.inst.restore(state); err != nil {

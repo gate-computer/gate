@@ -72,21 +72,18 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		messageInput  = make(chan packet.Buf)
 		messageOutput = make(chan packet.Buf)
 	)
-	discoverer, initialServiceState, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput, messageOutput)
+	discoverer, initialServiceState, serviceDone, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput, messageOutput)
 	if err != nil {
 		return
 	}
 	defer func() {
 		close(messageOutput)
-
-		var e error
-		if frozen != nil {
-			frozen.Services, e = discoverer.Suspend(ctx)
+		if frozen != nil && err == nil {
+			frozen.Services, err = discoverer.Suspend(ctx)
 		} else {
-			e = discoverer.Shutdown(ctx)
-		}
-		if err == nil {
-			err = e
+			if e := discoverer.Shutdown(ctx); err == nil {
+				err = e
+			}
 		}
 	}()
 
@@ -229,6 +226,14 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		case <-done:
 			done = nil
 			subject.execution.suspend()
+
+		case e, ok := <-serviceDone:
+			if ok {
+				err = e
+				return
+			} else {
+				serviceDone = nil
+			}
 		}
 	}
 }

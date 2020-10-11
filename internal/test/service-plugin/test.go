@@ -43,13 +43,13 @@ func (testService) Discoverable(ctx context.Context) bool {
 	return principal.ContextID(ctx) != nil
 }
 
-func (testService) CreateInstance(context.Context, service.InstanceConfig) service.Instance {
-	log.Print(testConfig.MOTD)
-	return testInstance{}
-}
+func (testService) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+	if snapshot == nil {
+		log.Print(testConfig.MOTD)
+	} else {
+		log.Print(testConfig.MOTD, "again")
+	}
 
-func (testService) RestoreInstance(context.Context, service.InstanceConfig, []byte) (service.Instance, error) {
-	log.Print(testConfig.MOTD, "again")
 	return testInstance{}, nil
 }
 
@@ -57,7 +57,7 @@ type testInstance struct {
 	service.InstanceBase
 }
 
-func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {
+func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) error {
 	switch dom := p.Domain(); {
 	case dom == packet.DomainCall:
 		replies <- p
@@ -65,6 +65,8 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 	case dom.IsStream():
 		panic("unexpected stream packet")
 	}
+
+	return nil
 }
 
 func (testInstance) Suspend(ctx context.Context) ([]byte, error) {

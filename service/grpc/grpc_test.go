@@ -149,28 +149,23 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 		},
 	}
 
-	var inst service.Instance
+	var snapshot []byte
 	if restore {
-		var err error
-		var snapshot []byte
-
 		for i := 0; i < count/2; i++ {
 			p := packet.MakeCall(code, 1)
 			p.SetSize()
 			p.Content()[0] = byte(i)
-
 			snapshot = append(snapshot, p...)
 		}
-
-		inst, err = s.RestoreInstance(ctx, config, snapshot)
-		if err != nil {
-			t.Fatal(err)
-		}
-	} else {
-		inst = s.CreateInstance(ctx, config)
 	}
 
-	inst.Ready(ctx)
+	inst, err := s.CreateInstance(ctx, config, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.Ready(ctx); err != nil {
+		t.Fatal(err)
+	}
 
 	done := make(chan int, 1)
 	recv := make(chan packet.Buf)
@@ -197,7 +192,9 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		inst.Start(ctx, recv)
+		if err := inst.Start(ctx, recv); err != nil {
+			t.Fatal(err)
+		}
 
 		i := 0
 		if restore {
@@ -207,7 +204,9 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 			p := packet.MakeCall(code, 1)
 			p.Content()[0] = byte(i)
 
-			inst.Handle(ctx, recv, p)
+			if err := inst.Handle(ctx, recv, p); err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		<-done

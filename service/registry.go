@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -36,9 +37,9 @@ type InstanceConfig struct {
 
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
-	Ready(ctx context.Context)
-	Start(ctx context.Context, send chan<- packet.Buf)
-	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf)
+	Ready(ctx context.Context) error
+	Start(ctx context.Context, send chan<- packet.Buf) error
+	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf) error
 	Shutdown(ctx context.Context) error
 	Suspend(ctx context.Context) (snapshot []byte, err error)
 }
@@ -46,9 +47,9 @@ type Instance interface {
 // InstanceBase provides default implementations for some Instance methods.
 type InstanceBase struct{}
 
-func (InstanceBase) Ready(context.Context)                    {}
-func (InstanceBase) Start(context.Context, chan<- packet.Buf) {}
-func (InstanceBase) Shutdown(context.Context) error           { return nil }
+func (InstanceBase) Ready(context.Context) error                    { return nil }
+func (InstanceBase) Start(context.Context, chan<- packet.Buf) error { return nil }
+func (InstanceBase) Shutdown(context.Context) error                 { return nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -57,8 +58,7 @@ func (InstanceBase) Shutdown(context.Context) error           { return nil }
 type Factory interface {
 	Service() Service
 	Discoverable(ctx context.Context) bool
-	CreateInstance(ctx context.Context, config InstanceConfig) Instance
-	RestoreInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
+	CreateInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
@@ -180,7 +180,7 @@ func (r *Registry) lookup(name string) (result Factory) {
 
 // StartServing implements the runtime.ServiceRegistry interface function.
 func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
-) (runtime.ServiceDiscoverer, []runtime.ServiceState, error) {
+) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),
@@ -197,7 +197,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 
 		if f := d.registry.lookup(s.Name); f != nil {
 			if _, dupe := d.discovered[f]; dupe {
-				return nil, nil, runtime.ErrDuplicateService
+				return nil, nil, nil, runtime.ErrDuplicateService
 			}
 
 			d.discovered[f] = struct{}{}
@@ -211,17 +211,19 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	for i, s := range d.services {
 		var code = packet.Code(i)
 		var inst Instance
-		var err error
 
 		if s.factory != nil {
 			instConfig := InstanceConfig{packet.Service{
 				MaxSendSize: serviceConfig.MaxSendSize,
 				Code:        code,
 			}}
-			inst, err = s.factory.RestoreInstance(ctx, instConfig, s.Buffer)
+
+			var err error
+			inst, err = s.factory.CreateInstance(ctx, instConfig, s.Buffer)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
+
 			s.Buffer = nil
 			states[i].SetAvail()
 		}
@@ -229,12 +231,31 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 		instances[code] = inst
 	}
 
-	go serve(ctx, serviceConfig, r, d, instances, send, recv)
+	for _, inst := range instances {
+		if inst != nil {
+			if err := inst.Ready(ctx); err != nil {
+				return nil, nil, nil, err
+			}
+		}
+	}
 
-	return d, states, nil
+	done := make(chan error, 1)
+
+	go func() {
+		defer close(done)
+		err := errors.New("service panicked")
+		defer func() {
+			if err != nil {
+				done <- err
+			}
+		}()
+		err = serve(ctx, serviceConfig, r, d, instances, send, recv)
+	}()
+
+	return d, states, done, nil
 }
 
-func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) {
+func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) error {
 	defer func() {
 		d.stopped <- instances
 		close(d.stopped)
@@ -245,8 +266,9 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 
 	for _, inst := range instances {
 		if inst != nil {
-			inst.Ready(outerCtx)
-			inst.Start(innerCtx, send)
+			if err := inst.Start(innerCtx, send); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -260,23 +282,36 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 					MaxSendSize: serviceConfig.MaxSendSize,
 					Code:        code,
 				}}
-				inst = s.factory.CreateInstance(outerCtx, instConfig)
+
+				var err error
+				inst, err = s.factory.CreateInstance(outerCtx, instConfig, nil)
+				if err != nil {
+					return err
+				}
 			}
 
 			instances[code] = inst
 
 			if inst != nil {
-				inst.Ready(outerCtx)
-				inst.Start(innerCtx, send)
+				if err := inst.Ready(outerCtx); err != nil {
+					return err
+				}
+				if err := inst.Start(innerCtx, send); err != nil {
+					return err
+				}
 			}
 		}
 
 		if inst != nil {
-			inst.Handle(innerCtx, send, op)
+			if err := inst.Handle(innerCtx, send, op); err != nil {
+				return err
+			}
 		} else {
 			// TODO: service unavailable: buffer up to max packet size
 		}
 	}
+
+	return nil
 }
 
 type discoveredService struct {

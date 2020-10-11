@@ -205,17 +205,11 @@ type serviceServer struct {
 
 func (s *serviceServer) CreateInstance(ctx context.Context, req *api.CreateInstanceRequest) (*api.CreateInstanceResponse, error) {
 	inst := newInstance()
-	id := s.registerInstance(inst)
-	return &api.CreateInstanceResponse{Id: id}, nil
-}
-
-func (s *serviceServer) RestoreInstance(ctx context.Context, req *api.RestoreInstanceRequest) (*api.RestoreInstanceResponse, error) {
-	inst := newInstance()
 	if err := inst.restore(req.Snapshot); err != nil {
-		return &api.RestoreInstanceResponse{Error: err.Error()}, nil
+		return &api.CreateInstanceResponse{Error: err.Error()}, nil
 	}
 	id := s.registerInstance(inst)
-	return &api.RestoreInstanceResponse{Id: id}, nil
+	return &api.CreateInstanceResponse{Id: id}, nil
 }
 
 type instanceServer struct {

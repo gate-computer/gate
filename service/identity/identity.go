@@ -6,6 +6,7 @@ package identity
 
 import (
 	"context"
+	"errors"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/principal"
@@ -33,12 +34,7 @@ func (identity) Discoverable(context.Context) bool {
 	return true
 }
 
-func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig,
-) service.Instance {
-	return newInstance(config)
-}
-
-func (identity) RestoreInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
+func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
 	inst := newInstance(config)
 	if err := inst.restore(snapshot); err != nil {
@@ -80,16 +76,19 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 			inst.call = snapshot[1]
 		}
 	}
+
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) error {
 	if inst.pending {
 		inst.handleCall(ctx, send)
 	}
+
+	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
 	switch dom := p.Domain(); {
 	case dom == packet.DomainCall:
 		inst.pending = true
@@ -101,8 +100,10 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		inst.handleCall(ctx, send)
 
 	case dom.IsStream():
-		panic("TODO")
+		return errors.New("TODO: unexpected stream packet")
 	}
+
+	return nil
 }
 
 func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
