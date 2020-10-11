@@ -145,12 +145,12 @@ func (d *serviceDiscoverer) NumServices() int {
 	return len(d.services)
 }
 
-func (*serviceDiscoverer) Suspend(context.Context) ([]snapshot.Service, error) {
-	return nil, nil
-}
-
 func (*serviceDiscoverer) Shutdown(context.Context) error {
 	return nil
+}
+
+func (*serviceDiscoverer) Suspend(context.Context) ([]snapshot.Service, error) {
+	return nil, nil
 }
 
 var testFS *image.Filesystem

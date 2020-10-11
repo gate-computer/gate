@@ -38,8 +38,8 @@ type InstanceConfig struct {
 type Instance interface {
 	Start(ctx context.Context, send chan<- packet.Buf)
 	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf)
-	Suspend(ctx context.Context) (snapshot []byte, err error)
 	Shutdown(ctx context.Context) error
+	Suspend(ctx context.Context) (snapshot []byte, err error)
 }
 
 // Factory creates instances of a particular service implementation.
@@ -335,6 +335,21 @@ func (d *discoverer) NumServices() int {
 	return len(d.services)
 }
 
+// Shutdown instances.
+func (d *discoverer) Shutdown(ctx context.Context) (err error) {
+	instances := <-d.stopped
+
+	for _, inst := range instances {
+		if inst != nil {
+			if e := inst.Shutdown(ctx); err == nil {
+				err = e
+			}
+		}
+	}
+
+	return
+}
+
 // Suspend instances.
 func (d *discoverer) Suspend(ctx context.Context) (final []snapshot.Service, err error) {
 	final = make([]snapshot.Service, len(d.services))
@@ -352,21 +367,6 @@ func (d *discoverer) Suspend(ctx context.Context) (final []snapshot.Service, err
 				final[code].Buffer = b
 			}
 			if err == nil {
-				err = e
-			}
-		}
-	}
-
-	return
-}
-
-// Shutdown instances.
-func (d *discoverer) Shutdown(ctx context.Context) (err error) {
-	instances := <-d.stopped
-
-	for _, inst := range instances {
-		if inst != nil {
-			if e := inst.Shutdown(ctx); err == nil {
 				err = e
 			}
 		}

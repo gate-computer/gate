@@ -119,16 +119,16 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	}
 }
 
+func (inst *instance) Shutdown(ctx context.Context) error {
+	return nil
+}
+
 func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	if inst.pending != pendingNone {
 		return []byte{inst.pending}, nil
 	}
 
 	return nil, nil
-}
-
-func (inst *instance) Shutdown(ctx context.Context) error {
-	return nil
 }
 
 type response struct {

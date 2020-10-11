@@ -296,6 +296,29 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	}
 }
 
+func (inst *instance) shutdown() {
+	inst.mu.Guard(func() {
+		inst.shutting = true
+		for inst.replying {
+			inst.notify.Wait()
+		}
+	})
+
+	poke(inst.wakeup)
+
+	for _, s := range inst.streams {
+		s.Stop()
+	}
+	for _, s := range inst.streams {
+		<-s.stopped
+	}
+}
+
+func (inst *instance) Shutdown(ctx context.Context) error {
+	inst.shutdown()
+	return nil
+}
+
 func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	inst.shutdown()
 
@@ -324,27 +347,4 @@ func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	}
 
 	return output, nil
-}
-
-func (inst *instance) Shutdown(ctx context.Context) error {
-	inst.shutdown()
-	return nil
-}
-
-func (inst *instance) shutdown() {
-	inst.mu.Guard(func() {
-		inst.shutting = true
-		for inst.replying {
-			inst.notify.Wait()
-		}
-	})
-
-	poke(inst.wakeup)
-
-	for _, s := range inst.streams {
-		s.Stop()
-	}
-	for _, s := range inst.streams {
-		<-s.stopped
-	}
 }

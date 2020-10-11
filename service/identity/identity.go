@@ -125,14 +125,14 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	}
 }
 
+func (inst *instance) Shutdown(ctx context.Context) error {
+	return nil
+}
+
 func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	if inst.pending {
 		return []byte{flagPending, inst.call}, nil
 	}
 
 	return nil, nil
-}
-
-func (inst *instance) Shutdown(ctx context.Context) error {
-	return nil
 }
