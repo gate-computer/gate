@@ -98,93 +98,11 @@ var _Root_serviceDesc = grpc.ServiceDesc{
 	Metadata: "service/grpc/api/service.proto",
 }
 
-// ServiceClient is the client API for Service service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ServiceClient interface {
-	CreateInstance(ctx context.Context, in *CreateInstanceRequest, opts ...grpc.CallOption) (*CreateInstanceResponse, error)
-}
-
-type serviceClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewServiceClient(cc grpc.ClientConnInterface) ServiceClient {
-	return &serviceClient{cc}
-}
-
-func (c *serviceClient) CreateInstance(ctx context.Context, in *CreateInstanceRequest, opts ...grpc.CallOption) (*CreateInstanceResponse, error) {
-	out := new(CreateInstanceResponse)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Service/CreateInstance", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// ServiceServer is the server API for Service service.
-// All implementations must embed UnimplementedServiceServer
-// for forward compatibility
-type ServiceServer interface {
-	CreateInstance(context.Context, *CreateInstanceRequest) (*CreateInstanceResponse, error)
-	mustEmbedUnimplementedServiceServer()
-}
-
-// UnimplementedServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedServiceServer struct {
-}
-
-func (UnimplementedServiceServer) CreateInstance(context.Context, *CreateInstanceRequest) (*CreateInstanceResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateInstance not implemented")
-}
-func (UnimplementedServiceServer) mustEmbedUnimplementedServiceServer() {}
-
-// UnsafeServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ServiceServer will
-// result in compilation errors.
-type UnsafeServiceServer interface {
-	mustEmbedUnimplementedServiceServer()
-}
-
-func RegisterServiceServer(s *grpc.Server, srv ServiceServer) {
-	s.RegisterService(&_Service_serviceDesc, srv)
-}
-
-func _Service_CreateInstance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateInstanceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ServiceServer).CreateInstance(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Service/CreateInstance",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ServiceServer).CreateInstance(ctx, req.(*CreateInstanceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _Service_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "gate.service.grpc.api.Service",
-	HandlerType: (*ServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "CreateInstance",
-			Handler:    _Service_CreateInstance_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "service/grpc/api/service.proto",
-}
-
 // InstanceClient is the client API for Instance service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type InstanceClient interface {
+	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	Receive(ctx context.Context, in *ReceiveRequest, opts ...grpc.CallOption) (Instance_ReceiveClient, error)
 	Handle(ctx context.Context, in *HandleRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*empty.Empty, error)
@@ -198,6 +116,15 @@ type instanceClient struct {
 
 func NewInstanceClient(cc grpc.ClientConnInterface) InstanceClient {
 	return &instanceClient{cc}
+}
+
+func (c *instanceClient) Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error) {
+	out := new(CreateResponse)
+	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Instance/Create", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *instanceClient) Receive(ctx context.Context, in *ReceiveRequest, opts ...grpc.CallOption) (Instance_ReceiveClient, error) {
@@ -272,6 +199,7 @@ func (c *instanceClient) Snapshot(ctx context.Context, in *SnapshotRequest, opts
 // All implementations must embed UnimplementedInstanceServer
 // for forward compatibility
 type InstanceServer interface {
+	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	Receive(*ReceiveRequest, Instance_ReceiveServer) error
 	Handle(context.Context, *HandleRequest) (*empty.Empty, error)
 	Shutdown(context.Context, *ShutdownRequest) (*empty.Empty, error)
@@ -284,6 +212,9 @@ type InstanceServer interface {
 type UnimplementedInstanceServer struct {
 }
 
+func (UnimplementedInstanceServer) Create(context.Context, *CreateRequest) (*CreateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
+}
 func (UnimplementedInstanceServer) Receive(*ReceiveRequest, Instance_ReceiveServer) error {
 	return status.Errorf(codes.Unimplemented, "method Receive not implemented")
 }
@@ -310,6 +241,24 @@ type UnsafeInstanceServer interface {
 
 func RegisterInstanceServer(s *grpc.Server, srv InstanceServer) {
 	s.RegisterService(&_Instance_serviceDesc, srv)
+}
+
+func _Instance_Create_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(InstanceServer).Create(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/gate.service.grpc.api.Instance/Create",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(InstanceServer).Create(ctx, req.(*CreateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Instance_Receive_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -409,6 +358,10 @@ var _Instance_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "gate.service.grpc.api.Instance",
 	HandlerType: (*InstanceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Create",
+			Handler:    _Instance_Create_Handler,
+		},
 		{
 			MethodName: "Handle",
 			Handler:    _Instance_Handle_Handler,

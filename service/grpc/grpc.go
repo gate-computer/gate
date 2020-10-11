@@ -96,11 +96,10 @@ func New(ctx context.Context, conn *grpc.ClientConn) (*Conn, error) {
 		conn: conn,
 	}
 
-	servClient := api.NewServiceClient(conn)
-	instClient := api.NewInstanceClient(conn)
+	client := api.NewInstanceClient(conn)
 
 	for _, info := range r.Services {
-		c.Services = append(c.Services, newService(servClient, instClient, info))
+		c.Services = append(c.Services, newService(client, info))
 	}
 
 	conn = nil
@@ -146,16 +145,14 @@ func (c *Conn) Close() error {
 }
 
 type Service struct {
-	c          api.ServiceClient
-	instClient api.InstanceClient
-	info       *api.ServiceInfo
+	c    api.InstanceClient
+	info *api.Service
 }
 
-func newService(c api.ServiceClient, instClient api.InstanceClient, info *api.ServiceInfo) *Service {
+func newService(c api.InstanceClient, info *api.Service) *Service {
 	return &Service{
-		c:          c,
-		instClient: instClient,
-		info:       info,
+		c:    c,
+		info: info,
 	}
 }
 
@@ -183,21 +180,21 @@ func (s *Service) CreateInstance(ctx context.Context, config service.InstanceCon
 		}
 	}()
 
-	r, err := s.c.CreateInstance(ctx, &api.CreateInstanceRequest{
-		Name:     s.info.Name,
-		Config:   newInstanceConfig(ctx, config, key),
-		Snapshot: snapshot,
+	r, err := s.c.Create(ctx, &api.CreateRequest{
+		ServiceName: s.info.Name,
+		Config:      newInstanceConfig(ctx, config, key),
+		Snapshot:    snapshot,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if r.Error != "" {
-		return nil, errors.New(r.Error) // TODO: a ModuleError
+	if r.RestorationError != "" {
+		return nil, errors.New(r.RestorationError) // TODO: a ModuleError
 	}
 
 	key = nil
-	return newInstance(ctx, s.instClient, r.Id, config), nil
+	return newInstance(ctx, s.c, r.Id, config), nil
 }
 
 func newInstanceConfig(ctx context.Context, config service.InstanceConfig, key []byte) *api.InstanceConfig {

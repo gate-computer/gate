@@ -11,7 +11,7 @@ import "google/protobuf/wrappers.proto";
 
 option go_package = "gate.computer/gate/service/grpc/api";
 
-message ServiceInfo {
+message Service {
 	string name = 1;
 	string revision = 2;
 	bool require_principal = 3;
@@ -21,7 +21,7 @@ message InitRequest {
 }
 
 message InitResponse {
-	repeated ServiceInfo services = 1;
+	repeated Service services = 1;
 }
 
 message InstanceConfig {
@@ -31,15 +31,15 @@ message InstanceConfig {
 	bytes instance_uuid = 4;
 }
 
-message CreateInstanceRequest {
-	string name = 1;
+message CreateRequest {
+	string service_name = 1;
 	InstanceConfig config = 2;
 	bytes snapshot = 3;
 }
 
-message CreateInstanceResponse {
+message CreateResponse {
 	bytes id = 1;
-	string error = 2;
+	string restoration_error = 2;
 }
 
 message ReceiveRequest {
@@ -69,11 +69,8 @@ service Root {
 	rpc Init (InitRequest) returns (InitResponse) {}
 }
 
-service Service {
-	rpc CreateInstance (CreateInstanceRequest) returns (CreateInstanceResponse) {}
-}
-
 service Instance {
+	rpc Create (CreateRequest) returns (CreateResponse) {}
 	rpc Receive (ReceiveRequest) returns (stream google.protobuf.BytesValue) {}
 	rpc Handle (HandleRequest) returns (google.protobuf.Empty) {}
 	rpc Shutdown (ShutdownRequest) returns (google.protobuf.Empty) {}

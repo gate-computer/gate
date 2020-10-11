@@ -59,10 +59,8 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	api.RegisterRootServer(s, &rootServer{})
-	state := newState()
-	api.RegisterServiceServer(s, &serviceServer{state: state})
-	api.RegisterInstanceServer(s, &instanceServer{state: state})
+	api.RegisterRootServer(s, new(rootServer))
+	api.RegisterInstanceServer(s, newInstanceServer())
 
 	go func() {
 		<-signals
@@ -149,7 +147,7 @@ type rootServer struct {
 
 func (s *rootServer) Init(ctx context.Context, req *api.InitRequest) (*api.InitResponse, error) {
 	return &api.InitResponse{
-		Services: []*api.ServiceInfo{
+		Services: []*api.Service{
 			{
 				Name:     serviceName,
 				Revision: serviceRevision,
@@ -158,18 +156,20 @@ func (s *rootServer) Init(ctx context.Context, req *api.InitRequest) (*api.InitR
 	}, nil
 }
 
-type state struct {
+type instanceServer struct {
+	api.UnimplementedInstanceServer
+
 	mu        mu.Mutex
 	instances map[string]*instance
 }
 
-func newState() *state {
-	return &state{
+func newInstanceServer() *instanceServer {
+	return &instanceServer{
 		instances: make(map[string]*instance),
 	}
 }
 
-func (s *state) registerInstance(inst *instance) (id []byte) {
+func (s *instanceServer) registerInstance(inst *instance) (id []byte) {
 	id = newInstanceID()
 	s.mu.Guard(func() {
 		s.instances[string(id)] = inst
@@ -177,15 +177,15 @@ func (s *state) registerInstance(inst *instance) (id []byte) {
 	return
 }
 
-func (s *state) getInstance(id []byte) (*instance, error) {
+func (s *instanceServer) getInstance(id []byte) (*instance, error) {
 	return s.lookupInstance(id, false)
 }
 
-func (s *state) removeInstance(id []byte) (*instance, error) {
+func (s *instanceServer) removeInstance(id []byte) (*instance, error) {
 	return s.lookupInstance(id, true)
 }
 
-func (s *state) lookupInstance(id []byte, remove bool) (inst *instance, err error) {
+func (s *instanceServer) lookupInstance(id []byte, remove bool) (inst *instance, err error) {
 	s.mu.Guard(func() {
 		inst = s.instances[string(id)]
 		if remove {
@@ -198,23 +198,14 @@ func (s *state) lookupInstance(id []byte, remove bool) (inst *instance, err erro
 	return
 }
 
-type serviceServer struct {
-	api.UnimplementedServiceServer
-	*state
-}
-
-func (s *serviceServer) CreateInstance(ctx context.Context, req *api.CreateInstanceRequest) (*api.CreateInstanceResponse, error) {
+func (s *instanceServer) Create(ctx context.Context, req *api.CreateRequest) (*api.CreateResponse, error) {
 	inst := newInstance()
 	if err := inst.restore(req.Snapshot); err != nil {
-		return &api.CreateInstanceResponse{Error: err.Error()}, nil
+		return &api.CreateResponse{RestorationError: err.Error()}, nil
 	}
-	id := s.registerInstance(inst)
-	return &api.CreateInstanceResponse{Id: id}, nil
-}
 
-type instanceServer struct {
-	api.UnimplementedInstanceServer
-	*state
+	id := s.registerInstance(inst)
+	return &api.CreateResponse{Id: id}, nil
 }
 
 func (s *instanceServer) Receive(req *api.ReceiveRequest, stream api.Instance_ReceiveServer) error {
