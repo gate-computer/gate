@@ -226,15 +226,18 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	return d, states, nil
 }
 
-func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) {
+func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) {
 	defer func() {
 		d.stopped <- instances
 		close(d.stopped)
 	}()
 
+	innerCtx, cancel := context.WithCancel(outerCtx)
+	defer cancel()
+
 	for _, inst := range instances {
 		if inst != nil {
-			inst.Start(ctx, send)
+			inst.Start(innerCtx, send)
 		}
 	}
 
@@ -248,18 +251,18 @@ func serve(ctx context.Context, serviceConfig runtime.ServiceConfig, r *Registry
 					MaxSendSize: serviceConfig.MaxSendSize,
 					Code:        code,
 				}}
-				inst = s.factory.CreateInstance(ctx, instConfig)
+				inst = s.factory.CreateInstance(outerCtx, instConfig)
 			}
 
 			instances[code] = inst
 
 			if inst != nil {
-				inst.Start(ctx, send)
+				inst.Start(innerCtx, send)
 			}
 		}
 
 		if inst != nil {
-			inst.Handle(ctx, send, op)
+			inst.Handle(innerCtx, send, op)
 		} else {
 			// TODO: service unavailable: buffer up to max packet size
 		}
