@@ -15,6 +15,7 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/snapshot"
+	"github.com/tsavola/mu"
 )
 
 const maxServiceStringLen = 127
@@ -38,7 +39,7 @@ type InstanceConfig struct {
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
 	Ready(ctx context.Context) error
-	Start(ctx context.Context, send chan<- packet.Buf) error
+	Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error
 	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf) error
 	Shutdown(ctx context.Context) error
 	Suspend(ctx context.Context) (snapshot []byte, err error)
@@ -47,9 +48,9 @@ type Instance interface {
 // InstanceBase provides default implementations for some Instance methods.
 type InstanceBase struct{}
 
-func (InstanceBase) Ready(context.Context) error                    { return nil }
-func (InstanceBase) Start(context.Context, chan<- packet.Buf) error { return nil }
-func (InstanceBase) Shutdown(context.Context) error                 { return nil }
+func (InstanceBase) Ready(context.Context) error                                 { return nil }
+func (InstanceBase) Start(context.Context, chan<- packet.Buf, func(error)) error { return nil }
+func (InstanceBase) Shutdown(context.Context) error                              { return nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -242,20 +243,48 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	done := make(chan error, 1)
 
 	go func() {
-		defer close(done)
 		err := errors.New("service panicked")
+
+		a := aborter{c: done}
 		defer func() {
-			if err != nil {
-				done <- err
-			}
+			a.close(err)
 		}()
-		err = serve(ctx, serviceConfig, r, d, instances, send, recv)
+
+		err = serve(ctx, serviceConfig, r, d, instances, send, recv, a.abort)
 	}()
 
 	return d, states, done, nil
 }
 
-func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf) error {
+type aborter struct {
+	mu mu.Mutex
+	c  chan<- error
+}
+
+func (a *aborter) abort(err error) {
+	if err == nil {
+		err = errors.New("service aborted with unspecified error")
+	}
+	a.close(err)
+}
+
+func (a *aborter) close(err error) {
+	var c chan<- error
+	a.mu.Guard(func() {
+		c = a.c
+		a.c = nil
+	})
+	if c == nil {
+		return
+	}
+
+	if err != nil {
+		c <- err
+	}
+	close(c)
+}
+
+func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf, abort func(error)) error {
 	defer func() {
 		d.stopped <- instances
 		close(d.stopped)
@@ -266,7 +295,7 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 
 	for _, inst := range instances {
 		if inst != nil {
-			if err := inst.Start(innerCtx, send); err != nil {
+			if err := inst.Start(innerCtx, send, abort); err != nil {
 				return err
 			}
 		}
@@ -296,7 +325,7 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 				if err := inst.Ready(outerCtx); err != nil {
 					return err
 				}
-				if err := inst.Start(innerCtx, send); err != nil {
+				if err := inst.Start(innerCtx, send, abort); err != nil {
 					return err
 				}
 			}

@@ -192,7 +192,7 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		if err := inst.Start(ctx, recv); err != nil {
+		if err := inst.Start(ctx, recv, func(e error) { t.Fatal(e) }); err != nil {
 			t.Fatal(err)
 		}
 

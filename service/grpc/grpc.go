@@ -249,9 +249,9 @@ func (inst *instance) Ready(ctx context.Context) error {
 	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf) error {
+func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf, abort func(error)) error {
 	c := make(chan []byte, 1)
-	go receiveForward(ctx, inst.code, out, inst.stream, c)
+	go receiveForward(ctx, inst.code, out, inst.stream, c, abort)
 	inst.leftout = c
 	inst.stream = nil
 	return nil
@@ -316,54 +316,54 @@ func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	return r.Value, nil
 }
 
-func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Buf, stream api.Instance_ReceiveClient, leftout chan<- []byte) {
+func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Buf, stream api.Instance_ReceiveClient, leftout chan<- []byte, abort func(error)) {
 	defer close(leftout)
 
 	for {
 		r, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
-				return
+			if err != io.EOF {
+				abort(err)
 			}
-			panic(err)
+			return
 		}
 
-		p := mustBePacket(r.Value)
+		p := mustBePacket(r.Value, abort)
 		p.SetCode(code)
 
 		select {
 		case out <- p:
 
 		case <-ctx.Done():
-			leftout <- receiveBuffer(p, stream)
+			leftout <- receiveBuffer(p, stream, abort)
 			return
 		}
 	}
 }
 
-func receiveBuffer(initial packet.Buf, stream api.Instance_ReceiveClient) (buf []byte) {
+func receiveBuffer(initial packet.Buf, stream api.Instance_ReceiveClient, abort func(error)) (buf []byte) {
 	initial.SetSize()
 	buf = initial
 
 	for {
 		r, err := stream.Recv()
 		if err != nil {
-			if err == io.EOF {
-				return
+			if err != io.EOF {
+				abort(err)
 			}
-			panic(err)
+			return
 		}
 
-		p := mustBePacket(r.Value)
+		p := mustBePacket(r.Value, abort)
 		p.SetSize()
 
 		buf = append(buf, p...)
 	}
 }
 
-func mustBePacket(b []byte) packet.Buf {
+func mustBePacket(b []byte, abort func(error)) packet.Buf {
 	if len(b) < packet.HeaderSize {
-		panic("invalid packet received from gRPC service")
+		abort(errors.New("invalid packet received from gRPC service"))
 	}
 	return b
 }

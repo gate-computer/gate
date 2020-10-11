@@ -105,7 +105,7 @@ func (inst *instance) restore(input []byte) (err error) {
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf) error {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error {
 	inst.send = send
 
 	// All streams at this point are restored ones.

@@ -112,7 +112,7 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 					if err := originInstance.Ready(ctx); err != nil {
 						panic(err)
 					}
-					if err := originInstance.Start(ctx, send); err != nil {
+					if err := originInstance.Start(ctx, send, func(e error) { panic(e) }); err != nil {
 						panic(err)
 					}
 				}
