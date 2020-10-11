@@ -36,11 +36,19 @@ type InstanceConfig struct {
 
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
+	Ready(ctx context.Context)
 	Start(ctx context.Context, send chan<- packet.Buf)
 	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf)
 	Shutdown(ctx context.Context) error
 	Suspend(ctx context.Context) (snapshot []byte, err error)
 }
+
+// InstanceBase provides default implementations for some Instance methods.
+type InstanceBase struct{}
+
+func (InstanceBase) Ready(context.Context)                    {}
+func (InstanceBase) Start(context.Context, chan<- packet.Buf) {}
+func (InstanceBase) Shutdown(context.Context) error           { return nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -237,6 +245,7 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 
 	for _, inst := range instances {
 		if inst != nil {
+			inst.Ready(outerCtx)
 			inst.Start(innerCtx, send)
 		}
 	}
@@ -257,6 +266,7 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 			instances[code] = inst
 
 			if inst != nil {
+				inst.Ready(outerCtx)
 				inst.Start(innerCtx, send)
 			}
 		}

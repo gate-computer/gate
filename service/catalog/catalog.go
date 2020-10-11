@@ -53,6 +53,8 @@ const (
 )
 
 type instance struct {
+	service.InstanceBase
+
 	r *service.Registry
 	packet.Service
 
@@ -117,10 +119,6 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	case <-ctx.Done():
 		return
 	}
-}
-
-func (inst *instance) Shutdown(ctx context.Context) error {
-	return nil
 }
 
 func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {

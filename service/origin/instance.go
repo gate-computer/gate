@@ -14,10 +14,13 @@ import (
 
 	"gate.computer/gate/internal/varint"
 	"gate.computer/gate/packet"
+	"gate.computer/gate/service"
 	"github.com/tsavola/mu"
 )
 
 type instance struct {
+	service.InstanceBase
+
 	Config
 	packet.Service
 

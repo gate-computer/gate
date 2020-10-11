@@ -170,6 +170,8 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 		inst = s.CreateInstance(ctx, config)
 	}
 
+	inst.Ready(ctx)
+
 	done := make(chan int, 1)
 	recv := make(chan packet.Buf)
 	go func() {

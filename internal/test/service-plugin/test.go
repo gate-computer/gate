@@ -54,9 +54,8 @@ func (testService) RestoreInstance(context.Context, service.InstanceConfig, []by
 	return testInstance{}, nil
 }
 
-type testInstance struct{}
-
-func (testInstance) Start(ctx context.Context, replies chan<- packet.Buf) {
+type testInstance struct {
+	service.InstanceBase
 }
 
 func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) {
@@ -67,10 +66,6 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 	case dom.IsStream():
 		panic("unexpected stream packet")
 	}
-}
-
-func (testInstance) Shutdown(ctx context.Context) error {
-	return nil
 }
 
 func (testInstance) Suspend(ctx context.Context) ([]byte, error) {
