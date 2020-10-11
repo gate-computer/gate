@@ -159,8 +159,12 @@ func newService(c api.ServiceClient, instClient api.InstanceClient, info *api.Se
 	}
 }
 
-func (s *Service) ServiceName() string     { return s.info.Name }
-func (s *Service) ServiceRevision() string { return s.info.Revision }
+func (s *Service) Service() service.Service {
+	return service.Service{
+		Name:     s.info.Name,
+		Revision: s.info.Revision,
+	}
+}
 
 func (s *Service) Discoverable(ctx context.Context) bool {
 	if s.info.RequirePrincipal && principal.ContextID(ctx) == nil {

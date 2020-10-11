@@ -65,9 +65,16 @@ func (cr *Connector) Close() (err error) {
 	return
 }
 
-func (cr *Connector) ServiceName() string               { return serviceName }
-func (cr *Connector) ServiceRevision() string           { return serviceRevision }
-func (cr *Connector) Discoverable(context.Context) bool { return true }
+func (cr *Connector) Service() service.Service {
+	return service.Service{
+		Name:     serviceName,
+		Revision: serviceRevision,
+	}
+}
+
+func (cr *Connector) Discoverable(context.Context) bool {
+	return true
+}
 
 func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig,
 ) service.Instance {

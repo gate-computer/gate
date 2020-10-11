@@ -27,9 +27,16 @@ type catalog struct {
 // made to the registry, but not its clones.
 func New(r *service.Registry) service.Factory { return catalog{r} }
 
-func (c catalog) ServiceName() string               { return serviceName }
-func (c catalog) ServiceRevision() string           { return serviceRevision }
-func (c catalog) Discoverable(context.Context) bool { return true }
+func (c catalog) Service() service.Service {
+	return service.Service{
+		Name:     serviceName,
+		Revision: serviceRevision,
+	}
+}
+
+func (c catalog) Discoverable(context.Context) bool {
+	return true
+}
 
 func (c catalog) CreateInstance(ctx context.Context, config service.InstanceConfig,
 ) service.Instance {

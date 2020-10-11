@@ -22,9 +22,16 @@ var Service identity
 
 type identity struct{}
 
-func (identity) ServiceName() string               { return serviceName }
-func (identity) ServiceRevision() string           { return serviceRevision }
-func (identity) Discoverable(context.Context) bool { return true }
+func (identity) Service() service.Service {
+	return service.Service{
+		Name:     serviceName,
+		Revision: serviceRevision,
+	}
+}
+
+func (identity) Discoverable(context.Context) bool {
+	return true
+}
 
 func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig,
 ) service.Instance {

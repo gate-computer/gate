@@ -32,12 +32,11 @@ func InitServices(ctx context.Context, r *service.Registry) error {
 
 type testService struct{}
 
-func (testService) ServiceName() string {
-	return serviceName
-}
-
-func (testService) ServiceRevision() string {
-	return serviceRevision
+func (testService) Service() service.Service {
+	return service.Service{
+		Name:     serviceName,
+		Revision: serviceRevision,
+	}
 }
 
 func (testService) Discoverable(ctx context.Context) bool {

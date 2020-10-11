@@ -55,8 +55,7 @@ func (InstanceBase) Shutdown(context.Context) error           { return nil }
 // See https://gate.computer/gate/blob/master/Service.md for service naming
 // conventions.
 type Factory interface {
-	ServiceName() string
-	ServiceRevision() string
+	Service() Service
 	Discoverable(ctx context.Context) bool
 	CreateInstance(ctx context.Context, config InstanceConfig) Instance
 	RestoreInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
@@ -83,12 +82,13 @@ func (r *Registry) MustRegister(f Factory) {
 }
 
 func (r *Registry) register(f Factory, replace bool) error {
-	name := f.ServiceName()
-	if err := checkString("name", name, unicode.IsLetter, unicode.IsNumber, unicode.IsPunct); err != nil {
+	service := f.Service()
+
+	if err := checkString("name", service.Name, unicode.IsLetter, unicode.IsNumber, unicode.IsPunct); err != nil {
 		return err
 	}
 
-	if err := checkString("revision", f.ServiceRevision(), unicode.IsLetter, unicode.IsMark, unicode.IsNumber, unicode.IsPunct, unicode.IsSymbol); err != nil {
+	if err := checkString("revision", service.Revision, unicode.IsLetter, unicode.IsMark, unicode.IsNumber, unicode.IsPunct, unicode.IsSymbol); err != nil {
 		return err
 	}
 
@@ -96,11 +96,11 @@ func (r *Registry) register(f Factory, replace bool) error {
 		r.factories = make(map[string]Factory)
 	}
 	if !replace {
-		if _, found := r.factories[name]; found {
-			return existenceError(fmt.Sprintf("service %q already registered", name))
+		if _, found := r.factories[service.Name]; found {
+			return existenceError(fmt.Sprintf("service %q already registered", service.Name))
 		}
 	}
-	r.factories[name] = f
+	r.factories[service.Name] = f
 	return nil
 }
 
@@ -155,7 +155,7 @@ func (r *Registry) catalog(ctx context.Context, m map[string]string) {
 
 	for name, f := range r.factories {
 		if f.Discoverable(ctx) {
-			m[name] = f.ServiceRevision()
+			m[name] = f.Service().Revision
 		} else {
 			m[name] = ""
 		}
