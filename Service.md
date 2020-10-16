@@ -74,7 +74,7 @@ calls after which further calls block or kill the whole instance.
 ### Info
 
 A service can choose how to handle info packets received from programs; an
-unexpected info packet may be ignored, cause an ABI violation trap, or cause a
+unexpected info packet may be ignored, cause an ABI violation trap, or cause an
 error condition which can be observed by the program via some mechanism.
 
 An empty info packet could be used for service initialization.

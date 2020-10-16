@@ -57,7 +57,7 @@ prefix.
 > `N` is the maximum size of received packets.
 >
 > The call is non-blocking by default.  Blocking behavior can be requested by
-> setting bit 1 in flags.  The call may still be interrupted without any bytes
+> setting bit #0 in flags.  The call may still be interrupted without any bytes
 > having been transferred.
 
 
