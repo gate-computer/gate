@@ -2,25 +2,23 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-namespace localhost.flat;
-
 table Request {
-    method: string;
-    uri: string;
-    content_type: string;
-    body: [ubyte];
+  method:string;
+  uri:string;
+  content_type:string;
+  body:[ubyte];
 }
 
 table Response {
-    status_code: uint16;
-    content_type: string;
-    body: [ubyte];
+  status_code:uint16;
+  content_type:string;
+  body:[ubyte];
 }
 
 union Function {
-    Request,
+  Request,
 }
 
 table Call {
-    function: Function;
+  function:Function;
 }
