@@ -553,12 +553,17 @@ func makeAuthorization() string {
 	publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
 	jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
 
+	aud, err := url.Parse(c.address)
+	check(err)
+	aud.Scheme = "https"
+	aud.Path += webapi.Path
+
 	sort.Strings(c.Scope)
 	scope := strings.Join(c.Scope, " ")
 
 	claims := &webapi.Claims{
 		Exp:   time.Now().Unix() + 60,
-		Aud:   []string{"https://" + c.address + webapi.Path},
+		Aud:   []string{aud.String()},
 		Scope: scope,
 	}
 
