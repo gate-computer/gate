@@ -51,6 +51,8 @@ const (
 	DefaultProgramStorage  = "memory"
 	DefaultInstanceStorage = "memory"
 	DefaultImageVarDir     = "/var/lib/gate/image"
+	DefaultNet             = "tcp"
+	DefaultHTTPAddr        = "localhost:8080"
 	DefaultIndexStatus     = http.StatusNotFound
 	DefaultACMECacheDir    = "/var/cache/gate/acme"
 )
@@ -161,14 +163,13 @@ func main() {
 	c.Image.VarDir = DefaultImageVarDir
 	c.Plugin.LibDir = plugin.DefaultLibDir
 	c.Principal = server.DefaultAccessConfig
-	c.HTTP.Net = "tcp"
-	c.HTTP.Addr = "localhost:8888"
-	c.HTTP.TLS.Domains = []string{"example.invalid"}
+	c.HTTP.Net = DefaultNet
+	c.HTTP.Addr = DefaultHTTPAddr
 	c.HTTP.Index.Status = DefaultIndexStatus
 	c.ACME.CacheDir = DefaultACMECacheDir
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 	c.Monitor.BufSize = monitor.DefaultBufSize
-	c.Monitor.HTTP.Net = "tcp"
+	c.Monitor.HTTP.Net = DefaultNet
 	c.Monitor.HTTP.StaticDir = "server/monitor/webmonitor"
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
