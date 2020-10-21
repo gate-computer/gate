@@ -20,7 +20,6 @@ require (
 	github.com/tsavola/mu v1.0.0
 	github.com/tsavola/wag v0.31.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/net v0.0.0-20200226121028-0de0cce0169b
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
 	google.golang.org/grpc v1.32.0

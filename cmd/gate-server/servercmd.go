@@ -43,7 +43,6 @@ import (
 	"github.com/tsavola/listen"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
-	"golang.org/x/net/netutil"
 )
 
 const serverHeaderValue = "gate"
@@ -85,10 +84,7 @@ type Config struct {
 
 	DB map[string]interface{}
 
-	Server struct {
-		server.Config
-		MaxConns int
-	}
+	Server server.Config
 
 	Access struct {
 		Policy string
@@ -334,7 +330,7 @@ func main2(critLog *log.Logger) error {
 		instStorage = image.PrepareInstances(ctx, instStorage, n)
 	}
 
-	c.Server.Config.ImageStorage = image.CombinedStorage(progStorage, instStorage)
+	c.Server.ImageStorage = image.CombinedStorage(progStorage, instStorage)
 
 	switch c.Access.Policy {
 	case "public":
@@ -391,7 +387,7 @@ func main2(critLog *log.Logger) error {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server, err = server.New(ctx, c.Server.Config)
+	c.HTTP.Server, err = server.New(ctx, c.Server)
 	if err != nil {
 		return err
 	}
@@ -410,10 +406,6 @@ func main2(critLog *log.Logger) error {
 	l, err := listen.Net(ctx, c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
 		return err
-	}
-
-	if n := c.Server.MaxConns; n > 0 {
-		l = netutil.LimitListener(l, n)
 	}
 
 	httpServer := http.Server{Handler: handler}
