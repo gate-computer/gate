@@ -15,8 +15,9 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-sqlite3 v1.8.0
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
-	github.com/tsavola/confi v1.4.0
+	github.com/tsavola/confi v1.5.0
 	github.com/tsavola/mu v1.0.0
+	github.com/tsavola/snide v0.0.0-20201022011019-997fd41f0088
 	github.com/tsavola/wag v0.31.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
