@@ -40,7 +40,6 @@ import (
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
 	"github.com/tsavola/confi"
-	"github.com/tsavola/listen"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -403,7 +402,7 @@ func main2(critLog *log.Logger) error {
 		handler = handlers.LoggingHandler(f, handler)
 	}
 
-	l, err := listen.Net(ctx, c.HTTP.Net, c.HTTP.Addr)
+	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
 		return err
 	}

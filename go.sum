@@ -64,8 +64,6 @@ github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 h1:WN9BUFbd
 github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9QV7WQ/tjFTllLA=
 github.com/tsavola/confi v1.4.0 h1:ayRGdRNdUL7bx0ZWrT1N2ok4iG6wmCszc+oGHt7NB0c=
 github.com/tsavola/confi v1.4.0/go.mod h1:jDz8ndC0blU/9D7QrKGKULsFxiDqoLZ2rCoaC6CsbJ0=
-github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c h1:COmD00ZkQXghtpt+b6xuY6PuCRb00pM7io8k4aMJ6vE=
-github.com/tsavola/listen v0.0.0-20190402175335-61229ef6a38c/go.mod h1:mvjKRkLD4rvc91gFN0bwazjw9lMm0JvJHnohO+OaXcU=
 github.com/tsavola/mu v1.0.0 h1:U0Xhjsfc5gDJHfMjGFK0vByPG9QpxnRJ8P3F2k32KlI=
 github.com/tsavola/mu v1.0.0/go.mod h1:uh+UOPcLhbDz4XoMmPg0/9Rl7BCIV0snqUWQEgZrSXc=
 github.com/tsavola/wag v0.31.1 h1:2kKgC3NTefi/Q3PfQp2jIyVN+LChYtq4AFjDeLsIeUw=
