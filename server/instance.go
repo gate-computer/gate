@@ -496,6 +496,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRe
 	info := inst.image.DebugInfo()
 	breaks := inst.image.Breakpoints()
 	modified := false
+	var data []byte
 
 	switch req.Op {
 	case api.DebugOpConfigSet:
@@ -569,7 +570,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRe
 			textMap = &prog.image.Map
 		}
 
-		res.Data, err = inst.image.ExportStack(textMap)
+		data, err = inst.image.ExportStack(textMap)
 		if err != nil {
 			return
 		}
@@ -601,11 +602,14 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRe
 		}
 	}
 
-	res.Module = path.Join(api.ModuleRefSource, prog.hash)
-	res.Status = inst.status.Clone()
-	res.Config = &api.DebugConfig{
-		DebugInfo:   inst.image.DebugInfo(),
-		Breakpoints: inst.image.Breakpoints(),
+	res = &api.DebugResponse{
+		Module: path.Join(api.ModuleRefSource, prog.hash),
+		Status: inst.status.Clone(),
+		Config: &api.DebugConfig{
+			DebugInfo:   inst.image.DebugInfo(),
+			Breakpoints: inst.image.Breakpoints(),
+		},
+		Data: data,
 	}
 	return
 }
