@@ -45,10 +45,22 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, audie
 	panic(nil)
 }
 
-func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, algorithm string, signedData, signature []byte) {
-	if algorithm == api.SignAlgEdDSA {
+func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, alg string, signedData, signature []byte) {
+	switch alg {
+	case api.SignAlgEdDSA:
 		if ed25519.Verify(pri.PublicKey(), signedData, signature) {
 			return
+		}
+
+	case api.SignAlgNone:
+		if len(signature) == 0 {
+			if pri != nil {
+				panic(pri)
+			}
+			if s.localAuthorization {
+				return
+			}
+			panic("unsigned token without local authorization")
 		}
 	}
 

@@ -15,6 +15,7 @@ import (
 	"regexp"
 
 	server "gate.computer/gate/server/api"
+	"golang.org/x/crypto/ed25519"
 )
 
 // Name of the module reference source and associated content hash algorithm.
@@ -103,8 +104,11 @@ const KeyTypeOctetKeyPair = "OKP"
 // The supported elliptic curve.
 const KeyCurveEd25519 = "Ed25519"
 
-// The supported signature algorithm.
-const SignAlgEdDSA = "EdDSA"
+// The supported signature algorithms.
+const (
+	SignAlgEdDSA = "EdDSA"
+	SignAlgNone  = "none"
+)
 
 // The supported authorization type.
 const AuthorizationTypeBearer = "Bearer"
@@ -153,10 +157,55 @@ func (header *TokenHeader) MustEncode() []byte {
 
 // JSON Web Token payload.
 type Claims struct {
-	Exp   int64    `json:"exp"`             // Expiration time.
+	Exp   int64    `json:"exp,omitempty"`   // Expiration time.
 	Aud   []string `json:"aud,omitempty"`   // https://authority/api
 	Nonce string   `json:"nonce,omitempty"` // Unique during expiration period.
 	Scope string   `json:"scope,omitempty"`
+}
+
+// AuthorizationBearerEd25519 creates a signed JWT token (JWS).  TokenHeader
+// must have been encoded beforehand.
+func AuthorizationBearerEd25519(privateKey ed25519.PrivateKey, tokenHeader []byte, claims *Claims) (string, error) {
+	b, err := unsignedBearer(tokenHeader, claims)
+	if err != nil {
+		return "", err
+	}
+
+	sig := ed25519.Sign(privateKey, b[len(AuthorizationTypeBearer)+1:len(b)-1])
+	sigOff := len(b)
+	b = b[:cap(b)]
+	base64.RawURLEncoding.Encode(b[sigOff:], sig)
+	return string(b), nil
+}
+
+// AuthorizationBearerLocal creates an unsecured JWT token.
+func AuthorizationBearerLocal(claims *Claims) (string, error) {
+	header := (&TokenHeader{
+		Alg: SignAlgNone,
+	}).MustEncode()
+
+	b, err := unsignedBearer(header, claims)
+	return string(b), err
+}
+
+func unsignedBearer(header []byte, claims *Claims) ([]byte, error) {
+	claimsJSON, err := json.Marshal(claims)
+	if err != nil {
+		return nil, err
+	}
+
+	sigLen := base64.RawURLEncoding.EncodedLen(ed25519.SignatureSize)
+	claimsLen := base64.RawURLEncoding.EncodedLen(len(claimsJSON))
+
+	b := make([]byte, 0, len(AuthorizationTypeBearer)+1+len(header)+1+claimsLen+1+sigLen)
+	b = append(b, (AuthorizationTypeBearer + " ")...)
+	b = append(b, header...)
+	b = append(b, '.')
+	claimsOff := len(b)
+	b = b[:claimsOff+claimsLen]
+	base64.RawURLEncoding.Encode(b[claimsOff:], claimsJSON)
+	b = append(b, '.')
+	return b, nil
 }
 
 // Instance state enumeration.

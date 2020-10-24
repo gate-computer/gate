@@ -65,7 +65,7 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 
 	// Parse principal information first so that it can be used in logging.
 	header := mustUnmarshalJWTHeader(ctx, ew, s, bufHeader)
-	pri := mustParseJWK(ctx, ew, s, header.JWK)
+	pri := mustParseJWTHeader(ctx, ew, s, header)
 
 	// Check expiration and audience before signature, because they are not
 	// secrets.  Claims are still unauthenticated!
@@ -80,9 +80,18 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	// information about its validity.
 	mustVerifyNonce(ctx, ew, s, pri, claims.Nonce, claims.Exp)
 
-	ctx = principal.ContextWithID(ctx, pri.PrincipalID())
-	ctx = server.ContextWithScope(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
-	return ctx
+	switch {
+	case pri != nil:
+		ctx = principal.ContextWithID(ctx, pri.PrincipalID())
+
+	case pri == nil && s.localAuthorization:
+		ctx = principal.ContextWithID(ctx, principal.LocalID)
+
+	default:
+		panic("no principal key and no local authorization")
+	}
+
+	return server.ContextWithScope(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
 }
 
 func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byte) [][]byte {
@@ -106,11 +115,8 @@ func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, d
 
 func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, serialized []byte,
 ) (header api.TokenHeader) {
-	err := json.Unmarshal(serialized, &header)
-	if err == nil {
-		if header.JWK != nil {
-			return
-		}
+	if err := json.Unmarshal(serialized, &header); err == nil {
+		return
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
@@ -128,19 +134,25 @@ func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, 
 	panic(nil)
 }
 
-func mustParseJWK(ctx context.Context, ew errorWriter, s *webserver, jwk *api.PublicKey,
-) (pri *principal.Key) {
-	var err error
+func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, header api.TokenHeader) *principal.Key {
+	switch header.Alg {
+	case api.SignAlgEdDSA:
+		k := header.JWK
+		if k.Kty == api.KeyTypeOctetKeyPair && k.Crv == api.KeyCurveEd25519 {
+			pri, err := principal.ParseEd25519Key(k.X)
+			if err == nil {
+				return pri
+			}
 
-	if jwk.Kty == api.KeyTypeOctetKeyPair && jwk.Crv == api.KeyCurveEd25519 {
-		pri, err = principal.ParseEd25519Key(jwk.X)
-		if err == nil {
-			return pri
+			errorDesc := public.Error(err, "principal key error")
+			respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
+			panic(nil)
 		}
 
-		errorDesc := public.Error(err, "principal key error")
-		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
-		panic(nil)
+	case api.SignAlgNone:
+		if s.localAuthorization {
+			return nil
+		}
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")

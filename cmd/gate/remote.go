@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,7 +23,6 @@ import (
 
 	"gate.computer/gate/server/api"
 	webapi "gate.computer/gate/server/web/api"
-	"gate.computer/gate/server/web/api/authorization"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
@@ -538,23 +538,11 @@ func makeAuthorization() string {
 		return ""
 	}
 
-	data, err := ioutil.ReadFile(c.IdentityFile)
-	check(err)
-
-	x, err := ssh.ParseRawPrivateKey(data)
-	check(err)
-
-	privateKey, ok := x.(*ed25519.PrivateKey)
-	if !ok {
-		log.Fatalf("%s: not an Ed25519 private key", c.IdentityFile)
-	}
-
-	publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
-	jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
-
 	aud, err := url.Parse(c.address)
 	check(err)
-	aud.Scheme = "https"
+	if aud.Scheme == "" {
+		aud.Scheme = "https"
+	}
 	aud.Path += webapi.Path
 
 	sort.Strings(c.Scope)
@@ -566,10 +554,43 @@ func makeAuthorization() string {
 		Scope: scope,
 	}
 
-	auth, err := authorization.BearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
+	identity, err := ioutil.ReadFile(c.IdentityFile)
 	check(err)
 
-	return auth
+	if len(identity) != 0 {
+		x, err := ssh.ParseRawPrivateKey(identity)
+		check(err)
+
+		privateKey, ok := x.(*ed25519.PrivateKey)
+		if !ok {
+			log.Fatalf("%s: not an Ed25519 private key", c.IdentityFile)
+		}
+
+		publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
+		jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
+		auth, err := webapi.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
+		check(err)
+
+		return auth
+	} else {
+		if aud.Scheme != "http" {
+			log.Fatalf("%s scheme with empty identity", aud.Scheme)
+		}
+
+		ips, err := net.LookupIP(aud.Hostname())
+		check(err)
+
+		for _, ip := range ips {
+			if !ip.IsLoopback() {
+				log.Fatalf("non-loopback host with empty identity: %s", ip)
+			}
+		}
+
+		auth, err := webapi.AuthorizationBearerLocal(claims)
+		check(err)
+
+		return auth
+	}
 }
 
 func unmarshalStatus(serialized string) (status webapi.Status) {

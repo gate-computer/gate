@@ -26,7 +26,6 @@ import (
 	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/server/web/api"
-	"gate.computer/gate/server/web/api/authorization"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
@@ -57,7 +56,7 @@ func newPrincipalKey() principalKey {
 }
 
 func (pri principalKey) authorization(claims *api.Claims) (s string) {
-	s, err := authorization.BearerEd25519(pri.privateKey, pri.tokenHeader, claims)
+	s, err := api.AuthorizationBearerEd25519(pri.privateKey, pri.tokenHeader, claims)
 	if err != nil {
 		panic(err)
 	}

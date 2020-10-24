@@ -40,14 +40,37 @@ type instanceWaiterMethod func(s *server.Server, ctx context.Context, instance s
 type webserver struct {
 	Config
 
-	identity       string // JWT audience.
-	pathModuleRefs string
-	anyOrigin      bool
+	identity           string // JWT audience.
+	pathModuleRefs     string
+	anyOrigin          bool
+	localAuthorization bool
 }
 
 func NewHandler(pattern string, config Config) http.Handler {
+	return newHandler(pattern, config, "https", false)
+}
+
+// NewHandlerWithUnsecuredLocalAuthorization processes requests with unsigned
+// JWT tokens under the local principal's identity.  Such tokens can be created
+// by anyone without any secret knowledge.
+func NewHandlerWithUnsecuredLocalAuthorization(pattern string, config Config) http.Handler {
+	for _, origin := range config.Origins {
+		if strings.Contains(origin, "*") {
+			panic("origin check disabled for unsecured local handler")
+		}
+	}
+
+	if config.NonceStorage != nil {
+		panic("nonce storage not supported for local principal")
+	}
+
+	return newHandler(pattern, config, "http", true)
+}
+
+func newHandler(pattern string, config Config, scheme string, localAuthorization bool) http.Handler {
 	s := &webserver{
-		Config: config,
+		Config:             config,
+		localAuthorization: localAuthorization,
 	}
 	if s.Authority == "" {
 		s.Authority = strings.SplitN(pattern, "/", 2)[0]

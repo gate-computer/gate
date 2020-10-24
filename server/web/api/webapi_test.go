@@ -2,14 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package authorization
+package api
 
 import (
 	"bytes"
 	"testing"
 	"time"
 
-	"gate.computer/gate/server/web/api"
 	"golang.org/x/crypto/ed25519"
 )
 
@@ -19,16 +18,29 @@ func TestBearerEd25519(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	header := api.TokenHeaderEdDSA(api.PublicKeyEd25519(pub))
+	header := TokenHeaderEdDSA(PublicKeyEd25519(pub))
 
 	t.Logf("JWK: %#v", *header.JWK)
 
-	claims := &api.Claims{
+	claims := &Claims{
 		Exp: time.Now().Unix() + 300,
 		Aud: []string{"test"},
 	}
 
-	authorization, err := BearerEd25519(pri, header.MustEncode(), claims)
+	authorization, err := AuthorizationBearerEd25519(pri, header.MustEncode(), claims)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("Authorization: %s", authorization)
+}
+
+func TestBearerLocal(t *testing.T) {
+	claims := &Claims{
+		Aud: []string{"test"},
+	}
+
+	authorization, err := AuthorizationBearerLocal(claims)
 	if err != nil {
 		t.Fatal(err)
 	}
