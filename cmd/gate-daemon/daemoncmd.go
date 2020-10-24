@@ -246,7 +246,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
-		"Instances": func() (list *api.Instances, err *dbus.Error) {
+		"ListInstances": func() (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = handleInstanceList(ctx, s())
 			return
@@ -274,7 +274,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
-		"ModuleRefs": func() (list *api.ModuleRefs, err *dbus.Error) {
+		"ListModuleRefs": func() (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = handleModuleList(ctx, s())
 			return
@@ -310,8 +310,8 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	}
 
 	for name, f := range map[string]instanceStatusFunc{
-		"Status": (*server.Server).InstanceStatus,
-		"Wait":   (*server.Server).WaitInstance,
+		"GetStatus": (*server.Server).InstanceStatus,
+		"Wait":      (*server.Server).WaitInstance,
 	} {
 		f := f // Closure needs a local copy of the iterator's current value.
 		methods[name] = func(instID string) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
@@ -336,11 +336,15 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	return methods
 }
 
-func handleModuleList(ctx context.Context, s *server.Server) *api.ModuleRefs {
+func handleModuleList(ctx context.Context, s *server.Server) []string {
 	refs, err := s.ModuleRefs(ctx)
 	check(err)
 	sort.Sort(refs)
-	return refs
+	ids := make([]string, 0, len(refs.Modules))
+	for _, ref := range refs.Modules {
+		ids = append(ids, ref.Id)
+	}
+	return ids
 }
 
 func handleModuleDownload(ctx context.Context, s *server.Server, key string,
@@ -449,11 +453,15 @@ func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, f
 	return inst.ID
 }
 
-func handleInstanceList(ctx context.Context, s *server.Server) *api.Instances {
+func handleInstanceList(ctx context.Context, s *server.Server) []string {
 	instances, err := s.Instances(ctx)
 	check(err)
 	sort.Sort(instances)
-	return instances
+	ids := make([]string, 0, len(instances.Instances))
+	for _, i := range instances.Instances {
+		ids = append(ids, i.Instance)
+	}
+	return ids
 }
 
 func handleInstanceStatus(ctx context.Context, s *server.Server, f instanceStatusFunc, instID string,

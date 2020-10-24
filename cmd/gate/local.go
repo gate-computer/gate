@@ -182,13 +182,13 @@ var localCommands = map[string]command{
 
 	"instances": {
 		do: func() {
-			call := daemonCall("Instances")
+			call := daemonCall("ListInstances")
 
-			is := new(api.Instances)
-			check(call.Store(&is))
+			var ids []string
+			check(call.Store(&ids))
 
-			for _, inst := range is.Instances {
-				fmt.Printf("%-36s %s\n", inst.Instance, statusString(inst.Status))
+			for _, id := range ids {
+				fmt.Printf("%-36s %s\n", id, daemonCallInstanceStatus("GetStatus", id))
 			}
 		},
 	},
@@ -215,7 +215,7 @@ var localCommands = map[string]command{
 	"kill": {
 		usage: "instance",
 		do: func() {
-			daemonCallInstanceWaiter("Kill")
+			daemonCallInstanceWaiter("Kill", flag.Arg(0))
 		},
 	},
 
@@ -252,13 +252,13 @@ var localCommands = map[string]command{
 
 	"modules": {
 		do: func() {
-			call := daemonCall("ModuleRefs")
+			call := daemonCall("ListModuleRefs")
 
-			refs := new(api.ModuleRefs)
-			check(call.Store(&refs))
+			var ids []string
+			check(call.Store(&ids))
 
-			for _, m := range refs.Modules {
-				fmt.Println(m.Id)
+			for _, id := range ids {
+				fmt.Println(id)
 			}
 		},
 	},
@@ -393,14 +393,14 @@ var localCommands = map[string]command{
 	"status": {
 		usage: "instance",
 		do: func() {
-			daemonCallInstanceStatus("Status")
+			fmt.Println(daemonCallInstanceStatus("GetStatus", flag.Arg(0)))
 		},
 	},
 
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			daemonCallInstanceWaiter("Suspend")
+			daemonCallInstanceWaiter("Suspend", flag.Arg(0))
 		},
 	},
 
@@ -414,7 +414,7 @@ var localCommands = map[string]command{
 	"wait": {
 		usage: "instance",
 		do: func() {
-			daemonCallInstanceStatus("Wait")
+			fmt.Println(daemonCallInstanceStatus("Wait", flag.Arg(0)))
 		},
 	},
 }
@@ -433,19 +433,19 @@ func exportLocal(module, filename string) {
 	})
 }
 
-func daemonCallInstanceStatus(name string) {
-	call := daemonCall(name, flag.Arg(0))
+func daemonCallInstanceStatus(method, id string) string {
+	call := daemonCall(method, id)
 
 	status := new(api.Status)
 	check(call.Store(&status.State, &status.Cause, &status.Result))
-	fmt.Println(statusString(status))
+	return statusString(status)
 }
 
-func daemonCallInstanceWaiter(name string) {
-	check(daemonCall(name, flag.Arg(0)).Store())
+func daemonCallInstanceWaiter(method, id string) {
+	check(daemonCall(method, id).Store())
 
 	if c.Wait {
-		daemonCallInstanceStatus("Wait")
+		fmt.Println(daemonCallInstanceStatus("Wait", id))
 	}
 }
 
