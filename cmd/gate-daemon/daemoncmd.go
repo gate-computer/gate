@@ -14,6 +14,9 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	goruntime "runtime"
@@ -31,6 +34,7 @@ import (
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
+	"gate.computer/gate/server/web"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
@@ -65,6 +69,11 @@ type Config struct {
 	Service map[string]interface{}
 
 	Principal server.AccessConfig
+
+	HTTP struct {
+		Addr string
+		web.Config
+	}
 }
 
 var c = new(Config)
@@ -177,14 +186,68 @@ func mainResult() int {
 	})
 	check(err)
 	defer s.Shutdown(ctx)
+
+	httpDone := make(chan error, 1)
+	if c.HTTP.Addr != "" {
+		host, port, err := net.SplitHostPort(c.HTTP.Addr)
+		check(err)
+		if host == "" {
+			panic(errors.New("HTTP hostname must be configured explicitly"))
+		}
+		verifyLoopbackHost("HTTP", host)
+
+		if c.HTTP.Authority == "" {
+			if port == "80" || port == "http" {
+				c.HTTP.Authority = host
+			} else {
+				c.HTTP.Authority = c.HTTP.Addr
+			}
+		}
+
+		if len(c.HTTP.Origins) == 0 {
+			panic(errors.New("no HTTP origins configured"))
+		}
+		for _, origin := range c.HTTP.Origins {
+			if origin != "" {
+				u, err := url.Parse(origin)
+				check(err)
+				verifyLoopbackHost("HTTP origin", u.Hostname())
+			}
+		}
+
+		c.HTTP.Server = s
+		handler := web.NewHandlerWithUnsecuredLocalAuthorization("/", c.HTTP.Config)
+
+		go func() {
+			defer close(httpDone)
+			httpDone <- http.ListenAndServe(c.HTTP.Addr, handler)
+		}()
+	}
+
 	inited <- s
 
 	_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
 	check(err)
 
-	<-terminate
+	select {
+	case <-terminate:
+	case err := <-httpDone:
+		check(err)
+	}
+
 	daemon.SdNotify(false, daemon.SdNotifyStopping)
 	return 0
+}
+
+func verifyLoopbackHost(errorDesc, host string) {
+	ips, err := net.LookupIP(host)
+	check(err)
+
+	for _, ip := range ips {
+		if !ip.IsLoopback() {
+			panic(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
+		}
+	}
 }
 
 func methods(ctx context.Context, inited <-chan *server.Server) map[string]interface{} {
