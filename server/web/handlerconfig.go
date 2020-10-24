@@ -19,12 +19,13 @@ type NonceChecker interface {
 // Config for a web server.
 type Config struct {
 	Server        *server.Server
-	Authority     string // External domain name with optional port number.
+	Authority     string   // External domain name with optional port number.
+	Origins       []string // Value "*" causes Origin header to be ignored.
 	NonceStorage  NonceChecker
 	ModuleSources map[string]server.Source
 	NewRequestID  func(*http.Request) uint64
 }
 
 func (c Config) Configured() bool {
-	return c.Authority != ""
+	return c.Server != nil && c.Authority != "" && len(c.Origins) != 0
 }

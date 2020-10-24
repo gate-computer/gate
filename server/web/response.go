@@ -55,27 +55,32 @@ func mustMarshalJSON(x interface{}) []byte {
 	return append(content, '\n')
 }
 
-func setAccessControl(w http.ResponseWriter, r *http.Request, methods string) (originSet bool) {
-	_, originSet = r.Header["Origin"]
+func setAccessControl(w http.ResponseWriter, r *http.Request, s *webserver, methods string) (originSet bool) {
+	_, originSet = r.Header[api.HeaderOrigin]
 	if originSet {
+		origin := "*"
+		if !s.anyOrigin {
+			origin = r.Header.Get(api.HeaderOrigin)
+		}
+
 		w.Header().Set("Access-Control-Allow-Methods", methods)
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Max-Age", accessControlMaxAge)
 	}
 	return
 }
 
-func setAccessControlAllowHeaders(w http.ResponseWriter, r *http.Request, methods, headers string,
+func setAccessControlAllowHeaders(w http.ResponseWriter, r *http.Request, s *webserver, methods, headers string,
 ) (originSet bool) {
-	originSet = setAccessControl(w, r, methods)
+	originSet = setAccessControl(w, r, s, methods)
 	if originSet {
 		w.Header().Set("Access-Control-Allow-Headers", headers)
 	}
 	return
 }
 
-func setAccessControlAllowExposeHeaders(w http.ResponseWriter, r *http.Request, methods string, allowHeaders string, exposeHeaders string) {
-	if setAccessControlAllowHeaders(w, r, methods, allowHeaders) {
+func setAccessControlAllowExposeHeaders(w http.ResponseWriter, r *http.Request, s *webserver, methods string, allowHeaders string, exposeHeaders string) {
+	if setAccessControlAllowHeaders(w, r, s, methods, allowHeaders) {
 		w.Header().Set("Access-Control-Expose-Headers", exposeHeaders)
 	}
 }

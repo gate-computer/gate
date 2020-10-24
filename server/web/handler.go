@@ -42,6 +42,7 @@ type webserver struct {
 
 	identity       string // JWT audience.
 	pathModuleRefs string
+	anyOrigin      bool
 }
 
 func NewHandler(pattern string, config Config) http.Handler {
@@ -56,6 +57,18 @@ func NewHandler(pattern string, config Config) http.Handler {
 	}
 	if !s.Configured() {
 		panic("incomplete webserver configuration")
+	}
+
+	configOrigins := s.Origins
+	s.Origins = nil
+	for _, origin := range configOrigins {
+		switch origin = strings.TrimSpace(origin); origin {
+		case "":
+		case "*":
+			s.anyOrigin = true
+		default:
+			s.Origins = append(s.Origins, origin)
+		}
 	}
 
 	p := strings.TrimRight(pattern, "/")                          // host/path
@@ -76,7 +89,7 @@ func NewHandler(pattern string, config Config) http.Handler {
 	pathInstances := p + api.PathInstances                             // /path/api/instance/
 	pathInstance := pathInstances[:len(pathInstances)-1]               // /path/api/instance
 
-	s.identity = "https://" + s.Authority + p + api.Path // https://authority/path/api/
+	s.identity = scheme + "://" + s.Authority + p + api.Path // https://authority/path/api/
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(patternAPI, newOpaqueHandler(s, pathAPI))
@@ -106,6 +119,7 @@ func NewHandler(pattern string, config Config) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := server.ContextWithRequestAddr(r.Context(), s.NewRequestID(r), r.RemoteAddr)
+		r = r.WithContext(ctx)
 
 		s.Server.Monitor(&event.IfaceAccess{
 			Ctx: server.ContextDetail(ctx),
@@ -117,7 +131,13 @@ func NewHandler(pattern string, config Config) http.Handler {
 			}
 		}()
 
-		mux.ServeHTTP(w, r.WithContext(ctx))
+		if !s.anyOrigin {
+			if origin := r.Header.Get(api.HeaderOrigin); origin != "" {
+				mustBeAllowedOrigin(w, r, s, origin)
+			}
+		}
+
+		mux.ServeHTTP(w, r)
 	})
 }
 
@@ -131,7 +151,7 @@ func newOpaqueHandler(s *webserver, path string) http.HandlerFunc {
 		}
 
 		methods := "OPTIONS"
-		setAccessControl(w, r, "GET, HEAD, "+methods)
+		setAccessControl(w, r, s, "GET, HEAD, "+methods)
 
 		switch r.Method {
 		case "OPTIONS":
@@ -156,7 +176,7 @@ func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerF
 		}
 
 		methods := "GET, HEAD, OPTIONS"
-		setAccessControl(w, r, methods)
+		setAccessControl(w, r, s, methods)
 
 		switch r.Method {
 		case "GET", "HEAD":
@@ -183,7 +203,7 @@ func newModuleRefHandler(s *webserver) http.HandlerFunc {
 			// Module directory listing
 
 			methods := "GET, HEAD, OPTIONS"
-			setAccessControlAllowHeaders(w, r, methods, headersList)
+			setAccessControlAllowHeaders(w, r, s, methods, headersList)
 
 			switch r.Method {
 			case "GET", "HEAD":
@@ -200,7 +220,7 @@ func newModuleRefHandler(s *webserver) http.HandlerFunc {
 			module := r.URL.Path[len(s.pathModuleRefs):]
 
 			methods := "GET, HEAD, OPTIONS, POST, PUT"
-			setAccessControlAllowExposeHeaders(w, r, methods, headersRef, exposed)
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headersRef, exposed)
 
 			switch r.Method {
 			case "GET", "HEAD":
@@ -235,7 +255,7 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, sour
 			// support any methods itself.
 
 			methods := "OPTIONS"
-			setAccessControl(w, r, "GET, HEAD, "+methods)
+			setAccessControl(w, r, s, "GET, HEAD, "+methods)
 
 			switch r.Method {
 			case "OPTIONS":
@@ -250,7 +270,7 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, sour
 
 			// Get method is only for websocket; exclude it from CORS.
 			methods := "OPTIONS, POST"
-			setAccessControlAllowExposeHeaders(w, r, methods, headers, exposed)
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
 
 			methods = "GET, OPTIONS, POST"
 
@@ -283,7 +303,7 @@ func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 			// Instance directory listing
 
 			methods := "GET, HEAD, OPTIONS"
-			setAccessControlAllowHeaders(w, r, methods, headersGet)
+			setAccessControlAllowHeaders(w, r, s, methods, headersGet)
 
 			switch r.Method {
 			case "GET", "HEAD":
@@ -301,7 +321,7 @@ func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 
 			// Get method is only for websocket; exclude it from CORS.
 			methods := "OPTIONS, POST"
-			setAccessControlAllowExposeHeaders(w, r, methods, headersPost, exposed)
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headersPost, exposed)
 
 			methods = "GET, OPTIONS, POST"
 

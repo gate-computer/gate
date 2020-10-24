@@ -6,6 +6,7 @@ package event
 
 const (
 	FailUnspecified        = FailRequest_UNSPECIFIED
+	FailClientDenied       = FailRequest_CLIENT_DENIED
 	FailPayloadError       = FailRequest_PAYLOAD_ERROR
 	FailPrincipalKeyError  = FailRequest_PRINCIPAL_KEY_ERROR
 	FailAuthMissing        = FailRequest_AUTH_MISSING

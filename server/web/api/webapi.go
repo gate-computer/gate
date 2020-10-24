@@ -75,6 +75,7 @@ const (
 // HTTP request headers.
 const (
 	HeaderAuthorization = "Authorization" // "Bearer" JSON Web Token.
+	HeaderOrigin        = "Origin"
 )
 
 // HTTP request or response headers.

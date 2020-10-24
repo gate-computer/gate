@@ -133,6 +133,7 @@ func newHandler(t *testing.T) http.Handler {
 	config := web.Config{
 		Server:        s,
 		Authority:     "example.invalid",
+		Origins:       []string{"null"},
 		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
 	}
@@ -150,6 +151,7 @@ func newRequest(method, path string, content []byte) (req *http.Request) {
 	}
 	req = httptest.NewRequest(method, path, body)
 	req.ContentLength = int64(len(content))
+	req.Header.Set(api.HeaderOrigin, "null")
 	return
 }
 
@@ -207,6 +209,19 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect api.Status) {
 	}
 }
 
+func TestOrigin(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, api.Path, nil)
+	checkResponse(t, newHandler(t), req, http.StatusForbidden)
+
+	req = httptest.NewRequest(http.MethodGet, api.Path, nil)
+	req.Header.Set(api.HeaderOrigin, "https://example.net")
+	checkResponse(t, newHandler(t), req, http.StatusForbidden)
+
+	req = httptest.NewRequest(http.MethodGet, api.Path, nil)
+	req.Header.Set(api.HeaderOrigin, "null")
+	checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
+}
+
 func TestMethodNotAllowed(t *testing.T) {
 	all := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut}
 
@@ -222,6 +237,7 @@ func TestMethodNotAllowed(t *testing.T) {
 	} {
 		for _, method := range methods {
 			req := httptest.NewRequest(method, path, nil)
+			req.Header.Set(api.HeaderOrigin, "null")
 			checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
 		}
 	}
@@ -229,6 +245,7 @@ func TestMethodNotAllowed(t *testing.T) {
 
 func TestModuleSourceList(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, api.PathModules, nil)
+	req.Header.Set(api.HeaderOrigin, "null")
 	resp, content := checkResponse(t, newHandler(t), req, http.StatusOK)
 
 	if x := resp.Header.Get(api.HeaderContentType); x != "application/json; charset=utf-8" {

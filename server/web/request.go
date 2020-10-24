@@ -35,6 +35,21 @@ func acceptsText(r *http.Request) bool {
 	return false
 }
 
+func mustBeAllowedOrigin(w http.ResponseWriter, r *http.Request, s *webserver, header string) {
+origins:
+	for _, origin := range strings.Fields(header) {
+		for _, allow := range s.Origins {
+			if allow == origin {
+				continue origins
+			}
+		}
+
+		w.WriteHeader(http.StatusForbidden)
+		reportRequestError(r.Context(), s, event.FailClientDenied, "", "", "", "", nil)
+		panic(nil)
+	}
+}
+
 func mustAcceptJSON(w http.ResponseWriter, r *http.Request, s *webserver) {
 	mustAcceptApplication(w, r, s, "application/json")
 }
