@@ -6,12 +6,17 @@ package api
 
 import (
 	"crypto"
+	"encoding/hex"
 )
 
 const (
-	ModuleRefSource = "sha384"
-	ModuleRefHash   = crypto.SHA384
+	ModuleRefSource = "sha256"
+	ModuleRefHash   = crypto.SHA256
 )
+
+func EncodeModuleRef(hashSum []byte) string {
+	return hex.EncodeToString(hashSum)
+}
 
 func (x *ModuleRefs) Len() int           { return len(x.Modules) }
 func (x *ModuleRefs) Swap(i, j int)      { x.Modules[i], x.Modules[j] = x.Modules[j], x.Modules[i] }

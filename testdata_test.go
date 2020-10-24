@@ -5,8 +5,8 @@
 package gate_test
 
 import (
-	"crypto/sha512"
-	"encoding/base64"
+	"crypto/sha256"
+	"encoding/hex"
 	"io/ioutil"
 )
 
@@ -20,9 +20,9 @@ var (
 )
 
 var (
-	hashNop     = sha384(wasmNop)
-	hashHello   = sha384(wasmHello)
-	hashSuspend = sha384(wasmSuspend)
+	hashNop     = sha256hex(wasmNop)
+	hashHello   = sha256hex(wasmHello)
+	hashSuspend = sha256hex(wasmSuspend)
 )
 
 func readFile(filename string) (data []byte) {
@@ -33,8 +33,8 @@ func readFile(filename string) (data []byte) {
 	return
 }
 
-func sha384(data []byte) string {
-	hash := sha512.New384()
+func sha256hex(data []byte) string {
+	hash := sha256.New()
 	hash.Write(data)
-	return base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
+	return hex.EncodeToString(hash.Sum(nil))
 }

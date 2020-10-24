@@ -1049,12 +1049,12 @@ func (s *Server) snapshot(ctx context.Context, instID string) (moduleKey string,
 	}
 	defer closeProgramImage(&newImage)
 
-	h := newHash()
+	h := api.ModuleRefHash.New()
 	_, err = io.Copy(h, newImage.NewModuleReader())
 	if err != nil {
 		return
 	}
-	moduleKey = hashEncoding.EncodeToString(h.Sum(nil))
+	moduleKey = api.EncodeModuleRef(h.Sum(nil))
 
 	err = newImage.Store(moduleKey)
 	if err != nil {

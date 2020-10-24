@@ -6,9 +6,8 @@ package server
 
 import (
 	"bufio"
-	"crypto/sha512"
 	"crypto/subtle"
-	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -19,6 +18,7 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/error/badmodule"
 	"gate.computer/gate/runtime/abi"
+	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/snapshot"
@@ -28,18 +28,13 @@ import (
 	"github.com/tsavola/wag/object/stack"
 )
 
-var (
-	newHash      = sha512.New384
-	hashEncoding = base64.RawURLEncoding
-)
-
 var errModuleSizeMismatch = &badmodule.Dual{
 	Private: "content length does not match existing module size",
 	Public:  "invalid module content",
 }
 
 func validateHashBytes(hash1 string, digest2 []byte) (err error) {
-	digest1, err := hashEncoding.DecodeString(hash1)
+	digest1, err := hex.DecodeString(hash1)
 	if err != nil {
 		return
 	}
@@ -54,7 +49,7 @@ func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 
 // validateHashContent might close the reader and set it to nil.
 func validateHashContent(hash1 string, r *io.ReadCloser) error {
-	hash2 := newHash()
+	hash2 := api.ModuleRefHash.New()
 
 	if _, err := io.Copy(hash2, *r); err != nil {
 		return wrapContentError(err)
@@ -99,7 +94,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	}
 	defer b.Close()
 
-	hasher := newHash()
+	hasher := api.ModuleRefHash.New()
 	reader := bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher))
 
 	b.InstallEarlySnapshotLoaders()
@@ -192,7 +187,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		}
 	}
 
-	prog = newProgram(hashEncoding.EncodeToString(actualHash), progImage, b.Buffers, false)
+	prog = newProgram(api.EncodeModuleRef(actualHash), progImage, b.Buffers, false)
 	return
 }
 

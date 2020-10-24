@@ -6,7 +6,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -449,7 +448,7 @@ func loadModule(filename string) (b *bytes.Buffer, key string) {
 	b = new(bytes.Buffer)
 	h := webapi.ModuleRefHash.New()
 	checkCopy(h, io.TeeReader(f, b))
-	key = base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+	key = webapi.EncodeModuleRef(h.Sum(nil))
 	return
 }
 

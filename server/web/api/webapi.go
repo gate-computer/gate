@@ -20,16 +20,22 @@ import (
 // Name of the module reference source and associated content hash algorithm.
 const ModuleRefSource = server.ModuleRefSource
 
-// Algorithm for converting module content to reference id.  A reference id
-// string can be formed by encoding a hash digest with base64.RawURLEncoding.
+// Algorithm for converting module content to raw reference id.  The reference
+// id string can be formed by encoding the hash digest with EncodeModuleRef.
 const ModuleRefHash crypto.Hash = server.ModuleRefHash
+
+// Algorithm for converting module content digest to reference id.  The input
+// can be obtained using ModuleRefHash.
+func EncodeModuleRef(hashSum []byte) string {
+	return server.EncodeModuleRef(hashSum)
+}
 
 // Request URL paths.
 const (
 	Path           = "/gate-0/"              // The API.
 	PathModule     = Path + "module"         // Base of relative module URIs.
 	PathModules    = Path + "module/"        // Module sources.
-	PathModuleRefs = Path + "module/sha384/" // Module reference ids.
+	PathModuleRefs = Path + "module/sha256/" // Module reference ids.
 	PathInstances  = Path + "instance/"      // Instance ids.
 )
 

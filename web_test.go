@@ -319,7 +319,7 @@ func TestModuleRef(t *testing.T) {
 	})
 
 	t.Run("PutWrongHash", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+sha384([]byte("asdf")), wasmHello)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+sha256hex([]byte("asdf")), wasmHello)
 		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		checkResponse(t, handler, req, http.StatusBadRequest)
 	})
@@ -1158,7 +1158,7 @@ func TestInstanceSuspend(t *testing.T) {
 	handler2 := newHandler(t)
 
 	t.Run("Restore", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+sha384(snapshot)+"?action=launch&debug=true", snapshot)
+		req := newSignedRequest(pri, http.MethodPut, api.PathModuleRefs+sha256hex(snapshot)+"?action=launch&debug=true", snapshot)
 		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
 		restoredID := resp.Header.Get(api.HeaderInstance)
