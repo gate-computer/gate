@@ -208,7 +208,7 @@ func mainResult() int {
 			panic(errors.New("no HTTP origins configured"))
 		}
 		for _, origin := range c.HTTP.Origins {
-			if origin != "" {
+			if origin != "" && origin != "null" {
 				u, err := url.Parse(origin)
 				check(err)
 				verifyLoopbackHost("HTTP origin", u.Hostname())

@@ -210,7 +210,7 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect api.Status) {
 
 func TestOrigin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, api.Path, nil)
-	checkResponse(t, newHandler(t), req, http.StatusForbidden)
+	checkResponse(t, newHandler(t), req, http.StatusOK)
 
 	req = httptest.NewRequest(http.MethodGet, api.Path, nil)
 	req.Header.Set(api.HeaderOrigin, "https://example.net")
