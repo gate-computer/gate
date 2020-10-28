@@ -115,7 +115,7 @@ func newHandler(pattern string, config Config, scheme string, localAuthorization
 	s.identity = scheme + "://" + s.Authority + p + api.Path // https://authority/path/api/
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(patternAPI, newOpaqueHandler(s, pathAPI))
+	mux.HandleFunc(patternAPI, newStaticHandler(s, pathAPI, struct{}{}))
 	mux.HandleFunc(patternModule, newOpaqueHandler(s, pathModule))
 	mux.HandleFunc(patternInstance, newOpaqueHandler(s, pathInstance))
 	mux.HandleFunc(patternInstances, newInstanceHandler(s, pathInstances))

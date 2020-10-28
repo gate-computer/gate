@@ -218,14 +218,14 @@ func TestOrigin(t *testing.T) {
 
 	req = httptest.NewRequest(http.MethodGet, api.Path, nil)
 	req.Header.Set(api.HeaderOrigin, "null")
-	checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
+	checkResponse(t, newHandler(t), req, http.StatusOK)
 }
 
 func TestMethodNotAllowed(t *testing.T) {
 	all := []string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut}
 
 	for path, methods := range map[string][]string{
-		api.Path:                              all,
+		api.Path:                              []string{http.MethodPost, http.MethodPut},
 		api.PathModule:                        all,
 		api.PathModules:                       []string{http.MethodPost, http.MethodPut},
 		api.Path + "instance":                 all,
