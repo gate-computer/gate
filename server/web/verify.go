@@ -19,6 +19,10 @@ const maxExpireMargin = 15 * 60 // Seconds
 const maxScopeLength = 10
 
 func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, expires int64) {
+	if expires == 0 && s.localAuthorization {
+		return
+	}
+
 	switch margin := expires - time.Now().Unix(); {
 	case margin < 0:
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token has expired", event.FailAuthExpired, nil)

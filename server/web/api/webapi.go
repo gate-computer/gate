@@ -181,6 +181,10 @@ func AuthorizationBearerEd25519(privateKey ed25519.PrivateKey, tokenHeader []byt
 
 // AuthorizationBearerLocal creates an unsecured JWT token.
 func AuthorizationBearerLocal(claims *Claims) (string, error) {
+	if claims == nil {
+		claims = new(Claims)
+	}
+
 	header := (&TokenHeader{
 		Alg: SignAlgNone,
 	}).MustEncode()
