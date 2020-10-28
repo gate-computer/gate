@@ -15,7 +15,7 @@ import (
 )
 
 func acceptsText(r *http.Request) bool {
-	headers := r.Header["Accept"]
+	headers := r.Header[api.HeaderAccept]
 	if len(headers) == 0 {
 		return true
 	}
@@ -59,7 +59,7 @@ func mustAcceptWebAssembly(w http.ResponseWriter, r *http.Request, s *webserver)
 }
 
 func mustAcceptApplication(w http.ResponseWriter, r *http.Request, s *webserver, requiredType string) {
-	headers := r.Header["Accept"]
+	headers := r.Header[api.HeaderAccept]
 	if len(headers) == 0 {
 		return
 	}

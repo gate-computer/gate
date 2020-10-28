@@ -534,7 +534,7 @@ func handleHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func acceptsText(r *http.Request) bool {
-	headers := r.Header["Accept"]
+	headers := r.Header[webapi.HeaderAccept]
 	if len(headers) == 0 {
 		return true
 	}
