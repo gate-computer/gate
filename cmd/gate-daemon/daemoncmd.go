@@ -22,6 +22,7 @@ import (
 	goruntime "runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"gate.computer/gate/image"
@@ -73,6 +74,11 @@ type Config struct {
 	HTTP struct {
 		Addr string
 		web.Config
+
+		Static []struct {
+			URI  string
+			Path string
+		}
 	}
 }
 
@@ -128,6 +134,8 @@ func mainResult() int {
 	originConfig.MaxConns = 1e9
 	originConfig.BufSize = origin.DefaultBufSize
 	c.Service["origin"] = &originConfig
+
+	c.HTTP.Static = nil
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options]\n\nOptions:\n", flag.CommandLine.Name())
@@ -216,7 +224,8 @@ func mainResult() int {
 		}
 
 		c.HTTP.Server = s
-		handler := web.NewHandlerWithUnsecuredLocalAuthorization("/", c.HTTP.Config)
+		apiHandler := web.NewHandlerWithUnsecuredLocalAuthorization("/", c.HTTP.Config)
+		handler := newHTTPHandler(apiHandler, "http://"+c.HTTP.Authority)
 
 		go func() {
 			defer close(httpDone)
@@ -675,6 +684,73 @@ func asBusError(x interface{}) *dbus.Error {
 		panic(x)
 	}
 	return nil
+}
+
+func newHTTPHandler(api http.Handler, origin string) http.Handler {
+	mux := http.NewServeMux()
+
+	for _, static := range c.HTTP.Static {
+		if !strings.HasPrefix(static.URI, "/") {
+			panic(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
+		}
+		if static.Path == "" {
+			panic(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
+		}
+		if strings.HasSuffix(static.URI, "/") != strings.HasSuffix(static.Path, "/") {
+			panic(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
+		}
+
+		mux.HandleFunc(static.URI, newStaticHTTPHandler(static.URI, static.Path, origin))
+	}
+
+	mux.Handle("/", api)
+	return mux
+}
+
+func newStaticHTTPHandler(staticPattern, staticPath, staticOrigin string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Server", "gate-daemon")
+
+		switch origin := r.Header.Get("Origin"); origin {
+		case "":
+		case staticOrigin:
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD")
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Max-Age", "3600")
+		default:
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		switch r.Method {
+		case "GET", "HEAD":
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		var staticFile string
+
+		if strings.HasSuffix(staticPattern, "/") {
+			if !strings.HasPrefix(r.URL.Path, staticPattern) {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			staticFile = staticPath + r.URL.Path[len(staticPattern):]
+			if strings.HasSuffix(staticFile, "/") {
+				staticFile += "index.html"
+			}
+		} else {
+			if r.URL.Path != staticPattern {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			staticFile = staticPath
+		}
+
+		http.ServeFile(w, r, staticFile)
+	}
 }
 
 func check(err error) {
