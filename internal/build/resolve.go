@@ -6,9 +6,9 @@ package build
 
 import (
 	"gate.computer/gate/internal/error/notfound"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/wa"
 )
 
 // ResolveEntryFunc or the implicit _start function.  This function doesn't

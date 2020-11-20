@@ -13,7 +13,7 @@ import (
 	"gate.computer/gate/internal/manifest"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
-	"github.com/tsavola/wag/section"
+	"gate.computer/wag/section"
 )
 
 const (

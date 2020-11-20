@@ -22,10 +22,10 @@ import (
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/snapshot"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/object/debug"
-	"github.com/tsavola/wag/object/stack"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/object"
+	"gate.computer/wag/object/debug"
+	"gate.computer/wag/object/stack"
 )
 
 var errModuleSizeMismatch = &badmodule.Dual{

@@ -34,9 +34,9 @@ mechanism is implemented in C and assembly, and needs to be built separately
 
 Important Go packages:
 
-  - [**wag**](https://godoc.org/github.com/tsavola/wag):
-    The WebAssembly compiler
-    (implemented in a [separate repository](https://github.com/tsavola/wag)).
+  - [**wag**](https://godoc.org/gate.computer/wag):
+    The WebAssembly compiler (implemented in a
+    [separate repository](https://gate.computer/wag)).
 
   - [**gate/runtime**](https://godoc.org/gate.computer/gate/runtime):
     Core functionality.  Interface to the execution mechanism.
@@ -165,5 +165,5 @@ installed container binary (lib).  That requires:
 - [Security](Security.md)
 - [Container capabilities](Capabilities.md)
 - [Go packages](https://godoc.org/gate.computer/gate)
-- [wag](https://github.com/tsavola/wag)
+- [wag](https://gate.computer/wag)
 

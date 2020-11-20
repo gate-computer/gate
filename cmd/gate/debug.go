@@ -25,14 +25,14 @@ import (
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/server/api"
 	webapi "gate.computer/gate/server/web/api"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/compile"
+	objectdebug "gate.computer/wag/object/debug"
+	"gate.computer/wag/object/stack"
+	"gate.computer/wag/object/stack/stacktrace"
+	"gate.computer/wag/section"
+	"gate.computer/wag/wa"
 	dbus "github.com/godbus/dbus/v5"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
-	objectdebug "github.com/tsavola/wag/object/debug"
-	"github.com/tsavola/wag/object/stack"
-	"github.com/tsavola/wag/object/stack/stacktrace"
-	"github.com/tsavola/wag/section"
-	"github.com/tsavola/wag/wa"
 )
 
 type location struct {

@@ -14,7 +14,7 @@ import (
 
 	"gate.computer/gate/internal/file"
 	"gate.computer/gate/internal/manifest"
-	"github.com/tsavola/wag/object"
+	"gate.computer/wag/object"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
 )

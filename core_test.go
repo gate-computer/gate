@@ -26,13 +26,13 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/object"
+	objectabi "gate.computer/wag/object/abi"
+	"gate.computer/wag/object/stack/stacktrace"
+	"gate.computer/wag/wa"
 	"github.com/tsavola/mu"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/object"
-	objectabi "github.com/tsavola/wag/object/abi"
-	"github.com/tsavola/wag/object/stack/stacktrace"
-	"github.com/tsavola/wag/wa"
 )
 
 const (

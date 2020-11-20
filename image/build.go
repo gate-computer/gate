@@ -19,10 +19,10 @@ import (
 	"gate.computer/gate/internal/manifest"
 	runtimeabi "gate.computer/gate/runtime/abi"
 	"gate.computer/gate/snapshot"
-	"github.com/tsavola/wag/buffer"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/buffer"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/object"
+	"gate.computer/wag/wa"
 )
 
 const TextRevision = 0

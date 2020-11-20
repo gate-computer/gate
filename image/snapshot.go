@@ -13,9 +13,9 @@ import (
 	"gate.computer/gate/internal/varint"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/snapshot/wasm"
-	"github.com/tsavola/wag/section"
-	"github.com/tsavola/wag/wa"
-	"github.com/tsavola/wag/wa/opcode"
+	"gate.computer/wag/section"
+	"gate.computer/wag/wa"
+	"gate.computer/wag/wa/opcode"
 )
 
 const wasmModuleHeaderSize = 8

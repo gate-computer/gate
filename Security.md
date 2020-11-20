@@ -34,9 +34,9 @@ with other common security details; those are not covered by this document.
 
 ### 1. WebAssembly compiler
 
-[Wag](https://github.com/tsavola/wag) takes a wasm32 binary and generates
-machine code.  It is implemented in Go, which helps with some traditional bug
-classes.  It doesn't use [unsafe](https://golang.org/pkg/unsafe/) operations or
+[Wag](https://gate.computer/wag) takes a wasm32 binary and generates machine
+code.  It is implemented in Go, which helps with some traditional bug classes.
+It doesn't use [unsafe](https://golang.org/pkg/unsafe/) operations or
 concurrency, so it's as type safe as Go can be, and there are no data races in
 the compiler.  While one of its objectives is compilation speed, it has been
 implemented from the start with Gate's security-oriented use case in mind.
@@ -76,7 +76,7 @@ untrusted code.
 and is designed for easy validation.  Particularly helpful details about wasm
 programs are that they never store buffers on the call stack, and function
 pointer target addresses are whitelisted by signature.
-[Wag](https://github.com/tsavola/wag) and Gate employ some additional safety
+[Wag](https://gate.computer/wag) and Gate employ some additional safety
 measures:
 
   - Programs are limited to 32-bit memory addressing, while the compiler

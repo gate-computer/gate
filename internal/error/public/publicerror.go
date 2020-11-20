@@ -5,7 +5,7 @@
 package public
 
 import (
-	werrors "github.com/tsavola/wag/errors"
+	werrors "gate.computer/wag/errors"
 )
 
 // Err is a constant-compatible type.

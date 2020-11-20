@@ -39,10 +39,10 @@ import (
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
+	"gate.computer/wag/compile"
 	"github.com/coreos/go-systemd/v22/daemon"
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/confi"
-	"github.com/tsavola/wag/compile"
 	"google.golang.org/protobuf/proto"
 )
 

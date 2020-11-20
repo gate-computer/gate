@@ -9,7 +9,7 @@ import (
 	"unsafe"
 
 	"gate.computer/gate/internal/file"
-	"github.com/tsavola/wag/object"
+	"gate.computer/wag/object"
 )
 
 const callSiteSize = 8 // The struct size or layout will not change between minor versions.

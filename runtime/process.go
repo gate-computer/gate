@@ -23,7 +23,7 @@ import (
 	"gate.computer/gate/internal/file"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
-	"github.com/tsavola/wag/object/abi"
+	"gate.computer/wag/object/abi"
 )
 
 const imageInfoSize = 104

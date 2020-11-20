@@ -14,7 +14,7 @@ import (
 	"gate.computer/gate/internal/manifest"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/snapshot/wasm"
-	"github.com/tsavola/wag/object"
+	"gate.computer/wag/object"
 )
 
 type Program struct {

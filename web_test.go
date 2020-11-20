@@ -30,12 +30,12 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/snapshot/wasm"
+	"gate.computer/wag"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/section"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/tsavola/wag"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/section"
 	"golang.org/x/crypto/ed25519"
 )
 

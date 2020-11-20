@@ -18,7 +18,7 @@ import (
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/resourcenotfound"
-	"github.com/tsavola/wag/object/stack"
+	"gate.computer/wag/object/stack"
 )
 
 const ErrServerClosed = public.Err("server closed")

@@ -7,7 +7,7 @@ package resourcelimit
 import (
 	"fmt"
 
-	werrors "github.com/tsavola/wag/errors"
+	werrors "gate.computer/wag/errors"
 )
 
 type Error = werrors.ResourceLimit

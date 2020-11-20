@@ -12,10 +12,10 @@ import (
 	"math"
 
 	"gate.computer/gate/internal/manifest"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/object/stack"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/object"
+	"gate.computer/wag/object/stack"
+	"gate.computer/wag/wa"
 )
 
 const initStackSize = 24

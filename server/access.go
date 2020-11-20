@@ -8,7 +8,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/wa"
 )
 
 const (

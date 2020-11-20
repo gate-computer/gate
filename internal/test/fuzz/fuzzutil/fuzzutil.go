@@ -16,7 +16,7 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/service"
-	werrors "github.com/tsavola/wag/errors"
+	werrors "gate.computer/wag/errors"
 	errors "golang.org/x/xerrors"
 )
 

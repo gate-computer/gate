@@ -9,7 +9,7 @@ package main
 import (
 	"errors"
 
-	"github.com/tsavola/wag/section"
+	"gate.computer/wag/section"
 )
 
 func dumpText(text []byte, funcAddrs []uint32, ns *section.NameSection) error {

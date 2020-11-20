@@ -17,7 +17,7 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/trap"
-	"github.com/tsavola/wag/object/stack/stacktrace"
+	"gate.computer/wag/object/stack/stacktrace"
 	"golang.org/x/sys/unix"
 )
 

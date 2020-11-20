@@ -17,11 +17,11 @@ import (
 	"gate.computer/gate/internal/executable"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/snapshot/wasm"
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/section"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/object"
+	"gate.computer/wag/section"
+	"gate.computer/wag/wa"
 )
 
 type Build struct {

@@ -5,7 +5,7 @@
 package badmodule
 
 import (
-	werrors "github.com/tsavola/wag/errors"
+	werrors "gate.computer/wag/errors"
 )
 
 type Error = werrors.ModuleError

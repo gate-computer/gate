@@ -12,8 +12,8 @@ import (
 	"strings"
 
 	"gate.computer/gate/internal/error/badprogram"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/wa"
 	errors "golang.org/x/xerrors"
 )
 

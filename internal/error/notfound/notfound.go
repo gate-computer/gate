@@ -5,7 +5,7 @@
 package notfound
 
 import (
-	werrors "github.com/tsavola/wag/errors"
+	werrors "gate.computer/wag/errors"
 )
 
 type Error interface {

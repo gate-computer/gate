@@ -26,8 +26,8 @@ import (
 	"gate.computer/gate/server/internal/error/resourcenotfound"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"gate.computer/wag/object/stack"
 	"github.com/google/uuid"
-	"github.com/tsavola/wag/object/stack"
 )
 
 func makeInstanceID() string {

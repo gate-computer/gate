@@ -6,7 +6,7 @@ package image
 
 import (
 	"gate.computer/gate/internal/manifest"
-	"github.com/tsavola/wag/section"
+	"gate.computer/wag/section"
 )
 
 type SectionMap struct {

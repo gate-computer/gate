@@ -5,8 +5,8 @@
 package manifest
 
 import (
-	"github.com/tsavola/wag/binding"
-	"github.com/tsavola/wag/compile"
+	"gate.computer/wag/binding"
+	"gate.computer/wag/compile"
 )
 
 const MaxSize = 4096 // Including header.

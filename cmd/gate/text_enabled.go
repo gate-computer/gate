@@ -9,8 +9,8 @@ package main
 import (
 	"os"
 
-	objdump "github.com/tsavola/wag/object/debug/dump"
-	"github.com/tsavola/wag/section"
+	objdump "gate.computer/wag/object/debug/dump"
+	"gate.computer/wag/section"
 )
 
 func dumpText(text []byte, funcAddrs []uint32, ns *section.NameSection) error {

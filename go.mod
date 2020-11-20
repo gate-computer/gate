@@ -3,6 +3,7 @@ module gate.computer/gate
 go 1.11
 
 require (
+	gate.computer/wag v0.32.0
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
@@ -18,7 +19,6 @@ require (
 	github.com/tsavola/confi v1.5.0
 	github.com/tsavola/mu v1.0.0
 	github.com/tsavola/snide v0.0.0-20201022011019-997fd41f0088
-	github.com/tsavola/wag v0.31.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
 	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543

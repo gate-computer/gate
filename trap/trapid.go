@@ -6,7 +6,7 @@
 package trap
 
 import (
-	wagtrap "github.com/tsavola/wag/trap"
+	wagtrap "gate.computer/wag/trap"
 )
 
 type ID wagtrap.ID

@@ -11,9 +11,9 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/snapshot"
-	"github.com/tsavola/wag/compile"
-	"github.com/tsavola/wag/object"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/compile"
+	"gate.computer/wag/object"
+	"gate.computer/wag/wa"
 )
 
 type Filesystem struct {

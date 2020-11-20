@@ -19,9 +19,9 @@ import (
 	"gate.computer/gate/internal/manifest"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
-	"github.com/tsavola/wag/object/abi"
-	"github.com/tsavola/wag/object/stack"
-	"github.com/tsavola/wag/wa"
+	"gate.computer/wag/object/abi"
+	"gate.computer/wag/object/stack"
+	"gate.computer/wag/wa"
 )
 
 var ErrInvalidState = errors.New("instance state is invalid")

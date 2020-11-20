@@ -18,7 +18,7 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/trap"
-	"github.com/tsavola/wag/object"
+	"gate.computer/wag/object"
 )
 
 const benchPrepareCount = 32
