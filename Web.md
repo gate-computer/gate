@@ -27,7 +27,7 @@ nonce usage.
 
 The `aud` claim may be specified in order to prevent misdirected requests.  The
 audience string is the primary API URL, e.g. `https://example.net/gate-0/` or
-`http://localhost:8080/gate-0/`.  The scheme is `https` (or `https`) also for
+`http://localhost:6473/gate-0/`.  The scheme is `https` (or `http`) also for
 websocket connections.  Redirections don't affect the audience string: if the
 example.net Gate API offloads processing to `api.example.net`, the audience
 string will still have hostname `example.net`.

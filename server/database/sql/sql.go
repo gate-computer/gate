@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package sql implements an AccessTracker backed by an SQL database.
+// Package sql implements a NonceChecker backed by an SQL database.
 //
 // Supports at least PostgreSQL 9.5+ (github.com/lib/pq) and SQLite 3.24+
 // (github.com/mattn/go-sqlite3).

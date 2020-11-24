@@ -23,7 +23,7 @@ var errForbidden = server.AccessForbidden("key not authorized")
 // found in an SSH authorized_keys file.
 //
 // Request signatures must be verified separately by an API layer (e.g. package
-// webserver).
+// server/web).
 type AuthorizedKeys struct {
 	server.NoAccess
 	server.AccessConfig
