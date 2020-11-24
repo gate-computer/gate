@@ -6,14 +6,22 @@ syntax = "proto3";
 
 package gate.server.api;
 
+import "google/protobuf/wrappers.proto";
+
 option go_package = "gate.computer/gate/server/api";
 
-message ModuleRef {
-	string id = 1;
+message ModuleOptions {
+	bool pin = 1;
+	repeated string tags = 2;
 }
 
-message ModuleRefs {
-	repeated ModuleRef modules = 1;
+message ModuleInfo {
+	string id = 1;
+	repeated string tags = 2;
+}
+
+message Modules {
+	repeated ModuleInfo modules = 1;
 }
 
 enum State {
@@ -47,15 +55,34 @@ message Status {
 	string error = 4;
 }
 
-message InstanceStatus {
-	string instance = 1;
-	Status status = 2;
+message LaunchOptions {
+	string function = 1;
+	string instance = 2;
 	bool transient = 3;
-	bool debugging = 4;
+	bool suspend = 4;
+	repeated string tags = 5;
+}
+
+message ResumeOptions {
+	string function = 1;
+}
+
+message InstanceInfo {
+	string instance = 1;
+	string module = 2;
+	Status status = 3;
+	bool transient = 4;
+	bool debugging = 5;
+	repeated string tags = 6;
 }
 
 message Instances {
-	repeated InstanceStatus instances = 1;
+	repeated InstanceInfo instances = 1;
+}
+
+message InstanceUpdate {
+	bool persist = 1;
+	repeated string tags = 2;
 }
 
 enum DebugOp {

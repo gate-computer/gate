@@ -5,10 +5,16 @@
 package server
 
 import (
+	"reflect"
+
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 )
+
+type accountProgram struct {
+	tags []string
+}
 
 type accountInstance struct {
 	inst *Instance
@@ -19,14 +25,14 @@ type account struct {
 	*principal.ID
 
 	// Protected by server mutex:
-	programs  map[*program]struct{}
+	programs  map[*program]accountProgram
 	instances map[string]accountInstance
 }
 
 func newAccount(pri *principal.ID) *account {
 	return &account{
 		ID:        pri,
-		programs:  make(map[*program]struct{}),
+		programs:  make(map[*program]accountProgram),
 		instances: make(map[string]accountInstance),
 	}
 }
@@ -46,10 +52,20 @@ func (acc *account) shutdown(lock serverLock) (is map[string]accountInstance) {
 
 // ensureProgramRef adds program reference unless already found.  It must not
 // be called while the server is shutting down.
-func (acc *account) ensureProgramRef(lock serverLock, prog *program) {
-	if _, exists := acc.programs[prog]; !exists {
-		acc.programs[prog.ref(lock)] = struct{}{}
+func (acc *account) ensureProgramRef(lock serverLock, prog *program, tags []string) (modified bool) {
+	x, found := acc.programs[prog]
+	if !found {
+		prog.ref(lock)
+		modified = true
 	}
+	if len(tags) != 0 && !reflect.DeepEqual(x.tags, tags) {
+		x.tags = append([]string(nil), tags...)
+		modified = true
+	}
+	if modified {
+		acc.programs[prog] = x
+	}
+	return
 }
 
 // refProgram if found.
@@ -70,8 +86,8 @@ func (acc *account) unrefProgram(lock serverLock, prog *program) (found bool) {
 	return
 }
 
-func (acc *account) checkUniqueInstanceID(_ serverLock, instID string) error {
-	if _, exists := acc.instances[instID]; exists {
+func (acc *account) checkUniqueInstanceID(_ serverLock, id string) error {
+	if _, found := acc.instances[id]; found {
 		return failrequest.New(event.FailInstanceIDExists, "duplicate instance id")
 	}
 	return nil

@@ -6,13 +6,13 @@ package sshkeys
 
 import (
 	"context"
+	"crypto/ed25519"
 	"fmt"
 	"io/ioutil"
 
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
-	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 )
 

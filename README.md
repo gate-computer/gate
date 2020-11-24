@@ -135,8 +135,9 @@ The non-Go components can be built with `make`.  They require:
   - libc-dev
   - libsystemd-dev, unless CGROUP_BACKEND=none is specified for make
 
-`make bin` builds the programs using the Go 1.11 module mechanism.
-(Individual packages may be buildable with older Go versions.)
+`make bin` builds the programs.  It requires:
+
+  - Go compiler
 
 Running the D-Bus enabled programs (gate and gate-daemon) requires:
 

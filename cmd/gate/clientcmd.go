@@ -20,7 +20,7 @@ import (
 
 const (
 	DefaultIdentityFile = ".ssh/id_ed25519" // Relative to home directory.
-	DefaultRef          = true
+	DefaultPin          = true
 	DefaultWait         = true
 	ShortcutDebugLog    = "/dev/stderr"
 )
@@ -33,10 +33,12 @@ var Defaults = []string{
 
 type Config struct {
 	IdentityFile string
-	Ref          bool
+	Pin          bool
+	ModuleTags   []string
 	Wait         bool
 	Function     string
 	Instance     string
+	InstanceTags []string
 	Scope        []string
 	Suspend      bool
 	DebugLog     string
@@ -59,12 +61,15 @@ Common commands:
   io        connect to a running instance
   kill      kill a running instance
   launch    create an instance from a wasm module
-  modules   list wasm module references
+  modules   list known wasm modules
   resume    resume a suspended or halted instance
-  snapshot  create a wasm module of a suspended or halted instance
-  status    query current status of an instance
+  snapshot  create a wasm module of an instance
+  show      get information about a known module
+  status    get current status and other instance information
   suspend   suspend a running instance
-  unref     remove a wasm module reference
+  pin       remember a wasm module or update its tags
+  unpin     forget a wasm module
+  update    update instance's tags (and make it persistent if necessary)
   wait      wait until an instance is suspended, halted, terminated or killed
 
 Local commands (no address before command):
@@ -118,7 +123,7 @@ func main() {
 	log.SetFlags(0)
 
 	c.IdentityFile = cmdconf.JoinHome(DefaultIdentityFile)
-	c.Ref = DefaultRef
+	c.Pin = DefaultPin
 	c.Wait = DefaultWait
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)

@@ -6,13 +6,13 @@ package web
 
 import (
 	"context"
+	"crypto/ed25519"
 	"strings"
 	"time"
 
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
-	"golang.org/x/crypto/ed25519"
 )
 
 const maxExpireMargin = 15 * 60 // Seconds

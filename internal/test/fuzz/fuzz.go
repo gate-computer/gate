@@ -12,6 +12,8 @@ import (
 	"syscall"
 
 	"gate.computer/gate/internal/test/fuzz/fuzzutil"
+	"gate.computer/gate/server"
+	"gate.computer/gate/server/api"
 )
 
 var s = fuzzutil.NewServer(context.Background(), os.Getenv("GATE_FUZZ_RUNTIME_LIBDIR"))
@@ -31,7 +33,17 @@ func Fuzz(data []byte) int {
 	ctx, cancel := context.WithTimeout(context.Background(), fuzzutil.RunTimeout)
 	defer cancel()
 
-	inst, err := s.UploadModuleInstance(ctx, ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), "", false, "", fuzzutil.Function, true, false, nil)
+	mod := &server.ModuleUpload{
+		Stream: ioutil.NopCloser(bytes.NewReader(data)),
+		Length: int64(len(data)),
+	}
+
+	launch := &api.LaunchOptions{
+		Function:  fuzzutil.Function,
+		Transient: true,
+	}
+
+	inst, err := s.UploadModuleInstance(ctx, mod, nil, launch, nil)
 	if err != nil {
 		if fuzzutil.IsFine(err) {
 			return 1

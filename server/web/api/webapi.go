@@ -5,56 +5,61 @@
 // Package api contains definitions useful for accessing the HTTP and websocket
 // APIs.  See https://gate.computer/gate/blob/master/Web.md for general
 // documentation.
+//
+// This package avoids dependencies to the server implementation.
 package api
 
 import (
 	"crypto"
+	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"regexp"
-
-	server "gate.computer/gate/server/api"
-	"golang.org/x/crypto/ed25519"
 )
 
-// Name of the module reference source and associated content hash algorithm.
-const ModuleRefSource = server.ModuleRefSource
+// KnownModuleSource is the name of the built-in directory of modules the
+// content of which are known to the server and/or the client.
+const KnownModuleSource = "sha256"
 
-// Algorithm for converting module content to raw reference id.  The reference
-// id string can be formed by encoding the hash digest with EncodeModuleRef.
-const ModuleRefHash crypto.Hash = server.ModuleRefHash
+// KnownModuleHash algorithm for converting module content to its raw id within
+// the KnownModuleSource.  The id string can be formed by encoding the hash
+// digest with EncodeKnownModule.
+const KnownModuleHash = crypto.SHA256
 
-// Algorithm for converting module content digest to reference id.  The input
-// can be obtained using ModuleRefHash.
-func EncodeModuleRef(hashSum []byte) string {
-	return server.EncodeModuleRef(hashSum)
+// EncodeKnownModule converts module content hash digest to its id within
+// KnownModuleSource.  The input can be obtained using KnownModuleHash.
+func EncodeKnownModule(hashSum []byte) string {
+	return hex.EncodeToString(hashSum)
 }
 
 // Request URL paths.
 const (
-	Path           = "/gate-0/"              // The API.
-	PathModule     = Path + "module"         // Base of relative module URIs.
-	PathModules    = Path + "module/"        // Module sources.
-	PathModuleRefs = Path + "module/sha256/" // Module reference ids.
-	PathInstances  = Path + "instance/"      // Instance ids.
+	Path              = "/gate-0/"              // The API.
+	PathModule        = Path + "module"         // Base of relative module URIs.
+	PathModuleSources = Path + "module/"        // Module source directory.
+	PathKnownModules  = Path + "module/sha256/" // Known module directory.
+	PathInstances     = Path + "instance/"      // Instance ids.
 )
 
 // Query parameters.
 const (
-	ParamAction   = "action"
-	ParamFunction = "function" // For call, launch or resume action.
-	ParamInstance = "instance" // For call or launch action.
-	ParamDebug    = "debug"    // For call, launch or resume action.
+	ParamAction      = "action"
+	ParamModuleTag   = "module.tag"   // For pin or snapshot action.
+	ParamFunction    = "function"     // For call, launch or resume action.
+	ParamInstance    = "instance"     // For call or launch action.
+	ParamInstanceTag = "instance.tag" // For call, launch or update action.
+	ParamLog         = "log"          // For call, launch or resume action.
 )
 
-// Actions on modules.  ActionRef can be combined with ActionCall or
+// Actions on modules.  ActionPin can be combined with ActionCall or
 // ActionLaunch in a single request (ParamAction appears twice in the URL).
 const (
-	ActionRef    = "ref"    // Put (reference), post (source) or websocket (call/launch).
-	ActionUnref  = "unref"  // Post (reference).
-	ActionCall   = "call"   // Put (reference), post (any) or websocket (any).
-	ActionLaunch = "launch" // Put (reference), post (any).
+	ActionPin    = "pin"    // Put (known), post (source) or websocket (call/launch).
+	ActionUnpin  = "unpin"  // Post (known).
+	ActionCall   = "call"   // Put (known), post (any) or websocket (any).
+	ActionLaunch = "launch" // Put (known), post (any).
 )
 
 // Actions on instances.  ActionWait can be combined with ActionKill or
@@ -63,14 +68,14 @@ const (
 // will be created in StateSuspended or StateHalted.
 const (
 	ActionIO       = "io"       // Post or websocket.
-	ActionStatus   = "status"   // Post.
 	ActionWait     = "wait"     // Post.
 	ActionKill     = "kill"     // Post.
 	ActionSuspend  = "suspend"  // Post.
 	ActionResume   = "resume"   // Post.
 	ActionSnapshot = "snapshot" // Post.
 	ActionDelete   = "delete"   // Post.
-	ActionDebug    = "debug"    // Post.
+	ActionUpdate   = "update"   // Post.
+	ActionDebug    = "debug"    // Post.  See the debug package.
 )
 
 // HTTP request headers.
@@ -88,7 +93,7 @@ const (
 
 // HTTP response headers.
 const (
-	HeaderLocation = "Location"        // Absolute module ref path.
+	HeaderLocation = "Location"        // Absolute path to known module.
 	HeaderInstance = "X-Gate-Instance" // UUID.
 	HeaderStatus   = "X-Gate-Status"   // Status of instance as JSON.
 )
@@ -96,7 +101,7 @@ const (
 // The supported module content type.
 const ContentTypeWebAssembly = "application/wasm"
 
-// The supported instance debug content type.
+// The supported instance update and debug content type.
 const ContentTypeJSON = "application/json"
 
 // The supported key type.
@@ -278,23 +283,36 @@ func (status Status) String() (s string) {
 	return
 }
 
-// Response to PathModuleRefs request.
-type ModuleRefs = server.ModuleRefs
+// Response to PathKnownModules request.
+type Modules struct {
+	Modules []ModuleInfo `json:"modules"`
+}
 
-// An item in a ModuleRefs response.
-type ModuleRef = server.ModuleRef
+// ModuleInfo 'r' mation.
+type ModuleInfo struct {
+	ID   string   `json:"id"`
+	Tags []string `json:"tags,omitempty"`
+}
 
 // Response to a PathInstances request.
 type Instances struct {
-	Instances []InstanceStatus `json:"instances"`
+	Instances []InstanceInfo `json:"instances"`
 }
 
-// An item in an Instances response.
-type InstanceStatus struct {
-	Instance  string `json:"instance"`
-	Status    Status `json:"status"`
-	Transient bool   `json:"transient,omitempty"`
-	Debugging bool   `json:"debugging,omitempty"`
+// InstanceInfo 'r' mation.
+type InstanceInfo struct {
+	Instance  string   `json:"instance"`
+	Module    string   `json:"module"`
+	Status    Status   `json:"status"`
+	Transient bool     `json:"transient,omitempty"`
+	Debugging bool     `json:"debugging,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+}
+
+// Instance update request content.
+type InstanceUpdate struct {
+	Persist bool     `json:"transient,omitempty"`
+	Tags    []string `json:"tags,omitempty"`
 }
 
 // ActionCall websocket request message.
@@ -306,7 +324,7 @@ type Call struct {
 
 // Reply to Call message.
 type CallConnection struct {
-	Location string `json:"location,omitempty"` // Absolute module ref path.
+	Location string `json:"location,omitempty"` // Absolute path to known module.
 	Instance string `json:"instance,omitempty"` // UUID.
 }
 

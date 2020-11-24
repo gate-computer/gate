@@ -78,7 +78,7 @@ func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory
 	defer server.Shutdown(ctx)
 
 	handler := newBenchHandler(server)
-	uri := api.PathModuleRefs + hashNop + "?action=call"
+	uri := api.PathKnownModules + hashNop + "?action=call"
 
 	procs := goruntime.GOMAXPROCS(0)
 	loops := (b.N + procs - 1) / procs

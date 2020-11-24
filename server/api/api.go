@@ -10,17 +10,17 @@ import (
 )
 
 const (
-	ModuleRefSource = "sha256"
-	ModuleRefHash   = crypto.SHA256
+	KnownModuleSource = "sha256"
+	KnownModuleHash   = crypto.SHA256
 )
 
-func EncodeModuleRef(hashSum []byte) string {
+func EncodeKnownModule(hashSum []byte) string {
 	return hex.EncodeToString(hashSum)
 }
 
-func (x *ModuleRefs) Len() int           { return len(x.Modules) }
-func (x *ModuleRefs) Swap(i, j int)      { x.Modules[i], x.Modules[j] = x.Modules[j], x.Modules[i] }
-func (x *ModuleRefs) Less(i, j int) bool { return x.Modules[i].Id < x.Modules[j].Id }
+func (x *Modules) Len() int           { return len(x.Modules) }
+func (x *Modules) Swap(i, j int)      { x.Modules[i], x.Modules[j] = x.Modules[j], x.Modules[i] }
+func (x *Modules) Less(i, j int) bool { return x.Modules[i].Id < x.Modules[j].Id }
 
 const (
 	StateRunning    = State_RUNNING

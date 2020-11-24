@@ -5,9 +5,8 @@
 package principal
 
 import (
+	"crypto/ed25519"
 	"encoding/base64"
-
-	"golang.org/x/crypto/ed25519"
 )
 
 const (

@@ -36,88 +36,71 @@ func New(config Config) *Client {
 	}
 }
 
-func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int,
-) (length int64, content io.ReadCloser, err error) {
-	req, err := http.NewRequest(http.MethodGet, c.config.Addr+uri, nil)
+// OpenURI implements server.Source.OpenURI.
+func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
+	url := c.config.Addr + uri
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 
 	req.Header.Set("Range", fmt.Sprintf("bytes=0-%d", maxSize-1))
 
 	resp, err := c.config.Client.Do(req.WithContext(ctx))
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 	defer func() {
-		if content == nil {
+		if resp != nil {
 			resp.Body.Close()
 		}
 	}()
 
+	var length int64
+
 	switch resp.StatusCode {
 	case http.StatusOK:
-		return handleOK(resp, maxSize)
+		if resp.ContentLength < 0 {
+			return nil, 0, errors.New("TODO")
+		}
+		if resp.ContentLength > int64(maxSize) {
+			return nil, resp.ContentLength, nil
+		}
+		length = resp.ContentLength
 
 	case http.StatusPartialContent:
-		return handlePartialContent(resp, maxSize)
+		rangeLen, totalLen, err := parseContentRange(resp.Header.Get("Content-Range"))
+		if err != nil {
+			return nil, 0, err
+		}
+		if rangeLen != totalLen || totalLen > int64(maxSize) {
+			return nil, totalLen, nil
+		}
+		if resp.ContentLength >= 0 && resp.ContentLength != totalLen {
+			return nil, 0, errors.New("http: Content-Length does not match Content-Range")
+		}
+		length = totalLen
 
 	case http.StatusNotFound:
-		return
+		return nil, 0, nil
 
 	default:
-		err = fmt.Errorf("http source: %s", resp.Status)
-		return
+		return nil, 0, fmt.Errorf("%s: status %s", url, resp.Status)
 	}
+
+	body := resp.Body
+	resp = nil
+	return body, length, nil
 }
 
-func handleOK(resp *http.Response, maxSize int) (length int64, content io.ReadCloser, err error) {
-	if resp.ContentLength < 0 {
-		err = errors.New("TODO")
-		return
+func parseContentRange(headerValue string) (rangeLen, totalLen int64, err error) {
+	var lastByte int64
+
+	n, err := fmt.Sscanf(headerValue, "bytes 0-%d/%d", &lastByte, &totalLen)
+	if n != 2 || lastByte < 0 || totalLen < 0 || lastByte >= totalLen {
+		return 0, 0, fmt.Errorf("http: invalid Content-Range header: %q", headerValue)
 	}
 
-	if resp.ContentLength > int64(maxSize) {
-		length = resp.ContentLength
-		return
-	}
-
-	length = resp.ContentLength
-	content = resp.Body
-	return
-}
-
-func handlePartialContent(resp *http.Response, maxSize int,
-) (length int64, content io.ReadCloser, err error) {
-	rangeLength, completeLength, err := parseContentRange(resp.Header.Get("Content-Range"))
-	if err != nil {
-		return
-	}
-
-	if completeLength > int64(maxSize) {
-		length = completeLength
-		return
-	}
-
-	if resp.ContentLength >= 0 && resp.ContentLength != rangeLength {
-		err = errors.New("TODO")
-		return
-	}
-
-	length = rangeLength
-	content = resp.Body
-	return
-}
-
-func parseContentRange(headerValue string) (rangeLength, completeLength int64, err error) {
-	var last int64
-
-	n, err := fmt.Sscanf(headerValue, "bytes 0-%d/%d", &last, &completeLength)
-	if n != 2 || last < 0 || completeLength < 0 || last >= completeLength {
-		err = errors.New("TODO")
-		return
-	}
-
-	rangeLength = last + 1
+	rangeLen = lastByte + 1
 	return
 }

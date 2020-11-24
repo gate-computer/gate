@@ -5,10 +5,10 @@
 package sshkey
 
 import (
+	"crypto/ed25519"
 	"fmt"
 
 	"gate.computer/gate/server/web/api"
-	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 )
 

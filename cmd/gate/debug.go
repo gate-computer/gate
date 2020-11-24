@@ -109,7 +109,7 @@ func debug(call debugCallFunc) {
 
 	default:
 		modkey := res.Module
-		if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == api.ModuleRefSource {
+		if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == api.KnownModuleSource {
 			modkey = x[1]
 		}
 		fmt.Printf("Module:         %s\n", modkey)
@@ -309,7 +309,7 @@ func debugBacktrace(res *api.DebugResponse) {
 func build(res *api.DebugResponse,
 ) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
 	var modkey string
-	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.ModuleRefSource {
+	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.KnownModuleSource {
 		modkey = x[1]
 	} else {
 		log.Fatal("unsupported module specification:", res.Module)

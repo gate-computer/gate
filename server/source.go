@@ -9,6 +9,15 @@ import (
 	"io"
 )
 
+// Close the stream unless it has been appropriated.
+func (opts *ModuleUpload) Close() error {
+	c := opts.takeStream()
+	if c == nil {
+		return nil
+	}
+	return c.Close()
+}
+
 // Source of immutable data.
 type Source interface {
 	// OpenURI for reading an object.  If the object's size exceeds maxSize,
@@ -24,8 +33,19 @@ type Source interface {
 		uri string,
 		maxSize int,
 	) (
-		contentLength int64,
 		content io.ReadCloser,
+		contentLength int64,
 		err error,
 	)
+}
+
+// ModuleSource is like a Source, but the uri parameter is a struct member.
+type ModuleSource struct {
+	Source Source
+	URI    string
+}
+
+// Open is like Source.OpenURI, but the uri argument is implicit.
+func (x *ModuleSource) Open(ctx context.Context, maxSize int) (io.ReadCloser, int64, error) {
+	return x.Source.OpenURI(ctx, x.URI, maxSize)
 }

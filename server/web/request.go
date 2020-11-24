@@ -35,6 +35,27 @@ func acceptsText(r *http.Request) bool {
 	return false
 }
 
+func acceptsJSON(r *http.Request) bool {
+	headers := r.Header[api.HeaderAccept]
+	if len(headers) == 0 {
+		return true
+	}
+
+	for _, header := range headers {
+		for _, field := range strings.Split(header, ",") {
+			tokens := strings.SplitN(field, ";", 2)
+			mediaType := strings.TrimSpace(tokens[0])
+
+			switch mediaType {
+			case "*/*", "application/json", "application/*":
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func mustBeAllowedOrigin(w http.ResponseWriter, r *http.Request, s *webserver, header string) {
 origins:
 	for _, origin := range strings.Fields(header) {
@@ -104,6 +125,12 @@ func mustParseOptionalQuery(w http.ResponseWriter, r *http.Request, s *webserver
 	return
 }
 
+func popOptionalParams(query url.Values, key string) []string {
+	values := query[key]
+	delete(query, key)
+	return values
+}
+
 func popLastParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) string {
 	switch values := query[key]; len(values) {
 	case 1:
@@ -111,6 +138,14 @@ func popLastParam(w http.ResponseWriter, r *http.Request, s *webserver, query ur
 		return values[0]
 
 	case 0:
+		if r.URL.RawQuery == "" {
+			switch r.Method {
+			case "GET", "HEAD":
+				w.WriteHeader(http.StatusNoContent)
+				panic(nil)
+			}
+		}
+
 		respondMissingQueryParam(w, r, s, key)
 		panic(nil)
 
@@ -135,8 +170,14 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
-func popOptionalLastDebugParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) bool {
-	return popOptionalLastParam(w, r, s, query, api.ParamDebug) == "true"
+func popOptionalLastLogParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) {
+	switch value := popOptionalLastParam(w, r, s, query, api.ParamLog); value {
+	case "", "*":
+
+	default:
+		respondUnsupportedLog(w, r, s, value)
+		panic(nil)
+	}
 }
 
 func popOptionalActionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values, key string) bool {

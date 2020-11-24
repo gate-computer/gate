@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -24,7 +25,6 @@ import (
 	"gate.computer/gate/server/api"
 	webapi "gate.computer/gate/server/web/api"
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 )
@@ -44,25 +44,34 @@ var remoteCommands = map[string]command{
 			if c.Function != "" {
 				params.Set(webapi.ParamFunction, c.Function)
 			}
+			for _, t := range c.InstanceTags {
+				params.Add(webapi.ParamInstanceTag, t)
+			}
 			if c.DebugLog != "" {
-				params.Set(webapi.ParamDebug, "true")
+				params.Set(webapi.ParamLog, "*")
 			}
 
 			var status webapi.Status
 
 			switch arg := flag.Arg(0); {
 			case !(strings.Contains(arg, "/") || strings.Contains(arg, ".")):
-				status = callPost(webapi.PathModuleRefs+arg, params)
+				status = callPost(webapi.PathKnownModules+arg, params)
 
 			case strings.HasPrefix(arg, "/ipfs/"):
-				if c.Ref {
-					params.Add(webapi.ParamAction, webapi.ActionRef)
+				if c.Pin {
+					params.Add(webapi.ParamAction, webapi.ActionPin)
+					for _, t := range c.ModuleTags {
+						params.Add(webapi.ParamModuleTag, t)
+					}
 				}
 				status = callPost(webapi.PathModule+arg, params)
 
 			default:
-				if c.Ref {
-					params.Add(webapi.ParamAction, webapi.ActionRef)
+				if c.Pin {
+					params.Add(webapi.ParamAction, webapi.ActionPin)
+					for _, t := range c.ModuleTags {
+						params.Add(webapi.ParamModuleTag, t)
+					}
 				}
 				status = callWebsocket(arg, params)
 			}
@@ -123,8 +132,12 @@ var remoteCommands = map[string]command{
 	},
 
 	"import": {
-		usage: "filename",
+		usage: "filename [moduletag...]",
 		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.ModuleTags = tail
+			}
+
 			data, hash := loadModule(flag.Arg(0))
 
 			req := &http.Request{
@@ -136,23 +149,27 @@ var remoteCommands = map[string]command{
 				ContentLength: int64(data.Len()),
 			}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionRef},
+				webapi.ParamAction: []string{webapi.ActionPin},
+			}
+			for _, t := range c.ModuleTags {
+				params.Add(webapi.ParamModuleTag, t)
 			}
 
-			doHTTP(req, webapi.PathModuleRefs+hash, params)
+			doHTTP(req, webapi.PathKnownModules+hash, params)
 			fmt.Println(hash)
 		},
 	},
 
 	"instances": {
 		do: func() {
-			_, resp := doHTTP(nil, webapi.PathInstances, nil)
+			req := &http.Request{Method: http.MethodPost}
+			_, resp := doHTTP(req, webapi.PathInstances, nil)
 
 			var is webapi.Instances
 			check(json.NewDecoder(resp.Body).Decode(&is))
 
 			for _, inst := range is.Instances {
-				fmt.Printf("%-36s %s\n", inst.Instance, inst.Status)
+				fmt.Printf("%-36s %s %s\n", inst.Instance, inst.Status, inst.Tags)
 			}
 		},
 	},
@@ -181,11 +198,14 @@ var remoteCommands = map[string]command{
 	},
 
 	"launch": {
-		usage:  "module [function]",
+		usage:  "module [function [instancetag...]]",
 		detail: moduleUsage,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
+				if tail := flag.Args()[2:]; len(tail) != 0 {
+					c.InstanceTags = tail
+				}
 			}
 
 			actions := []string{
@@ -204,8 +224,11 @@ var remoteCommands = map[string]command{
 			if c.Instance != "" {
 				params.Set(webapi.ParamInstance, c.Instance)
 			}
+			for _, t := range c.InstanceTags {
+				params.Add(webapi.ParamInstanceTag, t)
+			}
 			if c.DebugLog != "" {
-				params.Set(webapi.ParamDebug, "true")
+				params.Set(webapi.ParamLog, "*")
 			}
 
 			var (
@@ -215,24 +238,30 @@ var remoteCommands = map[string]command{
 			switch arg := flag.Arg(0); {
 			case !(strings.Contains(arg, "/") || strings.Contains(arg, ".")):
 				req.Method = http.MethodPost
-				uri = webapi.PathModuleRefs + arg
+				uri = webapi.PathKnownModules + arg
 
 			case strings.HasPrefix(arg, "/ipfs/"):
 				req.Method = http.MethodPut
 				uri = webapi.PathModule + arg
 
-				if c.Ref {
-					params.Add(webapi.ParamAction, webapi.ActionRef)
+				if c.Pin {
+					params.Add(webapi.ParamAction, webapi.ActionPin)
+					for _, t := range c.ModuleTags {
+						params.Add(webapi.ParamModuleTag, t)
+					}
 				}
 
 			default:
 				module, key := loadModule(arg)
 
 				req.Method = http.MethodPut
-				uri = webapi.PathModuleRefs + key
+				uri = webapi.PathKnownModules + key
 
-				if c.Ref {
-					params.Add(webapi.ParamAction, webapi.ActionRef)
+				if c.Pin {
+					params.Add(webapi.ParamAction, webapi.ActionPin)
+					for _, t := range c.ModuleTags {
+						params.Add(webapi.ParamModuleTag, t)
+					}
 				}
 
 				req.Header = http.Header{
@@ -249,14 +278,34 @@ var remoteCommands = map[string]command{
 
 	"modules": {
 		do: func() {
-			_, resp := doHTTP(nil, webapi.PathModuleRefs, nil)
+			req := &http.Request{Method: http.MethodPost}
+			_, resp := doHTTP(req, webapi.PathKnownModules, nil)
 
-			var refs webapi.ModuleRefs
+			var refs webapi.Modules
 			check(json.NewDecoder(resp.Body).Decode(&refs))
 
 			for _, m := range refs.Modules {
-				fmt.Println(m.Id)
+				fmt.Println(m.ID, m.Tags)
 			}
+		},
+	},
+
+	"pin": {
+		usage: "module [moduletag...]",
+		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.ModuleTags = tail
+			}
+
+			req := &http.Request{Method: http.MethodPost}
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionPin},
+			}
+			for _, t := range c.ModuleTags {
+				params.Add(webapi.ParamModuleTag, t)
+			}
+
+			doHTTP(req, webapi.PathKnownModules+flag.Arg(0), params)
 		},
 	},
 
@@ -286,29 +335,44 @@ var remoteCommands = map[string]command{
 	"resume": {
 		usage: "instance",
 		do: func() {
-			req := &http.Request{
-				Method: http.MethodPost,
-			}
-
+			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
 				webapi.ParamAction: []string{webapi.ActionResume},
 			}
 			if c.DebugLog != "" {
-				params.Set(webapi.ParamDebug, "true")
+				params.Set(webapi.ParamLog, "*")
 			}
 
 			doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
 		},
 	},
 
-	"snapshot": {
-		usage: "instance [filename]",
+	"show": {
+		usage: "module",
 		do: func() {
-			req := &http.Request{
-				Method: http.MethodPost,
+			req := &http.Request{Method: http.MethodPost}
+			_, resp := doHTTP(req, webapi.PathKnownModules+flag.Arg(0), nil)
+
+			var info webapi.ModuleInfo
+			check(json.NewDecoder(resp.Body).Decode(&info))
+
+			fmt.Println(info.Tags)
+		},
+	},
+
+	"snapshot": {
+		usage: "instance [moduletag...]",
+		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.ModuleTags = tail
 			}
+
+			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
 				webapi.ParamAction: []string{webapi.ActionSnapshot},
+			}
+			for _, t := range c.ModuleTags {
+				params.Add(webapi.ParamModuleTag, t)
 			}
 
 			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
@@ -317,21 +381,17 @@ var remoteCommands = map[string]command{
 			if location == "" {
 				log.Fatal("no Location header in response")
 			}
-			progID := path.Base(location)
 
-			if flag.NArg() == 1 {
-				fmt.Println(progID)
-			} else {
-				fmt.Fprintln(terminalOr(ioutil.Discard), progID)
-				exportRemote(progID, flag.Arg(1))
-			}
+			fmt.Println(path.Base(location))
 		},
 	},
 
 	"status": {
 		usage: "instance",
 		do: func() {
-			fmt.Println(commandInstance(webapi.ActionStatus))
+			req := &http.Request{Method: http.MethodPost}
+			status, _ := doHTTP(req, webapi.PathInstances+flag.Arg(0), nil)
+			fmt.Println(status)
 		},
 	},
 
@@ -342,17 +402,49 @@ var remoteCommands = map[string]command{
 		},
 	},
 
-	"unref": {
+	"unpin": {
 		usage: "module",
 		do: func() {
-			req := &http.Request{
-				Method: http.MethodPost,
-			}
+			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionUnref},
+				webapi.ParamAction: []string{webapi.ActionUnpin},
 			}
 
-			doHTTP(req, webapi.PathModuleRefs+flag.Arg(0), params)
+			doHTTP(req, webapi.PathKnownModules+flag.Arg(0), params)
+		},
+	},
+
+	"update": {
+		usage: "instance [instancetag...]",
+		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.InstanceTags = tail
+			}
+
+			params := url.Values{
+				webapi.ParamAction: []string{webapi.ActionUpdate},
+			}
+			update := webapi.InstanceUpdate{
+				Persist: true,
+				Tags:    c.InstanceTags,
+			}
+			if len(update.Tags) == 0 {
+				log.Fatal("no tags")
+			}
+
+			updateJSON, err := json.Marshal(update)
+			check(err)
+
+			req := &http.Request{
+				Method: http.MethodPost,
+				Header: http.Header{
+					webapi.HeaderContentType: []string{webapi.ContentTypeJSON},
+				},
+				Body:          ioutil.NopCloser(bytes.NewReader(updateJSON)),
+				ContentLength: int64(len(updateJSON)),
+			}
+
+			doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
 		},
 	},
 
@@ -366,7 +458,7 @@ var remoteCommands = map[string]command{
 
 func exportRemote(module, filename string) {
 	download(filename, func() (io.Reader, int64) {
-		_, resp := doHTTP(nil, webapi.PathModuleRefs+module, nil)
+		_, resp := doHTTP(nil, webapi.PathKnownModules+module, nil)
 		return resp.Body, resp.ContentLength
 	})
 }
@@ -385,7 +477,7 @@ func callPost(uri string, params url.Values) webapi.Status {
 func callWebsocket(filename string, params url.Values) webapi.Status {
 	module, key := loadModule(filename)
 
-	url := makeWebsocketURL(webapi.PathModuleRefs+key, params)
+	url := makeWebsocketURL(webapi.PathKnownModules+key, params)
 
 	conn, _, err := new(websocket.Dialer).Dial(url, nil)
 	check(err)
@@ -418,9 +510,7 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 }
 
 func commandInstance(actions ...string) webapi.Status {
-	req := &http.Request{
-		Method: http.MethodPost,
-	}
+	req := &http.Request{Method: http.MethodPost}
 	params := url.Values{
 		webapi.ParamAction: actions,
 	}
@@ -446,14 +536,13 @@ func loadModule(filename string) (b *bytes.Buffer, key string) {
 	defer f.Close()
 
 	b = new(bytes.Buffer)
-	h := webapi.ModuleRefHash.New()
+	h := webapi.KnownModuleHash.New()
 	checkCopy(h, io.TeeReader(f, b))
-	key = webapi.EncodeModuleRef(h.Sum(nil))
+	key = webapi.EncodeKnownModule(h.Sum(nil))
 	return
 }
 
-func doHTTP(req *http.Request, uri string, params url.Values,
-) (status webapi.Status, resp *http.Response) {
+func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Status, resp *http.Response) {
 	if req == nil {
 		req = new(http.Request)
 	}
@@ -514,7 +603,10 @@ func makeURL(uri string, params url.Values, prelocate bool) (u *url.URL) {
 		}
 	}
 
-	u.RawQuery = params.Encode()
+	if len(params) > 0 {
+		u.RawQuery = params.Encode()
+	}
+
 	return
 }
 
@@ -604,12 +696,11 @@ func unmarshalStatus(serialized string) (status webapi.Status) {
 func decodeProto(r io.Reader, m proto.Message) {
 	b, err := ioutil.ReadAll(r)
 	check(err)
-
 	check(proto.Unmarshal(b, m))
 }
 
-func checkCopy(w io.Writer, r io.Reader) (n int64) {
+func checkCopy(w io.Writer, r io.Reader) int64 {
 	n, err := io.Copy(w, r)
 	check(err)
-	return
+	return n
 }

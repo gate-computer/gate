@@ -6,10 +6,9 @@ package api
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"testing"
 	"time"
-
-	"golang.org/x/crypto/ed25519"
 )
 
 func TestBearerEd25519(t *testing.T) {

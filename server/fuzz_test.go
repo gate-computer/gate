@@ -15,6 +15,7 @@ import (
 
 	"gate.computer/gate/internal/test/fuzz/fuzzutil"
 	"gate.computer/gate/server"
+	"gate.computer/gate/server/api"
 )
 
 func TestFuzz(t *testing.T) {
@@ -74,7 +75,17 @@ func fuzzTest(ctx context.Context, t *testing.T, s *server.Server, filename stri
 	ctx, cancel := context.WithTimeout(ctx, fuzzutil.RunTimeout)
 	defer cancel()
 
-	inst, err := s.UploadModuleInstance(ctx, ioutil.NopCloser(bytes.NewReader(data)), int64(len(data)), "", false, "", fuzzutil.Function, true, false, nil)
+	mod := &server.ModuleUpload{
+		Stream: ioutil.NopCloser(bytes.NewReader(data)),
+		Length: int64(len(data)),
+	}
+
+	launch := &api.LaunchOptions{
+		Function:  fuzzutil.Function,
+		Transient: true,
+	}
+
+	inst, err := s.UploadModuleInstance(ctx, mod, nil, launch, nil)
 	if err != nil {
 		if fuzzutil.IsFine(err) {
 			t.Log(err)

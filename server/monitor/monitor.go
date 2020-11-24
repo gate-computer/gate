@@ -174,7 +174,7 @@ func (s *State) update(x server.Event) {
 	case *event.ModuleUploadExist, *event.ModuleSourceExist:
 		s.ProgramLinks++
 
-	case *event.InstanceCreateStream, *event.InstanceCreateLocal:
+	case *event.InstanceCreateKnown, *event.InstanceCreateStream:
 		s.Instances++
 
 	case *event.InstanceDelete:

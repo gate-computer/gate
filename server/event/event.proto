@@ -6,6 +6,8 @@ syntax = "proto3";
 
 package gate.server.event;
 
+import "google/protobuf/wrappers.proto";
+import "server/api/server.proto";
 import "server/detail/detail.proto";
 
 option go_package = "gate.computer/gate/server/event";
@@ -17,25 +19,29 @@ enum Type {
 	FAIL_REQUEST = 3;
 	IFACE_ACCESS = 4;
 	MODULE_LIST = 5;
-	MODULE_UPLOAD_NEW = 6;
-	MODULE_UPLOAD_EXIST = 7;
-	MODULE_SOURCE_NEW = 8;
-	MODULE_SOURCE_EXIST = 9;
-	MODULE_DOWNLOAD = 10;
-	MODULE_UNREF = 11;
-	INSTANCE_LIST = 12;
-	INSTANCE_CREATE_STREAM = 13;
-	INSTANCE_CREATE_LOCAL = 14;
-	INSTANCE_DELETE = 15;
-	INSTANCE_CONNECT = 16;
-	INSTANCE_DISCONNECT = 17;
-	INSTANCE_STATUS = 18;
-	INSTANCE_WAIT = 19;
-	INSTANCE_KILL = 20;
-	INSTANCE_SUSPEND = 21;
-	INSTANCE_RESUME = 22;
-	INSTANCE_SNAPSHOT = 23;
-	INSTANCE_DEBUG = 24;
+	MODULE_INFO = 6;
+	MODULE_UPLOAD_NEW = 7;
+	MODULE_UPLOAD_EXIST = 8;
+	MODULE_SOURCE_NEW = 9;
+	MODULE_SOURCE_EXIST = 10;
+	MODULE_DOWNLOAD = 11;
+	MODULE_PIN = 12;
+	MODULE_UNPIN = 13;
+	INSTANCE_LIST = 14;
+	INSTANCE_INFO = 15;
+	INSTANCE_CREATE_KNOWN = 16;
+	INSTANCE_CREATE_STREAM = 17;
+	INSTANCE_STOP = 18;
+	INSTANCE_DELETE = 19;
+	INSTANCE_CONNECT = 20;
+	INSTANCE_DISCONNECT = 21;
+	INSTANCE_WAIT = 22;
+	INSTANCE_KILL = 23;
+	INSTANCE_SUSPEND = 24;
+	INSTANCE_RESUME = 25;
+	INSTANCE_SNAPSHOT = 26;
+	INSTANCE_UPDATE = 27;
+	INSTANCE_DEBUG = 28;
 }
 
 message FailInternal {
@@ -96,12 +102,13 @@ message IfaceAccess {
 	detail.Context ctx = 1;
 }
 
-message OpUnsupported {
+message ModuleList {
 	detail.Context ctx = 1;
 }
 
-message ModuleList {
+message ModuleInfo {
 	detail.Context ctx = 1;
+	string module = 2;
 }
 
 message ModuleUploadNew {
@@ -135,7 +142,13 @@ message ModuleDownload {
 	uint64 length_read = 4;
 }
 
-message ModuleUnref {
+message ModulePin {
+	detail.Context ctx = 1;
+	string module = 2;
+	int32 tag_count = 3;
+}
+
+message ModuleUnpin {
 	detail.Context ctx = 1;
 	string module = 2;
 }
@@ -144,16 +157,33 @@ message InstanceList {
 	detail.Context ctx = 1;
 }
 
-message InstanceCreateStream {
+message InstanceInfo {
 	detail.Context ctx = 1;
 	string instance = 2;
-	string module = 3;
 }
 
-message InstanceCreateLocal {
+message InstanceCreate {
+	string instance = 1;
+	string module = 2;
+	bool transient = 3;
+	bool suspended = 4;
+	int32 tag_count = 5;
+}
+
+message InstanceCreateKnown {
+	detail.Context ctx = 1;
+	InstanceCreate create = 2;
+}
+
+message InstanceCreateStream {
+	detail.Context ctx = 1;
+	InstanceCreate create = 2;
+}
+
+message InstanceStop {
 	detail.Context ctx = 1;
 	string instance = 2;
-	string module = 3;
+	api.Status status = 3;
 }
 
 message InstanceDelete {
@@ -167,11 +197,6 @@ message InstanceConnect {
 }
 
 message InstanceDisconnect {
-	detail.Context ctx = 1;
-	string instance = 2;
-}
-
-message InstanceStatus {
 	detail.Context ctx = 1;
 	string instance = 2;
 }
@@ -201,6 +226,13 @@ message InstanceSnapshot {
 	detail.Context ctx = 1;
 	string instance = 2;
 	string module = 3;
+}
+
+message InstanceUpdate {
+	detail.Context ctx = 1;
+	string instance = 2;
+	bool persist = 3;
+	int32 tag_count = 4;
 }
 
 message InstanceDebug {

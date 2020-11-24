@@ -86,6 +86,32 @@ func trapStatus(id trap.ID) (api.State, api.Cause) {
 	}
 }
 
+// InvokeOptions for instance creation or resumption.  Server may take
+// possession of DebugLog; Close must be called in case it remains non-nil.
+// Nil InvokeOptions pointer is equivalent to zero-value InvokeOptions.
+type InvokeOptions struct {
+	DebugLog io.WriteCloser
+}
+
+func (opt *InvokeOptions) takeDebugLog() (ret io.WriteCloser) {
+	if opt != nil {
+		ret = opt.DebugLog
+		opt.DebugLog = nil
+	}
+	return
+}
+
+// Close the debug log unless it has been appropriated.  The receiver may be
+// nil.
+func (opt *InvokeOptions) Close() (err error) {
+	if opt != nil {
+		if c := opt.takeDebugLog(); c != nil {
+			err = c.Close()
+		}
+	}
+	return
+}
+
 type Instance struct {
 	ID  string
 	acc *account
@@ -101,12 +127,13 @@ type Instance struct {
 	process      *runtime.Process
 	services     InstanceServices
 	timeReso     time.Duration
+	tags         []string
 	debugLog     io.WriteCloser
 	stopped      chan struct{}
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, transient bool, image *image.Instance, buffers snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, transient bool, image *image.Instance, buffers snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, tags []string, opt *InvokeOptions) *Instance {
 	return &Instance{
 		ID:        id,
 		acc:       acc,
@@ -117,13 +144,14 @@ func newInstance(id string, acc *account, transient bool, image *image.Instance,
 		process:   proc,
 		services:  services,
 		timeReso:  timeReso,
-		debugLog:  debugLog,
+		tags:      tags,
+		debugLog:  opt.takeDebugLog(),
 		stopped:   make(chan struct{}),
 	}
 }
 
 func (inst *Instance) store(_ instanceLock, prog *program) error {
-	return inst.image.Store(instanceStorageKey(inst.acc.ID, inst.ID), prog.hash, prog.image)
+	return inst.image.Store(instanceStorageKey(inst.acc.ID, inst.ID), prog.id, prog.image)
 }
 
 func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
@@ -202,13 +230,6 @@ func (inst *Instance) stop(instanceLock) {
 	}
 }
 
-func (inst *Instance) Transient() bool {
-	inst.mu.Lock()
-	defer inst.mu.Unlock()
-
-	return inst.transient
-}
-
 func (inst *Instance) Status() *api.Status {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
@@ -216,16 +237,23 @@ func (inst *Instance) Status() *api.Status {
 	return inst.status.Clone()
 }
 
-func (inst *Instance) instanceStatus() *api.InstanceStatus {
+func (inst *Instance) info(module string) (*api.InstanceInfo, error) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	return &api.InstanceStatus{
+	if !inst.exists {
+		return nil, resourcenotfound.ErrInstance
+	}
+
+	info := &api.InstanceInfo{
 		Instance:  inst.ID,
+		Module:    module,
 		Status:    inst.status.Clone(),
 		Transient: inst.transient,
 		Debugging: inst.image.DebugInfo() || len(inst.image.Breakpoints()) > 0,
+		Tags:      inst.tags,
 	}
+	return info, nil
 }
 
 func (inst *Instance) Wait(ctx context.Context) (status *api.Status) {
@@ -323,8 +351,7 @@ func (inst *Instance) resumeCheck(_ instanceLock, function string) (err error) {
 }
 
 // doResume steals proc, services and debugLog.
-func (inst *Instance) doResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser,
-) (err error) {
+func (inst *Instance) doResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, opt *InvokeOptions) (err error) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
@@ -338,7 +365,7 @@ func (inst *Instance) doResume(function string, proc *runtime.Process, services 
 	inst.process = proc
 	inst.services = services
 	inst.timeReso = timeReso
-	inst.debugLog = debugLog
+	inst.debugLog = opt.takeDebugLog()
 	inst.stopped = make(chan struct{})
 	return
 }
@@ -366,8 +393,7 @@ func (inst *Instance) connect(ctx context.Context) func(context.Context, io.Read
 	return s.Connect(ctx)
 }
 
-func (inst *Instance) snapshot(prog *program,
-) (progImage *image.Program, buffers snapshot.Buffers, err error) {
+func (inst *Instance) snapshot(prog *program) (progImage *image.Program, buffers snapshot.Buffers, err error) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
@@ -386,27 +412,29 @@ func (inst *Instance) snapshot(prog *program,
 }
 
 // annihilate a stopped instance into nonexistence.
-func (inst *Instance) annihilate() (err error) {
-	inst.mu.Lock()
+func (inst *Instance) annihilate() error {
+	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		err = resourcenotfound.ErrInstance
-		return
+		return resourcenotfound.ErrInstance
 	}
 	if inst.status.State == api.StateRunning {
-		err = failrequest.Errorf(event.FailInstanceStatus, "instance must not be running")
-		return
+		return failrequest.Errorf(event.FailInstanceStatus, "instance must not be running")
 	}
 
+	inst.doAnnihilate(lock)
+	return nil
+}
+
+func (inst *Instance) doAnnihilate(_ instanceLock) {
 	inst.exists = false
 	inst.image.Unstore()
 	inst.image.Close()
 	inst.image = nil
-	return
 }
 
-func (inst *Instance) drive(ctx context.Context, prog *program, function string) (Event, error) {
+func (inst *Instance) drive(ctx context.Context, prog *program, function string, monitor func(Event, error)) (nonexistent bool) {
 	trapID := trap.InternalError
 	res := &api.Status{
 		State: api.StateKilled,
@@ -421,6 +449,22 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		inst.image.SetResult(res.Result)
 		inst.status = res
 		inst.stop(lock)
+
+		monitor(&event.InstanceStop{
+			Ctx:      ContextDetail(ctx),
+			Instance: inst.ID,
+			Status:   inst.status.Clone(),
+		}, nil)
+
+		if inst.transient {
+			inst.doAnnihilate(lock)
+			nonexistent = true
+
+			monitor(&event.InstanceDelete{
+				Ctx:      ContextDetail(ctx),
+				Instance: inst.ID,
+			}, nil)
+		}
 	}
 	defer func() {
 		if cleanupFunc != nil {
@@ -435,10 +479,11 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		res.Error = public.Error(err, res.Error)
 		if trapID == trap.ABIViolation {
 			res.Cause = api.CauseABIViolation
-			return programFailure(ctx, prog.hash, function, inst.ID), err
+			monitor(programFailure(ctx, prog.id, function, inst.ID), err)
 		} else {
-			return internalFailure(ctx, prog.hash, function, inst.ID, "service io", err), err
+			monitor(internalFailure(ctx, prog.id, function, inst.ID, "service io", err), err)
 		}
+		return
 	}
 
 	lock := inst.mu.Lock()
@@ -452,14 +497,16 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 	mutErr := inst.image.CheckMutation()
 	if mutErr != nil && trapID != trap.Killed {
 		res.Error = public.Error(mutErr, res.Error)
-		return internalFailure(ctx, prog.hash, function, inst.ID, "image state", mutErr), mutErr
+		monitor(internalFailure(ctx, prog.id, function, inst.ID, "image state", mutErr), mutErr)
+		return
 	}
 
 	if mutErr == nil && !inst.transient {
 		err = inst.store(lock, prog)
 		if err != nil {
 			res.Error = public.Error(err, res.Error)
-			return internalFailure(ctx, prog.hash, function, inst.ID, "image storage", err), err
+			monitor(internalFailure(ctx, prog.id, function, inst.ID, "image storage", err), err)
+			return
 		}
 	}
 
@@ -475,11 +522,36 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string)
 		res.State, res.Cause = trapStatus(trapID)
 	}
 
-	return nil, nil
+	return
 }
 
-func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRequest,
-) (rebuild *instanceRebuild, newConfig *api.DebugConfig, res *api.DebugResponse, err error) {
+// update mutates the argument's contents to reflect actual modifications.
+func (inst *Instance) update(update *api.InstanceUpdate) (modified bool) {
+	inst.mu.Lock()
+	defer inst.mu.Unlock()
+
+	if !inst.exists {
+		return
+	}
+
+	if update.Persist && inst.transient {
+		inst.transient = false
+		modified = true
+	} else {
+		update.Persist = false
+	}
+
+	if len(update.Tags) != 0 && !reflect.DeepEqual(inst.tags, update.Tags) {
+		inst.tags = append([]string(nil), update.Tags...)
+		modified = true
+	} else {
+		update.Tags = nil
+	}
+
+	return
+}
+
+func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRequest) (rebuild *instanceRebuild, newConfig *api.DebugConfig, res *api.DebugResponse, err error) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
@@ -588,8 +660,8 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRe
 			inst.image.SetBreakpoints(prog.image.Breakpoints())
 		} else {
 			rebuild = &instanceRebuild{
-				inst:         inst,
-				origProgHash: prog.hash,
+				inst:       inst,
+				origProgID: prog.id,
 				oldConfig: &api.DebugConfig{
 					DebugInfo:   inst.image.DebugInfo(),
 					Breakpoints: inst.image.Breakpoints(),
@@ -603,7 +675,7 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRe
 	}
 
 	res = &api.DebugResponse{
-		Module: path.Join(api.ModuleRefSource, prog.hash),
+		Module: path.Join(api.KnownModuleSource, prog.id),
 		Status: inst.status.Clone(),
 		Config: &api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),
@@ -615,13 +687,12 @@ func (inst *Instance) debug(ctx context.Context, prog *program, req *api.DebugRe
 }
 
 type instanceRebuild struct {
-	inst         *Instance
-	origProgHash string
-	oldConfig    *api.DebugConfig
+	inst       *Instance
+	origProgID string
+	oldConfig  *api.DebugConfig
 }
 
-func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.DebugConfig, textMap stack.TextMap,
-) (res *api.DebugResponse, ok bool) {
+func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.DebugConfig, textMap stack.TextMap) (res *api.DebugResponse, ok bool) {
 	inst := rebuild.inst
 	oldConfig := rebuild.oldConfig
 
@@ -641,36 +712,36 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.D
 	}
 
 	res = &api.DebugResponse{
-		Module: path.Join(api.ModuleRefSource, rebuild.origProgHash),
+		Module: path.Join(api.KnownModuleSource, rebuild.origProgID),
 		Status: inst.status.Clone(),
 		Config: &api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),
 			Breakpoints: inst.image.Breakpoints(),
 		},
 	}
-	return
+	return res, ok
 }
 
-func programFailure(ctx context.Context, progHash, function string, instID string) Event {
+func programFailure(ctx context.Context, module, function, instance string) Event {
 	return &event.FailRequest{
 		Ctx:      ContextDetail(ctx),
 		Failure:  event.FailProgramError,
-		Module:   progHash,
+		Module:   module,
 		Function: function,
-		Instance: instID,
+		Instance: instance,
 	}
 }
 
-func internalFailure(ctx context.Context, progHash, function string, instID, subsys string, err error) Event {
+func internalFailure(ctx context.Context, module, function, instance, subsys string, err error) Event {
 	if x, ok := err.(subsystem.Error); ok {
 		subsys = x.Subsystem()
 	}
 
 	return &event.FailInternal{
 		Ctx:       ContextDetail(ctx),
-		Module:    progHash,
+		Module:    module,
 		Function:  function,
-		Instance:  instID,
+		Instance:  instance,
 		Subsystem: subsys,
 	}
 }

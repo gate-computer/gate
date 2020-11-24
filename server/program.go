@@ -47,25 +47,8 @@ func validateHashBytes(hash1 string, digest2 []byte) (err error) {
 	return
 }
 
-// validateHashContent might close the reader and set it to nil.
-func validateHashContent(hash1 string, r *io.ReadCloser) error {
-	hash2 := api.ModuleRefHash.New()
-
-	if _, err := io.Copy(hash2, *r); err != nil {
-		return wrapContentError(err)
-	}
-
-	err := (*r).Close()
-	*r = nil
-	if err != nil {
-		return wrapContentError(err)
-	}
-
-	return validateHashBytes(hash1, hash2.Sum(nil))
-}
-
 type program struct {
-	hash    string
+	id      string
 	image   *image.Program
 	buffers snapshot.Buffers
 
@@ -78,8 +61,8 @@ type program struct {
 
 // buildProgram returns an instance if instance policy is defined.  Entry name
 // can be provided only when building an instance.
-func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, allegedHash string, content io.ReadCloser, contentSize int, entryName string,
-) (prog *program, inst *image.Instance, err error) {
+func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *ModuleUpload, entryName string) (prog *program, inst *image.Instance, err error) {
+	content := mod.takeStream()
 	defer func() {
 		if content != nil {
 			content.Close()
@@ -88,13 +71,13 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	var codeMap object.CallMap
 
-	b, err := build.New(storage, contentSize, progPolicy.MaxTextSize, &codeMap, instPolicy != nil)
+	b, err := build.New(storage, int(mod.Length), progPolicy.MaxTextSize, &codeMap, instPolicy != nil)
 	if err != nil {
 		return
 	}
 	defer b.Close()
 
-	hasher := api.ModuleRefHash.New()
+	hasher := api.KnownModuleHash.New()
 	reader := bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher))
 
 	b.InstallEarlySnapshotLoaders()
@@ -163,8 +146,8 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 
 	actualHash := hasher.Sum(nil)
 
-	if allegedHash != "" {
-		err = validateHashBytes(allegedHash, actualHash)
+	if mod.Hash != "" {
+		err = validateHashBytes(mod.Hash, actualHash)
 		if err != nil {
 			return
 		}
@@ -187,13 +170,13 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 		}
 	}
 
-	prog = newProgram(api.EncodeModuleRef(actualHash), progImage, b.Buffers, false)
+	prog = newProgram(api.EncodeKnownModule(actualHash), progImage, b.Buffers, false)
 	return
 }
 
-func newProgram(hash string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
+func newProgram(id string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
 	prog := &program{
-		hash:     hash,
+		id:       id,
 		image:    image,
 		buffers:  buffers,
 		stored:   stored,
@@ -206,18 +189,18 @@ func newProgram(hash string, image *image.Program, buffers snapshot.Buffers, sto
 func finalizeProgram(prog *program) {
 	if prog.refCount != 0 {
 		if prog.refCount > 0 {
-			log.Printf("closing unreachable program %q with reference count %d", prog.hash, prog.refCount)
+			log.Printf("closing unreachable program %q with reference count %d", prog.id, prog.refCount)
 			prog.image.Close()
 			prog.image = nil
 		} else {
-			log.Printf("unreachable program %q with reference count %d", prog.hash, prog.refCount)
+			log.Printf("unreachable program %q with reference count %d", prog.id, prog.refCount)
 		}
 	}
 }
 
 func (prog *program) ref(lock serverLock) *program {
 	if prog.refCount <= 0 {
-		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.hash, prog.refCount))
+		panic(fmt.Sprintf("referencing program %q with reference count %d", prog.id, prog.refCount))
 	}
 
 	prog.refCount++
@@ -226,7 +209,7 @@ func (prog *program) ref(lock serverLock) *program {
 
 func (prog *program) unref(lock serverLock) {
 	if prog.refCount <= 0 {
-		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.hash, prog.refCount))
+		panic(fmt.Sprintf("unreferencing program %q with reference count %d", prog.id, prog.refCount))
 	}
 
 	prog.refCount--
@@ -245,7 +228,7 @@ func (prog *program) ensureStorage() (err error) {
 		return
 	}
 
-	err = prog.image.Store(prog.hash)
+	err = prog.image.Store(prog.id)
 	if err != nil {
 		return
 	}
@@ -254,8 +237,7 @@ func (prog *program) ensureStorage() (err error) {
 	return
 }
 
-func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, debugInfo bool, breakpoints []uint64,
-) (progImage *image.Program, textMap stack.TextMap, err error) {
+func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, debugInfo bool, breakpoints []uint64) (progImage *image.Program, textMap stack.TextMap, err error) {
 	var (
 		mapper  compile.ObjectMapper
 		callMap *object.CallMap

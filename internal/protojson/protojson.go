@@ -6,30 +6,26 @@ package protojson
 
 import (
 	"io"
+	"io/ioutil"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
-func Marshal(m proto.Message) ([]byte, error) {
-	return protojson.Marshal(m)
+func Decode(r io.Reader, m proto.Message) error {
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return err
+	}
+
+	return protojson.Unmarshal(b, m)
 }
 
 func MustMarshal(m proto.Message) []byte {
-	b, err := Marshal(m)
+	b, err := protojson.Marshal(m)
 	if err != nil {
 		panic(err)
 	}
 
 	return b
-}
-
-func Write(w io.Writer, m proto.Message) error {
-	b, err := Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	_, err = w.Write(b)
-	return err
 }

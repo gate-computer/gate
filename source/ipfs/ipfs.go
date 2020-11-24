@@ -39,8 +39,8 @@ func New(config Config) *Client {
 	}
 }
 
-func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int,
-) (length int64, content io.ReadCloser, err error) {
+// OpenURI implements server.Source.OpenURI.
+func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	query := url.Values{
 		"arg":    []string{uri},
 		"length": []string{strconv.Itoa(maxSize + 1)},
@@ -48,37 +48,37 @@ func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int,
 
 	req, err := http.NewRequest(http.MethodGet, c.config.Addr+"/api/v0/cat?"+query, nil)
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 
 	resp, err := c.config.Client.Do(req.WithContext(ctx))
 	if err != nil {
-		return
+		return nil, 0, err
 	}
 	defer func() {
-		if content == nil {
+		if resp != nil {
 			resp.Body.Close()
 		}
 	}()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		length, err = strconv.ParseInt(resp.Header.Get("X-Content-Length"), 10, 64)
+		length, err := strconv.ParseInt(resp.Header.Get("X-Content-Length"), 10, 64)
 		if err != nil {
-			err = fmt.Errorf("ipfs: cat: X-Content-Length: %v", err)
-			return
+			return nil, 0, fmt.Errorf("ipfs: X-Content-Length header: %v", err)
+		}
+		if length > int64(maxSize) {
+			return nil, length, nil
 		}
 
-		if length <= int64(maxSize) {
-			content = resp.Body
-		}
-		return
+		body := resp.Body
+		resp = nil
+		return body, length, nil
 
 	case http.StatusNotFound:
-		return
+		return nil, 0, nil
 
 	default:
-		err = fmt.Errorf("ipfs: cat: %s", resp.Status)
-		return
+		return nil, 0, fmt.Errorf("ipfs: status %s", resp.Status)
 	}
 }

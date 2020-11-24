@@ -112,7 +112,7 @@ func testIPFS(t *testing.T, source server.Source, uri string, maxSize int, timeo
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	length, r, err := source.OpenURI(ctx, uri, maxSize)
+	r, length, err := source.OpenURI(ctx, uri, maxSize)
 	if err != nil {
 		return
 	}

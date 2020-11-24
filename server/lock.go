@@ -28,6 +28,12 @@ func (m *serverMutex) GuardBool(f func(serverLock) bool) bool {
 	return f(lock)
 }
 
+func (m *serverMutex) GuardError(f func(serverLock) error) error {
+	lock := m.Lock()
+	defer m.Unlock()
+	return f(lock)
+}
+
 func (m *serverMutex) GuardProgram(f func(serverLock) *program) *program {
 	lock := m.Lock()
 	defer m.Unlock()

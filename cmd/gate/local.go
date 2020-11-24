@@ -64,11 +64,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
-				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.Scope)
+				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.InstanceTags, c.ModuleTags, c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Function, c.Ref, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.Scope)
+				call = daemonCall("CallFile", moduleFD, c.Function, c.Pin, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.Scope)
 			}
 			closeFiles(module, r, w, suspend, debug)
 
@@ -106,7 +106,6 @@ var localCommands = map[string]command{
 				check(err)
 
 				call := daemonCall("Debug", instID, reqBuf)
-
 				var resBuf []byte
 				check(call.Store(&resBuf))
 
@@ -137,8 +136,12 @@ var localCommands = map[string]command{
 	},
 
 	"import": {
-		usage: "filename",
+		usage: "filename [moduletag...]",
 		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.ModuleTags = tail
+			}
+
 			var (
 				r      *os.File
 				w      *os.File
@@ -166,7 +169,7 @@ var localCommands = map[string]command{
 			}
 
 			rFD := dbus.UnixFD(r.Fd())
-			call := daemonCall("Upload", rFD, length, "")
+			call := daemonCall("Upload", rFD, length, "", c.ModuleTags)
 			closeFiles(r)
 
 			var progID string
@@ -183,12 +186,11 @@ var localCommands = map[string]command{
 	"instances": {
 		do: func() {
 			call := daemonCall("ListInstances")
-
 			var ids []string
 			check(call.Store(&ids))
 
 			for _, id := range ids {
-				fmt.Printf("%-36s %s\n", id, daemonCallInstanceStatus("GetStatus", id))
+				fmt.Printf("%-36s %s\n", id, daemonCallGetInstanceInfo(id))
 			}
 		},
 	},
@@ -220,11 +222,14 @@ var localCommands = map[string]command{
 	},
 
 	"launch": {
-		usage:  "module [function]",
+		usage:  "module [function [instancetag...]]",
 		detail: moduleUsage,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
+				if tail := flag.Args()[2:]; len(tail) != 0 {
+					c.InstanceTags = tail
+				}
 			}
 
 			debug := openDebugFile()
@@ -235,11 +240,11 @@ var localCommands = map[string]command{
 				call   *dbus.Call
 			)
 			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
-				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.DebugLog != "", c.Scope)
+				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.DebugLog != "", c.InstanceTags, c.ModuleTags, c.Scope)
 			} else {
 				module = openFile(flag.Arg(0))
 				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Ref, c.Suspend, debugFD, c.DebugLog != "", c.Scope)
+				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Pin, c.Suspend, debugFD, c.DebugLog != "", c.InstanceTags, c.ModuleTags, c.Scope)
 			}
 			closeFiles(module, debug)
 
@@ -252,14 +257,28 @@ var localCommands = map[string]command{
 
 	"modules": {
 		do: func() {
-			call := daemonCall("ListModuleRefs")
-
+			call := daemonCall("ListModules")
 			var ids []string
 			check(call.Store(&ids))
 
 			for _, id := range ids {
-				fmt.Println(id)
+				call := daemonCall("GetModuleInfo", id)
+				var tags []string
+				check(call.Store(&tags))
+
+				fmt.Println(id, tags)
 			}
+		},
+	},
+
+	"pin": {
+		usage: "module [moduletag...]",
+		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.ModuleTags = tail
+			}
+
+			check(daemonCall("Pin", flag.Arg(0), c.ModuleTags).Store())
 		},
 	},
 
@@ -268,7 +287,7 @@ var localCommands = map[string]command{
 		do: func() {
 			c.address = flag.Arg(0)
 
-			_, resp := doHTTP(nil, webapi.PathModuleRefs+flag.Arg(1), nil)
+			_, resp := doHTTP(nil, webapi.PathKnownModules+flag.Arg(1), nil)
 			if resp.ContentLength < 0 {
 				log.Fatal("server did not specify content length")
 			}
@@ -318,10 +337,10 @@ var localCommands = map[string]command{
 				ContentLength: moduleLen,
 			}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionRef},
+				webapi.ParamAction: []string{webapi.ActionPin},
 			}
 
-			doHTTP(req, webapi.PathModuleRefs+flag.Arg(1), params)
+			doHTTP(req, webapi.PathKnownModules+flag.Arg(1), params)
 		},
 	},
 
@@ -373,27 +392,36 @@ var localCommands = map[string]command{
 		},
 	},
 
-	"snapshot": {
-		usage: "instance [filename]",
+	"show": {
+		usage: "module",
 		do: func() {
-			call := daemonCall("Snapshot", flag.Arg(0))
+			call := daemonCall("GetModuleInfo", flag.Arg(0))
+			var tags []string
+			check(call.Store(&tags))
 
+			fmt.Println(tags)
+		},
+	},
+
+	"snapshot": {
+		usage: "instance [moduletag...]",
+		do: func() {
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				c.ModuleTags = tail
+			}
+
+			call := daemonCall("Snapshot", flag.Arg(0), c.ModuleTags)
 			var progID string
 			check(call.Store(&progID))
 
-			if flag.NArg() == 1 {
-				fmt.Println(progID)
-			} else {
-				fmt.Fprintln(terminalOr(ioutil.Discard), progID)
-				exportLocal(progID, flag.Arg(1))
-			}
+			fmt.Println(progID)
 		},
 	},
 
 	"status": {
 		usage: "instance",
 		do: func() {
-			fmt.Println(daemonCallInstanceStatus("GetStatus", flag.Arg(0)))
+			fmt.Println(daemonCallGetInstanceInfo(flag.Arg(0)))
 		},
 	},
 
@@ -404,17 +432,33 @@ var localCommands = map[string]command{
 		},
 	},
 
-	"unref": {
+	"unpin": {
 		usage: "module",
 		do: func() {
-			check(daemonCall("Unref", flag.Arg(0)).Store())
+			check(daemonCall("Unpin", flag.Arg(0)).Store())
+		},
+	},
+
+	"update": {
+		usage: "instance [instancetag...]",
+		do: func() {
+			tags := c.InstanceTags
+			if tail := flag.Args()[1:]; len(tail) != 0 {
+				tags = tail
+			}
+			if len(tags) == 0 {
+				log.Fatal("no tags")
+			}
+
+			call := daemonCall("Update", flag.Arg(0), true, tags)
+			check(call.Store())
 		},
 	},
 
 	"wait": {
 		usage: "instance",
 		do: func() {
-			fmt.Println(daemonCallInstanceStatus("Wait", flag.Arg(0)))
+			fmt.Println(daemonCallWait(flag.Arg(0)))
 		},
 	},
 }
@@ -433,11 +477,20 @@ func exportLocal(module, filename string) {
 	})
 }
 
-func daemonCallInstanceStatus(method, id string) string {
-	call := daemonCall(method, id)
+func daemonCallGetInstanceInfo(id string) string {
+	call := daemonCall("GetInstanceInfo", id)
+	var status = new(api.Status)
+	var tags []string
+	check(call.Store(&status.State, &status.Cause, &status.Result, &tags))
 
+	return fmt.Sprintf("%s %s", statusString(status), tags)
+}
+
+func daemonCallWait(id string) string {
+	call := daemonCall("Wait", id)
 	status := new(api.Status)
 	check(call.Store(&status.State, &status.Cause, &status.Result))
+
 	return statusString(status)
 }
 
@@ -445,7 +498,7 @@ func daemonCallInstanceWaiter(method, id string) {
 	check(daemonCall(method, id).Store())
 
 	if c.Wait {
-		fmt.Println(daemonCallInstanceStatus("Wait", id))
+		fmt.Println(daemonCallWait(id))
 	}
 }
 

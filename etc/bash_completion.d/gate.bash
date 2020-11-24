@@ -13,9 +13,9 @@ __gate_complete_module()
 		COMPREPLY=( $( compgen -f -- "$cur" ) )
 	else
 		if [ -z "$2" ] || [ "$1" = push ]; then
-			output=$( "$gate" modules 2>/dev/null )
+			output=$( "$gate" modules 2>/dev/null | cut -d" " -f1 )
 		else
-			output=$( "$gate" "$2" modules 2>/dev/null )
+			output=$( "$gate" "$2" modules 2>/dev/null | cut -d" " -f1 )
 		fi
 		COMPREPLY=( $( compgen -W "$output" -- "$cur" ) )
 	fi
@@ -65,8 +65,8 @@ __gate_completion()
 						case "$cmd" in
 							import) kind=filename ;;
 							export) kind=module-filename ;;
-							call|launch|unref) kind=module ;;
-							debug|delete|io|kill|resume|snapshot|status|suspend|wait) kind=instance ;;
+							call|launch|pin|show|unpin) kind=module ;;
+							debug|delete|io|kill|resume|snapshot|status|suspend|update|wait) kind=instance ;;
 							pull|push) kind=address2 ;;
 							*) return ;;
 						esac
@@ -78,8 +78,8 @@ __gate_completion()
 					case "$cmd" in
 						import) kind=filename ;;
 						export) kind=module-filename ;;
-						call|launch|unref) kind=module ;;
-						debug|delete|io|kill|repl|resume|snapshot|status|suspend|wait) kind=instance ;;
+						call|launch|pin|show|unpin) kind=module ;;
+						debug|delete|io|kill|repl|resume|snapshot|status|suspend|update|wait) kind=instance ;;
 						*) return ;;
 					esac
 					;;
@@ -108,11 +108,11 @@ __gate_completion()
 
 	case $kind in
 		address-command)
-			COMPREPLY=( $( compgen -W "call debug delete export import instances io kill launch modules pull push resume snapshot status suspend unref wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call debug delete export import instances io kill launch modules pin pull push resume show snapshot status suspend unpin update wait" -- "$cur" ) )
 			;;
 
 		command)
-			COMPREPLY=( $( compgen -W "call debug delete export import instances io kill launch modules repl resume snapshot status suspend unref wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call debug delete export import instances io kill launch modules pin repl resume show snapshot status suspend unpin update wait" -- "$cur" ) )
 			;;
 
 		filename)

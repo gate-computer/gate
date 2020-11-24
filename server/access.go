@@ -25,9 +25,9 @@ const (
 
 // TODO: ResourcePolicy is not yet enforced by server
 type ResourcePolicy struct {
-	MaxModules        int // Module reference limit.
+	MaxModules        int // Pinned module limit.
 	MaxProcs          int // Active instance limit.
-	TotalStorageSize  int // Sum of referenced module and metadata sizes.
+	TotalStorageSize  int // Sum of pinned module and metadata sizes.
 	TotalResidentSize int // Sum of all memory mapping and buffer sizes.
 }
 
