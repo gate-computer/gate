@@ -3,8 +3,8 @@
 // license that can be found in the LICENSE file.
 
 // Package api contains definitions useful for accessing the HTTP and websocket
-// APIs.  See https://gate.computer/gate/blob/master/Web.md for general
-// documentation.
+// APIs.  See https://github.com/gate-computer/gate/blob/master/Web.md for
+// general documentation.
 //
 // This package avoids dependencies to the server implementation.
 package api

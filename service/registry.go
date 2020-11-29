@@ -54,8 +54,8 @@ func (InstanceBase) Shutdown(context.Context) error                             
 
 // Factory creates instances of a particular service implementation.
 //
-// See https://gate.computer/gate/blob/master/Service.md for service naming
-// conventions.
+// See https://github.com/gate-computer/gate/blob/master/Service.md for service
+// naming conventions.
 type Factory interface {
 	Service() Service
 	Discoverable(ctx context.Context) bool
