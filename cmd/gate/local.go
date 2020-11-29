@@ -488,8 +488,11 @@ func daemonCallGetInstanceInfo(id string) string {
 
 func daemonCallWait(id string) string {
 	call := daemonCall("Wait", id)
-	status := new(api.Status)
-	check(call.Store(&status.State, &status.Cause, &status.Result))
+	var (
+		status = new(api.Status)
+		tags   []string
+	)
+	check(call.Store(&status.State, &status.Cause, &status.Result, &tags))
 
 	return statusString(status)
 }
