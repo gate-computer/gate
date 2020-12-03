@@ -24,16 +24,16 @@ func (opt *ModuleUpload) takeStream() io.ReadCloser {
 	return r
 }
 
-func (opt *ModuleUpload) validate() error {
+func (opt *ModuleUpload) _validate() {
 	h := api.KnownModuleHash.New()
 
 	if _, err := io.Copy(h, opt.Stream); err != nil {
-		return wrapContentError(err)
+		panic(wrapContentError(err))
 	}
 
 	if err := opt.takeStream().Close(); err != nil {
-		return wrapContentError(err)
+		panic(wrapContentError(err))
 	}
 
-	return validateHashBytes(opt.Hash, h.Sum(nil))
+	_validateHashBytes(opt.Hash, h.Sum(nil))
 }

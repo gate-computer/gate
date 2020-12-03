@@ -33,18 +33,13 @@ var errModuleSizeMismatch = &badmodule.Dual{
 	Public:  "invalid module content",
 }
 
-func validateHashBytes(hash1 string, digest2 []byte) (err error) {
+func _validateHashBytes(hash1 string, digest2 []byte) {
 	digest1, err := hex.DecodeString(hash1)
-	if err != nil {
-		return
-	}
+	_check(err)
 
 	if subtle.ConstantTimeCompare(digest1, digest2) != 1 {
-		err = failrequest.New(event.FailModuleHashMismatch, "module hash does not match content")
-		return
+		panic(failrequest.New(event.FailModuleHashMismatch, "module hash does not match content"))
 	}
-
-	return
 }
 
 type program struct {
@@ -61,7 +56,7 @@ type program struct {
 
 // buildProgram returns an instance if instance policy is defined.  Entry name
 // can be provided only when building an instance.
-func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *ModuleUpload, entryName string) (prog *program, inst *image.Instance, err error) {
+func _buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *ModuleUpload, entryName string) (*program, *image.Instance) {
 	content := mod.takeStream()
 	defer func() {
 		if content != nil {
@@ -72,9 +67,7 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	var codeMap object.CallMap
 
 	b, err := build.New(storage, int(mod.Length), progPolicy.MaxTextSize, &codeMap, instPolicy != nil)
-	if err != nil {
-		return
-	}
+	_check(err)
 	defer b.Close()
 
 	hasher := api.KnownModuleHash.New()
@@ -83,95 +76,60 @@ func buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *
 	b.InstallEarlySnapshotLoaders()
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
-	if err != nil {
-		return
-	}
+	_check(err)
 
 	b.StackSize = progPolicy.MaxStackSize
 	if instPolicy != nil {
 		if b.StackSize > instPolicy.StackSize {
 			b.StackSize = instPolicy.StackSize
 		}
-		err = b.SetMaxMemorySize(instPolicy.MaxMemorySize)
-		if err != nil {
-			return
-		}
+		_check(b.SetMaxMemorySize(instPolicy.MaxMemorySize))
 	}
 
-	err = b.BindFunctions(entryName)
-	if err != nil {
-		return
-	}
+	_check(b.BindFunctions(entryName))
 
-	err = compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library())
-	if err != nil {
-		return
-	}
+	_check(compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library()))
 
-	err = b.VerifyBreakpoints()
-	if err != nil {
-		return
-	}
+	_check(b.VerifyBreakpoints())
 
 	b.InstallSnapshotDataLoaders()
 
-	err = compile.LoadCustomSections(&b.Config, reader)
-	if err != nil {
-		return
-	}
+	_check(compile.LoadCustomSections(&b.Config, reader))
 
-	err = b.FinishImageText()
-	if err != nil {
-		return
-	}
+	_check(b.FinishImageText())
 
 	b.InstallLateSnapshotLoaders()
 
-	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
-	if err != nil {
-		return
-	}
-
-	err = compile.LoadCustomSections(&b.Config, reader)
-	if err != nil {
-		return
-	}
+	_check(compile.LoadDataSection(b.DataConfig(), reader, b.Module))
+	_check(compile.LoadCustomSections(&b.Config, reader))
 
 	err = content.Close()
 	content = nil
 	if err != nil {
-		err = wrapContentError(err)
-		return
+		panic(wrapContentError(err))
 	}
 
 	actualHash := hasher.Sum(nil)
 
 	if mod.Hash != "" {
-		err = validateHashBytes(mod.Hash, actualHash)
-		if err != nil {
-			return
-		}
+		_validateHashBytes(mod.Hash, actualHash)
 	}
 
 	progImage, err := b.FinishProgramImage()
-	if err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			progImage.Close()
-		}
-	}()
+	_check(err)
+	defer closeProgramImage(&progImage)
+
+	var inst *image.Instance
 
 	if instPolicy != nil {
 		inst, err = b.FinishInstanceImage(progImage)
-		if err != nil {
-			return
-		}
+		_check(err)
 	}
 
-	prog = newProgram(api.EncodeKnownModule(actualHash), progImage, b.Buffers, false)
-	return
+	prog := newProgram(api.EncodeKnownModule(actualHash), progImage, b.Buffers, false)
+	progImage = nil
+
+	return prog, inst
 }
 
 func newProgram(id string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
@@ -220,7 +178,7 @@ func (prog *program) unref(lock serverLock) {
 	}
 }
 
-func (prog *program) ensureStorage() (err error) {
+func (prog *program) _ensureStorage() {
 	prog.storeMu.Lock()
 	defer prog.storeMu.Unlock()
 
@@ -228,19 +186,15 @@ func (prog *program) ensureStorage() (err error) {
 		return
 	}
 
-	err = prog.image.Store(prog.id)
-	if err != nil {
-		return
-	}
-
+	_check(prog.image.Store(prog.id))
 	prog.stored = true
-	return
 }
 
-func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, debugInfo bool, breakpoints []uint64) (progImage *image.Program, textMap stack.TextMap, err error) {
+func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, debugInfo bool, breakpoints []uint64) (*image.Program, stack.TextMap) {
 	var (
 		mapper  compile.ObjectMapper
 		callMap *object.CallMap
+		textMap stack.TextMap
 	)
 	if debugInfo {
 		m := new(debug.TrapMap)
@@ -255,9 +209,7 @@ func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, conte
 	}
 
 	b, err := build.New(storage, 0, progPolicy.MaxTextSize, callMap, false)
-	if err != nil {
-		return
-	}
+	_check(err)
 	defer b.Close()
 
 	reader := bufio.NewReader(content)
@@ -265,16 +217,11 @@ func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, conte
 	b.InstallEarlySnapshotLoaders()
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
-	if err != nil {
-		return
-	}
+	_check(err)
 
 	b.StackSize = progPolicy.MaxStackSize
 
-	err = b.BindFunctions("")
-	if err != nil {
-		return
-	}
+	_check(b.BindFunctions(""))
 
 	if b.Snapshot == nil {
 		b.Snapshot = new(snapshot.Snapshot)
@@ -286,35 +233,22 @@ func rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, conte
 		codeReader = debug.NewReadTeller(codeReader)
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(mapper), codeReader, b.Module, abi.Library())
-	if err != nil {
-		return
-	}
+	_check(compile.LoadCodeSection(b.CodeConfig(mapper), codeReader, b.Module, abi.Library()))
 
-	err = b.VerifyBreakpoints()
-	if err != nil {
-		return
-	}
+	_check(b.VerifyBreakpoints())
 
 	b.InstallSnapshotDataLoaders()
 
-	err = compile.LoadCustomSections(&b.Config, reader)
-	if err != nil {
-		return
-	}
+	_check(compile.LoadCustomSections(&b.Config, reader))
 
-	err = b.FinishImageText()
-	if err != nil {
-		return
-	}
+	_check(b.FinishImageText())
 
 	b.InstallLateSnapshotLoaders()
 
-	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
-	if err != nil {
-		return
-	}
+	_check(compile.LoadDataSection(b.DataConfig(), reader, b.Module))
 
-	progImage, err = b.FinishProgramImage()
-	return
+	progImage, err := b.FinishProgramImage()
+	_check(err)
+
+	return progImage, textMap
 }
