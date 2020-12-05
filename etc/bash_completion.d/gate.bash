@@ -66,7 +66,7 @@ __gate_completion()
 							import) kind=filename ;;
 							export) kind=module-filename ;;
 							call|launch|pin|show|unpin) kind=module ;;
-							debug|delete|io|kill|resume|snapshot|status|suspend|update|wait) kind=instance ;;
+							debug|delete|io|kill|repl|resume|snapshot|status|suspend|update|wait) kind=instance ;;
 							pull|push) kind=address2 ;;
 							*) return ;;
 						esac
@@ -108,7 +108,7 @@ __gate_completion()
 
 	case $kind in
 		address-command)
-			COMPREPLY=( $( compgen -W "call debug delete export import instances io kill launch modules pin pull push resume show snapshot status suspend unpin update wait" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "call debug delete export import instances io kill launch modules pin pull push repl resume show snapshot status suspend unpin update wait" -- "$cur" ) )
 			;;
 
 		command)

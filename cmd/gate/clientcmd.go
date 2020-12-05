@@ -68,6 +68,7 @@ Common commands:
   status    get current status and other instance information
   suspend   suspend a running instance
   pin       remember a wasm module or update its tags
+  repl      connect to a running instance and present a line-oriented text UI
   unpin     forget a wasm module
   update    update instance's tags (and make it persistent if necessary)
   wait      wait until an instance is suspended, halted, terminated or killed
@@ -75,9 +76,6 @@ Common commands:
 Local commands (no address before command):
   pull      copy a wasm module from a remote server to local storage
   push      copy a wasm module from local storage to a remote server
-
-Remote commands (server address must be specified before command):
-  repl      connect to a running instance in interactive mode
 
 Address examples:
   example.net           (scheme defaults to https)
