@@ -55,6 +55,7 @@ __gate_completion()
 	addr=
 	cmd=
 	kind=address-command
+	optargs=true
 	ignore=false
 
 	for ((i=1; i < $COMP_CWORD; i++)); do
@@ -63,8 +64,9 @@ __gate_completion()
 		if $ignore; then
 			ignore=false
 		elif [ "${cur::1}" = "-" ]; then
-			ignore=true
+			ignore=$optargs
 		else
+			optargs=false
 			case $kind in
 				address-command)
 					if echo "$cur" | grep -qE '(\.|://)'; then
