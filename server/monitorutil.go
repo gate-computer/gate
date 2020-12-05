@@ -14,9 +14,9 @@ import (
 func defaultMonitor(ev Event, err error) {
 	if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
 		if err == nil {
-			log.Printf("%vevent:%s", ev, ev.EventName())
+			log.Printf("%v  event:%s", ev, ev.EventName())
 		} else {
-			log.Printf("%vevent:%s error:%q", ev, ev.EventName(), err.Error())
+			log.Printf("%v  event:%s  error:%q", ev, ev.EventName(), err.Error())
 		}
 	}
 }
@@ -54,8 +54,8 @@ func ErrorLogger(errorLog Logger) func(Event, error) {
 
 func printToLogger(l Logger, ev Event, err error) {
 	if err == nil {
-		l.Printf("%vevent:%s", ev, ev.EventName())
+		l.Printf("%v  event:%s", ev, ev.EventName())
 	} else {
-		l.Printf("%vevent:%s error:%q", ev, ev.EventName(), err.Error())
+		l.Printf("%v  event:%s  error:%q", ev, ev.EventName(), err.Error())
 	}
 }
