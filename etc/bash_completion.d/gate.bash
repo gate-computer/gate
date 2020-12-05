@@ -9,16 +9,26 @@ __gate_complete_module()
 	gate="${COMP_WORDS[0]}"
 	cur="${COMP_WORDS[$COMP_CWORD]}"
 
-	if echo "$cur" | grep -qE '(\.|/)'; then
-		COMPREPLY=( $( compgen -f -- "$cur" ) )
+	if echo "$cur" | grep -q '[./]'; then
+		COMPREPLY=( $( compgen -f -o plusdirs -- "$cur" ) )
 	else
 		if [ -z "$2" ] || [ "$1" = push ]; then
 			output=$( "$gate" modules 2>/dev/null | cut -d" " -f1 )
 		else
 			output=$( "$gate" "$2" modules 2>/dev/null | cut -d" " -f1 )
 		fi
-		COMPREPLY=( $( compgen -W "$output" -- "$cur" ) )
+		COMPREPLY=( $( compgen -f -o plusdirs -W "$output" -- "$cur" ) )
 	fi
+
+	i=0
+	for x in ${COMPREPLY[*]}; do
+		if [ -d "$x" ]; then
+			x="$x/"
+		else
+			x="$x "
+		fi
+		COMPREPLY[i++]="$x"
+	done
 }
 
 __gate_complete_instance()
@@ -131,6 +141,14 @@ __gate_completion()
 			return
 			;;
 	esac
+
+	i=0
+	for x in ${COMPREPLY[*]}; do
+		if echo "$x" | grep -q '[^ /]$'; then
+			x="$x "
+		fi
+		COMPREPLY[i++]="$x"
+	done
 }
 
-complete -F __gate_completion gate
+complete -o nospace -F __gate_completion gate
