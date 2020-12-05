@@ -323,6 +323,12 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
+		"ConnectInstance": func(instanceID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			ok = connectInstance(ctx, s(), instanceID, rFD, wFD)
+			return
+		},
+
 		"DebugInstance": func(instanceID string, reqProtoBuf []byte) (resProtoBuf []byte, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			resProtoBuf = debugInstance(ctx, s(), instanceID, reqProtoBuf)
@@ -350,12 +356,6 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 		"GetInstanceInfo": func(instanceID string) (state api.State, cause api.Cause, result int32, tags []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			state, cause, result, tags = getInstanceInfo(ctx, s(), instanceID)
-			return
-		},
-
-		"InstanceIO": func(instanceID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			ok = instanceIO(ctx, s(), instanceID, rFD, wFD)
 			return
 		},
 
@@ -647,7 +647,7 @@ func resumeInstance(ctx context.Context, s *server.Server, instance string, resu
 	check(err)
 }
 
-func instanceIO(ctx context.Context, s *server.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
+func connectInstance(ctx context.Context, s *server.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
 	var err error
 	if err == nil {
 		err = syscall.SetNonblock(int(rFD), true)

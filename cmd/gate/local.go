@@ -203,7 +203,7 @@ var localCommands = map[string]command{
 			rFD := dbus.UnixFD(r.Fd())
 			wFD := dbus.UnixFD(w.Fd())
 
-			call := daemonCall("InstanceIO", flag.Arg(0), rFD, wFD)
+			call := daemonCall("ConnectInstance", flag.Arg(0), rFD, wFD)
 			closeFiles(r, w)
 
 			var ok bool
@@ -360,7 +360,7 @@ var localCommands = map[string]command{
 			call := make(chan *dbus.Call, 1)
 			go func() {
 				defer close(call)
-				call <- daemonCall("InstanceIO", flag.Arg(0), orFD, iwFD)
+				call <- daemonCall("ConnectInstance", flag.Arg(0), orFD, iwFD)
 				closeFiles(or, iw)
 			}()
 
