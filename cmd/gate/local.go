@@ -45,45 +45,46 @@ var localCommands = map[string]command{
 		detail: moduleUsage,
 		parse:  parseCallFlags,
 		do: func() {
+			module := flag.Arg(0)
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
 			}
+
+			suspend := newSignalPipe(syscall.SIGQUIT)
+			suspendFD := dbus.UnixFD(suspend.Fd())
 
 			r, w := openStdio()
 			rFD := dbus.UnixFD(r.Fd())
 			wFD := dbus.UnixFD(w.Fd())
 
-			suspend := newSignalPipe(syscall.SIGQUIT)
-			suspendFD := dbus.UnixFD(suspend.Fd())
-
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
 
 			var (
-				module *os.File
-				call   *dbus.Call
+				moduleFile *os.File
+				call       *dbus.Call
 			)
-			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
-				call = daemonCall("CallKey", flag.Arg(0), c.Function, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.InstanceTags, c.ModuleTags, c.Scope)
+			if !(strings.Contains(module, "/") || strings.Contains(module, ".")) {
+				call = daemonCall("Call", module, c.Function, c.InstanceTags, c.Scope, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			} else {
-				module = openFile(flag.Arg(0))
-				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Function, c.Pin, rFD, wFD, suspendFD, debugFD, c.DebugLog != "", c.Scope)
+				moduleFile = openFile(module)
+				moduleFD := dbus.UnixFD(moduleFile.Fd())
+				call = daemonCall("CallFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.InstanceTags, c.Scope, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			}
-			closeFiles(module, r, w, suspend, debug)
+			closeFiles(suspend, r, w, debug, moduleFile)
 
 			var (
-				instID string
-				status = new(api.Status)
+				instanceID string
+				status     = new(api.Status)
 			)
-			check(call.Store(&instID, &status.State, &status.Cause, &status.Result))
+			check(call.Store(&instanceID, &status.State, &status.Cause, &status.Result))
 
 			switch status.State {
 			case api.StateSuspended:
-				fmt.Fprintln(terminalOr(os.Stderr), instID, statusString(status))
+				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
 
 			case api.StateHalted:
-				fmt.Fprintln(terminalOr(os.Stderr), instID, statusString(status))
+				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
 				os.Exit(int(status.Result))
 
 			case api.StateTerminated:
@@ -93,7 +94,7 @@ var localCommands = map[string]command{
 				log.Fatal(statusString(status))
 
 			default:
-				log.Fatal(instID, statusString(status))
+				log.Fatal(instanceID, statusString(status))
 			}
 		},
 	},
@@ -105,7 +106,7 @@ var localCommands = map[string]command{
 				reqBuf, err := proto.Marshal(req)
 				check(err)
 
-				call := daemonCall("Debug", instID, reqBuf)
+				call := daemonCall("DebugInstance", instID, reqBuf)
 				var resBuf []byte
 				check(call.Store(&resBuf))
 
@@ -119,7 +120,7 @@ var localCommands = map[string]command{
 	"delete": {
 		usage: "instance",
 		do: func() {
-			check(daemonCall("Delete", flag.Arg(0)).Store())
+			check(daemonCall("DeleteInstance", flag.Arg(0)).Store())
 		},
 	},
 
@@ -131,7 +132,7 @@ var localCommands = map[string]command{
 				filename = flag.Arg(1)
 			}
 
-			exportLocal(flag.Arg(0), filename)
+			exportLocalModule(flag.Arg(0), filename)
 		},
 	},
 
@@ -169,17 +170,17 @@ var localCommands = map[string]command{
 			}
 
 			rFD := dbus.UnixFD(r.Fd())
-			call := daemonCall("Upload", rFD, length, "", c.ModuleTags)
+			call := daemonCall("UploadModule", rFD, length, "", c.ModuleTags)
 			closeFiles(r)
 
-			var progID string
-			check(call.Store(&progID))
+			var moduleID string
+			check(call.Store(&moduleID))
 
 			if copied != nil {
 				check(<-copied)
 			}
 
-			fmt.Println(progID)
+			fmt.Println(moduleID)
 		},
 	},
 
@@ -202,7 +203,7 @@ var localCommands = map[string]command{
 			rFD := dbus.UnixFD(r.Fd())
 			wFD := dbus.UnixFD(w.Fd())
 
-			call := daemonCall("IO", flag.Arg(0), rFD, wFD)
+			call := daemonCall("InstanceIO", flag.Arg(0), rFD, wFD)
 			closeFiles(r, w)
 
 			var ok bool
@@ -225,6 +226,7 @@ var localCommands = map[string]command{
 		usage:  "module [function [instancetag...]]",
 		detail: moduleUsage,
 		do: func() {
+			module := flag.Arg(0)
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
 				if tail := flag.Args()[2:]; len(tail) != 0 {
@@ -236,22 +238,22 @@ var localCommands = map[string]command{
 			debugFD := dbus.UnixFD(debug.Fd())
 
 			var (
-				module *os.File
-				call   *dbus.Call
+				moduleFile *os.File
+				call       *dbus.Call
 			)
-			if !(strings.Contains(flag.Arg(0), "/") || strings.Contains(flag.Arg(0), ".")) {
-				call = daemonCall("LaunchKey", flag.Arg(0), c.Function, c.Suspend, debugFD, c.DebugLog != "", c.InstanceTags, c.ModuleTags, c.Scope)
+			if !(strings.Contains(module, "/") || strings.Contains(module, ".")) {
+				call = daemonCall("Launch", module, c.Function, c.Suspend, c.InstanceTags, c.Scope, debugFD, c.DebugLog != "")
 			} else {
-				module = openFile(flag.Arg(0))
-				moduleFD := dbus.UnixFD(module.Fd())
-				call = daemonCall("LaunchFile", moduleFD, c.Function, c.Pin, c.Suspend, debugFD, c.DebugLog != "", c.InstanceTags, c.ModuleTags, c.Scope)
+				moduleFile = openFile(module)
+				moduleFD := dbus.UnixFD(moduleFile.Fd())
+				call = daemonCall("LaunchFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.Suspend, c.InstanceTags, c.Scope, debugFD, c.DebugLog != "")
 			}
-			closeFiles(module, debug)
+			closeFiles(debug, moduleFile)
 
-			var instance string
-			check(call.Store(&instance))
+			var instanceID string
+			check(call.Store(&instanceID))
 
-			fmt.Println(instance)
+			fmt.Println(instanceID)
 		},
 	},
 
@@ -278,7 +280,7 @@ var localCommands = map[string]command{
 				c.ModuleTags = tail
 			}
 
-			check(daemonCall("Pin", flag.Arg(0), c.ModuleTags).Store())
+			check(daemonCall("PinModule", flag.Arg(0), c.ModuleTags).Store())
 		},
 	},
 
@@ -303,11 +305,11 @@ var localCommands = map[string]command{
 			}()
 
 			rFD := dbus.UnixFD(r.Fd())
-			call := daemonCall("Upload", rFD, resp.ContentLength, flag.Arg(1))
+			call := daemonCall("UploadModule", rFD, resp.ContentLength, flag.Arg(1), c.ModuleTags)
 			closeFiles(r)
 
-			var progID string
-			check(call.Store(&progID))
+			var moduleID string
+			check(call.Store(&moduleID))
 
 			check(<-copied)
 		},
@@ -322,7 +324,7 @@ var localCommands = map[string]command{
 			check(err)
 
 			wFD := dbus.UnixFD(w.Fd())
-			call := daemonCall("Download", wFD, flag.Arg(1))
+			call := daemonCall("DownloadModule", wFD, flag.Arg(1))
 			closeFiles(w)
 
 			var moduleLen int64
@@ -358,7 +360,7 @@ var localCommands = map[string]command{
 			call := make(chan *dbus.Call, 1)
 			go func() {
 				defer close(call)
-				call <- daemonCall("IO", flag.Arg(0), orFD, iwFD)
+				call <- daemonCall("InstanceIO", flag.Arg(0), orFD, iwFD)
 				closeFiles(or, iw)
 			}()
 
@@ -386,7 +388,7 @@ var localCommands = map[string]command{
 
 			debug := openDebugFile()
 			debugFD := dbus.UnixFD(debug.Fd())
-			call := daemonCall("Resume", flag.Arg(0), c.Function, debugFD, c.DebugLog != "", c.Scope)
+			call := daemonCall("ResumeInstance", flag.Arg(0), c.Function, c.Scope, debugFD, c.DebugLog != "")
 			closeFiles(debug)
 			check(call.Store())
 		},
@@ -411,10 +413,10 @@ var localCommands = map[string]command{
 			}
 
 			call := daemonCall("Snapshot", flag.Arg(0), c.ModuleTags)
-			var progID string
-			check(call.Store(&progID))
+			var moduleID string
+			check(call.Store(&moduleID))
 
-			fmt.Println(progID)
+			fmt.Println(moduleID)
 		},
 	},
 
@@ -435,7 +437,7 @@ var localCommands = map[string]command{
 	"unpin": {
 		usage: "module",
 		do: func() {
-			check(daemonCall("Unpin", flag.Arg(0)).Store())
+			check(daemonCall("UnpinModule", flag.Arg(0)).Store())
 		},
 	},
 
@@ -450,7 +452,7 @@ var localCommands = map[string]command{
 				log.Fatal("no tags")
 			}
 
-			call := daemonCall("Update", flag.Arg(0), true, tags)
+			call := daemonCall("UpdateInstance", flag.Arg(0), true, tags)
 			check(call.Store())
 		},
 	},
@@ -458,18 +460,18 @@ var localCommands = map[string]command{
 	"wait": {
 		usage: "instance",
 		do: func() {
-			fmt.Println(daemonCallWait(flag.Arg(0)))
+			fmt.Println(daemonCallWaitInstance(flag.Arg(0)))
 		},
 	},
 }
 
-func exportLocal(module, filename string) {
+func exportLocalModule(moduleID, filename string) {
 	download(filename, func() (r io.Reader, moduleLen int64) {
 		r, w, err := os.Pipe()
 		check(err)
 
 		wFD := dbus.UnixFD(w.Fd())
-		call := daemonCall("Download", wFD, module)
+		call := daemonCall("DownloadModule", wFD, moduleID)
 		closeFiles(w)
 
 		check(call.Store(&moduleLen))
@@ -479,20 +481,19 @@ func exportLocal(module, filename string) {
 
 func daemonCallGetInstanceInfo(id string) string {
 	call := daemonCall("GetInstanceInfo", id)
-	var status = new(api.Status)
-	var tags []string
-	check(call.Store(&status.State, &status.Cause, &status.Result, &tags))
-
-	return fmt.Sprintf("%s %s", statusString(status), tags)
-}
-
-func daemonCallWait(id string) string {
-	call := daemonCall("Wait", id)
 	var (
 		status = new(api.Status)
 		tags   []string
 	)
 	check(call.Store(&status.State, &status.Cause, &status.Result, &tags))
+
+	return fmt.Sprintf("%s %s", statusString(status), tags)
+}
+
+func daemonCallWaitInstance(id string) string {
+	call := daemonCall("WaitInstance", id)
+	status := new(api.Status)
+	check(call.Store(&status.State, &status.Cause, &status.Result))
 
 	return statusString(status)
 }
@@ -501,7 +502,7 @@ func daemonCallInstanceWaiter(method, id string) {
 	check(daemonCall(method, id).Store())
 
 	if c.Wait {
-		fmt.Println(daemonCallWait(id))
+		fmt.Println(daemonCallWaitInstance(id))
 	}
 }
 

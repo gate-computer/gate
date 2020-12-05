@@ -875,7 +875,7 @@ func (s *Server) DeleteInstance(ctx context.Context, instance string) (err error
 	return
 }
 
-func (s *Server) SnapshotInstance(ctx context.Context, instance string, know *api.ModuleOptions) (module string, err error) {
+func (s *Server) Snapshot(ctx context.Context, instance string, know *api.ModuleOptions) (module string, err error) {
 	defer func() { err = asError(recover()) }()
 	know = _prepareModuleOptions(know)
 	if !know.GetPin() {

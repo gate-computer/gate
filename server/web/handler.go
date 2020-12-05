@@ -1296,7 +1296,7 @@ func handleInstanceSnapshot(w http.ResponseWriter, r *http.Request, s *webserver
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	module, err := s.Server.SnapshotInstance(ctx, instance, modulePin(true, modTags))
+	module, err := s.Server.Snapshot(ctx, instance, modulePin(true, modTags))
 	if err != nil {
 		respondServerError(ctx, wr, s, "", "", "", instance, err)
 		return

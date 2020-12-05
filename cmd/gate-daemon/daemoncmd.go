@@ -275,34 +275,70 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	}
 
 	methods := map[string]interface{}{
-		"CallKey": func(key, function string, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugLogging bool, instTags, modTags, scope []string) (instance string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"Call": func(
+			moduleID string,
+			function string,
+			instanceTags []string,
+			scope []string,
+			suspendFD dbus.UnixFD,
+			rFD dbus.UnixFD,
+			wFD dbus.UnixFD,
+			debugFD dbus.UnixFD,
+			debugLogging bool,
+		) (instanceID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			instance, state, cause, result = handleCall(ctx, s(), nil, key, function, false, rFD, wFD, suspendFD, debugFD, debugLogging, instTags, modTags, scope)
+			launch := &api.LaunchOptions{
+				Function:  function,
+				Transient: true,
+				Tags:      instanceTags,
+			}
+			ctx = server.ContextWithScope(ctx, scope)
+			instanceID, state, cause, result = doCall(ctx, s(), moduleID, nil, nil, launch, suspendFD, rFD, wFD, debugFD, debugLogging)
 			return
 		},
 
-		"CallFile": func(moduleFD dbus.UnixFD, function string, ref bool, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugLogging bool, instTags, modTags, scope []string) (instance string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"CallFile": func(
+			moduleFD dbus.UnixFD,
+			modulePin bool,
+			moduleTags []string,
+			function string,
+			instanceTags []string,
+			scope []string,
+			suspendFD dbus.UnixFD,
+			rFD dbus.UnixFD,
+			wFD dbus.UnixFD,
+			debugFD dbus.UnixFD,
+			debugLogging bool,
+		) (instanceID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			instance, state, cause, result = handleCall(ctx, s(), os.NewFile(uintptr(moduleFD), "module"), "", function, ref, rFD, wFD, suspendFD, debugFD, debugLogging, instTags, modTags, scope)
+			moduleFile := os.NewFile(uintptr(moduleFD), "module")
+			moduleOpt := moduleOptions(modulePin, moduleTags)
+			launch := &api.LaunchOptions{
+				Function:  function,
+				Transient: true,
+				Tags:      instanceTags,
+			}
+			ctx = server.ContextWithScope(ctx, scope)
+			instanceID, state, cause, result = doCall(ctx, s(), "", moduleFile, moduleOpt, launch, suspendFD, rFD, wFD, debugFD, debugLogging)
 			return
 		},
 
-		"Debug": func(instance string, req []byte) (res []byte, err *dbus.Error) {
+		"DebugInstance": func(instanceID string, reqProtoBuf []byte) (resProtoBuf []byte, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			res = handleInstanceDebug(ctx, s(), instance, req)
+			resProtoBuf = debugInstance(ctx, s(), instanceID, reqProtoBuf)
 			return
 		},
 
-		"Delete": func(instance string) (err *dbus.Error) {
+		"DeleteInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceDelete(ctx, s(), instance)
+			deleteInstance(ctx, s(), instanceID)
 			return
 		},
 
-		"Download": func(moduleFD dbus.UnixFD, key string) (moduleLen int64, err *dbus.Error) {
+		"DownloadModule": func(moduleFD dbus.UnixFD, moduleID string) (moduleLen int64, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			module := os.NewFile(uintptr(moduleFD), "module")
-			r, moduleLen := handleModuleDownload(ctx, s(), key)
+			r, moduleLen := downloadModule(ctx, s(), moduleID)
 			go func() {
 				defer module.Close()
 				defer r.Close()
@@ -311,87 +347,136 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
+		"GetInstanceInfo": func(instanceID string) (state api.State, cause api.Cause, result int32, tags []string, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			state, cause, result, tags = getInstanceInfo(ctx, s(), instanceID)
+			return
+		},
+
+		"InstanceIO": func(instanceID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			ok = instanceIO(ctx, s(), instanceID, rFD, wFD)
+			return
+		},
+
+		"Launch": func(
+			moduleID string,
+			function string,
+			suspend bool,
+			instanceTags []string,
+			scope []string,
+			debugFD dbus.UnixFD,
+			debugLogging bool,
+		) (instanceID string, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			launch := &api.LaunchOptions{
+				Function: function,
+				Suspend:  suspend,
+				Tags:     instanceTags,
+			}
+			ctx = server.ContextWithScope(ctx, scope)
+			inst := doLaunch(ctx, s(), moduleID, nil, nil, launch, debugFD, debugLogging)
+			instanceID = inst.ID
+			return
+		},
+
+		"LaunchFile": func(
+			moduleFD dbus.UnixFD,
+			modulePin bool,
+			moduleTags []string,
+			function string,
+			suspend bool,
+			instanceTags []string,
+			scope []string,
+			debugFD dbus.UnixFD,
+			debugLogging bool,
+		) (instanceID string, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			moduleFile := os.NewFile(uintptr(moduleFD), "module")
+			moduleOpt := moduleOptions(modulePin, moduleTags)
+			launch := &api.LaunchOptions{
+				Function: function,
+				Suspend:  suspend,
+				Tags:     instanceTags,
+			}
+			ctx = server.ContextWithScope(ctx, scope)
+			inst := doLaunch(ctx, s(), "", moduleFile, moduleOpt, launch, debugFD, debugLogging)
+			instanceID = inst.ID
+			return
+		},
+
 		"ListInstances": func() (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			list = handleInstanceList(ctx, s())
-			return
-		},
-
-		"GetInstanceInfo": func(instance string) (state api.State, cause api.Cause, result int32, tags []string, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			state, cause, result, tags = handleInstanceInfo(ctx, s(), instance)
-			return
-		},
-
-		"Wait": func(instance string) (state api.State, cause api.Cause, result int32, tags []string, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			state, cause, result = handleInstanceWait(ctx, s(), instance)
-			return
-		},
-
-		"IO": func(instance string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			ok = handleInstanceConnect(ctx, s(), instance, rFD, wFD)
-			return
-		},
-
-		"LaunchKey": func(key, function string, suspend bool, debugFD dbus.UnixFD, debugLogging bool, instTags, modTags, scope []string) (instance string, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			instance = handleLaunch(ctx, s(), nil, key, function, false, suspend, debugFD, debugLogging, instTags, modTags, scope)
-			return
-		},
-
-		"LaunchFile": func(moduleFD dbus.UnixFD, function string, ref, suspend bool, debugFD dbus.UnixFD, debugLogging bool, instTags, modTags, scope []string) (instance string, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			instance = handleLaunch(ctx, s(), os.NewFile(uintptr(moduleFD), "module"), "", function, ref, suspend, debugFD, debugLogging, instTags, modTags, scope)
+			list = listInstances(ctx, s())
 			return
 		},
 
 		"ListModules": func() (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			list = handleModuleList(ctx, s())
+			list = listModules(ctx, s())
 			return
 		},
 
-		"GetModuleInfo": func(module string) (tags []string, err *dbus.Error) {
+		"GetModuleInfo": func(moduleID string) (tags []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			tags = handleModuleInfo(ctx, s(), module)
+			tags = getModuleInfo(ctx, s(), moduleID)
 			return
 		},
 
-		"Resume": func(instance, function string, debugFD dbus.UnixFD, debugLogging bool, scope []string) (err *dbus.Error) {
+		"PinModule": func(moduleID string, tags []string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceResume(ctx, s(), instance, function, debugFD, debugLogging, scope)
+			opt := &api.ModuleOptions{
+				Pin:  true,
+				Tags: tags,
+			}
+			pinModule(ctx, s(), moduleID, opt)
 			return
 		},
 
-		"Snapshot": func(instance string) (module string, err *dbus.Error) {
+		"ResumeInstance": func(instanceID, function string, scope []string, debugFD dbus.UnixFD, debugLogging bool) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			module = handleInstanceSnapshot(ctx, s(), instance)
+			resume := &api.ResumeOptions{
+				Function: function,
+			}
+			ctx = server.ContextWithScope(ctx, scope)
+			resumeInstance(ctx, s(), instanceID, resume, debugFD, debugLogging)
 			return
 		},
 
-		"Pin": func(key string, tags []string) (err *dbus.Error) {
+		"Snapshot": func(instanceID string, moduleTags []string) (moduleID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleModulePin(ctx, s(), key, tags)
+			moduleOpt := moduleOptions(true, moduleTags)
+			moduleID = snapshot(ctx, s(), instanceID, moduleOpt)
 			return
 		},
 
-		"Unpin": func(key string) (err *dbus.Error) {
+		"UnpinModule": func(moduleID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleModuleUnpin(ctx, s(), key)
+			unpinModule(ctx, s(), moduleID)
 			return
 		},
 
-		"Update": func(instance string, persist bool, tags []string) (err *dbus.Error) {
+		"UpdateInstance": func(instanceID string, persist bool, tags []string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstanceUpdate(ctx, s(), instance, persist, tags)
+			update := &api.InstanceUpdate{
+				Persist: persist,
+				Tags:    tags,
+			}
+			updateInstance(ctx, s(), instanceID, update)
 			return
 		},
 
-		"Upload": func(moduleFD dbus.UnixFD, moduleLen int64, key string, tags []string) (module string, err *dbus.Error) {
+		"UploadModule": func(fd dbus.UnixFD, length int64, hash string, tags []string) (moduleID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			module = handleModuleUpload(ctx, s(), os.NewFile(uintptr(moduleFD), "module"), moduleLen, key, tags)
+			file := os.NewFile(uintptr(fd), "module")
+			opt := moduleOptions(true, tags)
+			moduleID = uploadModule(ctx, s(), file, length, hash, opt)
+			return
+		},
+
+		"WaitInstance": func(instanceID string) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			state, cause, result = waitInstance(ctx, s(), instanceID)
 			return
 		},
 	}
@@ -401,9 +486,9 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 		"Suspend": (*server.Server).SuspendInstance,
 	} {
 		f := f // Closure needs a local copy of the iterator's current value.
-		methods[name] = func(instance string) (err *dbus.Error) {
+		methods[name] = func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			handleInstance(ctx, s(), f, instance)
+			doInstanceOp(ctx, s(), f, instanceID)
 			return
 		}
 	}
@@ -411,7 +496,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	return methods
 }
 
-func handleModuleList(ctx context.Context, s *server.Server) []string {
+func listModules(ctx context.Context, s *server.Server) []string {
 	refs, err := s.Modules(ctx)
 	check(err)
 	sort.Sort(refs)
@@ -422,98 +507,75 @@ func handleModuleList(ctx context.Context, s *server.Server) []string {
 	return ids
 }
 
-func handleModuleInfo(ctx context.Context, s *server.Server, key string) (tags []string) {
-	info, err := s.ModuleInfo(ctx, key)
+func getModuleInfo(ctx context.Context, s *server.Server, moduleID string) (tags []string) {
+	info, err := s.ModuleInfo(ctx, moduleID)
 	check(err)
 	return info.Tags
 }
 
-func handleModuleDownload(ctx context.Context, s *server.Server, key string,
-) (content io.ReadCloser, contentLen int64) {
-	content, contentLen, err := s.ModuleContent(ctx, key)
+func downloadModule(ctx context.Context, s *server.Server, moduleID string) (io.ReadCloser, int64) {
+	stream, length, err := s.ModuleContent(ctx, moduleID)
 	check(err)
-	return
+	return stream, length
 }
 
-func handleModuleUpload(ctx context.Context, s *server.Server, module *os.File, moduleLen int64, key string, tags []string) string {
+func uploadModule(ctx context.Context, s *server.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
 	upload := &server.ModuleUpload{
-		Stream: module,
-		Length: moduleLen,
-		Hash:   key,
+		Stream: file,
+		Length: length,
+		Hash:   hash,
 	}
 	defer upload.Close()
 
-	id, err := s.UploadModule(ctx, upload, moduleOptions(true, tags))
+	id, err := s.UploadModule(ctx, upload, opt)
 	check(err)
 	return id
 }
 
-func handleModulePin(ctx context.Context, s *server.Server, key string, tags []string) {
-	check(s.PinModule(ctx, key, &api.ModuleOptions{
-		Pin:  true,
-		Tags: tags,
-	}))
+func pinModule(ctx context.Context, s *server.Server, moduleID string, opt *api.ModuleOptions) {
+	check(s.PinModule(ctx, moduleID, opt))
 }
 
-func handleModuleUnpin(ctx context.Context, s *server.Server, key string) {
-	check(s.UnpinModule(ctx, key))
+func unpinModule(ctx context.Context, s *server.Server, moduleID string) {
+	check(s.UnpinModule(ctx, moduleID))
 }
 
-func handleCall(ctx context.Context, s *server.Server, module *os.File, key, function string, ref bool, rFD, wFD, suspendFD, debugFD dbus.UnixFD, debugLogging bool, instTags, modTags, scope []string) (instance string, state api.State, cause api.Cause, result int32) {
-	invoke := invokeOptions(debugFD, debugLogging)
-	defer invoke.Close()
-
-	var err error
-	if err == nil {
-		err = syscall.SetNonblock(int(rFD), true)
-	}
-	if err == nil {
-		err = syscall.SetNonblock(int(wFD), true)
-	}
-	if err == nil {
-		err = syscall.SetNonblock(int(suspendFD), true)
-	}
-
-	var (
-		r       = os.NewFile(uintptr(rFD), "r")
-		w       = os.NewFile(uintptr(wFD), "w")
-		suspend = os.NewFile(uintptr(suspendFD), "suspend")
-	)
+// doCall module id or file.  Module options apply only to module file.
+func doCall(
+	ctx context.Context,
+	s *server.Server,
+	moduleID string,
+	moduleFile *os.File,
+	moduleOpt *api.ModuleOptions,
+	launch *api.LaunchOptions,
+	suspendFD dbus.UnixFD,
+	rFD dbus.UnixFD,
+	wFD dbus.UnixFD,
+	debugFD dbus.UnixFD,
+	debugLogging bool,
+) (string, api.State, api.Cause, int32) {
+	syscall.SetNonblock(int(suspendFD), true)
+	suspend := os.NewFile(uintptr(suspendFD), "suspend")
 	defer func() {
-		r.Close()
-		w.Close()
 		if suspend != nil {
 			suspend.Close()
 		}
 	}()
 
-	if err != nil {
-		panic(err) // First SetNonblock error.
-	}
+	syscall.SetNonblock(int(rFD), true)
+	r := os.NewFile(uintptr(rFD), "r")
+	defer r.Close()
 
-	upload := moduleUpload(module)
-	defer upload.Close()
+	syscall.SetNonblock(int(wFD), true)
+	w := os.NewFile(uintptr(wFD), "w")
+	defer w.Close()
 
-	ctx = server.ContextWithScope(ctx, scope)
-
-	launch := &api.LaunchOptions{
-		Function:  function,
-		Tags:      instTags,
-		Transient: true,
-	}
-
-	var inst *server.Instance
-	if upload != nil {
-		inst, err = s.UploadModuleInstance(ctx, upload, moduleOptions(ref, modTags), launch, invoke)
-	} else {
-		inst, err = s.NewInstance(ctx, key, launch, invoke)
-	}
-	check(err)
+	inst := doLaunch(ctx, s, moduleID, moduleFile, moduleOpt, launch, debugFD, debugLogging)
 	defer inst.Kill()
 
 	go func(suspend *os.File) {
 		defer suspend.Close()
-		if n, _ := io.ReadFull(suspend, make([]byte, 1)); n > 0 {
+		if n, _ := suspend.Read(make([]byte, 1)); n > 0 {
 			inst.Suspend()
 		}
 	}(suspend)
@@ -524,36 +586,33 @@ func handleCall(ctx context.Context, s *server.Server, module *os.File, key, fun
 	return inst.ID, status.State, status.Cause, status.Result
 }
 
-func handleLaunch(ctx context.Context, s *server.Server, module *os.File, key, function string, ref, suspend bool, debugFD dbus.UnixFD, debugLogging bool, instTags, modTags, scope []string) string {
+// doLaunch module id or file.  Module options apply only to module file.
+func doLaunch(
+	ctx context.Context,
+	s *server.Server,
+	moduleID string,
+	moduleFile *os.File,
+	moduleOpt *api.ModuleOptions,
+	launch *api.LaunchOptions,
+	debugFD dbus.UnixFD,
+	debugLogging bool,
+) (inst *server.Instance) {
 	invoke := invokeOptions(debugFD, debugLogging)
 	defer invoke.Close()
 
-	upload := moduleUpload(module)
-	defer upload.Close()
-
-	ctx = server.ContextWithScope(ctx, scope)
-
-	launch := &api.LaunchOptions{
-		Function: function,
-		Suspend:  suspend,
-		Tags:     instTags,
-	}
-
-	var (
-		inst *server.Instance
-		err  error
-	)
-	if upload != nil {
-		inst, err = s.UploadModuleInstance(ctx, upload, moduleOptions(ref, modTags), launch, invoke)
+	var err error
+	if moduleFile != nil {
+		upload := moduleUpload(moduleFile)
+		defer upload.Close()
+		inst, err = s.UploadModuleInstance(ctx, upload, moduleOpt, launch, invoke)
 	} else {
-		inst, err = s.NewInstance(ctx, key, launch, invoke)
+		inst, err = s.NewInstance(ctx, moduleID, launch, invoke)
 	}
 	check(err)
-
-	return inst.ID
+	return
 }
 
-func handleInstanceList(ctx context.Context, s *server.Server) []string {
+func listInstances(ctx context.Context, s *server.Server) []string {
 	instances, err := s.Instances(ctx)
 	check(err)
 	sort.Sort(instances)
@@ -564,25 +623,23 @@ func handleInstanceList(ctx context.Context, s *server.Server) []string {
 	return ids
 }
 
-func handleInstanceInfo(ctx context.Context, s *server.Server, instance string) (state api.State, cause api.Cause, result int32, tags []string) {
-	info, err := s.InstanceInfo(ctx, instance)
+func getInstanceInfo(ctx context.Context, s *server.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
+	info, err := s.InstanceInfo(ctx, instanceID)
 	check(err)
 	return info.Status.State, info.Status.Cause, info.Status.Result, info.Tags
 }
 
-func handleInstanceWait(ctx context.Context, s *server.Server, instance string) (state api.State, cause api.Cause, result int32) {
-	status, err := s.WaitInstance(ctx, instance)
+func waitInstance(ctx context.Context, s *server.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
+	status, err := s.WaitInstance(ctx, instanceID)
 	check(err)
 	return status.State, status.Cause, status.Result
 }
 
-func handleInstanceDelete(ctx context.Context, s *server.Server, instance string) {
-	check(s.DeleteInstance(ctx, instance))
+func deleteInstance(ctx context.Context, s *server.Server, instanceID string) {
+	check(s.DeleteInstance(ctx, instanceID))
 }
 
-func handleInstanceResume(ctx context.Context, s *server.Server, instance, function string, debugFD dbus.UnixFD, debugLogging bool, scope []string) {
-	ctx = server.ContextWithScope(ctx, scope)
-	resume := &api.ResumeOptions{Function: function}
+func resumeInstance(ctx context.Context, s *server.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
 	invoke := invokeOptions(debugFD, debugLogging)
 	defer invoke.Close()
 
@@ -590,7 +647,7 @@ func handleInstanceResume(ctx context.Context, s *server.Server, instance, funct
 	check(err)
 }
 
-func handleInstanceConnect(ctx context.Context, s *server.Server, instance string, rFD, wFD dbus.UnixFD) bool {
+func instanceIO(ctx context.Context, s *server.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
 	var err error
 	if err == nil {
 		err = syscall.SetNonblock(int(rFD), true)
@@ -606,7 +663,7 @@ func handleInstanceConnect(ctx context.Context, s *server.Server, instance strin
 		panic(err) // First SetNonblock error.
 	}
 
-	_, connIO, err := s.InstanceConnection(ctx, instance)
+	_, connIO, err := s.InstanceConnection(ctx, instanceID)
 	check(err)
 	if connIO == nil {
 		return false
@@ -616,25 +673,22 @@ func handleInstanceConnect(ctx context.Context, s *server.Server, instance strin
 	return true
 }
 
-func handleInstanceSnapshot(ctx context.Context, s *server.Server, instance string) string {
-	module, err := s.SnapshotInstance(ctx, instance, &api.ModuleOptions{Pin: true})
+func snapshot(ctx context.Context, s *server.Server, instanceID string, moduleOpt *api.ModuleOptions) string {
+	moduleID, err := s.Snapshot(ctx, instanceID, moduleOpt)
 	check(err)
-	return module
+	return moduleID
 }
 
-func handleInstanceUpdate(ctx context.Context, s *server.Server, instance string, persist bool, tags []string) {
-	_, err := s.UpdateInstance(ctx, instance, &api.InstanceUpdate{
-		Persist: persist,
-		Tags:    tags,
-	})
+func updateInstance(ctx context.Context, s *server.Server, instanceID string, update *api.InstanceUpdate) {
+	_, err := s.UpdateInstance(ctx, instanceID, update)
 	check(err)
 }
 
-func handleInstanceDebug(ctx context.Context, s *server.Server, instance string, reqBuf []byte) []byte {
+func debugInstance(ctx context.Context, s *server.Server, instanceID string, reqBuf []byte) []byte {
 	req := new(api.DebugRequest)
 	check(proto.Unmarshal(reqBuf, req))
 
-	res, err := s.DebugInstance(ctx, instance, req)
+	res, err := s.DebugInstance(ctx, instanceID, req)
 	check(err)
 
 	resBuf, err := proto.Marshal(res)
@@ -642,8 +696,8 @@ func handleInstanceDebug(ctx context.Context, s *server.Server, instance string,
 	return resBuf
 }
 
-func handleInstance(ctx context.Context, s *server.Server, f instanceFunc, instance string) {
-	_, err := f(s, ctx, instance)
+func doInstanceOp(ctx context.Context, s *server.Server, f instanceFunc, instanceID string) {
+	_, err := f(s, ctx, instanceID)
 	check(err)
 }
 
@@ -686,10 +740,6 @@ func authorizeScope(ctx context.Context) (context.Context, error) {
 }
 
 func moduleUpload(f *os.File) *server.ModuleUpload {
-	if f == nil {
-		return nil
-	}
-
 	if info, err := f.Stat(); err == nil && info.Mode().IsRegular() {
 		return &server.ModuleUpload{
 			Stream: f,
