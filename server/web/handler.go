@@ -611,7 +611,6 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 		mustNotHaveParams(w, r, s, query)
 		mustAcceptJSON(w, r, s)
 		handleInstanceInfo(w, r, s, instance)
-		// or respondMissingQueryParam(w, r, s, api.ParamAction)
 		return
 
 	case 1:

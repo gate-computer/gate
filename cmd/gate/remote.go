@@ -389,9 +389,17 @@ var remoteCommands = map[string]command{
 	"status": {
 		usage: "instance",
 		do: func() {
-			req := &http.Request{Method: http.MethodPost}
-			status, _ := doHTTP(req, webapi.PathInstances+flag.Arg(0), nil)
-			fmt.Println(status)
+			req := &http.Request{
+				Method: http.MethodPost,
+				Header: http.Header{webapi.HeaderAccept: []string{webapi.ContentTypeJSON}},
+			}
+
+			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), nil)
+
+			info := new(webapi.InstanceInfo)
+			check(json.NewDecoder(resp.Body).Decode(info))
+
+			fmt.Printf("%s %s\n", info.Status, info.Tags)
 		},
 	},
 
