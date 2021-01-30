@@ -13,6 +13,7 @@ import (
 	"gate.computer/gate/internal/manifest"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"gate.computer/wag/binary"
 	"gate.computer/wag/section"
 )
 
@@ -30,7 +31,7 @@ const (
 )
 
 func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int, err error) {
-	version, n, err := readVaruint64(r)
+	version, n, err := binary.Varuint64(r)
 	if err != nil {
 		return
 	}
@@ -41,34 +42,34 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 		return
 	}
 
-	flags, n, err := readVaruint64(r)
+	flags, n, err := binary.Varuint64(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 	snap.Flags = snapshot.Flags(flags)
 
-	trapID, n, err := readVaruint32(r)
+	trapID, n, err := binary.Varuint32(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 	snap.Trap = trap.ID(trapID)
 
-	result, n, err := readVaruint32(r)
+	result, n, err := binary.Varuint32(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 	snap.Result = int32(result)
 
-	snap.MonotonicTime, n, err = readVaruint64(r)
+	snap.MonotonicTime, n, err = binary.Varuint64(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	numBreakpoints, n, err := readVaruint32(r)
+	numBreakpoints, n, err := binary.Varuint32(r)
 	if err != nil {
 		return
 	}
@@ -80,7 +81,7 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 
 	snap.Breakpoints = make([]uint64, numBreakpoints)
 	for i := range snap.Breakpoints {
-		snap.Breakpoints[i], n, err = readVaruint64(r)
+		snap.Breakpoints[i], n, err = binary.Varuint64(r)
 		if err != nil {
 			return
 		}
@@ -94,19 +95,19 @@ func ReadBufferSectionHeader(r section.Reader, length uint32,
 ) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
 	// TODO: limit sizes and count
 
-	inputSize, n, err := readVaruint32(r)
+	inputSize, n, err := binary.Varuint32(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	outputSize, n, err := readVaruint32(r)
+	outputSize, n, err := binary.Varuint32(r)
 	if err != nil {
 		return
 	}
 	readLen += n
 
-	serviceCount, n, err := readVaruint32(r)
+	serviceCount, n, err := binary.Varuint32(r)
 	if err != nil {
 		return
 	}
@@ -139,7 +140,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32,
 		readLen += n
 		bs.Services[i].Name = string(b)
 
-		serviceSizes[i], n, err = readVaruint32(r)
+		serviceSizes[i], n, err = binary.Varuint32(r)
 		if err != nil {
 			return
 		}
@@ -170,46 +171,4 @@ func ReadBufferSectionHeader(r section.Reader, length uint32,
 	}
 
 	return
-}
-
-func readVaruint32(r section.Reader) (x uint32, n int, err error) {
-	var shift uint
-	for n = 1; ; n++ {
-		var b byte
-		b, err = r.ReadByte()
-		if err != nil {
-			return
-		}
-		if b < 0x80 {
-			if n > 5 || n == 5 && b > 0xf {
-				err = badprogram.Err("varuint32 is too large")
-				return
-			}
-			x |= uint32(b) << shift
-			return
-		}
-		x |= (uint32(b) & 0x7f) << shift
-		shift += 7
-	}
-}
-
-func readVaruint64(r section.Reader) (x uint64, n int, err error) {
-	var shift uint
-	for n = 1; ; n++ {
-		var b byte
-		b, err = r.ReadByte()
-		if err != nil {
-			return
-		}
-		if b < 0x80 {
-			if n > 9 || n == 9 && b > 1 {
-				err = badprogram.Err("varuint64 is too large")
-				return
-			}
-			x |= uint64(b) << shift
-			return
-		}
-		x |= (uint64(b) & 0x7f) << shift
-		shift += 7
-	}
 }
