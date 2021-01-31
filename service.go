@@ -27,7 +27,7 @@ type Config struct {
 
 var serviceConfig Config
 
-func ServiceConfig() interface{} {
+func ServiceConfig() *Config {
 	return &serviceConfig
 }
 
