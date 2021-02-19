@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package daemon
 
 import (
 	"bytes"
@@ -90,7 +90,7 @@ var userID = strconv.Itoa(os.Getuid())
 
 var terminate = make(chan os.Signal, 1)
 
-func main() {
+func Main() {
 	log.SetFlags(0)
 
 	defer func() {

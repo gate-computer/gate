@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package server
 
 import (
 	"context"
@@ -154,7 +154,7 @@ var c = new(Config)
 
 const shutdownTimeout = 15 * time.Second
 
-func main() {
+func Main() {
 	log.SetFlags(0)
 
 	c.Runtime.Config = runtime.DefaultConfig
