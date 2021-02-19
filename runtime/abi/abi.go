@@ -8,13 +8,13 @@ package abi
 
 import (
 	"bytes"
+	"errors"
 	"strconv"
 	"strings"
 
 	"gate.computer/gate/internal/error/badprogram"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/wa"
-	errors "golang.org/x/xerrors"
 )
 
 const (

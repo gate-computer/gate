@@ -19,9 +19,9 @@ require (
 	github.com/tsavola/confi v1.5.0
 	github.com/tsavola/mu v1.0.0
 	github.com/tsavola/snide v0.0.0-20201022011019-997fd41f0088
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
-	golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
+	golang.org/x/crypto v0.0.0-20210218145215-b8e89b74b9df
+	golang.org/x/net v0.0.0-20210119194325-5f4716e94777 // indirect
+	golang.org/x/sys v0.0.0-20210219172841-57ea560cfca1
 	google.golang.org/grpc v1.32.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0 // indirect
 	google.golang.org/protobuf v1.25.0

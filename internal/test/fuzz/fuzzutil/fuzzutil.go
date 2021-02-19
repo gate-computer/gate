@@ -6,6 +6,7 @@ package fuzzutil
 
 import (
 	"context"
+	"errors"
 	"io"
 	goruntime "runtime"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/service"
 	werrors "gate.computer/wag/errors"
-	errors "golang.org/x/xerrors"
 )
 
 const (
