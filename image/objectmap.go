@@ -24,11 +24,12 @@ func callSitesBytes(m *object.CallMap) []byte {
 		return nil
 	}
 
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  size,
-		Cap:  size,
-		Data: (uintptr)(unsafe.Pointer(&m.CallSites[0])),
-	}))
+	b := make([]byte, 0)
+	h := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	h.Len = size
+	h.Cap = size
+	h.Data = uintptr(unsafe.Pointer(&m.CallSites[0]))
+	return b
 }
 
 func funcAddrsSize(m *object.CallMap) int {
@@ -41,11 +42,12 @@ func funcAddrsBytes(m *object.CallMap) []byte {
 		return nil
 	}
 
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  size,
-		Cap:  size,
-		Data: (uintptr)(unsafe.Pointer(&m.FuncAddrs[0])),
-	}))
+	b := make([]byte, 0)
+	h := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	h.Len = size
+	h.Cap = size
+	h.Data = uintptr(unsafe.Pointer(&m.FuncAddrs[0]))
+	return b
 }
 
 func copyObjectMapTo(b []byte, m *object.CallMap) {

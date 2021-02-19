@@ -427,11 +427,12 @@ func globalTypeBytes(array []wa.GlobalType) []byte {
 		return nil
 	}
 
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  len(array),
-		Cap:  cap(array),
-		Data: (uintptr)(unsafe.Pointer(&array[0])),
-	}))
+	b := make([]byte, 0)
+	h := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	h.Len = len(array)
+	h.Cap = cap(array)
+	h.Data = uintptr(unsafe.Pointer(&array[0]))
+	return b
 }
 
 func generateRandTextAddr() (textAddr uint64, err error) {
