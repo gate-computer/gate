@@ -25,19 +25,13 @@ type Config struct {
 	Address string
 }
 
-var serviceConfig Config
-
-func ServiceConfig() *Config {
-	return &serviceConfig
-}
-
-func InitServices(ctx context.Context, registry *service.Registry) (err error) {
-	if serviceConfig.Address == "" {
+func New(config *Config) (l *Localhost, err error) {
+	if config.Address == "" {
 		err = errors.New("localhost service: no address")
 		return
 	}
 
-	u, err := url.Parse(serviceConfig.Address)
+	u, err := url.Parse(config.Address)
 	if err != nil {
 		return
 	}
@@ -45,8 +39,6 @@ func InitServices(ctx context.Context, registry *service.Registry) (err error) {
 		err = fmt.Errorf("localhost service: address is relative: %s", u)
 		return
 	}
-
-	var l *localhost
 
 	switch u.Scheme {
 	case "http", "https":
@@ -59,7 +51,7 @@ func InitServices(ctx context.Context, registry *service.Registry) (err error) {
 			return
 		}
 
-		l = &localhost{
+		l = &Localhost{
 			scheme: u.Scheme,
 			host:   u.Host,
 			client: http.DefaultClient,
@@ -93,7 +85,7 @@ func InitServices(ctx context.Context, registry *service.Registry) (err error) {
 			},
 		}
 
-		l = &localhost{
+		l = &Localhost{
 			scheme: "http",
 			host:   "localhost",
 			client: client,
@@ -104,28 +96,27 @@ func InitServices(ctx context.Context, registry *service.Registry) (err error) {
 		return
 	}
 
-	err = registry.Register(l)
 	return
 }
 
-type localhost struct {
+type Localhost struct {
 	scheme string
 	host   string
 	client *http.Client
 }
 
-func (*localhost) Service() service.Service {
+func (*Localhost) Service() service.Service {
 	return service.Service{
 		Name:     serviceName,
 		Revision: serviceRevision,
 	}
 }
 
-func (*localhost) Discoverable(context.Context) bool {
+func (*Localhost) Discoverable(context.Context) bool {
 	return true
 }
 
-func (l *localhost) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
+func (l *Localhost) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
 	inst := newInstance(l, config)
 	if err := inst.restore(snapshot); err != nil {

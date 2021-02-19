@@ -25,7 +25,7 @@ type handled struct {
 	res packet.Buf
 }
 
-func handle(ctx context.Context, local *localhost, config packet.Service, req packet.Buf) handled {
+func handle(ctx context.Context, local *Localhost, config packet.Service, req packet.Buf) handled {
 	var b []byte
 
 	tab := new(flatbuffers.Table)
@@ -42,7 +42,7 @@ func handle(ctx context.Context, local *localhost, config packet.Service, req pa
 	return handled{req, res}
 }
 
-func handleRequest(ctx context.Context, local *localhost, config packet.Service, call flat.Request) []byte {
+func handleRequest(ctx context.Context, local *Localhost, config packet.Service, call flat.Request) []byte {
 	b := flatbuffers.NewBuilder(0)
 
 	req := http.Request{

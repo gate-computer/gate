@@ -11,12 +11,19 @@ import (
 	"gate.computer/localhost"
 )
 
+var config localhost.Config
+
 func ServiceConfig() interface{} {
-	return localhost.ServiceConfig()
+	return &config
 }
 
 func InitServices(ctx context.Context, r *service.Registry) error {
-	return localhost.InitServices(ctx, r)
+	l, err := localhost.New(&config)
+	if err != nil {
+		return err
+	}
+
+	return r.Register(l)
 }
 
 func main() {}

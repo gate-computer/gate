@@ -46,7 +46,7 @@ func TestRequest(t *testing.T) {
 		panic(err)
 	}
 
-	inst := newInstance(&localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
+	inst := newInstance(&Localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
 		Service: packet.Service{
 			MaxSendSize: testMaxSendSize,
 			Code:        testCode,
@@ -73,7 +73,12 @@ func TestRequest(t *testing.T) {
 	}
 
 	c := make(chan packet.Buf, 1)
-	inst.Handle(context.Background(), c, p)
+	if err := inst.Start(context.Background(), c, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.Handle(context.Background(), c, p); err != nil {
+		t.Fatal(err)
+	}
 	p = <-c
 
 	if !packet.IsValidCall(p, testCode) {

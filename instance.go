@@ -19,7 +19,7 @@ const maxRequests = 10 // Cannot be greater than 256.
 type instance struct {
 	service.InstanceBase
 
-	local *localhost
+	local *Localhost
 	packet.Service
 
 	handlers sync.WaitGroup
@@ -28,7 +28,7 @@ type instance struct {
 	s        sender
 }
 
-func newInstance(local *localhost, config service.InstanceConfig) *instance {
+func newInstance(local *Localhost, config service.InstanceConfig) *instance {
 	inst := &instance{
 		local:   local,
 		Service: config.Service,
