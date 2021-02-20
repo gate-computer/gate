@@ -82,7 +82,8 @@ install-bin:
 	install -m 755 bin/gate bin/gate-daemon bin/gate-runtime bin/gate-server $(DESTDIR)$(BINDIR)
 
 .PHONY: install
-install: install-lib install-bin
+install: install-lib
+	[ ! -e bin/gate ] || $(MAKE) install-bin
 
 .PHONY: install-capabilities
 install-capabilities: install-lib-capabilities install-bin
