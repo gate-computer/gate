@@ -42,7 +42,10 @@ type Conf struct {
 
 	// Target addresses for remote gRPC connections.  The address may be
 	// followed by space-delimited dial options.  Supported options:
-	// "insecure".
+	//
+	//     "insecure" - no encryption or authentication
+	//     "optional" - ignores target on connection error
+	//
 	Targets []string
 
 	conns []conn
