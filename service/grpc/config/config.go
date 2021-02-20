@@ -76,11 +76,17 @@ func (conf *Conf) Init(ctx context.Context, stderr Logger) error {
 	for _, target := range conf.Targets {
 		args := strings.Fields(target)
 
-		var opts []grpc.DialOption
+		var (
+			opts     []grpc.DialOption
+			optional bool
+		)
 		for _, s := range args[1:] {
 			switch s {
 			case "insecure":
 				opts = append(opts, grpc.WithInsecure())
+
+			case "optional":
+				optional = true
 
 			default:
 				return fmt.Errorf("unknown dial option in gRPC target configuration: %q", s)
@@ -89,6 +95,10 @@ func (conf *Conf) Init(ctx context.Context, stderr Logger) error {
 
 		c, err := grpcservice.DialContext(ctx, args[0], opts...)
 		if err != nil {
+			if optional {
+				stderr.Printf("%v", err)
+				continue
+			}
 			return err
 		}
 
