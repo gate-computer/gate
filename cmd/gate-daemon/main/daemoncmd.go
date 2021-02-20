@@ -36,9 +36,9 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/web"
+	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
-	"gate.computer/gate/service/plugin"
 	"gate.computer/wag/compile"
 	"github.com/coreos/go-systemd/v22/daemon"
 	dbus "github.com/godbus/dbus/v5"
@@ -61,10 +61,6 @@ type Config struct {
 
 	Image struct {
 		VarDir string
-	}
-
-	Plugin struct {
-		LibDir string
 	}
 
 	Service map[string]interface{}
@@ -107,7 +103,7 @@ func Main() {
 func mainResult() int {
 	c.Runtime = gateruntime.DefaultConfig
 	c.Image.VarDir = cmdconf.JoinHome(DefaultImageVarDir)
-	c.Plugin.LibDir = plugin.DefaultLibDir
+	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9
 	c.Principal.MaxProcs = 1e9
@@ -122,10 +118,6 @@ func mainResult() int {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
-
-	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
-	check(err)
-	c.Service = plugins.ServiceConfig
 
 	c.Service["grpc"] = grpc.Config
 
@@ -143,7 +135,8 @@ func mainResult() int {
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
-	c.Principal.Services, err = services.Init(context.Background(), plugins, originConfig, defaultlog.StandardLogger{})
+	var err error
+	c.Principal.Services, err = services.Init(context.Background(), originConfig, defaultlog.StandardLogger{})
 	check(err)
 
 	var storage image.Storage = image.Memory

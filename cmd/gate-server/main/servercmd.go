@@ -33,9 +33,9 @@ import (
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
 	webapi "gate.computer/gate/server/web/api"
+	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
-	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/source/ipfs"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
@@ -76,10 +76,6 @@ type Config struct {
 		InstanceStorage  string
 		PrepareInstances int
 		VarDir           string
-	}
-
-	Plugin struct {
-		LibDir string
 	}
 
 	Service map[string]interface{}
@@ -162,7 +158,8 @@ func Main() {
 	c.Image.ProgramStorage = DefaultProgramStorage
 	c.Image.InstanceStorage = DefaultInstanceStorage
 	c.Image.VarDir = DefaultImageVarDir
-	c.Plugin.LibDir = plugin.DefaultLibDir
+	c.Service = service.Config()
+	c.DB = database.DefaultConfig
 	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = DefaultNet
 	c.HTTP.Addr = DefaultHTTPAddr
@@ -176,14 +173,6 @@ func Main() {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
-
-	plugins, err := plugin.OpenAll(c.Plugin.LibDir)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	c.Service = plugins.ServiceConfig
-	c.DB = database.DefaultConfig
 
 	c.Service["grpc"] = grpc.Config
 
@@ -236,7 +225,8 @@ func Main() {
 	}
 	c.Monitor.HTTP.ErrorLog = errLog
 
-	c.Principal.Services, err = services.Init(context.Background(), plugins, originConfig, errLog)
+	var err error
+	c.Principal.Services, err = services.Init(context.Background(), originConfig, errLog)
 	if err != nil {
 		critLog.Fatal(err)
 	}

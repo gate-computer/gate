@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package test
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	extName         = "text"
 	serviceName     = "internal/test"
 	serviceRevision = "10.23.456-7"
 )
@@ -22,13 +23,9 @@ var testConfig struct {
 	MOTD string
 }
 
-func ServiceConfig() interface{} {
-	return &testConfig
-}
-
-func InitServices(ctx context.Context, r *service.Registry) error {
+var Ext = service.Extend(extName, &testConfig, func(ctx context.Context, r *service.Registry) error {
 	return r.Register(testService{})
-}
+})
 
 type testService struct{}
 
@@ -72,5 +69,3 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p pac
 func (testInstance) Suspend(ctx context.Context) ([]byte, error) {
 	return []byte{0x73, 0x57}, nil
 }
-
-func main() {}

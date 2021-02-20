@@ -13,18 +13,17 @@ import (
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/identity"
 	"gate.computer/gate/service/origin"
-	"gate.computer/gate/service/plugin"
 )
 
 type Logger = grpc.Logger
 
-func Init(ctx context.Context, plugins plugin.ServicePlugins, originConfig origin.Config, stderr Logger) (
+func Init(ctx context.Context, originConfig origin.Config, stderr Logger) (
 	func(context.Context) server.InstanceServices,
 	error,
 ) {
 	registry := new(service.Registry)
 
-	if err := plugins.InitServices(ctx, registry); err != nil {
+	if err := service.Init(ctx, registry); err != nil {
 		return nil, err
 	}
 

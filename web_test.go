@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	_ "gate.computer/gate/internal/test/service-ext"
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
@@ -29,7 +30,6 @@ import (
 	"gate.computer/gate/server/web/api"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
-	"gate.computer/gate/service/plugin"
 	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/wag"
 	"gate.computer/wag/binding"
@@ -93,13 +93,7 @@ func init() {
 func newServices() func(context.Context) server.InstanceServices {
 	registry := new(service.Registry)
 
-	plugins, err := plugin.OpenAll("lib/gate/plugin")
-	if err != nil {
-		panic(err)
-	}
-
-	err = plugins.InitServices(context.Background(), registry)
-	if err != nil {
+	if err := service.Init(context.Background(), registry); err != nil {
 		panic(err)
 	}
 
@@ -824,8 +818,8 @@ func TestModuleSource(t *testing.T) {
 		})
 	}
 
-	t.Run("CallPluginTest", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=call&function=test_plugin&action=pin", nil)
+	t.Run("CallExtensionTest", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=call&function=test_ext&action=pin", nil)
 		checkResponse(t, handler, req, http.StatusCreated)
 	})
 

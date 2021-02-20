@@ -371,7 +371,7 @@ int fail(void)
 	gate_exit(1);
 }
 
-int test_plugin(void)
+int test_ext(void)
 {
 	int16_t origin_code;
 	int16_t test_code;
