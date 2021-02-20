@@ -22,16 +22,16 @@ const (
 )
 
 type Config struct {
-	Address string
+	Addr string
 }
 
 func New(config *Config) (l *Localhost, err error) {
-	if config.Address == "" {
+	if config.Addr == "" {
 		err = errors.New("localhost service: no address")
 		return
 	}
 
-	u, err := url.Parse(config.Address)
+	u, err := url.Parse(config.Addr)
 	if err != nil {
 		return
 	}
