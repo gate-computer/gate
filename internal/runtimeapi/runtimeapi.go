@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"strconv"
 	"syscall"
 
 	"gate.computer/gate/internal/cred"
@@ -39,14 +38,15 @@ func ContainerArgs(binary string, noNamespaces bool, containerCred, executorCred
 		return
 	}
 
-	flags := 0
+	flags := ""
 	if noNamespaces {
-		flags |= 1
+		flags += "n"
 	}
+	flags += "."
 
 	args = []string{
 		binary,
-		strconv.Itoa(flags),
+		flags,
 		creds[0],
 		creds[1],
 		creds[2],

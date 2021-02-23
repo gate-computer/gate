@@ -377,8 +377,8 @@ int main(int argc, char **argv)
 		die(ERR_EXEC_CLEAR_CAPS);
 
 	if (argc > 1) {
-		const char *flags_arg = argv[1];
-		no_namespaces = (atoi(flags_arg) & 1) != 0;
+		char *flags_arg = argv[1];
+		no_namespaces = strchrnul(flags_arg, 'n') < strchrnul(flags_arg, '.');
 	}
 
 	set_cloexec(STDIN_FILENO);

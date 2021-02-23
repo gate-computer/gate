@@ -492,7 +492,7 @@ int main(int argc, char **argv)
 	}
 
 	flags_arg = argv[1];
-	no_namespaces = (atoi(flags_arg) & 1) != 0;
+	no_namespaces = strchrnul(flags_arg, 'n') < strchrnul(flags_arg, '.');
 	container_cred.uid = xatoui(argv[2]);
 	container_cred.gid = xatoui(argv[3]);
 	executor_cred.uid = xatoui(argv[4]);
