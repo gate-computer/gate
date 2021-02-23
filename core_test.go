@@ -52,7 +52,7 @@ func (test *executor) Close() error {
 }
 
 func newExecutor() (tester *executor) {
-	actual, err := runtime.NewExecutor(runtime.Config{LibDir: "lib/gate/runtime"})
+	actual, err := runtime.NewExecutor(&runtime.Config{LibDir: "lib/gate/runtime"})
 	if err != nil {
 		panic(err)
 	}

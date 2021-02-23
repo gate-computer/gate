@@ -148,7 +148,7 @@ func mainResult() int {
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
 	}
 
-	exec, err := gateruntime.NewExecutor(c.Runtime)
+	exec, err := gateruntime.NewExecutor(&c.Runtime)
 	check(err)
 	defer exec.Close()
 

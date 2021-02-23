@@ -42,7 +42,7 @@ type Executor struct {
 	procs map[int16]*execProcess
 }
 
-func NewExecutor(config Config) (e *Executor, err error) {
+func NewExecutor(config *Config) (e *Executor, err error) {
 	maxProcs := config.maxProcs()
 	if maxProcs > MaxProcs {
 		err = errors.New("executor process limit is too high")

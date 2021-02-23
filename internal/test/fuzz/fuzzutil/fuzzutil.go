@@ -36,7 +36,7 @@ func (connector) Close() error {
 }
 
 func NewServer(ctx context.Context, libdir string) *server.Server {
-	e, err := gateruntime.NewExecutor(gateruntime.Config{
+	e, err := gateruntime.NewExecutor(&gateruntime.Config{
 		LibDir: libdir,
 	})
 	if err != nil {

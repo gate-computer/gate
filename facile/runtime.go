@@ -116,7 +116,7 @@ func NewRuntimeExecutor(config *RuntimeConfig, containerFD int32,
 		defer c.ConnFile.Close()
 	}
 
-	e, err := runtime.NewExecutor(c)
+	e, err := runtime.NewExecutor(&c)
 	if err != nil {
 		return
 	}

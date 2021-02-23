@@ -37,14 +37,14 @@ type Config struct {
 	Cgroup       CgroupConfig
 }
 
-func (c Config) maxProcs() int {
+func (c *Config) maxProcs() int {
 	if c.MaxProcs == 0 {
 		return MaxProcs
 	}
 	return c.MaxProcs
 }
 
-func (c Config) libDir() string {
+func (c *Config) libDir() string {
 	if c.LibDir == "" {
 		return DefaultLibDir
 	}
@@ -60,7 +60,7 @@ type CgroupConfig struct {
 	Title  string
 }
 
-func (c CgroupConfig) title() (s string) {
+func (c *CgroupConfig) title() (s string) {
 	s = c.Title
 	if s == "" {
 		s = DefaultCgroupTitle

@@ -261,7 +261,7 @@ func main2(critLog *log.Logger) error {
 	var executors []*runtime.Executor
 
 	for i := 0; i < c.Runtime.ExecutorCount; i++ {
-		e, err := runtime.NewExecutor(c.Runtime.Config)
+		e, err := runtime.NewExecutor(&c.Runtime.Config)
 		if err != nil {
 			return err
 		}
