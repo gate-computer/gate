@@ -144,6 +144,9 @@ The non-Go components can be built with `make`.  They require:
 
   - Go compiler
 
+See the [services](https://github.com/gate-computer/services) repository for
+alternative program builds.
+
 Running the D-Bus enabled programs (gate and gate-daemon) requires:
 
   - dbus-user-session
