@@ -21,7 +21,7 @@ type Config struct {
 	Client *http.Client
 }
 
-func (c Config) Configured() bool {
+func (c *Config) Configured() bool {
 	return c.Addr != ""
 }
 
@@ -29,14 +29,14 @@ type Client struct {
 	config Config
 }
 
-func New(config Config) *Client {
-	if config.Client == nil {
-		config.Client = http.DefaultClient
+func New(config *Config) *Client {
+	c := &Client{
+		config: *config,
 	}
-
-	return &Client{
-		config: config,
+	if c.config.Client == nil {
+		c.config.Client = http.DefaultClient
 	}
+	return c
 }
 
 // OpenURI implements server.Source.OpenURI.

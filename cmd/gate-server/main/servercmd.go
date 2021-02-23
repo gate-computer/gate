@@ -366,7 +366,7 @@ func main2(critLog *log.Logger) error {
 
 	c.HTTP.ModuleSources = make(map[string]server.Source)
 	if c.Source.IPFS.Configured() {
-		c.HTTP.ModuleSources[ipfs.Source] = ipfs.New(c.Source.IPFS.Config)
+		c.HTTP.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
 	}
 
 	var (

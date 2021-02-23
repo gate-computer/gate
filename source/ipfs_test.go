@@ -30,7 +30,7 @@ func newIPFSAPI(t *testing.T) *ipfs.Client {
 		t.Skip("GATE_TEST_IPFS_API not set")
 	}
 
-	return ipfs.New(ipfs.Config{Addr: addr})
+	return ipfs.New(&ipfs.Config{Addr: addr})
 }
 
 func newIPFSGateway(t *testing.T) *http.Client {
@@ -41,7 +41,7 @@ func newIPFSGateway(t *testing.T) *http.Client {
 		t.Skip("GATE_TEST_IPFS_GW not set")
 	}
 
-	return http.New(http.Config{Addr: addr})
+	return http.New(&http.Config{Addr: addr})
 }
 
 func TestIPFSAPIKey(t *testing.T)     { testIPFSKey(t, newIPFSAPI(t)) }
