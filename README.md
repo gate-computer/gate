@@ -54,6 +54,8 @@ Important Go packages:
   - [**gate/service**](https://godoc.org/gate.computer/gate/service):
     Service implementation support and built-in services.
 
+See the complete [list of Go packages](https://godoc.org/gate.computer/gate).
+
 Programs:
 
   - **gate**:
@@ -70,7 +72,10 @@ Programs:
     For optionally preconfiguring the execution environment for daemon/server,
     e.g. as a system service.
 
-See the complete [list of Go packages](https://godoc.org/gate.computer/gate).
+The available services are determined by what is built into the gate-daemon and
+gate-server programs.  The versions provided by this Go module include only the
+services implemented in this repository.  See [extension](Extension.md) about
+bundling additional services.
 
 
 ## Objectives
@@ -163,6 +168,7 @@ installed container binary (lib).  That requires:
 - [ABI for user programs](ABI.md)
 - [Web server API](Web.md)
 - [Service implementation](Service.md)
+- [Build-time extensions](Extension.md)
 - [Security](Security.md)
 - [Container capabilities](Capabilities.md)
 - [Go packages](https://godoc.org/gate.computer/gate)
