@@ -79,7 +79,7 @@ func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int) (io.Rea
 var nonceChecker database.NonceChecker
 
 func init() {
-	db, err := sql.OpenNonceChecker(context.Background(), sql.Config{
+	db, err := sql.OpenNonceChecker(context.Background(), &sql.Config{
 		Driver: "sqlite3",
 		DSN:    "file::memory:?cache=shared",
 	})

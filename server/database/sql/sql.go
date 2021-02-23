@@ -24,7 +24,7 @@ func init() {
 		},
 
 		OpenNonceChecker: func(ctx context.Context, config interface{}) (database.NonceChecker, error) {
-			nr, err := OpenNonceChecker(ctx, *config.(*Config))
+			nr, err := OpenNonceChecker(ctx, config.(*Config))
 			if err != nil {
 				return nil, err
 			}
@@ -57,7 +57,7 @@ type NonceChecker struct {
 	db *sql.DB
 }
 
-func OpenNonceChecker(ctx context.Context, config Config) (*NonceChecker, error) {
+func OpenNonceChecker(ctx context.Context, config *Config) (*NonceChecker, error) {
 	var err error
 	var nr = new(NonceChecker)
 
