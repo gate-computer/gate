@@ -226,7 +226,7 @@ func Main() {
 	c.Monitor.HTTP.ErrorLog = errLog
 
 	var err error
-	c.Principal.Services, err = services.Init(context.Background(), originConfig, errLog)
+	c.Principal.Services, err = services.Init(context.Background(), &originConfig, errLog)
 	if err != nil {
 		critLog.Fatal(err)
 	}

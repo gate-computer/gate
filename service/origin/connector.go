@@ -37,16 +37,20 @@ type Connector struct {
 }
 
 // New Connector instance for serving one (and only one) program instance.
-func New(config Config) *Connector {
-	if config.MaxConns <= 0 {
-		config.MaxConns = DefaultMaxConns
+func New(config *Config) *Connector {
+	var c Config
+	if config != nil {
+		c = *config
 	}
-	if config.BufSize <= 0 {
-		config.BufSize = DefaultBufSize
+	if c.MaxConns <= 0 {
+		c.MaxConns = DefaultMaxConns
+	}
+	if c.BufSize <= 0 {
+		c.BufSize = DefaultBufSize
 	}
 
 	return &Connector{
-		inst:   makeInstance(config),
+		inst:   makeInstance(c),
 		closed: make(chan struct{}),
 	}
 }

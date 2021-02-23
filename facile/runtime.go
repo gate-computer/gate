@@ -151,7 +151,7 @@ func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) e
 }
 
 func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) (err error) {
-	connector := origin.New(origin.Config{MaxConns: 1})
+	connector := origin.New(&origin.Config{MaxConns: 1})
 
 	go func() {
 		defer connector.Close()

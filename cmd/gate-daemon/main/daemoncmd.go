@@ -136,7 +136,7 @@ func mainResult() int {
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
 	var err error
-	c.Principal.Services, err = services.Init(context.Background(), originConfig, defaultlog.StandardLogger{})
+	c.Principal.Services, err = services.Init(context.Background(), &originConfig, defaultlog.StandardLogger{})
 	check(err)
 
 	var storage image.Storage = image.Memory

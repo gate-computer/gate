@@ -89,7 +89,7 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 			switch name {
 			case "origin":
 				if originInstance == nil {
-					connector := origin.New(origin.Config{})
+					connector := origin.New(nil)
 					go func() {
 						defer connector.Close()
 						if f := connector.Connect(context.Background()); f != nil {

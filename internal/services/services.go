@@ -17,7 +17,7 @@ import (
 
 type Logger = grpc.Logger
 
-func Init(ctx context.Context, originConfig origin.Config, stderr Logger) (
+func Init(ctx context.Context, originConfig *origin.Config, stderr Logger) (
 	func(context.Context) server.InstanceServices,
 	error,
 ) {
