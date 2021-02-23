@@ -36,23 +36,26 @@ type instanceMethod func(s *server.Server, ctx context.Context, instance string)
 type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (*serverapi.Status, error)
 type instanceWaiterMethod func(s *server.Server, ctx context.Context, instance string) (*server.Instance, error)
 
-type webserver struct {
+type privateConfig struct {
 	Config
+}
 
+type webserver struct {
+	privateConfig
 	identity           string // JWT audience.
 	pathKnownModules   string
 	anyOrigin          bool
 	localAuthorization bool
 }
 
-func NewHandler(pattern string, config Config) http.Handler {
+func NewHandler(pattern string, config *Config) http.Handler {
 	return newHandler(pattern, config, "https", false)
 }
 
 // NewHandlerWithUnsecuredLocalAuthorization processes requests with unsigned
 // JWT tokens under the local principal's identity.  Such tokens can be created
 // by anyone without any secret knowledge.
-func NewHandlerWithUnsecuredLocalAuthorization(pattern string, config Config) http.Handler {
+func NewHandlerWithUnsecuredLocalAuthorization(pattern string, config *Config) http.Handler {
 	for _, origin := range config.Origins {
 		if strings.Contains(origin, "*") {
 			panic("origin check disabled for unsecured local handler")
@@ -66,10 +69,13 @@ func NewHandlerWithUnsecuredLocalAuthorization(pattern string, config Config) ht
 	return newHandler(pattern, config, "http", true)
 }
 
-func newHandler(pattern string, config Config, scheme string, localAuthorization bool) http.Handler {
+func newHandler(pattern string, config *Config, scheme string, localAuthorization bool) http.Handler {
 	s := &webserver{
-		Config:             config,
 		localAuthorization: localAuthorization,
+	}
+
+	if config != nil {
+		s.Config = *config
 	}
 	if s.Authority == "" {
 		s.Authority = strings.SplitN(pattern, "/", 2)[0]

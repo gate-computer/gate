@@ -42,8 +42,12 @@ type instProgPolicy struct {
 	inst InstancePolicy
 }
 
-type Server struct {
+type privateConfig struct {
 	Config
+}
+
+type Server struct {
+	privateConfig
 
 	mu        serverMutex
 	programs  map[string]*program
@@ -51,24 +55,26 @@ type Server struct {
 	anonymous map[*Instance]struct{}
 }
 
-func New(ctx context.Context, config Config) (_ *Server, err error) {
+func New(ctx context.Context, config *Config) (_ *Server, err error) {
 	defer func() { err = asError(recover()) }()
 
-	if config.ImageStorage == nil {
-		config.ImageStorage = image.Memory
-	}
-	if config.Monitor == nil {
-		config.Monitor = defaultMonitor
-	}
-	if !config.Configured() {
-		panic("incomplete server configuration")
-	}
-
 	s := &Server{
-		Config:    config,
 		programs:  make(map[string]*program),
 		accounts:  make(map[principal.RawKey]*account),
 		anonymous: make(map[*Instance]struct{}),
+	}
+
+	if config != nil {
+		s.Config = *config
+	}
+	if s.ImageStorage == nil {
+		s.ImageStorage = image.Memory
+	}
+	if s.Monitor == nil {
+		s.Monitor = defaultMonitor
+	}
+	if !s.Configured() {
+		panic("incomplete server configuration")
 	}
 
 	progs, err := s.ImageStorage.Programs()

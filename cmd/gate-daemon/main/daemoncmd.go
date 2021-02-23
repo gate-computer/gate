@@ -179,7 +179,7 @@ func mainResult() int {
 		panic(reply)
 	}
 
-	s, err := server.New(ctx, server.Config{
+	s, err := server.New(ctx, &server.Config{
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
@@ -216,7 +216,7 @@ func mainResult() int {
 		}
 
 		c.HTTP.Server = s
-		apiHandler := web.NewHandlerWithUnsecuredLocalAuthorization("/", c.HTTP.Config)
+		apiHandler := web.NewHandlerWithUnsecuredLocalAuthorization("/", &c.HTTP.Config)
 		handler := newHTTPHandler(apiHandler, "http://"+c.HTTP.Authority)
 
 		go func() {

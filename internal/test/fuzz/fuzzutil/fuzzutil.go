@@ -45,7 +45,7 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 
 	services := server.NewInstanceServices(connector{}, new(service.Registry))
 
-	s, err := server.New(context.Background(), server.Config{
+	s, err := server.New(context.Background(), &server.Config{
 		ProcessFactory: runtime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
 		AccessPolicy:   server.NewPublicAccess(func(context.Context) server.InstanceServices { return services }),
 	})

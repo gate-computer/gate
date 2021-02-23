@@ -378,11 +378,11 @@ func main2(critLog *log.Logger) error {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server, err = server.New(ctx, c.Server)
+	c.HTTP.Server, err = server.New(ctx, &c.Server)
 	if err != nil {
 		return err
 	}
-	handler := newHTTPSHandler(web.NewHandler("/", c.HTTP.Config))
+	handler := newHTTPSHandler(web.NewHandler("/", &c.HTTP.Config))
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)

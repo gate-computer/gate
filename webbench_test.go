@@ -19,7 +19,7 @@ import (
 )
 
 func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
-	config := server.Config{
+	config := &server.Config{
 		ProcessFactory: factory,
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 	}
@@ -28,7 +28,7 @@ func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
 }
 
 func newBenchHandler(s *server.Server) http.Handler {
-	config := web.Config{
+	config := &web.Config{
 		Server:    s,
 		Authority: "bench",
 	}

@@ -106,7 +106,7 @@ func newServices() func(context.Context) server.InstanceServices {
 }
 
 func newServer() (*server.Server, error) {
-	return server.New(context.Background(), server.Config{
+	return server.New(context.Background(), &server.Config{
 		ProcessFactory: newExecutor(),
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 	})
@@ -120,7 +120,7 @@ func newHandler(t *testing.T) http.Handler {
 		t.Fatal(err)
 	}
 
-	config := web.Config{
+	config := &web.Config{
 		Server:        s,
 		Authority:     "example.invalid",
 		Origins:       []string{"null"},
