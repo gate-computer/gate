@@ -244,7 +244,7 @@ func main2(critLog *log.Logger) error {
 			c.Monitor.HTTP.Origins = []string{"http://" + c.Monitor.HTTP.Addr}
 		}
 
-		monitor, handler := webmonitor.New(ctx, c.Monitor.Config, c.Monitor.HTTP.Config)
+		monitor, handler := webmonitor.New(ctx, &c.Monitor.Config, &c.Monitor.HTTP.Config)
 		c.Server.Monitor = server.MultiMonitor(c.Server.Monitor, monitor)
 
 		listener, err := net.Listen(c.Monitor.HTTP.Net, c.Monitor.HTTP.Addr)
