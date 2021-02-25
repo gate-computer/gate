@@ -19,8 +19,8 @@ const errWriteBufferOverflow = badprogram.Err("write stream buffer overflow")
 
 // WriteStream is a unidirectional stream between a channel and a writer.
 //
-// The channel side calls Write, WriteEOF, and Stop.  The writer side calls
-// Transfer.
+// The channel side calls Write, CloseWrite, and StopTransfer.  The writer side
+// calls Transfer.
 //
 // State can be unmarshaled before writing and transfer, and it can be
 // marshaled afterwards.
@@ -103,8 +103,8 @@ func (s *WriteStream) Write(data []byte) (n int, err error) {
 	return
 }
 
-// WriteEOF signals that no more data will be written.
-func (s *WriteStream) WriteEOF() error {
+// CloseWrite signals that no more data will be written.
+func (s *WriteStream) CloseWrite() error {
 	if s.State.Flags&FlagSendReceiving == 0 {
 		return errors.New("write stream already closed")
 	}
@@ -114,8 +114,8 @@ func (s *WriteStream) WriteEOF() error {
 	return nil
 }
 
-// Stop the transfer.  The write methods must not be called after this.
-func (s *WriteStream) Stop() {
+// StopTransfer the transfer.  The write methods must not be called after this.
+func (s *WriteStream) StopTransfer() {
 	close(s.wakeup)
 }
 
@@ -269,4 +269,35 @@ stopped:
 	}
 
 	return err
+}
+
+// CloseWriter can signal end-of-file condition to its peer.
+type CloseWriter interface {
+	io.Writer
+	CloseWrite() error
+}
+
+// EOFData contains data or represents the end-of-file condition.
+//
+// Data() must return an empty slice (or nil) when EOF() returns true.
+type EOFData interface {
+	Data() []byte
+	EOF() bool
+}
+
+// Write a data packet to a stream.
+//
+// io.EOF is returned only if it is returned by the writer.  If the input
+// packet represents the end-of-file condition, zero length and nil error are
+// returned on success.
+func Write(w CloseWriter, packet EOFData) (int, error) {
+	if packet.EOF() {
+		if err := w.CloseWrite(); err != nil {
+			return 0, err
+		}
+
+		return 0, nil
+	}
+
+	return w.Write(packet.Data())
 }

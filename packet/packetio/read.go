@@ -18,8 +18,8 @@ const errNegativeSubscription = badprogram.Err("stream flow increment is negativ
 
 // ReadStream is a unidirectional stream between a reader and a channel.
 //
-// The channel side calls Subscribe, SubscribeEOF, and Stop.  The reader side
-// calls Transfer.
+// The channel side calls Subscribe, FinishSubscription, and StopTransfer.  The
+// reader side calls Transfer.
 //
 // State can be unmarshaled before subscription and transfer, and it can be
 // marshaled afterwards.
@@ -78,8 +78,8 @@ func (s *ReadStream) Subscribe(increment int32) error {
 	return nil
 }
 
-// SubscribeEOF signals that no more data will be subscribed to.
-func (s *ReadStream) SubscribeEOF() error {
+// FinishSubscription signals that no more data will be subscribed to.
+func (s *ReadStream) FinishSubscription() error {
 	if s.State.Flags&FlagSubscribing == 0 {
 		return errors.New("read stream already closed")
 	}
@@ -91,8 +91,9 @@ func (s *ReadStream) SubscribeEOF() error {
 	return nil
 }
 
-// Stop the transfer.  The subscribe methods must not be called after this.
-func (s *ReadStream) Stop() {
+// StopTransfer the transfer.  The subscribe methods must not be called after
+// this.
+func (s *ReadStream) StopTransfer() {
 	close(s.wakeup)
 }
 
@@ -232,4 +233,25 @@ stopped:
 	}
 
 	return err
+}
+
+// FinishSubscriber can subscribe to more data and signal that no more data
+// will be subscribed to.
+type FinishSubscriber interface {
+	Subscribe(increment int32) error
+	FinishSubscription() error
+}
+
+// Subscribe to more data or signal that no more data will be subscribed to.
+// The operand must be non-negative.
+func Subscribe(s FinishSubscriber, operand int32) error {
+	switch {
+	case operand > 0:
+		return s.Subscribe(operand)
+
+	case operand == 0:
+		return s.FinishSubscription()
+	}
+
+	panic(operand)
 }

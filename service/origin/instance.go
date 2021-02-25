@@ -14,6 +14,7 @@ import (
 
 	"gate.computer/gate/internal/varint"
 	"gate.computer/gate/packet"
+	"gate.computer/gate/packet/packetio"
 	"gate.computer/gate/service"
 	"github.com/tsavola/mu"
 )
@@ -150,14 +151,10 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 				return errors.New("TODO: stream not found")
 			}
 
-			if increment != 0 {
-				if err := s.Subscribe(increment); err != nil {
-					return fmt.Errorf("TODO: %v", err)
-				}
-			} else {
-				if err := s.SubscribeEOF(); err != nil {
-					return fmt.Errorf("TODO: %v", err)
-				}
+			if increment < 0 {
+				// TODO
+			} else if err := packetio.Subscribe(s, increment); err != nil {
+				return fmt.Errorf("TODO: %v", err)
 			}
 		}
 
@@ -177,7 +174,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 				return fmt.Errorf("TODO (%v)", err)
 			}
 		} else {
-			if err := s.WriteEOF(); err != nil {
+			if err := s.CloseWrite(); err != nil {
 				return fmt.Errorf("TODO (%v)", err)
 			}
 		}
@@ -307,7 +304,7 @@ func (inst *instance) shutdown() {
 	poke(inst.wakeup)
 
 	for _, s := range inst.streams {
-		s.Stop()
+		s.StopTransfer()
 	}
 	for _, s := range inst.streams {
 		<-s.stopped

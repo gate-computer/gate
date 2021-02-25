@@ -14,7 +14,7 @@ import (
 
 func TestReadStreamEnd(t *testing.T) {
 	s := NewReadStream()
-	if err := s.SubscribeEOF(); err != nil {
+	if err := s.FinishSubscription(); err != nil {
 		t.Error(err)
 	}
 

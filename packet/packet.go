@@ -277,6 +277,10 @@ func (b DataBuf) DataLen() int {
 	return len(b) - DataHeaderSize
 }
 
+func (b DataBuf) EOF() bool {
+	return b.DataLen() == 0
+}
+
 func (b DataBuf) Split(dataLen int) (prefix Buf, unused DataBuf) {
 	prefix, unusedBuf := Buf(b).Split(DataHeaderSize, DataHeaderSize+dataLen)
 	unused = DataBuf(unusedBuf)

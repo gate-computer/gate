@@ -17,8 +17,8 @@ import (
 
 // Stream is a bidirectional stream between a connection and a channel.
 //
-// The channel side calls Subscribe, SubscribeEOF, Write, WriteEOF, and Stop.
-// The connection side calls Transfer.
+// The channel side calls Subscribe, FinishSubscription, Write, CloseWrite, and
+// StopTransfer.  The connection side calls Transfer.
 //
 // Unmarshal may be called before subscription, writing and transfer, and
 // Marshal may be called afterwards.
@@ -77,9 +77,9 @@ func (s *Stream) Live() bool {
 	return s.ReadStream.Live() || s.WriteStream.Live()
 }
 
-func (s *Stream) Stop() {
-	s.ReadStream.Stop()
-	s.WriteStream.Stop()
+func (s *Stream) StopTransfer() {
+	s.ReadStream.StopTransfer()
+	s.WriteStream.StopTransfer()
 }
 
 // Transfer data bidirectionally between a connection (r, w) and a user

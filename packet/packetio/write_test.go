@@ -14,7 +14,7 @@ import (
 
 func TestWriteStreamEnd(t *testing.T) {
 	s := NewWriteStream(512)
-	if err := s.WriteEOF(); err != nil {
+	if err := s.CloseWrite(); err != nil {
 		t.Error(err)
 	}
 
