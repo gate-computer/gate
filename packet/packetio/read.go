@@ -70,10 +70,7 @@ func (s *ReadStream) Subscribe(increment int32) error {
 		return errNegativeSubscription
 	}
 
-	// The final wakeup channel poking is matched by at least one wakeup
-	// channel receive by Transfer before it loads the final subscription
-	// position.
-	s.State.Subscribed += uint32(increment)
+	atomic.AddUint32(&s.State.Subscribed, uint32(increment))
 	poke(s.wakeup)
 	return nil
 }
@@ -85,7 +82,8 @@ func (s *ReadStream) FinishSubscription() error {
 	}
 
 	// This is the only Flags storer during the Transfer loop.  The Transfer
-	// loop ends either after it sees this mutation or the channel closure.
+	// loop ends either after it sees this mutation or the channel closure;
+	// Flags can be read directly here.
 	atomic.StoreUint32(&s.State.Flags, s.State.Flags&^FlagSubscribing)
 	poke(s.wakeup)
 	return nil
@@ -126,9 +124,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 		s.State.Data = nil // Don't keep reference to snapshot buffer.
 	}
 
-	// The loop accesses Flags and Subscribed fields nonatomically, but wakeup
-	// channel reception makes sure that it sees mutations and makes progress.
-	for send != nil || s.State.Flags&FlagSubscribing != 0 {
+	for send != nil || atomic.LoadUint32(&s.State.Flags)&FlagSubscribing != 0 {
 		var sending chan<- packet.Buf
 
 		if send != nil {
@@ -142,7 +138,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 			}
 		}
 
-		if sending != nil || r == nil || readpos == s.State.Subscribed {
+		if sending != nil || r == nil || readpos == atomic.LoadUint32(&s.State.Subscribed) {
 			select {
 			case sending <- pkt:
 				pkt = nil
@@ -181,7 +177,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 		}
 
 		if r != nil {
-			if subs := s.State.Subscribed - readpos; subs != 0 {
+			if subs := atomic.LoadUint32(&s.State.Subscribed) - readpos; subs != 0 {
 				n := config.MaxSendSize - packet.DataHeaderSize
 				if uint32(n) > subs {
 					n = int(subs)
@@ -198,7 +194,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 						err = nil
 					}
 				}
-			} else if s.State.Flags&FlagSubscribing == 0 {
+			} else if atomic.LoadUint32(&s.State.Flags)&FlagSubscribing == 0 {
 				// Subscriber side has requested read stream closure, and more
 				// data cannot be read.  Synthesize EOF to acknowledge.
 				r = nil
@@ -207,7 +203,8 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 		}
 	}
 
-	// Make sure that the final Flags and Subscribed values are seen.
+	// Make sure that Flags and Subscribed have their final modifications by
+	// the other side.
 	select {
 	case <-s.wakeup:
 	default:
