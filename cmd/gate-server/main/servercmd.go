@@ -36,6 +36,7 @@ import (
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
+	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
@@ -97,6 +98,11 @@ type Config struct {
 	Principal server.AccessConfig
 
 	Source struct {
+		HTTP []struct {
+			Name string
+			httpsource.Config
+		}
+
 		IPFS struct {
 			ipfs.Config
 		}
@@ -365,6 +371,11 @@ func main2(critLog *log.Logger) error {
 	c.HTTP.NonceStorage = nonceChecker
 
 	c.HTTP.ModuleSources = make(map[string]server.Source)
+	for _, x := range c.Source.HTTP {
+		if x.Name != "" && x.Configured() {
+			c.HTTP.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)
+		}
+	}
 	if c.Source.IPFS.Configured() {
 		c.HTTP.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
 	}
