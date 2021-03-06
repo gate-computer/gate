@@ -35,15 +35,13 @@ type instance struct {
 	notify    sync.Cond // replying unset while shutting.
 }
 
-func makeInstance(config Config) (inst instance) {
-	inst = instance{
+func makeInstance(config Config) instance {
+	return instance{
 		Config:  config,
 		Service: packet.Service{Code: -1},
 		wakeup:  make(chan struct{}, 1),
 		streams: make(map[int32]*stream),
 	}
-	inst.notify.L = &inst.mu
-	return
 }
 
 // init is invoked by Connector when the program instance is starting.
@@ -52,6 +50,7 @@ func (inst *instance) init(service packet.Service) {
 		panic("origin instance reused")
 	}
 	inst.Service = service
+	inst.notify.L = &inst.mu // instance has its final location by now.
 }
 
 // restore is invoked by Connector when the program instance is being resumed.
