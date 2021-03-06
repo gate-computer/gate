@@ -12,7 +12,7 @@ LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segmen
 
 include ../include/runtime.mk
 
-binary		:= ../../lib/gate/runtime/gate-runtime-loader.$(GATE_RUNTIME_BINARY_SUFFIX)
+binary		:= ../../lib/gate/runtime/gate-runtime-loader-$(GATE_RUNTIME_BINARY_SUFFIX)
 objects		:= $(ARCH)/start.o loader.o $(ARCH)/runtime.o
 
 $(binary): $(objects)

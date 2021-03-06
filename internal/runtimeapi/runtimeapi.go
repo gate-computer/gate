@@ -19,7 +19,7 @@ import (
 
 const (
 	version           = "0"
-	containerFilename = "gate-runtime-container." + version
+	containerFilename = "gate-runtime-container-" + version
 )
 
 type Cred struct {

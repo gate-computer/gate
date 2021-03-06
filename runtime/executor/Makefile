@@ -10,7 +10,7 @@ LDFLAGS		+= -pthread -static
 
 include ../include/runtime.mk
 
-binary		:= ../../lib/gate/runtime/gate-runtime-executor.$(GATE_RUNTIME_BINARY_SUFFIX)
+binary		:= ../../lib/gate/runtime/gate-runtime-executor-$(GATE_RUNTIME_BINARY_SUFFIX)
 objects		:= executor.o reaper.o sentinel.o
 
 $(binary): $(objects)
