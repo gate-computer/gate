@@ -46,7 +46,7 @@ func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadC
 		"length": []string{strconv.Itoa(maxSize + 1)},
 	}.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, c.config.Addr+"/api/v0/cat?"+query, nil)
+	req, err := http.NewRequest(http.MethodPost, c.config.Addr+"/api/v0/cat?"+query, nil)
 	if err != nil {
 		return nil, 0, err
 	}
