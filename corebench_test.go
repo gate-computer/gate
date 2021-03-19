@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,8 +24,18 @@ import (
 
 const benchPrepareCount = 32
 
-var benchExecutor = newExecutor()
-var benchRegistry = serviceRegistry{new(bytes.Buffer)}
+var (
+	benchExecInit sync.Once
+	benchExecutor *executor
+	benchRegistry = serviceRegistry{new(bytes.Buffer)}
+)
+
+func getBenchExecutor() *executor {
+	benchExecInit.Do(func() {
+		benchExecutor = newExecutor()
+	})
+	return benchExecutor
+}
 
 type benchDatum struct {
 	name string
@@ -58,7 +69,7 @@ func init() {
 
 func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
 ) (result runtime.Result, trapID trap.ID, err error) {
-	proc, err := benchExecutor.NewProcess(ctx)
+	proc, err := getBenchExecutor().NewProcess(ctx)
 	if err != nil {
 		return
 	}
@@ -78,7 +89,7 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 
 func executeProgram(ctx context.Context, prog *image.Program,
 ) (result runtime.Result, trapID trap.ID, err error) {
-	proc, err := benchExecutor.NewProcess(ctx)
+	proc, err := getBenchExecutor().NewProcess(ctx)
 	if err != nil {
 		return
 	}
@@ -127,7 +138,7 @@ func benchBuild(b *testing.B, storage image.Storage) {
 				codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 				codeMap.CallSites = codeMap.CallSites[:0]
 
-				prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, wasm, len(wasm), "", false)
+				prog, inst, _ := buildInstance(getBenchExecutor(), storage, &codeMap, wasm, len(wasm), "", false)
 				inst.Close()
 				prog.Close()
 			}
@@ -148,7 +159,7 @@ func BenchmarkBuildStore(b *testing.B) {
 		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 		codeMap.CallSites = codeMap.CallSites[:0]
 
-		prog, inst, _ := buildInstance(benchExecutor, testFS, &codeMap, wasmNop, len(wasmNop), "", false)
+		prog, inst, _ := buildInstance(getBenchExecutor(), testFS, &codeMap, wasmNop, len(wasmNop), "", false)
 		err := prog.Store(prefix + strconv.Itoa(i))
 		inst.Close()
 		prog.Close()
@@ -176,7 +187,7 @@ func benchExecInst(b *testing.B, storage image.Storage) {
 
 	var codeMap object.CallMap
 
-	prog, instProto, _ := buildInstance(benchExecutor, storage, &codeMap, wasmNop, len(wasmNop), "", false)
+	prog, instProto, _ := buildInstance(getBenchExecutor(), storage, &codeMap, wasmNop, len(wasmNop), "", false)
 	defer prog.Close()
 	defer instProto.Close()
 
@@ -234,7 +245,7 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 		b.Run(x.name, func(b *testing.B) {
 			var codeMap object.CallMap
 
-			prog, inst, _ := buildInstance(benchExecutor, storage, &codeMap, wasm, len(wasm), "", false)
+			prog, inst, _ := buildInstance(getBenchExecutor(), storage, &codeMap, wasm, len(wasm), "", false)
 			defer prog.Close()
 			inst.Close()
 

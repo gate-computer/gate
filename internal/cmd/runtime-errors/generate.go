@@ -62,6 +62,16 @@ func main() {
 	fmt.Println()
 	fmt.Println("package runtime")
 	fmt.Println()
+	fmt.Println("const (")
+
+	for i, e := range errors["Executor"] {
+		if e.Define != "" {
+			fmt.Printf("%s = %d\n", e.Define, i)
+		}
+	}
+
+	fmt.Println(")")
+	fmt.Println()
 
 	for _, cat := range cats {
 		es := errors[cat]

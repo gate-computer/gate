@@ -19,6 +19,7 @@ import (
 
 	"gate.computer/gate/image"
 	internalbuild "gate.computer/gate/internal/build"
+	"gate.computer/gate/internal/container"
 	"gate.computer/gate/packet"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/runtime/abi"
@@ -52,7 +53,14 @@ func (test *executor) Close() error {
 }
 
 func newExecutor() (tester *executor) {
-	actual, err := runtime.NewExecutor(&runtime.Config{LibDir: "lib/gate/runtime"})
+	actual, err := runtime.NewExecutor(&runtime.Config{
+		Container: runtime.ContainerConfig{
+			LibDir: testLibDir,
+			Namespace: container.NamespaceConfig{
+				User: testUserNamespaceConfig,
+			},
+		},
+	})
 	if err != nil {
 		panic(err)
 	}

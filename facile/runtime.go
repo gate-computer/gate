@@ -10,8 +10,8 @@ import (
 	"log"
 	"os"
 
+	"gate.computer/gate/internal/container"
 	"gate.computer/gate/internal/defaultlog"
-	"gate.computer/gate/internal/runtimeapi"
 	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/service"
@@ -25,32 +25,16 @@ type RuntimeConfig struct {
 	c runtime.Config
 }
 
-func NewRuntimeConfig() (c *RuntimeConfig) {
-	uid := uint(os.Getuid())
-	gid := uint(os.Getgid())
-
-	c = &RuntimeConfig{runtime.DefaultConfig}
-	c.c.Container.Cred.UID = uid
-	c.c.Container.Cred.GID = gid
-	c.c.Executor.Cred.UID = uid
-	c.c.Executor.Cred.GID = gid
-	return
+func NewRuntimeConfig() *RuntimeConfig {
+	return &RuntimeConfig{runtime.DefaultConfig}
 }
 
-func (c *RuntimeConfig) GetMaxProcs() int32      { return int32(c.c.MaxProcs) }
-func (c *RuntimeConfig) SetMaxProcs(n int32)     { c.c.MaxProcs = int(n) }
-func (c *RuntimeConfig) GetNoNamespaces() bool   { return c.c.NoNamespaces }
-func (c *RuntimeConfig) SetNoNamespaces(b bool)  { c.c.NoNamespaces = b }
-func (c *RuntimeConfig) GetContainerUID() int64  { return int64(c.c.Container.Cred.UID) }
-func (c *RuntimeConfig) SetContainerUID(n int64) { c.c.Container.Cred.UID = uint(n) }
-func (c *RuntimeConfig) GetContainerGID() int64  { return int64(c.c.Container.Cred.GID) }
-func (c *RuntimeConfig) SetContainerGID(n int64) { c.c.Container.Cred.GID = uint(n) }
-func (c *RuntimeConfig) GetExecutorUID() int64   { return int64(c.c.Executor.Cred.UID) }
-func (c *RuntimeConfig) SetExecutorUID(n int64)  { c.c.Executor.Cred.UID = uint(n) }
-func (c *RuntimeConfig) GetExecutorGID() int64   { return int64(c.c.Executor.Cred.GID) }
-func (c *RuntimeConfig) SetExecutorGID(n int64)  { c.c.Executor.Cred.GID = uint(n) }
-func (c *RuntimeConfig) GetLibDir() string       { return c.c.LibDir }
-func (c *RuntimeConfig) SetLibDir(s string)      { c.c.LibDir = s }
+func (c *RuntimeConfig) GetMaxProcs() int32          { return int32(c.c.MaxProcs) }
+func (c *RuntimeConfig) SetMaxProcs(n int32)         { c.c.MaxProcs = int(n) }
+func (c *RuntimeConfig) GetNamespaceDisabled() bool  { return c.c.Container.Namespace.Disabled }
+func (c *RuntimeConfig) SetNamespaceDisabled(b bool) { c.c.Container.Namespace.Disabled = b }
+func (c *RuntimeConfig) GetLibDir() string           { return c.c.Container.LibDir }
+func (c *RuntimeConfig) SetLibDir(s string)          { c.c.Container.LibDir = s }
 
 type RuntimeContainer struct {
 	conn *os.File
@@ -59,40 +43,44 @@ type RuntimeContainer struct {
 // NewRuntimeContainer.
 //
 // The MaxProcs config value has no effect here.
-func NewRuntimeContainer(binary string, config *RuntimeConfig) (container *RuntimeContainer, err error) {
-	args, err := runtimeapi.ContainerArgs(binary, config.c.NoNamespaces, config.c.Container.Cred, config.c.Executor.Cred, config.c.Cgroup.Title, config.c.Cgroup.Parent)
-	if err != nil {
-		return
+func NewRuntimeContainer(binary string, config *RuntimeConfig) (*RuntimeContainer, error) {
+	var creds *container.NamespaceCreds
+	var err error
+
+	if !config.c.Container.Namespace.Disabled {
+		creds, err = container.ParseCreds(&config.c.Container.Namespace.User)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	control, conn, err := sys.SocketFilePair(0)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer control.Close()
 
-	cmd, err := runtimeapi.StartContainer(args, control)
+	cmd, err := container.Start(control, &config.c.Container, creds)
 	if err != nil {
 		conn.Close()
-		return
+		return nil, err
 	}
 
 	go func() {
-		if err := runtimeapi.WaitForContainer(cmd, nil); err != nil {
+		if err := container.Wait(cmd, nil); err != nil {
 			defaultlog.StandardLogger{}.Printf("%v", err)
 		}
 	}()
 
-	container = &RuntimeContainer{conn}
-	return
+	return &RuntimeContainer{conn}, nil
 }
 
-func (container *RuntimeContainer) GetFD() int32 {
-	return int32(container.conn.Fd())
+func (x *RuntimeContainer) GetFD() int32 {
+	return int32(x.conn.Fd())
 }
 
-func (container *RuntimeContainer) CloseFD() error {
-	return container.conn.Close()
+func (x *RuntimeContainer) CloseFD() error {
+	return x.conn.Close()
 }
 
 type RuntimeExecutor struct {

@@ -133,16 +133,13 @@ The non-Go components can be built with `make`.  They require:
 
   - Linux
   - musl-tools (musl-gcc), unless CC make variable is overridden
-  - pkg-config
   - uidmap (shadow-utils)
   - protobuf-compiler
   - libprotobuf-dev
-  - libc-dev
-  - libsystemd-dev, unless CGROUP_BACKEND=none is specified for make
 
-`make bin` builds the programs.  It requires:
+`make bin` builds the Go programs.  It requires:
 
-  - Go compiler
+  - Go compiler version 1.16+
 
 See the [services](https://github.com/gate-computer/services) repository for
 alternative program builds.

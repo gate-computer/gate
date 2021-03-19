@@ -39,22 +39,11 @@
 #define GATE_STACK_USAGE_OFFSET (GATE_STACK_VARS_SIZE + GATE_STACK_SIGNAL_SPACE + 240)
 #define GATE_STACK_LIMIT_OFFSET (GATE_STACK_USAGE_OFFSET + 8 + 8)
 
-#define GATE_LIMIT_AS (GATE_LOADER_STACK_SIZE + /* */         \
-		       0x1000LL +               /* loader */  \
-		       0x1000LL +               /* runtime */ \
-		       0x80000000LL +           /* text */    \
-		       0x80000000LL +           /* stack */   \
-		       0x1000LL +               /* globals */ \
-		       0x80000000LL)            /* memory */
-
 #if defined(__ANDROID__)
-#define GATE_LIMIT_FSIZE 0
 #define GATE_LIMIT_DATA 0xa64000 // Anonymous runtime mapping and something else?
 #elif defined(__aarch64__)
-#define GATE_LIMIT_FSIZE 44
 #define GATE_LIMIT_DATA 0x2000 // Anonymous runtime mapping and something else?
 #else
-#define GATE_LIMIT_FSIZE 0
 #define GATE_LIMIT_DATA 0x1000 // Anonymous runtime mapping.
 #endif
 

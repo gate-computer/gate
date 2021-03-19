@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package cred
+package container
 
 import (
 	"bufio"
@@ -13,21 +13,12 @@ import (
 	"strings"
 )
 
-const (
-	subUIDFilename = "/etc/subuid"
-	subGIDFilename = "/etc/subgid"
-)
-
-func formatID(id uint) string {
-	return strconv.FormatUint(uint64(id), 10)
-}
-
 type subIDMap struct {
 	filename string
-	reserved []uint
+	reserved []int
 
-	next uint64
-	end  uint64
+	next int
+	end  int
 }
 
 func (m *subIDMap) parse(username string) error {
@@ -43,18 +34,18 @@ func (m *subIDMap) parse(username string) error {
 		line, err := r.ReadString('\n')
 
 		if tokens := strings.Split(strings.TrimSpace(line), ":"); len(tokens) >= 3 && tokens[0] == username {
-			base, err := strconv.ParseUint(tokens[1], 10, 32)
+			base, err := strconv.ParseInt(tokens[1], 10, 32)
 			if err != nil {
 				return err
 			}
 
-			count, err := strconv.ParseUint(tokens[2], 10, 32)
+			count, err := strconv.ParseInt(tokens[2], 10, 32)
 			if err != nil {
 				return err
 			}
 
-			m.next = base + 1 // Skip the "root" id
-			m.end = base + count
+			m.next = int(base + 1) // Skip root uid/gid.
+			m.end = int(base + count)
 			return nil
 		}
 
@@ -64,9 +55,9 @@ func (m *subIDMap) parse(username string) error {
 	}
 }
 
-func (m *subIDMap) getID() (id uint, err error) {
+func (m *subIDMap) getID() (id int, err error) {
 	for m.next < m.end && m.next <= 0xffffffff {
-		id = uint(m.next)
+		id = m.next
 		m.next++
 
 		for _, reservedID := range m.reserved {
@@ -84,9 +75,26 @@ func (m *subIDMap) getID() (id uint, err error) {
 	return
 }
 
-func Parse(contUID, contGID, execUID, execGID uint,
-) (creds [4]string, err error) {
-	if contUID == 0 || contGID == 0 || execUID == 0 || execGID == 0 {
+// Cred specifies a user id and a group id.  A zero value means unspecified
+// (not root).
+type Cred struct {
+	UID int
+	GID int
+}
+
+// NamespaceCreds for user namespace.
+type NamespaceCreds struct {
+	Container Cred
+	Executor  Cred
+}
+
+func ParseCreds(c *UserNamespaceConfig) (creds *NamespaceCreds, err error) {
+	var (
+		container = c.Container
+		executor  = c.Executor
+	)
+
+	if container.UID == 0 || container.GID == 0 || executor.UID == 0 || executor.GID == 0 {
 		var u *user.User
 
 		u, err = user.Current()
@@ -94,10 +102,10 @@ func Parse(contUID, contGID, execUID, execGID uint,
 			return
 		}
 
-		if contUID == 0 || execUID == 0 {
+		if container.UID == 0 || executor.UID == 0 {
 			m := subIDMap{
-				filename: subUIDFilename,
-				reserved: []uint{getuid(), contUID, execUID},
+				filename: c.subuid(),
+				reserved: []int{os.Getuid(), container.UID, executor.UID},
 			}
 
 			err = m.parse(u.Username)
@@ -105,25 +113,25 @@ func Parse(contUID, contGID, execUID, execGID uint,
 				return
 			}
 
-			if contUID == 0 {
-				contUID, err = m.getID()
+			if container.UID == 0 {
+				container.UID, err = m.getID()
 				if err != nil {
 					return
 				}
 			}
 
-			if execUID == 0 {
-				execUID, err = m.getID()
+			if executor.UID == 0 {
+				executor.UID, err = m.getID()
 				if err != nil {
 					return
 				}
 			}
 		}
 
-		if contGID == 0 || execGID == 0 {
+		if container.GID == 0 || executor.GID == 0 {
 			m := subIDMap{
-				filename: subGIDFilename,
-				reserved: []uint{getgid(), contGID, execGID},
+				filename: c.subgid(),
+				reserved: []int{os.Getgid(), container.GID, executor.GID},
 			}
 
 			err = m.parse(u.Username)
@@ -131,15 +139,15 @@ func Parse(contUID, contGID, execUID, execGID uint,
 				return
 			}
 
-			if contGID == 0 {
-				contGID, err = m.getID()
+			if container.GID == 0 {
+				container.GID, err = m.getID()
 				if err != nil {
 					return
 				}
 			}
 
-			if execGID == 0 {
-				execGID, err = m.getID()
+			if executor.GID == 0 {
+				executor.GID, err = m.getID()
 				if err != nil {
 					return
 				}
@@ -147,11 +155,6 @@ func Parse(contUID, contGID, execUID, execGID uint,
 		}
 	}
 
-	creds = [4]string{
-		formatID(contUID),
-		formatID(contGID),
-		formatID(execUID),
-		formatID(execGID),
-	}
+	creds = &NamespaceCreds{container, executor}
 	return
 }

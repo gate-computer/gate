@@ -3,8 +3,6 @@ GOFMT		?= gofmt
 PROTOC		?= protoc
 PERFLOCK	?= perflock
 
-CGROUP_BACKEND	?= systemd
-
 DESTDIR		:=
 PREFIX		:= /usr/local
 BINDIR		:= $(PREFIX)/bin
@@ -34,7 +32,6 @@ export GO111MODULE := on
 
 .PHONY: lib
 lib: $(GEN_LIB_SOURCES)
-	$(MAKE) -C runtime/container CGROUP_BACKEND=$(CGROUP_BACKEND)
 	$(MAKE) -C runtime/executor
 	$(MAKE) -C runtime/loader
 
@@ -44,6 +41,7 @@ bin: $(GEN_BIN_SOURCES)
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtime ./cmd/gate-runtime
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
+	$(GO) build $(GOBUILDFLAGS) -o lib/gate/runtime/gate-runtime-container-0 ./runtime/container
 
 .PHONY: generate
 generate: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
@@ -68,13 +66,11 @@ benchmark: lib bin
 .PHONY: install-lib
 install-lib:
 	install -m 755 -d $(DESTDIR)$(LIBDIR)/runtime
-	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/container install CGROUP_BACKEND=$(CGROUP_BACKEND)
 	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/executor install
 	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/loader install
 
 .PHONY: install-lib-capabilities
 install-lib-capabilities: install-lib
-	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/container capabilities
 
 .PHONY: install-bin
 install-bin:
@@ -108,7 +104,7 @@ install-systemd-user:
 
 internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
 	mkdir -p tmp
-	$(GO) run internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S) | $(GOFMT) > tmp/errors.go
+	$(GO) run internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S runtime/container/*.go) | $(GOFMT) > tmp/errors.go
 	test -s tmp/errors.go
 	mv tmp/errors.go internal/error/runtime/errors.go
 
@@ -132,7 +128,6 @@ server/event/type.gen.go: server/event/event.pb.go internal/cmd/event-types/gene
 .PHONY: clean
 clean:
 	rm -rf bin lib tmp
-	$(MAKE) -C runtime/container clean
 	$(MAKE) -C runtime/executor clean
 	$(MAKE) -C runtime/executor/test clean
 	$(MAKE) -C runtime/loader clean

@@ -12,7 +12,7 @@ import (
 	"os"
 	"path"
 
-	"gate.computer/gate/internal/runtimeapi"
+	"gate.computer/gate/internal/container"
 	"gate.computer/gate/runtime"
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -27,8 +27,9 @@ type Config struct {
 	}
 }
 
+var c = new(Config)
+
 func main() {
-	c := new(Config)
 	c.Runtime = runtime.DefaultConfig
 
 	flag.Var(confi.FileReader(c), "f", "read a configuration file")
@@ -67,12 +68,7 @@ func main() {
 		infoLog = critLog
 	}
 
-	binary, err := runtimeapi.ContainerBinary(c.Runtime.LibDir)
-	if err != nil {
-		critLog.Fatal(err)
-	}
-
-	containerArgs, err := runtimeapi.ContainerArgs(binary, c.Runtime.NoNamespaces, c.Runtime.Container.Cred, c.Runtime.Executor.Cred, c.Runtime.Cgroup.Title, c.Runtime.Cgroup.Parent)
+	creds, err := container.ParseCreds(&c.Runtime.Container.Namespace.User)
 	if err != nil {
 		critLog.Fatal(err)
 	}
@@ -123,31 +119,46 @@ func main() {
 
 		conn, err := listener.AcceptUnix()
 		if err == nil {
-			go handle(client, conn, containerArgs, errLog, infoLog)
+			go handle(client, conn, creds, errLog, infoLog)
 		} else {
 			errLog.Print(err)
 		}
 	}
 }
 
-func handle(client uint64, conn *net.UnixConn, containerArgs []string, errLog, infoLog *log.Logger) {
+func handle(client uint64, conn *net.UnixConn, creds *container.NamespaceCreds, errLog, infoLog *log.Logger) {
+	defer func() {
+		if conn != nil {
+			conn.Close()
+		}
+	}()
+
 	infoLog.Printf("%d: connection", client)
 
 	connFile, err := conn.File()
+	if err != nil {
+		errLog.Printf("%d: %v", client, err)
+		return
+	}
+	defer func() {
+		if connFile != nil {
+			connFile.Close()
+		}
+	}()
+
 	conn.Close()
+	conn = nil
+
+	cmd, err := container.Start(connFile, &c.Runtime.Container, creds)
 	if err != nil {
 		errLog.Printf("%d: %v", client, err)
 		return
 	}
 
-	cmd, err := runtimeapi.StartContainer(containerArgs, connFile)
 	connFile.Close()
-	if err != nil {
-		errLog.Printf("%d: %v", client, err)
-		return
-	}
+	connFile = nil
 
-	if err := runtimeapi.WaitForContainer(cmd, nil); err == nil {
+	if err := container.Wait(cmd, nil); err == nil {
 		infoLog.Printf("%d: container terminated", client)
 	} else {
 		errLog.Printf("%d: %v", client, err)

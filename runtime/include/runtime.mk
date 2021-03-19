@@ -1,4 +1,2 @@
 # Version number reflecting the contract between Go and C.
 GATE_RUNTIME_BINARY_SUFFIX	:= 0
-
-CPPFLAGS += -DGATE_RUNTIME_BINARY_SUFFIX=$(GATE_RUNTIME_BINARY_SUFFIX)

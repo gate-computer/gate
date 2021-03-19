@@ -8,12 +8,12 @@ import (
 	"net"
 	"os/exec"
 
-	"gate.computer/gate/internal/runtimeapi"
+	"gate.computer/gate/internal/container"
 	"gate.computer/gate/internal/sys"
 )
 
-func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
-	binary, err := runtimeapi.ContainerBinary(config.libDir())
+func startContainer(config *ContainerConfig) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
+	creds, err := container.ParseCreds(&config.Namespace.User)
 	if err != nil {
 		return
 	}
@@ -30,27 +30,23 @@ func startContainer(config *Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err 
 		return
 	}
 	defer func() {
-		if err != nil {
+		if netConn != nil {
 			netConn.Close()
 		}
 	}()
 
-	args, err := runtimeapi.ContainerArgs(binary, config.NoNamespaces, config.Container.Cred, config.Executor.Cred, config.Cgroup.title(), config.Cgroup.Parent)
-	if err != nil {
-		return
-	}
-
-	cmd, err = runtimeapi.StartContainer(args, controlFile)
+	cmd, err = container.Start(controlFile, config, creds)
 	if err != nil {
 		return
 	}
 
 	unixConn = netConn.(*net.UnixConn)
+	netConn = nil
 	return
 }
 
-func dialContainerDaemon(config *Config) (conn *net.UnixConn, err error) {
-	addr, err := net.ResolveUnixAddr("unix", config.DaemonSocket)
+func dialContainerDaemon(path string) (conn *net.UnixConn, err error) {
+	addr, err := net.ResolveUnixAddr("unix", path)
 	if err != nil {
 		return
 	}

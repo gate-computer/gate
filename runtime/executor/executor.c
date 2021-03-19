@@ -376,9 +376,9 @@ int main(int argc, char **argv)
 	if (clear_caps() != 0)
 		die(ERR_EXEC_CLEAR_CAPS);
 
-	if (argc > 1) {
-		char *flags_arg = argv[1];
-		no_namespaces = strchrnul(flags_arg, 'n') < strchrnul(flags_arg, '.');
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-n") == 0)
+			no_namespaces = true;
 	}
 
 	set_cloexec(STDIN_FILENO);

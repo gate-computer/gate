@@ -2,6 +2,63 @@
 
 package runtime
 
+const (
+	ERR_CONT_EXEC_EXECUTOR                 = 10
+	ERR_EXEC_PRCTL_NOT_DUMPABLE            = 11
+	ERR_EXEC_SETRLIMIT_DATA                = 12
+	ERR_EXEC_FCNTL_GETFD                   = 13
+	ERR_EXEC_FCNTL_CLOEXEC                 = 14
+	ERR_EXEC_SIGMASK                       = 16
+	ERR_EXEC_KILL                          = 17
+	ERR_REAP_WAITPID                       = 18
+	ERR_EXEC_PPOLL                         = 19
+	ERR_EXEC_RECVMSG                       = 20
+	ERR_EXEC_SEND                          = 21
+	ERR_EXEC_VFORK                         = 22
+	ERR_EXEC_MSG_CTRUNC                    = 23
+	ERR_EXEC_CMSG_LEVEL                    = 24
+	ERR_EXEC_CMSG_TYPE                     = 25
+	ERR_EXEC_CMSG_LEN                      = 26
+	ERR_EXEC_CMSG_NXTHDR                   = 27
+	ERR_EXEC_SENDBUF_OVERFLOW_CMSG         = 28
+	ERR_EXEC_SENDBUF_OVERFLOW_REAP         = 29
+	ERR_EXEC_KILLBUF_OVERFLOW              = 30
+	ERR_EXEC_DEADBUF_OVERFLOW              = 31
+	ERR_EXEC_KILLMSG_PID                   = 32
+	ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE = 33
+	ERR_EXEC_PRLIMIT                       = 34
+	ERR_EXEC_PAUSE                         = 35
+	ERR_EXEC_SETRLIMIT_STACK               = 36
+	ERR_EXEC_PAGESIZE                      = 37
+	ERR_REAP_SENTINEL                      = 43
+	ERR_EXEC_NODE_ALLOC                    = 44
+	ERR_EXEC_BRK                           = 45
+	ERR_EXEC_MAP_REMOVE                    = 46
+	ERR_REAP_WRITEV                        = 47
+	ERR_REAP_WRITE_ALIGN                   = 48
+	ERR_EXEC_MAP_PID                       = 49
+	ERR_EXEC_MAP_INSERT                    = 50
+	ERR_EXEC_OP                            = 51
+	ERR_EXEC_THREAD_ATTR                   = 52
+	ERR_EXEC_THREAD_CREATE                 = 53
+	ERR_EXEC_SIGACTION                     = 54
+	ERR_EXEC_PRLIMIT_CPU                   = 56
+	ERR_EXEC_FORK_SENTINEL                 = 57
+	ERR_EXEC_KILL_SENTINEL                 = 58
+	ERR_EXEC_MSG_LEN                       = 60
+	ERR_EXEC_CMSG_OP_MISMATCH              = 62
+	ERR_EXEC_ID_RANGE                      = 63
+	ERR_EXEC_RAISE                         = 64
+	ERR_EXEC_NO_NEW_PRIVS                  = 65
+	ERR_EXEC_CLEAR_CAPS                    = 66
+	ERR_EXEC_PROCSTAT_OPEN                 = 67
+	ERR_EXEC_PROCSTAT_READ                 = 68
+	ERR_EXEC_PROCSTAT_PARSE                = 69
+	ERR_EXEC_CLOSE                         = 70
+	ERR_EXEC_SYSCONF_CLK_TCK               = 71
+	ERR_EXEC_PDEATHSIG                     = 72
+)
+
 var ExecutorErrors = [73]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},

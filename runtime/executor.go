@@ -9,15 +9,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log"
 	"math"
 	"net"
 	"os/exec"
 	"sync/atomic"
 	"syscall"
 
+	"gate.computer/gate/internal/container"
 	"gate.computer/gate/internal/defaultlog"
 	"gate.computer/gate/internal/file"
-	"gate.computer/gate/internal/runtimeapi"
 	"github.com/tsavola/mu"
 )
 
@@ -43,7 +44,7 @@ type Executor struct {
 }
 
 func NewExecutor(config *Config) (e *Executor, err error) {
-	maxProcs := config.maxProcs()
+	maxProcs := config.maxprocs()
 	if maxProcs > MaxProcs {
 		err = errors.New("executor process limit is too high")
 		return
@@ -68,10 +69,10 @@ func NewExecutor(config *Config) (e *Executor, err error) {
 		}
 
 	case config.DaemonSocket != "":
-		conn, err = dialContainerDaemon(config)
+		conn, err = dialContainerDaemon(config.DaemonSocket)
 
 	default:
-		cmd, conn, err = startContainer(config)
+		cmd, conn, err = startContainer(&config.Container)
 	}
 	if err != nil {
 		return
@@ -96,7 +97,7 @@ func NewExecutor(config *Config) (e *Executor, err error) {
 
 	if cmd != nil {
 		go func() {
-			if err := runtimeapi.WaitForContainer(cmd, e.doneSending); err != nil {
+			if err := container.Wait(cmd, e.doneSending); err != nil {
 				errorLog.Printf("%v", err)
 			}
 		}()
@@ -252,6 +253,11 @@ func (e *Executor) receiver(errorLog Logger) {
 
 				p := e.procs[id]
 				delete(e.procs, id)
+				if p == nil {
+					// XXX
+					log.Printf("runtime.Executor.receiver: process %d is nil", id)
+					continue
+				}
 				p.status = syscall.WaitStatus(status)
 				close(p.dead)
 			}

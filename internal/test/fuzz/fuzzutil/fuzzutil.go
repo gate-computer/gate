@@ -37,7 +37,15 @@ func (connector) Close() error {
 
 func NewServer(ctx context.Context, libdir string) *server.Server {
 	e, err := gateruntime.NewExecutor(&gateruntime.Config{
-		LibDir: libdir,
+		Container: gateruntime.ContainerConfig{
+			LibDir: libdir,
+			Namespace: gateruntime.NamespaceConfig{
+				User: gateruntime.UserNamespaceConfig{
+					Newuidmap: "/usr/bin/newuidmap",
+					Newgidmap: "/usr/bin/newgidmap",
+				},
+			},
+		},
 	})
 	if err != nil {
 		panic(err)
