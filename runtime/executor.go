@@ -188,7 +188,7 @@ func (e *Executor) sender(errorLog Logger) {
 				e.procs[req.pid] = req.proc
 			})
 
-			// This is like exec_request in runtime/executor/executor.h
+			// This is like exec_request in runtime/executor/executor.c
 			binary.LittleEndian.PutUint16(buf[0:], uint16(req.pid))
 			buf[2] = execOpCreate
 
@@ -211,7 +211,7 @@ func (e *Executor) sender(errorLog Logger) {
 				op = execOpSuspend
 			}
 
-			// This is like exec_request in runtime/executor/executor.h
+			// This is like exec_request in runtime/executor/executor.c
 			binary.LittleEndian.PutUint16(buf[0:], uint16(id))
 			buf[2] = op
 		}
@@ -245,7 +245,7 @@ func (e *Executor) receiver(errorLog Logger) {
 
 		e.mu.Guard(func() {
 			for ; len(b) >= 8; b = b[8:] {
-				// This is like exec_status in runtime/executor/executor.h
+				// This is like exec_status in runtime/executor/executor.c
 				var (
 					id     = int16(binary.LittleEndian.Uint16(b[0:]))
 					status = int32(binary.LittleEndian.Uint32(b[4:]))

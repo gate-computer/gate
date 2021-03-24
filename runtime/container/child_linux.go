@@ -258,6 +258,9 @@ func childMain() (err error) {
 		return fmt.Errorf("duplicating stdout as stdin: %w", err)
 	}
 
+	// Executor will readjust open file limit appropriately.  Handle error then.
+	setrlimit("NOFILE", unix.RLIMIT_NOFILE, 1048576)
+
 	if common.Sandbox {
 		syscall.Umask(0777)
 

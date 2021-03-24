@@ -5,8 +5,6 @@
 #ifndef GATE_RUNTIME_ATTRIBUTE_H
 #define GATE_RUNTIME_ATTRIBUTE_H
 
-#define ALIGNED(n) __attribute__((aligned(n)))
-#define NOINLINE __attribute__((noinline))
 #define NORETURN __attribute__((noreturn))
 #define PACKED __attribute__((packed))
 

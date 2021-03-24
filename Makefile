@@ -51,7 +51,6 @@ all: lib bin
 
 .PHONY: check
 check: lib bin
-	$(MAKE) -C runtime/executor/test check
 	$(MAKE) -C runtime/loader/test check
 	$(GO) build $(GOBUILDFLAGS) -o lib/gate/service/test ./internal/test/grpc-service
 	$(GO) build -o /dev/null ./...
@@ -129,6 +128,5 @@ server/event/type.gen.go: server/event/event.pb.go internal/cmd/event-types/gene
 clean:
 	rm -rf bin lib tmp
 	$(MAKE) -C runtime/executor clean
-	$(MAKE) -C runtime/executor/test clean
 	$(MAKE) -C runtime/loader clean
 	$(MAKE) -C runtime/loader/test clean

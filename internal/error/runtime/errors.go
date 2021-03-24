@@ -4,116 +4,95 @@ package runtime
 
 const (
 	ERR_CONT_EXEC_EXECUTOR                 = 10
-	ERR_EXEC_PRCTL_NOT_DUMPABLE            = 11
-	ERR_EXEC_SETRLIMIT_DATA                = 12
-	ERR_EXEC_FCNTL_GETFD                   = 13
-	ERR_EXEC_FCNTL_CLOEXEC                 = 14
-	ERR_EXEC_SIGMASK                       = 16
-	ERR_EXEC_KILL                          = 17
-	ERR_REAP_WAITPID                       = 18
-	ERR_EXEC_PPOLL                         = 19
-	ERR_EXEC_RECVMSG                       = 20
-	ERR_EXEC_SEND                          = 21
-	ERR_EXEC_VFORK                         = 22
-	ERR_EXEC_MSG_CTRUNC                    = 23
-	ERR_EXEC_CMSG_LEVEL                    = 24
-	ERR_EXEC_CMSG_TYPE                     = 25
-	ERR_EXEC_CMSG_LEN                      = 26
-	ERR_EXEC_CMSG_NXTHDR                   = 27
-	ERR_EXEC_SENDBUF_OVERFLOW_CMSG         = 28
-	ERR_EXEC_SENDBUF_OVERFLOW_REAP         = 29
-	ERR_EXEC_KILLBUF_OVERFLOW              = 30
-	ERR_EXEC_DEADBUF_OVERFLOW              = 31
-	ERR_EXEC_KILLMSG_PID                   = 32
-	ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE = 33
-	ERR_EXEC_PRLIMIT                       = 34
-	ERR_EXEC_PAUSE                         = 35
-	ERR_EXEC_SETRLIMIT_STACK               = 36
-	ERR_EXEC_PAGESIZE                      = 37
-	ERR_REAP_SENTINEL                      = 43
-	ERR_EXEC_NODE_ALLOC                    = 44
-	ERR_EXEC_BRK                           = 45
-	ERR_EXEC_MAP_REMOVE                    = 46
-	ERR_REAP_WRITEV                        = 47
-	ERR_REAP_WRITE_ALIGN                   = 48
-	ERR_EXEC_MAP_PID                       = 49
-	ERR_EXEC_MAP_INSERT                    = 50
-	ERR_EXEC_OP                            = 51
-	ERR_EXEC_THREAD_ATTR                   = 52
-	ERR_EXEC_THREAD_CREATE                 = 53
-	ERR_EXEC_SIGACTION                     = 54
-	ERR_EXEC_PRLIMIT_CPU                   = 56
-	ERR_EXEC_FORK_SENTINEL                 = 57
-	ERR_EXEC_KILL_SENTINEL                 = 58
-	ERR_EXEC_MSG_LEN                       = 60
-	ERR_EXEC_CMSG_OP_MISMATCH              = 62
-	ERR_EXEC_ID_RANGE                      = 63
-	ERR_EXEC_RAISE                         = 64
-	ERR_EXEC_NO_NEW_PRIVS                  = 65
-	ERR_EXEC_CLEAR_CAPS                    = 66
-	ERR_EXEC_PROCSTAT_OPEN                 = 67
-	ERR_EXEC_PROCSTAT_READ                 = 68
-	ERR_EXEC_PROCSTAT_PARSE                = 69
-	ERR_EXEC_CLOSE                         = 70
-	ERR_EXEC_SYSCONF_CLK_TCK               = 71
-	ERR_EXEC_PDEATHSIG                     = 72
+	ERR_EXEC_BRK                           = 11
+	ERR_EXEC_PAGESIZE                      = 12
+	ERR_EXEC_PDEATHSIG                     = 13
+	ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE = 14
+	ERR_EXEC_CLEAR_CAPS                    = 15
+	ERR_EXEC_CLONE                         = 16
+	ERR_EXEC_CLOSE                         = 17
+	ERR_EXEC_SIGMASK                       = 18
+	ERR_EXEC_SYSCONF_CLK_TCK               = 19
+	ERR_EXEC_NO_NEW_PRIVS                  = 20
+	ERR_EXEC_FCNTL_CLOEXEC                 = 21
+	ERR_EXEC_FCNTL_GETFD                   = 22
+	ERR_EXEC_SETRLIMIT_DATA                = 23
+	ERR_EXEC_SETRLIMIT_NOFILE              = 24
+	ERR_EXEC_SETRLIMIT_STACK               = 25
+	ERR_EXEC_EPOLL_CREATE                  = 26
+	ERR_EXEC_EPOLL_WAIT                    = 27
+	ERR_EXEC_EPOLL_ADD                     = 28
+	ERR_EXEC_EPOLL_MOD                     = 29
+	ERR_EXEC_RECVMMSG                      = 30
+	ERR_EXEC_MSG_LEN                       = 31
+	ERR_EXEC_MSG_CTRUNC                    = 32
+	ERR_EXEC_OP                            = 33
+	ERR_EXEC_ID_RANGE                      = 34
+	ERR_EXEC_CMSG_OP_MISMATCH              = 35
+	ERR_EXEC_CMSG_LEVEL                    = 36
+	ERR_EXEC_CMSG_TYPE                     = 37
+	ERR_EXEC_CMSG_LEN                      = 38
+	ERR_EXEC_CMSG_NXTHDR                   = 39
+	ERR_EXEC_CREATE_PROCESS_BAD_STATE      = 40
+	ERR_EXEC_WAIT_PROCESS_BAD_STATE        = 41
+	ERR_EXEC_SEND                          = 42
+	ERR_EXEC_SEND_ALIGN                    = 43
+	ERR_EXEC_POLL_OTHER_EVENTS             = 44
+	ERR_EXEC_POLL_OTHER_ID                 = 45
+	ERR_EXEC_KILL                          = 46
+	ERR_EXEC_WAITPID                       = 47
+	ERR_EXEC_PRCTL_NOT_DUMPABLE            = 48
+	ERR_EXEC_PRLIMIT                       = 49
+	ERR_EXEC_PRLIMIT_CPU                   = 50
+	ERR_EXEC_PROCSTAT_OPEN                 = 51
+	ERR_EXEC_PROCSTAT_READ                 = 52
+	ERR_EXEC_PROCSTAT_PARSE                = 53
 )
 
-var ExecutorErrors = [73]Error{
+var ExecutorErrors = [82]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
-	11: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},
-	12: {"ERR_EXEC_SETRLIMIT_DATA", "runtime executor", "setrlimit: failed to set DATA limit"},
-	13: {"ERR_EXEC_FCNTL_GETFD", "runtime executor", "fcntl: failed to get file descriptor flags"},
-	14: {"ERR_EXEC_FCNTL_CLOEXEC", "runtime executor", "fcntl: failed to add close-on-exec flag"},
-	16: {"ERR_EXEC_SIGMASK", "runtime executor", "pthread_sigmask: failed to set mask"},
-	17: {"ERR_EXEC_KILL", "runtime executor", "kill call failed"},
-	18: {"ERR_REAP_WAITPID", "runtime reaper", "waitpid call failed"},
-	19: {"ERR_EXEC_PPOLL", "runtime executor", "ppoll call failed"},
-	20: {"ERR_EXEC_RECVMSG", "runtime executor", "recvmsg call failed"},
-	21: {"ERR_EXEC_SEND", "runtime executor", "send call failed"},
-	22: {"ERR_EXEC_VFORK", "runtime executor", "vfork call failed"},
-	23: {"ERR_EXEC_MSG_CTRUNC", "runtime executor", "received truncated control message"},
-	24: {"ERR_EXEC_CMSG_LEVEL", "runtime executor", "unexpected control message: not at socket level"},
-	25: {"ERR_EXEC_CMSG_TYPE", "runtime executor", "unexpected control message type: no file descriptors"},
-	26: {"ERR_EXEC_CMSG_LEN", "runtime executor", "unexpected control message length"},
-	27: {"ERR_EXEC_CMSG_NXTHDR", "runtime executor", "multiple control message headers per recvmsg"},
-	28: {"ERR_EXEC_SENDBUF_OVERFLOW_CMSG", "runtime executor", "send buffer overflow on recvmsg"},
-	29: {"ERR_EXEC_SENDBUF_OVERFLOW_REAP", "runtime executor", "send buffer overflow on waitpid"},
-	30: {"ERR_EXEC_KILLBUF_OVERFLOW", "runtime executor", "kill buffer overflow"},
-	31: {"ERR_EXEC_DEADBUF_OVERFLOW", "runtime executor", "dead pid buffer overflow"},
-	32: {"ERR_EXEC_KILLMSG_PID", "runtime executor", "received kill message with invalid pid"},
-	33: {"ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE", "runtime executor", "failed to change personality to ADDR_NO_RANDOMIZE"},
-	34: {"ERR_EXEC_PRLIMIT", "runtime executor", "prlimit call failed"},
-	35: {"ERR_EXEC_PAUSE", "runtime executor", "TODO: ERR_EXEC_PAUSE"},
-	36: {"ERR_EXEC_SETRLIMIT_STACK", "runtime executor", "setrlimit: failed to set STACK limit"},
-	37: {"ERR_EXEC_PAGESIZE", "runtime executor", "TODO: ERR_EXEC_PAGESIZE"},
-	43: {"ERR_REAP_SENTINEL", "runtime reaper", "sentinel process terminated unexpectedly"},
-	44: {"ERR_EXEC_NODE_ALLOC", "runtime executor", "TODO: ERR_EXEC_NODE_ALLOC"},
-	45: {"ERR_EXEC_BRK", "runtime executor", "TODO: ERR_EXEC_BRK"},
-	46: {"ERR_EXEC_MAP_REMOVE", "runtime executor", "TODO: ERR_EXEC_MAP_REMOVE"},
-	47: {"ERR_REAP_WRITEV", "runtime reaper", "TODO: ERR_REAP_WRITEV"},
-	48: {"ERR_REAP_WRITE_ALIGN", "runtime reaper", "TODO: ERR_REAP_WRITE_ALIGN"},
-	49: {"ERR_EXEC_MAP_PID", "runtime executor", "TODO: ERR_EXEC_MAP_PID"},
-	50: {"ERR_EXEC_MAP_INSERT", "runtime executor", "TODO: ERR_EXEC_MAP_INSERT"},
-	51: {"ERR_EXEC_OP", "runtime executor", "TODO: ERR_EXEC_OP"},
-	52: {"ERR_EXEC_THREAD_ATTR", "runtime reaper", "TODO: ERR_EXEC_THREAD_ATTR"},
-	53: {"ERR_EXEC_THREAD_CREATE", "runtime reaper", "TODO: ERR_EXEC_THREAD_CREATE"},
-	54: {"ERR_EXEC_SIGACTION", "runtime reaper", "signal handler registration failed"},
-	56: {"ERR_EXEC_PRLIMIT_CPU", "runtime executor", "TODO: ERR_EXEC_PRLIMIT_CPU"},
-	57: {"ERR_EXEC_FORK_SENTINEL", "runtime executor", "sentinel process fork failed"},
-	58: {"ERR_EXEC_KILL_SENTINEL", "runtime executor", "sentinel process kill failed"},
-	60: {"ERR_EXEC_MSG_LEN", "runtime executor", "TODO: ERR_EXEC_MSG_LEN"},
-	62: {"ERR_EXEC_CMSG_OP_MISMATCH", "runtime executor", "TODO: ERR_EXEC_CMSG_OP_MISMATCH"},
-	63: {"ERR_EXEC_ID_RANGE", "runtime executor", "TODO: ERR_EXEC_ID_RANGE"},
-	64: {"ERR_EXEC_RAISE", "runtime repaer", "TODO: ERR_EXEC_RAISE"},
-	65: {"ERR_EXEC_NO_NEW_PRIVS", "runtime executor", "prctl: failed to PR_SET_NO_NEW_PRIVS"},
-	66: {"ERR_EXEC_CLEAR_CAPS", "runtime executor", "failed to clear capabilities"},
-	67: {"ERR_EXEC_PROCSTAT_OPEN", "runtime executor", "failed to open /proc/PID/stat"},
-	68: {"ERR_EXEC_PROCSTAT_READ", "runtime executor", "failed to read /proc/PID/stat"},
-	69: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/PID/stat parse error"},
-	70: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
-	71: {"ERR_EXEC_SYSCONF_CLK_TCK", "runtime executor", "TODO: ERR_EXEC_SYSCONF_CLK_TCK"},
-	72: {"ERR_EXEC_PDEATHSIG", "runtime executor", "failed to set process death signal"},
+	11: {"ERR_EXEC_BRK", "runtime executor", "brk call failed"},
+	12: {"ERR_EXEC_PAGESIZE", "runtime executor", "sysconf PAGESIZE call failed"},
+	13: {"ERR_EXEC_PDEATHSIG", "runtime executor", "failed to set process death signal"},
+	14: {"ERR_EXEC_PERSONALITY_ADDR_NO_RANDOMIZE", "runtime executor", "failed to change personality to ADDR_NO_RANDOMIZE"},
+	15: {"ERR_EXEC_CLEAR_CAPS", "runtime executor", "failed to clear capabilities"},
+	16: {"ERR_EXEC_CLONE", "runtime executor", "clone call failed"},
+	17: {"ERR_EXEC_CLOSE", "runtime executor", "file descriptor close error"},
+	18: {"ERR_EXEC_SIGMASK", "runtime executor", "pthread_sigmask: failed to set mask"},
+	19: {"ERR_EXEC_SYSCONF_CLK_TCK", "runtime executor", "sysconf CLK_TCK call failed"},
+	20: {"ERR_EXEC_NO_NEW_PRIVS", "runtime executor", "prctl: failed to PR_SET_NO_NEW_PRIVS"},
+	21: {"ERR_EXEC_FCNTL_CLOEXEC", "runtime executor", "fcntl: failed to add close-on-exec flag"},
+	22: {"ERR_EXEC_FCNTL_GETFD", "runtime executor", "fcntl: failed to get file descriptor flags"},
+	23: {"ERR_EXEC_SETRLIMIT_DATA", "runtime executor", "setrlimit: failed to set DATA limit"},
+	24: {"ERR_EXEC_SETRLIMIT_NOFILE", "runtime executor", "setrlimit: failed to set NOFILE limit"},
+	25: {"ERR_EXEC_SETRLIMIT_STACK", "runtime executor", "setrlimit: failed to set STACK limit"},
+	26: {"ERR_EXEC_EPOLL_CREATE", "runtime executor", "epoll_create call failed"},
+	27: {"ERR_EXEC_EPOLL_WAIT", "runtime executor", "epoll_wait call failed"},
+	28: {"ERR_EXEC_EPOLL_ADD", "runtime executor", "epoll_ctl ADD call failed"},
+	29: {"ERR_EXEC_EPOLL_MOD", "runtime executor", "epoll_ctl MOD call failed"},
+	30: {"ERR_EXEC_RECVMMSG", "runtime executor", "recvmmsg call failed"},
+	31: {"ERR_EXEC_MSG_LEN", "runtime executor", "received control message with unexpected length"},
+	32: {"ERR_EXEC_MSG_CTRUNC", "runtime executor", "received truncated control message"},
+	33: {"ERR_EXEC_OP", "runtime executor", "received message with unknown op type"},
+	34: {"ERR_EXEC_ID_RANGE", "runtime executor", "process index out of bounds"},
+	35: {"ERR_EXEC_CMSG_OP_MISMATCH", "runtime executor", "op type and control message expectation mismatch"},
+	36: {"ERR_EXEC_CMSG_LEVEL", "runtime executor", "unexpected control message: not at socket level"},
+	37: {"ERR_EXEC_CMSG_TYPE", "runtime executor", "unexpected control message type: no file descriptors"},
+	38: {"ERR_EXEC_CMSG_LEN", "runtime executor", "unexpected control message length"},
+	39: {"ERR_EXEC_CMSG_NXTHDR", "runtime executor", "multiple control message headers per recvmsg"},
+	40: {"ERR_EXEC_CREATE_PROCESS_BAD_STATE", "runtime executor", "process index already in use"},
+	41: {"ERR_EXEC_WAIT_PROCESS_BAD_STATE", "runtime executor", "event from pidfd with nonexistent process state"},
+	42: {"ERR_EXEC_SEND", "runtime executor", "send call failed"},
+	43: {"ERR_EXEC_SEND_ALIGN", "runtime executor", "sent unexpected number of bytes"},
+	44: {"ERR_EXEC_POLL_OTHER_EVENTS", "runtime executor", "unexpected poll events"},
+	45: {"ERR_EXEC_POLL_OTHER_ID", "runtime executor", "unknown poll event data"},
+	46: {"ERR_EXEC_KILL", "runtime executor", "kill call failed"},
+	47: {"ERR_EXEC_WAITPID", "runtime reaper", "waitpid call failed"},
+	48: {"ERR_EXEC_PRCTL_NOT_DUMPABLE", "runtime executor", "prctl: failed to set not dumpable"},
+	49: {"ERR_EXEC_PRLIMIT_CPU", "runtime executor", "prlimit CPU call failed"},
+	50: {"ERR_EXEC_PROCSTAT_OPEN", "runtime executor", "failed to open /proc/<pid>/stat"},
+	51: {"ERR_EXEC_PROCSTAT_READ", "runtime executor", "failed to read /proc/<pid>/stat"},
+	52: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/<pid>/stat parse error"},
 }
 
 var ProcessErrors = [48]Error{
