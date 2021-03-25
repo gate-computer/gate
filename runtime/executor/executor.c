@@ -176,14 +176,8 @@ static void suspend_process(pid_t pid, int pidfd, long clock_ticks)
 		.rlim_max = secs,
 	};
 
-	if (prlimit(pid, RLIMIT_CPU, &cpu, NULL) != 0) {
-		// if (errno == ESRCH) {
-		// 	debugf("executor: pid %d fd %d does not exist (suspend)", pid, pidfd);
-		// 	return;
-		// }
-
+	if (prlimit(pid, RLIMIT_CPU, &cpu, NULL) != 0)
 		die(ERR_EXEC_PRLIMIT_CPU);
-	}
 }
 
 enum {

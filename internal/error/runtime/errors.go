@@ -42,11 +42,10 @@ const (
 	ERR_EXEC_KILL                          = 46
 	ERR_EXEC_WAITPID                       = 47
 	ERR_EXEC_PRCTL_NOT_DUMPABLE            = 48
-	ERR_EXEC_PRLIMIT                       = 49
-	ERR_EXEC_PRLIMIT_CPU                   = 50
-	ERR_EXEC_PROCSTAT_OPEN                 = 51
-	ERR_EXEC_PROCSTAT_READ                 = 52
-	ERR_EXEC_PROCSTAT_PARSE                = 53
+	ERR_EXEC_PRLIMIT_CPU                   = 49
+	ERR_EXEC_PROCSTAT_OPEN                 = 50
+	ERR_EXEC_PROCSTAT_READ                 = 51
+	ERR_EXEC_PROCSTAT_PARSE                = 52
 )
 
 var ExecutorErrors = [82]Error{
