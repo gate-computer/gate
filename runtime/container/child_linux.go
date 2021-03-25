@@ -261,11 +261,21 @@ func childMain() (err error) {
 	if common.Sandbox {
 		syscall.Umask(0777)
 
-		setrlimit("FSIZE", unix.RLIMIT_FSIZE, limitFSIZE)
-		setrlimit("MEMLOCK", unix.RLIMIT_MEMLOCK, 0)
-		setrlimit("MSGQUEUE", unix.RLIMIT_MSGQUEUE, 0)
-		setrlimit("RTPRIO", unix.RLIMIT_RTPRIO, 0)
-		setrlimit("SIGPENDING", unix.RLIMIT_SIGPENDING, 0) // Applies only to sigqueue.
+		if err := setrlimit("FSIZE", unix.RLIMIT_FSIZE, limitFSIZE); err != nil {
+			return err
+		}
+		if err := setrlimit("MEMLOCK", unix.RLIMIT_MEMLOCK, 0); err != nil {
+			return err
+		}
+		if err := setrlimit("MSGQUEUE", unix.RLIMIT_MSGQUEUE, 0); err != nil {
+			return err
+		}
+		if err := setrlimit("RTPRIO", unix.RLIMIT_RTPRIO, 0); err != nil {
+			return err
+		}
+		if err := setrlimit("SIGPENDING", unix.RLIMIT_SIGPENDING, 0); err != nil { // Applies to sigqueue.
+			return err
+		}
 	}
 
 	if common.Sandbox && !namespaceDisabled {
@@ -290,9 +300,15 @@ func childMain() (err error) {
 			}
 		}
 
-		setrlimit("AS", unix.RLIMIT_AS, limitAS)
-		setrlimit("CORE", unix.RLIMIT_CORE, 0)
-		setrlimit("STACK", unix.RLIMIT_STACK, executorStackSize)
+		if err := setrlimit("AS", unix.RLIMIT_AS, limitAS); err != nil {
+			return err
+		}
+		if err := setrlimit("CORE", unix.RLIMIT_CORE, 0); err != nil {
+			return err
+		}
+		if err := setrlimit("STACK", unix.RLIMIT_STACK, executorStackSize); err != nil {
+			return err
+		}
 	} else {
 		fmt.Fprintln(os.Stderr, "runtime/container: disabled - sharing namespaces with host!")
 
