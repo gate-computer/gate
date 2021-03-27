@@ -4,10 +4,21 @@
 
 package common
 
+// Internal container API/ABI compatibility version.
+const (
+	CompatMajor   = "0"
+	CompatVersion = CompatMajor + ".0"
+)
+
+const (
+	ContainerName = "gate-runtime-container"
+	ExecutorName  = "gate-runtime-executor"
+	LoaderName    = "gate-runtime-loader"
+)
+
 var (
-	ContainerName = "gate-runtime-container-0"
-	ExecutorName  = "gate-runtime-executor-0"
-	LoaderName    = "gate-runtime-loader-0"
+	ExecutorFilename = ExecutorName + "." + CompatMajor
+	LoaderFilename   = LoaderName + "." + CompatVersion
 )
 
 // File descriptors passed from the parent to the child process.

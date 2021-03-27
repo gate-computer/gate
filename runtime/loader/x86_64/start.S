@@ -4,7 +4,7 @@
 
 #define __ASSEMBLY__
 
-#include <bits/auxv.h>
+#include <asm/auxvec.h>
 #include <sys/syscall.h>
 
 #include "errors.h"

@@ -28,6 +28,7 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/bus"
 	"gate.computer/gate/internal/cmdconf"
+	"gate.computer/gate/internal/container/child"
 	"gate.computer/gate/internal/defaultlog"
 	"gate.computer/gate/internal/services"
 	"gate.computer/gate/principal"
@@ -87,6 +88,11 @@ var userID = strconv.Itoa(os.Getuid())
 var terminate = make(chan os.Signal, 1)
 
 func Main() {
+	child.ConditionalMain()
+	daemonMain()
+}
+
+func daemonMain() {
 	log.SetFlags(0)
 
 	defer func() {

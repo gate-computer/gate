@@ -9,67 +9,28 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"syscall"
 
 	"gate.computer/gate/internal/container/common"
 	runtimeerrors "gate.computer/gate/internal/error/runtime"
+	config "gate.computer/gate/runtime/container"
 )
 
-var FallbackLibDir = path.Join(binParent(), "lib", "gate", "runtime")
-
-func binParent() string {
-	if filename, err := os.Executable(); err == nil {
-		return path.Join(path.Dir(filename), "..")
-	}
-	return ""
-}
-
-type ContainerConfig struct {
-	LibDir    string
-	Namespace NamespaceConfig
-	Cgroup    CgroupConfig
-}
-
-func (c *ContainerConfig) binaryPath(name string) (string, error) {
-	dir := c.LibDir
-	if dir == "" {
-		dir = FallbackLibDir
-	}
-	return filepath.Abs(path.Join(dir, name))
-}
-
-func Start(controlSocket *os.File, c *ContainerConfig, cred *NamespaceCreds) (*exec.Cmd, error) {
-	containerPath, err := c.binaryPath(common.ContainerName)
-	if err != nil {
-		return nil, err
-	}
-
-	executorPath, err := c.binaryPath(common.ExecutorName)
-	if err != nil {
-		return nil, err
-	}
-
-	loaderPath, err := c.binaryPath(common.LoaderName)
-	if err != nil {
-		return nil, err
-	}
-
-	executorBin, err := openPath(executorPath, syscall.O_NOFOLLOW)
+func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exec.Cmd, error) {
+	executorBin, err := openExecutorBinary(c)
 	if err != nil {
 		return nil, err
 	}
 	defer executorBin.Close()
 
-	loaderBin, err := openPath(loaderPath, syscall.O_NOFOLLOW)
+	loaderBin, err := openLoaderBinary(c)
 	if err != nil {
 		return nil, err
 	}
 	defer loaderBin.Close()
 
 	cmd := &exec.Cmd{
-		Path:   containerPath,
+		Path:   ExecutablePath,
 		Args:   []string{common.ContainerName},
 		Env:    []string{},
 		Dir:    "/",
@@ -84,7 +45,7 @@ func Start(controlSocket *os.File, c *ContainerConfig, cred *NamespaceCreds) (*e
 
 	if c.Namespace.Disabled {
 		cmd.Args = append(cmd.Args, common.ArgNamespaceDisabled)
-	} else if c.Namespace.User.SingleUID {
+	} else if c.Namespace.SingleUID {
 		cmd.Args = append(cmd.Args, common.ArgSingleUID)
 	}
 
@@ -119,8 +80,8 @@ func Start(controlSocket *os.File, c *ContainerConfig, cred *NamespaceCreds) (*e
 			return nil, err
 		}
 
-		if !c.Namespace.Disabled && !c.Namespace.User.SingleUID && !c.Namespace.User.selfservice() {
-			if err := configureUserNamespace(cmd.Process.Pid, &c.Namespace.User, cred); err != nil {
+		if !c.Namespace.Disabled && !c.Namespace.SingleUID && isNewidmap(&c.Namespace) {
+			if err := configureUserNamespace(cmd.Process.Pid, &c.Namespace, cred); err != nil {
 				return nil, err
 			}
 		}

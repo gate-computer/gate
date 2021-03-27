@@ -16,7 +16,7 @@ import (
 	"gate.computer/gate/server/api"
 )
 
-var s = fuzzutil.NewServer(context.Background(), os.Getenv("GATE_FUZZ_RUNTIME_LIBDIR"))
+var s = fuzzutil.NewServer(context.Background(), os.Getenv("GATE_FUZZ_RUNTIME_BINDIR"))
 
 func init() {
 	limit := &syscall.Rlimit{

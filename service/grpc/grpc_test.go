@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-const binary = "../../lib/gate/service/test"
+const binary = "../../tmp/bin/test-grpc-service"
 
 func TestDial(t *testing.T)                       { testDial(t, false, false, false) }
 func TestDialSuspend(t *testing.T)                { testDial(t, false, false, true) }

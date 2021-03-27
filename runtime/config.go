@@ -7,51 +7,20 @@ package runtime
 import (
 	"os"
 
-	"gate.computer/gate/internal/container"
+	"gate.computer/gate/runtime/container"
 )
 
-const (
-	MaxProcs           = 16384 // Per Executor.
-	DefaultSubuid      = container.FallbackSubuid
-	DefaultSubgid      = container.FallbackSubgid
-	DefaultCgroupTitle = container.FallbackCgroupTitle
-)
-
-var DefaultLibDir = container.FallbackLibDir
-
-type Cred = container.Cred
-type ContainerConfig = container.ContainerConfig
-type NamespaceConfig = container.NamespaceConfig
-type UserNamespaceConfig = container.UserNamespaceConfig
-type CgroupConfig = container.CgroupConfig
+const MaxProcs = 16384 // Per Executor.
 
 type Config struct {
 	MaxProcs     int
 	ConnFile     *os.File
-	DaemonSocket string          // Applicable if ConnFile is not set.
-	Container    ContainerConfig // Applicable if ConnFile and DaemonSocket are not set.
+	DaemonSocket string           // Applicable if ConnFile is not set.
+	Container    container.Config // Applicable if ConnFile and DaemonSocket are not set.
 	ErrorLog     Logger
 }
 
-func (c *Config) maxprocs() int {
-	if c.MaxProcs == 0 {
-		return MaxProcs
-	}
-	return c.MaxProcs
-}
-
 var DefaultConfig = Config{
-	MaxProcs: MaxProcs,
-	Container: ContainerConfig{
-		LibDir: DefaultLibDir,
-		Namespace: NamespaceConfig{
-			User: UserNamespaceConfig{
-				Subuid: DefaultSubuid,
-				Subgid: DefaultSubgid,
-			},
-		},
-		Cgroup: CgroupConfig{
-			Title: DefaultCgroupTitle,
-		},
-	},
+	MaxProcs:  MaxProcs,
+	Container: container.DefaultConfig,
 }

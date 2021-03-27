@@ -158,10 +158,16 @@ The user program processes run in a container.  The container also includes an
 init process which spawns and kills the programs.  The container has dedicated
 cgroup, IPC, network, mount, pid, user and UTS namespaces.
 
-The user namespace contains only three unprivileged user ids (there is no root
-user), one of which is used to run the processes.
+By default, the user namespace contains only two unprivileged user ids (there
+is no root user), one which owns the filesystem contents, and one which is used
+to run the processes.  (If the `runtime.container.namespace.singleuid` config
+option is set, there is only one unprivileged user id which is used for
+everything, and it is mapped to the outside user who created the container.)
 
 The mount namespace contains only a constrained read-only tmpfs as its root.
 
 The UTS namespace has empty host and domain names.
+
+(Setting the `runtime.container.namespace.disabled` config option invalidates
+everything said in this section.)
 

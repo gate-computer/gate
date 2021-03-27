@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build !android
+package gate
 
-package main
-
-const limitFSIZE = 44
+//go:generate ./prebuild.sh

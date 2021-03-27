@@ -10,7 +10,7 @@
 #if GATE_RUNTIME_DEBUG
 #include <stdio.h>
 #define debugf(fmt, ...) \
-	fprintf(stderr, "runtime/" fmt "\n", ##__VA_ARGS__)
+	fprintf(stderr, fmt "\n", ##__VA_ARGS__)
 #else
 #define debugf(...) \
 	do {        \

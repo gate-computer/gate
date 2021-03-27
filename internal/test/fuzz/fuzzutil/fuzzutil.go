@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"gate.computer/gate/internal/error/resourcelimit"
-	"gate.computer/gate/runtime"
 	gateruntime "gate.computer/gate/runtime"
+	"gate.computer/gate/runtime/container"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/service"
@@ -35,16 +35,11 @@ func (connector) Close() error {
 	return nil
 }
 
-func NewServer(ctx context.Context, libdir string) *server.Server {
+func NewServer(ctx context.Context, execdir string) *server.Server {
 	e, err := gateruntime.NewExecutor(&gateruntime.Config{
-		Container: gateruntime.ContainerConfig{
-			LibDir: libdir,
-			Namespace: gateruntime.NamespaceConfig{
-				User: gateruntime.UserNamespaceConfig{
-					Newuidmap: "/usr/bin/newuidmap",
-					Newgidmap: "/usr/bin/newgidmap",
-				},
-			},
+		Container: container.Config{
+			Namespace: container.DefaultConfig.Namespace,
+			ExecDir:   execdir,
 		},
 	})
 	if err != nil {
@@ -54,7 +49,7 @@ func NewServer(ctx context.Context, libdir string) *server.Server {
 	services := server.NewInstanceServices(connector{}, new(service.Registry))
 
 	s, err := server.New(context.Background(), &server.Config{
-		ProcessFactory: runtime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
+		ProcessFactory: gateruntime.PrepareProcesses(ctx, e, goruntime.GOMAXPROCS(0)*100),
 		AccessPolicy:   server.NewPublicAccess(func(context.Context) server.InstanceServices { return services }),
 	})
 	if err != nil {

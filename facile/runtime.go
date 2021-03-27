@@ -33,8 +33,8 @@ func (c *RuntimeConfig) GetMaxProcs() int32          { return int32(c.c.MaxProcs
 func (c *RuntimeConfig) SetMaxProcs(n int32)         { c.c.MaxProcs = int(n) }
 func (c *RuntimeConfig) GetNamespaceDisabled() bool  { return c.c.Container.Namespace.Disabled }
 func (c *RuntimeConfig) SetNamespaceDisabled(b bool) { c.c.Container.Namespace.Disabled = b }
-func (c *RuntimeConfig) GetLibDir() string           { return c.c.Container.LibDir }
-func (c *RuntimeConfig) SetLibDir(s string)          { c.c.Container.LibDir = s }
+func (c *RuntimeConfig) GetExecDir() string          { return c.c.Container.ExecDir }
+func (c *RuntimeConfig) SetExecDir(s string)         { c.c.Container.ExecDir = s }
 
 type RuntimeContainer struct {
 	conn *os.File
@@ -48,7 +48,7 @@ func NewRuntimeContainer(binary string, config *RuntimeConfig) (*RuntimeContaine
 	var err error
 
 	if !config.c.Container.Namespace.Disabled {
-		creds, err = container.ParseCreds(&config.c.Container.Namespace.User)
+		creds, err = container.ParseCreds(&config.c.Container.Namespace)
 		if err != nil {
 			return nil, err
 		}

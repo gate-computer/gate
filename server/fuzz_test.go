@@ -25,7 +25,7 @@ func TestFuzz(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	s := fuzzutil.NewServer(ctx, "../lib/gate/runtime")
+	s := fuzzutil.NewServer(ctx, "../lib/gate")
 
 	infos, err := ioutil.ReadDir(dir)
 	if err != nil {

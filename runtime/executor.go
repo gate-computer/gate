@@ -44,7 +44,10 @@ type Executor struct {
 }
 
 func NewExecutor(config *Config) (e *Executor, err error) {
-	maxProcs := config.maxprocs()
+	maxProcs := config.MaxProcs
+	if maxProcs == 0 {
+		maxProcs = MaxProcs
+	}
 	if maxProcs > MaxProcs {
 		err = errors.New("executor process limit is too high")
 		return

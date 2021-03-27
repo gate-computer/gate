@@ -6,8 +6,8 @@ PERFLOCK	?= perflock
 DESTDIR		:=
 PREFIX		:= /usr/local
 BINDIR		:= $(PREFIX)/bin
-LIBDIR		:= $(PREFIX)/lib/gate
-libprefix	= $(shell echo /$(LIBDIR)/ | tr -s /)
+LIBEXECDIR	:= $(PREFIX)/lib/gate
+libexecprefix	= $(shell echo /$(LIBEXECDIR)/ | tr -s /)
 
 GEN_LIB_SOURCES := \
 	runtime/include/errors.h
@@ -24,11 +24,16 @@ GEN_BIN_SOURCES := \
 	service/grpc/api/service.pb.go \
 	service/grpc/api/service_grpc.pb.go
 
-GOBENCHFLAGS	:= -bench=.*
+GOTAGS		:= gateexecdir
+GOLDFLAGS	:= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
+GOBUILDFLAGS	:= -tags="$(GOTAGS)" -ldflags="$(GOLDFLAGS)"
+GOTESTRUN	:=
+GOTESTFLAGS	:= -tags="$(GOTAGS)" -run="$(GOTESTRUN)"
+GOBENCHRUN	:= .*
+GOBENCHFLAGS	:= -tags="$(GOTAGS)" -bench="$(GOBENCHRUN)"
 
 -include config.mk
-
-export GO111MODULE := on
+include runtime/include/runtime.mk
 
 .PHONY: lib
 lib: $(GEN_LIB_SOURCES)
@@ -41,18 +46,19 @@ bin: $(GEN_BIN_SOURCES)
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtime ./cmd/gate-runtime
 	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
-	$(GO) build $(GOBUILDFLAGS) -o lib/gate/runtime/gate-runtime-container-0 ./runtime/container
 
-.PHONY: generate
-generate: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
+.PHONY: gen
+gen: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
 
 .PHONY: all
 all: lib bin
+	$(MAKE) -C runtime/loader/test
+	$(GO) build $(GOBUILDFLAGS) -o tmp/bin/test-container ./internal/test/container
+	$(GO) build $(GOBUILDFLAGS) -o tmp/bin/test-grpc-service ./internal/test/grpc-service
 
 .PHONY: check
-check: lib bin
+check: all
 	$(MAKE) -C runtime/loader/test check
-	$(GO) build $(GOBUILDFLAGS) -o lib/gate/service/test ./internal/test/grpc-service
 	$(GO) build -o /dev/null ./...
 	$(GO) vet ./...
 	$(GO) test $(GOTESTFLAGS) ./...
@@ -64,12 +70,8 @@ benchmark: lib bin
 
 .PHONY: install-lib
 install-lib:
-	install -m 755 -d $(DESTDIR)$(LIBDIR)/runtime
-	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/executor install
-	$(MAKE) LIBDIR=$(DESTDIR)$(LIBDIR) -C runtime/loader install
-
-.PHONY: install-lib-capabilities
-install-lib-capabilities: install-lib
+	$(MAKE) DESTDIR=$(DESTDIR) LIBEXECDIR=$(LIBEXECDIR) -C runtime/executor install
+	$(MAKE) DESTDIR=$(DESTDIR) LIBEXECDIR=$(LIBEXECDIR) -C runtime/loader install
 
 .PHONY: install-bin
 install-bin:
@@ -77,15 +79,9 @@ install-bin:
 	install -m 755 bin/gate bin/gate-daemon bin/gate-runtime bin/gate-server $(DESTDIR)$(BINDIR)
 
 .PHONY: install
-install: install-lib
+install:
+	[ ! -e lib/gate/gate-runtime-loader.$(GATE_COMPAT_VERSION) ] || $(MAKE) install-lib
 	[ ! -e bin/gate ] || $(MAKE) install-bin
-
-.PHONY: install-capabilities
-install-capabilities: install-lib-capabilities install-bin
-
-.PHONY: install-apparmor
-install-apparmor:
-	sed "s,/usr/local/lib/gate/,$(libprefix),g" etc/apparmor.d/usr.local.lib.gate.runtime > "$(DESTDIR)/etc/apparmor.d/$(shell echo $(libprefix) | cut -c 2- | tr / .)runtime"
 
 .PHONY: install-bash
 install-bash:
@@ -103,7 +99,7 @@ install-systemd-user:
 
 internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
 	mkdir -p tmp
-	$(GO) run internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S runtime/container/*.go) | $(GOFMT) > tmp/errors.go
+	$(GO) run internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S internal/container/child/*.go) | $(GOFMT) > tmp/errors.go
 	test -s tmp/errors.go
 	mv tmp/errors.go internal/error/runtime/errors.go
 

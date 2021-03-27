@@ -12,15 +12,19 @@ import (
 	"os"
 	"path"
 
-	"gate.computer/gate/internal/container"
-	"gate.computer/gate/runtime"
+	internal "gate.computer/gate/internal/container"
+	"gate.computer/gate/internal/container/child"
+	"gate.computer/gate/runtime/container"
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/tsavola/confi"
 )
 
 type Config struct {
-	Runtime runtime.Config
+	Runtime struct {
+		DaemonSocket string
+		Container    container.Config
+	}
 
 	Log struct {
 		Syslog bool
@@ -30,7 +34,12 @@ type Config struct {
 var c = new(Config)
 
 func main() {
-	c.Runtime = runtime.DefaultConfig
+	child.ConditionalMain()
+	serverMain()
+}
+
+func serverMain() {
+	c.Runtime.Container = container.DefaultConfig
 
 	flag.Var(confi.FileReader(c), "f", "read a configuration file")
 	flag.Var(confi.Assigner(c), "o", "set a configuration option (path.to.key=value)")
@@ -68,7 +77,7 @@ func main() {
 		infoLog = critLog
 	}
 
-	creds, err := container.ParseCreds(&c.Runtime.Container.Namespace.User)
+	creds, err := internal.ParseCreds(&c.Runtime.Container.Namespace)
 	if err != nil {
 		critLog.Fatal(err)
 	}
@@ -126,7 +135,7 @@ func main() {
 	}
 }
 
-func handle(client uint64, conn *net.UnixConn, creds *container.NamespaceCreds, errLog, infoLog *log.Logger) {
+func handle(client uint64, conn *net.UnixConn, creds *internal.NamespaceCreds, errLog, infoLog *log.Logger) {
 	defer func() {
 		if conn != nil {
 			conn.Close()
@@ -149,7 +158,7 @@ func handle(client uint64, conn *net.UnixConn, creds *container.NamespaceCreds, 
 	conn.Close()
 	conn = nil
 
-	cmd, err := container.Start(connFile, &c.Runtime.Container, creds)
+	cmd, err := internal.Start(connFile, &c.Runtime.Container, creds)
 	if err != nil {
 		errLog.Printf("%d: %v", client, err)
 		return
@@ -158,7 +167,7 @@ func handle(client uint64, conn *net.UnixConn, creds *container.NamespaceCreds, 
 	connFile.Close()
 	connFile = nil
 
-	if err := container.Wait(cmd, nil); err == nil {
+	if err := internal.Wait(cmd, nil); err == nil {
 		infoLog.Printf("%d: container terminated", client)
 	} else {
 		errLog.Printf("%d: %v", client, err)

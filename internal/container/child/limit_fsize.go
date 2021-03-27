@@ -4,6 +4,6 @@
 
 // +build amd64 android
 
-package main
+package child
 
 const limitFSIZE = 0

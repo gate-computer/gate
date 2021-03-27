@@ -41,7 +41,6 @@
 
 #include "loader.h"
 
-#if defined(__clang__) || defined(__aarch64__)
 void *memcpy(void *dest, const void *src, size_t n)
 {
 	for (size_t i = 0; i < n; i++)
@@ -56,9 +55,7 @@ size_t strlen(const char *s)
 		n++;
 	return n;
 }
-#endif
 
-#if defined(__clang__)
 struct cmsghdr *__cmsg_nxthdr(struct msghdr *msg, struct cmsghdr *cmsg)
 {
 	struct cmsghdr *ptr = (void *) cmsg + CMSG_ALIGN(cmsg->cmsg_len);
@@ -67,7 +64,6 @@ struct cmsghdr *__cmsg_nxthdr(struct msghdr *msg, struct cmsghdr *cmsg)
 		return NULL;
 	return ptr;
 }
-#endif // __clang__
 
 // Avoiding function prototypes avoids GOT section.
 typedef const struct {

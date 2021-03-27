@@ -9,10 +9,13 @@ import (
 	"syscall"
 
 	"gate.computer/gate/internal/container/common"
+	config "gate.computer/gate/runtime/container"
 	"golang.org/x/sys/unix"
 )
 
-func newSysProcAttr(ns *NamespaceConfig, cred *NamespaceCreds) *syscall.SysProcAttr {
+var ExecutablePath = "/proc/self/exe"
+
+func newSysProcAttr(ns *config.NamespaceConfig, cred *NamespaceCreds) *syscall.SysProcAttr {
 	attr := &syscall.SysProcAttr{
 		Setsid:    true,
 		Pdeathsig: unix.SIGKILL,
@@ -28,14 +31,14 @@ func newSysProcAttr(ns *NamespaceConfig, cred *NamespaceCreds) *syscall.SysProcA
 			unix.CAP_SYS_ADMIN,
 		}
 
-		if ns.User.SingleUID {
+		if ns.SingleUID {
 			attr.UidMappings = []syscall.SysProcIDMap{
 				{ContainerID: common.ContainerCred, HostID: os.Getuid(), Size: 1},
 			}
 			attr.GidMappings = []syscall.SysProcIDMap{
 				{ContainerID: common.ContainerCred, HostID: os.Getgid(), Size: 1},
 			}
-		} else if ns.User.selfservice() {
+		} else if !isNewidmap(ns) {
 			attr.UidMappings = []syscall.SysProcIDMap{
 				{ContainerID: common.ContainerCred, HostID: cred.Container.UID, Size: 1},
 				{ContainerID: common.ExecutorCred, HostID: cred.Executor.UID, Size: 1},

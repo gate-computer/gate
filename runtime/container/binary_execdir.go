@@ -2,18 +2,19 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build gateexecdir
+
 package container
 
 import (
-	config "gate.computer/gate/runtime/container"
+	"os"
+	"path"
 )
 
-func configureCgroup(pid int, c *config.CgroupConfig) error {
-	title := c.Title
-	if title == "" {
-		title = config.CgroupTitle
+func init() {
+	if ExecDir != "" {
+		if filename, err := os.Executable(); err == nil {
+			ExecDir = path.Dir(filename)
+		}
 	}
-
-	// TODO
-	return nil
 }

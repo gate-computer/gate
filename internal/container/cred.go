@@ -11,6 +11,8 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+
+	config "gate.computer/gate/runtime/container"
 )
 
 type subIDMap struct {
@@ -75,20 +77,13 @@ func (m *subIDMap) getID() (id int, err error) {
 	return
 }
 
-// Cred specifies a user id and a group id.  A zero value means unspecified
-// (not root).
-type Cred struct {
-	UID int
-	GID int
-}
-
 // NamespaceCreds for user namespace.
 type NamespaceCreds struct {
-	Container Cred
-	Executor  Cred
+	Container config.Cred
+	Executor  config.Cred
 }
 
-func ParseCreds(c *UserNamespaceConfig) (creds *NamespaceCreds, err error) {
+func ParseCreds(c *config.NamespaceConfig) (creds *NamespaceCreds, err error) {
 	var (
 		container = c.Container
 		executor  = c.Executor
@@ -104,7 +99,7 @@ func ParseCreds(c *UserNamespaceConfig) (creds *NamespaceCreds, err error) {
 
 		if container.UID == 0 || executor.UID == 0 {
 			m := subIDMap{
-				filename: c.subuid(),
+				filename: getSubuid(c),
 				reserved: []int{os.Getuid(), container.UID, executor.UID},
 			}
 
@@ -130,7 +125,7 @@ func ParseCreds(c *UserNamespaceConfig) (creds *NamespaceCreds, err error) {
 
 		if container.GID == 0 || executor.GID == 0 {
 			m := subIDMap{
-				filename: c.subgid(),
+				filename: getSubgid(c),
 				reserved: []int{os.Getgid(), container.GID, executor.GID},
 			}
 

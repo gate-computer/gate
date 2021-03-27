@@ -127,38 +127,61 @@ User program support:
   - [ ] Approach for splitting WebAssembly app between browser (UI) and server (state)
 
 
-## Build requirements
+## Requirements and build instructions
 
-The non-Go components can be built with `make`.  They require:
+Run-time dependencies:
+
+- Programs other than **gate** require Linux 5.2.  (**gate**'s remote access
+  features could be made to work on any operating system, but so far it has
+  been tested only on Linux.)
+
+- D-Bus is used for communication between **gate** and **gate-daemon**,
+  requiring D-Bus user service (dbus-user-session).  **gate** doesn't require
+  D-Bus when accessing a remote server.
+
+- Programs other than **gate** may need external tools depending on their
+  configuration and [capabilities](Capabilities.md).
+
+There are two approaches to building Gate: using Go directly, or via Make.
+
+
+### Build using Go
+
+[Go](https://golang.org) 1.16 is required (but some packages may work with
+older versions).
+
+The Gate programs and programs importing Gate modules can be built normally
+using `go install`, `go get` etc.  See the
+[services](https://github.com/gate-computer/services#readme) repository for a
+list of programs.
+
+Gate runtime needs to execute some separately built binaries.  To make the
+built Go programs self-contained, pre-built binaries are bundled into them by
+default.  They pre-built binary files are under version control, and can be
+rebuilt with `go generate`.  To prevent bundling pre-built binaries, specify
+`-tags=gateexecdir` for the Go build command, and use `make` to build them
+separately.
+
+
+### Build using Make
+
+Build requirements:
 
   - Linux
-  - musl-tools (musl-gcc), unless CC make variable is overridden
-  - uidmap (shadow-utils)
+  - C compiler
+  - Go compiler
   - protobuf-compiler
   - libprotobuf-dev
 
-`make bin` builds the Go programs.  It requires:
-
-  - Go compiler version 1.16+
-
-See the [services](https://github.com/gate-computer/services) repository for
-alternative program builds.
-
-Running the D-Bus enabled programs (gate and gate-daemon) requires:
-
-  - dbus-user-session
+The components implemented with C and assembly can be built with `make`.  `make
+bin` builds the Go programs without bundling the non-Go components in them.
 
 Additional requirements for `make check`:
 
-  - libgtest-dev
-  - python3
+  - Python 3
+  - uidmap (shadow-utils)
 
-See Makefile for more targets.
-
-The capabilities targets grant [capabilities](Capabilities.md) for the
-installed container binary (lib).  That requires:
-
-  - libcap2-bin
+See Makefile for more targets, such as `make install` and its variants.
 
 
 ## See also

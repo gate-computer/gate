@@ -1,6 +1,6 @@
 module gate.computer/gate
 
-go 1.13
+go 1.16
 
 require (
 	gate.computer/wag v0.33.0

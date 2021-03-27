@@ -1,2 +1,4 @@
-# Version number reflecting the contract between Go and C.
-GATE_RUNTIME_BINARY_SUFFIX	:= 0
+# Keep this file compatible with make _and_ shell syntax.
+
+GATE_COMPAT_MAJOR=0
+GATE_COMPAT_VERSION=0.0

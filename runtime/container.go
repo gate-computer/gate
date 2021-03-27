@@ -8,12 +8,13 @@ import (
 	"net"
 	"os/exec"
 
-	"gate.computer/gate/internal/container"
+	internal "gate.computer/gate/internal/container"
 	"gate.computer/gate/internal/sys"
+	"gate.computer/gate/runtime/container"
 )
 
-func startContainer(config *ContainerConfig) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
-	creds, err := container.ParseCreds(&config.Namespace.User)
+func startContainer(c *container.Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {
+	creds, err := internal.ParseCreds(&c.Namespace)
 	if err != nil {
 		return
 	}
@@ -35,7 +36,7 @@ func startContainer(config *ContainerConfig) (cmd *exec.Cmd, unixConn *net.UnixC
 		}
 	}()
 
-	cmd, err = container.Start(controlFile, config, creds)
+	cmd, err = internal.Start(controlFile, c, creds)
 	if err != nil {
 		return
 	}

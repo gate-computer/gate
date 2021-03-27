@@ -48,7 +48,7 @@ const (
 	ERR_EXEC_PROCSTAT_PARSE                = 52
 )
 
-var ExecutorErrors = [82]Error{
+var ExecutorErrors = [83]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_BRK", "runtime executor", "brk call failed"},
 	12: {"ERR_EXEC_PAGESIZE", "runtime executor", "sysconf PAGESIZE call failed"},

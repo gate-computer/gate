@@ -8,18 +8,28 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 
-	"gate.computer/gate/internal/container"
+	internal "gate.computer/gate/internal/container"
 	"gate.computer/gate/internal/sys"
+	"gate.computer/gate/runtime/container"
 )
 
-const testLibDir = "lib/gate/runtime"
+var testExecDir = "lib/gate"
 
-var testUserNamespaceConfig = container.UserNamespaceConfig{
-	Newuidmap: "/usr/bin/newuidmap",
-	Newgidmap: "/usr/bin/newgidmap",
+func init() {
+	filename, err := filepath.Abs("tmp/bin/test-container")
+	if err != nil {
+		panic(err)
+	}
+	internal.ExecutablePath = filename
+}
+
+var testNamespaceConfig = container.NamespaceConfig{
+	Newuidmap: "newuidmap",
+	Newgidmap: "newgidmap",
 }
 
 func TestContainerPrivileged(t *testing.T) {
@@ -27,38 +37,37 @@ func TestContainerPrivileged(t *testing.T) {
 		t.SkipNow()
 	}
 
-	var u container.UserNamespaceConfig
-	creds, err := container.ParseCreds(&u)
+	var ns container.NamespaceConfig
+	creds, err := internal.ParseCreds(&ns)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testContainer(t, container.NamespaceConfig{User: u}, creds)
+	testContainer(t, ns, creds)
 }
 
 func TestContainerNewuidmap(t *testing.T) {
-	u := testUserNamespaceConfig
-	creds, err := container.ParseCreds(&u)
+	ns := testNamespaceConfig
+	creds, err := internal.ParseCreds(&ns)
 	if err != nil {
 		t.Fatal(err)
 	}
-	testContainer(t, container.NamespaceConfig{User: u}, creds)
+	testContainer(t, ns, creds)
 }
 
 func TestContainerSingleUID(t *testing.T) {
-	u := container.UserNamespaceConfig{SingleUID: true}
-	testContainer(t, container.NamespaceConfig{User: u}, nil)
+	testContainer(t, container.NamespaceConfig{SingleUID: true}, nil)
 }
 
 func TestContainerDisabled(t *testing.T) {
 	testContainer(t, container.NamespaceConfig{Disabled: true}, nil)
 }
 
-func testContainer(t *testing.T, ns container.NamespaceConfig, cred *container.NamespaceCreds) {
+func testContainer(t *testing.T, ns container.NamespaceConfig, cred *internal.NamespaceCreds) {
 	t.Helper()
 
-	config := &container.ContainerConfig{
-		LibDir:    testLibDir,
+	config := &container.Config{
 		Namespace: ns,
+		ExecDir:   testExecDir,
 	}
 
 	otherEnd, thisEnd, err := sys.SocketFilePair(0)
@@ -68,7 +77,7 @@ func testContainer(t *testing.T, ns container.NamespaceConfig, cred *container.N
 
 	kill := true
 
-	cmd, err := container.Start(otherEnd, config, cred)
+	cmd, err := internal.Start(otherEnd, config, cred)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -574,6 +574,9 @@ static void xsetrlimit(int resource, rlim_t limit, int exitcode)
 
 int main(int argc, char **argv)
 {
+	if (argc == 2 && strcmp(argv[1], "--compat") == 0)
+		return puts("Interface version " GATE_COMPAT_VERSION) == EOF;
+
 	if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
 		die(ERR_EXEC_PDEATHSIG);
 

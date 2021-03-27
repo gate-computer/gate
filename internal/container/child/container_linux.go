@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package child
 
 import (
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 	"unsafe"
 
@@ -223,9 +224,13 @@ func furnishNamespaces() error {
 	return nil
 }
 
-func main() {
-	fmt.Fprintln(os.Stderr, childMain())
-	os.Exit(1)
+// ConditionalMain checks if this is a container process: if so, it runs the
+// container and never returns.
+func ConditionalMain() {
+	if path.Base(os.Args[0]) == common.ContainerName {
+		fmt.Fprintln(os.Stderr, childMain())
+		os.Exit(1)
+	}
 }
 
 func childMain() (err error) {
@@ -244,9 +249,11 @@ func childMain() (err error) {
 		}
 	}
 
-	syscall.CloseOnExec(common.ExecutorFD)
-
 	ignoreSignals()
+
+	if err := setupBinaries(); err != nil {
+		return err
+	}
 
 	if _, err := io.Copy(io.Discard, os.Stdin); err != nil {
 		return err
@@ -313,7 +320,7 @@ func childMain() (err error) {
 			return err
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, "runtime/container: disabled - sharing namespaces with host!")
+		fmt.Fprintln(os.Stderr, "container: disabled - sharing namespaces with host!")
 
 		if err := openProcPath("/proc"); err != nil {
 			return err
@@ -342,8 +349,11 @@ func childMain() (err error) {
 		}
 	}
 
-	os.Args[0] = common.ExecutorName
-	err = execveat(common.ExecutorFD, "", os.Args, nil, unix.AT_EMPTY_PATH)
+	args := append([]string{executorNameArg}, os.Args[1:]...)
+	err = execveat(common.ExecutorFD, "", args, nil, unix.AT_EMPTY_PATH)
+	if runtimeDebug {
+		return fmt.Errorf("execveat: %w", err)
+	}
 	os.Exit(runtimeerrors.ERR_CONT_EXEC_EXECUTOR) // stderr doesn't work anymore.
 	return                                        // Unreachable.
 }
