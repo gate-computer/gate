@@ -35,3 +35,6 @@ Possible configurations:
 
 4. Namespace creation can be disabled altogether.  It is highly unsafe.
 
+gate-daemon and gate-server drop all capabilities after initialization.
+(gate-runtime keeps them; its sole purpose is to create containers on request.)
+

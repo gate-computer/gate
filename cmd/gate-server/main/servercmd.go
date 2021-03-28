@@ -25,6 +25,7 @@ import (
 	"gate.computer/gate/internal/cmdconf"
 	"gate.computer/gate/internal/container/child"
 	"gate.computer/gate/internal/services"
+	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
@@ -487,6 +488,10 @@ func main2(critLog *log.Logger) error {
 		go func() {
 			critLog.Fatal(http.ListenAndServe(httpAddr, m.HTTPHandler(http.HandlerFunc(handleHTTP))))
 		}()
+	}
+
+	if err := sys.ClearCaps(); err != nil {
+		critLog.Fatal(err)
 	}
 
 	if _, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
