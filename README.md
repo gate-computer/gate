@@ -159,8 +159,8 @@ Gate runtime needs to execute some separately built binaries.  To make the
 built Go programs self-contained, pre-built binaries are bundled into them by
 default.  The pre-built binary files are under version control, and can be
 rebuilt using `go generate`.  To disable bundling of pre-built binaries,
-specify `-tags=gateexecdir` for the Go build command, and use `make` to build
-and install them separately.
+specify `-tags=gateexecdir` for the Go build command, and use Make to build and
+install them separately.
 
 
 ### Build using Make
