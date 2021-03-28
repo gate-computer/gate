@@ -31,6 +31,7 @@ import (
 	"gate.computer/gate/internal/container/child"
 	"gate.computer/gate/internal/defaultlog"
 	"gate.computer/gate/internal/services"
+	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/principal"
 	gateruntime "gate.computer/gate/runtime"
 	"gate.computer/gate/scope/program/system"
@@ -145,6 +146,12 @@ func mainResult() int {
 	c.Principal.Services, err = services.Init(context.Background(), &originConfig, defaultlog.StandardLogger{})
 	check(err)
 
+	exec, err := gateruntime.NewExecutor(&c.Runtime)
+	check(err)
+	defer exec.Close()
+
+	check(sys.ClearCaps())
+
 	var storage image.Storage = image.Memory
 	if c.Image.VarDir != "" {
 		check(os.MkdirAll(c.Image.VarDir, 0755))
@@ -153,10 +160,6 @@ func mainResult() int {
 		defer fs.Close()
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
 	}
-
-	exec, err := gateruntime.NewExecutor(&c.Runtime)
-	check(err)
-	defer exec.Close()
 
 	conn, err := dbus.SessionBusPrivate()
 	check(err)

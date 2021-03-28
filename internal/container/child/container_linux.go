@@ -15,6 +15,7 @@ import (
 
 	"gate.computer/gate/internal/container/common"
 	runtimeerrors "gate.computer/gate/internal/error/runtime"
+	"gate.computer/gate/internal/sys"
 	"golang.org/x/sys/unix"
 )
 
@@ -99,25 +100,6 @@ func setrlimit(name string, resource int, value uint64) error {
 
 	if err := syscall.Setrlimit(resource, rlim); err != nil {
 		return fmt.Errorf("setting %s resource limit to %d: %w", name, value, err)
-	}
-
-	return nil
-}
-
-func clearCaps() error {
-	var (
-		hdr  = unix.CapUserHeader{Version: unix.LINUX_CAPABILITY_VERSION_3}
-		data = [2]unix.CapUserData{}
-	)
-
-	_, _, errno := syscall.AllThreadsSyscall(
-		unix.SYS_CAPSET,
-		uintptr(unsafe.Pointer(&hdr)),
-		uintptr(unsafe.Pointer(&data[0])),
-		0,
-	)
-	if errno != 0 {
-		return fmt.Errorf("clearing all capabilities (capset): %w", errno)
 	}
 
 	return nil
@@ -327,12 +309,8 @@ func childMain() (err error) {
 		}
 	}
 
-	if err := clearCaps(); err != nil {
+	if err := sys.ClearCaps(); err != nil {
 		return err
-	}
-
-	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil {
-		return fmt.Errorf("clearing ambient capabilities (prctl): %w", err)
 	}
 
 	// This needs to be done after final credential change.
