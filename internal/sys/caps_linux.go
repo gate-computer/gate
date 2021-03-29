@@ -5,31 +5,16 @@
 package sys
 
 import (
-	"fmt"
-	"syscall"
-	"unsafe"
-
-	"golang.org/x/sys/unix"
+	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
 
 func ClearCaps() error {
-	var (
-		hdr  = unix.CapUserHeader{Version: unix.LINUX_CAPABILITY_VERSION_3}
-		data = [2]unix.CapUserData{}
-	)
-
-	_, _, errno := syscall.AllThreadsSyscall(
-		unix.SYS_CAPSET,
-		uintptr(unsafe.Pointer(&hdr)),
-		uintptr(unsafe.Pointer(&data[0])),
-		0,
-	)
-	if errno != 0 {
-		return fmt.Errorf("clearing all capabilities (capset): %w", errno)
+	if err := cap.NewSet().SetProc(); err != nil {
+		return err
 	}
 
-	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil {
-		return fmt.Errorf("clearing ambient capabilities (prctl): %w", err)
+	if err := cap.ResetAmbient(); err != nil {
+		return err
 	}
 
 	return nil

@@ -137,3 +137,7 @@ google.golang.org/protobuf v1.25.0 h1:Ejskq+SyPohKW+1uil0JJMtmHCgJPJ/qWTxr8qp+R4
 google.golang.org/protobuf v1.25.0/go.mod h1:9JNX74DMeImyA3h4bdi1ymwjUzf21/xIlbajtzgsN7c=
 honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+kernel.org/pub/linux/libs/security/libcap/cap v1.2.49 h1:l/z5YU1YTeIo872V3L577f49PgLvSGTstopFJMASdAc=
+kernel.org/pub/linux/libs/security/libcap/cap v1.2.49/go.mod h1:SDveHFdFe7G0H/t18WEsVxAsBGUGvSF5tuOY6yN0+xo=
+kernel.org/pub/linux/libs/security/libcap/psx v1.2.49 h1:hlS5NSqyydHYranE120TzuEEaTAPLVyi1dm0tYSYMbg=
+kernel.org/pub/linux/libs/security/libcap/psx v1.2.49/go.mod h1:+l6Ee2F59XiJ2I6WR5ObpC1utCQJZ/VLsEbQCD8RG24=
