@@ -10,12 +10,12 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"runtime"
 	"syscall"
 	"unsafe"
 
 	"gate.computer/gate/internal/container/common"
 	runtimeerrors "gate.computer/gate/internal/error/runtime"
-	"gate.computer/gate/internal/sys"
 	"golang.org/x/sys/unix"
 )
 
@@ -309,8 +309,14 @@ func childMain() (err error) {
 		}
 	}
 
-	if err := sys.ClearCaps(); err != nil {
+	runtime.LockOSThread() // Keep thread locked from capset to exec.
+
+	if err := threadCapsetZero(); err != nil {
 		return err
+	}
+
+	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil {
+		return fmt.Errorf("clearing ambient capabilities (prctl): %w", err)
 	}
 
 	// This needs to be done after final credential change.
