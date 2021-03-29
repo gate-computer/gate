@@ -107,13 +107,12 @@ of continually running programs.
   - [x] Reconnect to program instance
   - [x] Snapshot
   - [x] Restore
+  - [x] Mechanism for implementing external services in language agnostic way (gRPC)
   - [ ] Programs can discover and communicate with their peers on a server
   - [ ] Full ARM64 host support
   - [ ] [milestone/1](https://github.com/gate-computer/gate/milestone/1)
   - [ ] Clone programs locally or remotely (with or without snapshotting)
   - [ ] [milestone/2](https://github.com/gate-computer/gate/milestone/2)
-  - [ ] Expose program instance at some type of internet endpoint to implement ad-hoc servers
-  - [ ] Mechanism for implementing services in a programmer-friendly way
   - [ ] Useful resource control policies need more thought (cgroup configuration etc.)
   - [ ] Stable APIs
   - [ ] Additional security measures (such as a SELinux profile)
