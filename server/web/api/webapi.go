@@ -93,9 +93,9 @@ const (
 
 // HTTP response headers.
 const (
-	HeaderLocation = "Location"        // Absolute path to known module.
-	HeaderInstance = "X-Gate-Instance" // UUID.
-	HeaderStatus   = "X-Gate-Status"   // Status of instance as JSON.
+	HeaderLocation = "Location"      // Absolute path to known module.
+	HeaderInstance = "Gate-Instance" // UUID.
+	HeaderStatus   = "Gate-Status"   // Status of instance as JSON.
 )
 
 // The supported module content type.
