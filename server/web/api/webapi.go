@@ -83,6 +83,7 @@ const (
 	HeaderAccept        = "Accept"
 	HeaderAuthorization = "Authorization" // "Bearer" JSON Web Token.
 	HeaderOrigin        = "Origin"
+	HeaderTE            = "Te" // Accepted transfer encodings.
 )
 
 // HTTP request or response headers.
@@ -103,6 +104,9 @@ const ContentTypeWebAssembly = "application/wasm"
 
 // The supported instance update and debug content type.
 const ContentTypeJSON = "application/json"
+
+// An accepted transfer encoding.
+const TETrailers = "trailers"
 
 // The supported key type.
 const KeyTypeOctetKeyPair = "OKP"

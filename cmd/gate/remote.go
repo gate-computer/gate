@@ -476,6 +476,7 @@ func callPost(uri string, params url.Values) webapi.Status {
 		Method: http.MethodPost,
 		Body:   os.Stdin,
 	}
+	req.Header.Set(webapi.HeaderTE, webapi.TETrailers)
 
 	_, resp := doHTTP(req, uri, params)
 	checkCopy(os.Stdout, resp.Body)
