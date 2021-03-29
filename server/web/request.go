@@ -56,6 +56,18 @@ func acceptsJSON(r *http.Request) bool {
 	return false
 }
 
+func acceptsTrailers(r *http.Request) bool {
+	for _, header := range r.Header[api.HeaderTE] {
+		for _, field := range strings.Split(strings.ToLower(header), ",") {
+			if strings.TrimSpace(field) == api.TETrailers {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func mustBeAllowedOrigin(w http.ResponseWriter, r *http.Request, s *webserver, header string) {
 origins:
 	for _, origin := range strings.Fields(header) {

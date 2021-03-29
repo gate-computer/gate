@@ -382,6 +382,7 @@ func TestKnownModule(t *testing.T) {
 
 		t.Run("Call"+strings.Title(fn), func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathKnownModules+hashHello+"?action=call&function="+fn, nil)
+			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
 			if s, found := resp.Header[api.HeaderContentType]; found {
@@ -446,6 +447,7 @@ func TestKnownModule(t *testing.T) {
 	t.Run("PutCall", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPut, api.PathKnownModules+hashHello+"?action=call", wasmHello)
 		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
+		req.Header.Set(api.HeaderTE, api.TETrailers)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
 		if s, found := resp.Header[api.HeaderContentType]; found {
@@ -477,6 +479,7 @@ func TestKnownModule(t *testing.T) {
 	t.Run("PutPinCall", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPut, api.PathKnownModules+hashHello+"?action=pin&action=call", wasmHello)
 		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
+		req.Header.Set(api.HeaderTE, api.TETrailers)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
 		if s, found := resp.Header[api.HeaderContentType]; found {
@@ -672,6 +675,7 @@ func TestModuleSource(t *testing.T) {
 
 		t.Run("AnonCall"+strings.Title(fn), func(t *testing.T) {
 			req := newRequest(http.MethodPost, api.PathModule+"/test/hello?action=call&function="+fn, nil)
+			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
 			if s, found := resp.Header[api.HeaderContentType]; found {
@@ -707,6 +711,7 @@ func TestModuleSource(t *testing.T) {
 			doRequest(t, handler, req)
 
 			req = newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=call&function="+fn, nil)
+			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
 			if s, found := resp.Header[api.HeaderLocation]; found {
@@ -739,6 +744,7 @@ func TestModuleSource(t *testing.T) {
 
 		t.Run("PinCall"+strings.Title(fn), func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=pin&action=call&function="+fn, nil)
+			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
 			if x := resp.Header.Get(api.HeaderLocation); x != api.PathKnownModules+hashHello {
@@ -932,6 +938,7 @@ func TestInstance(t *testing.T) {
 
 	t.Run("IO", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=io", nil)
+		req.Header.Set(api.HeaderTE, api.TETrailers)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
 		if s, found := resp.Header[api.HeaderContentType]; found {
@@ -998,6 +1005,7 @@ func TestInstanceMultiIO(t *testing.T) {
 			defer func() { done <- struct{}{} }()
 
 			req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=io", nil)
+			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
 
 			if s, found := resp.Header[api.HeaderContentType]; found {

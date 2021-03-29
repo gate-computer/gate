@@ -96,7 +96,11 @@ const (
 const (
 	HeaderLocation = "Location"      // Absolute path to known module.
 	HeaderInstance = "Gate-Instance" // UUID.
-	HeaderStatus   = "Gate-Status"   // Status of instance as JSON.
+)
+
+// HTTP response headers or trailers.
+const (
+	HeaderStatus = "Gate-Status" // Status of instance as JSON.
 )
 
 // The supported module content type.

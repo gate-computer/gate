@@ -870,7 +870,10 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	}
 	defer inst.Kill()
 
-	w.Header().Set("Trailer", api.HeaderStatus)
+	trail := acceptsTrailers(r)
+	if trail {
+		w.Header().Set("Trailer", api.HeaderStatus)
+	}
 
 	if principal.ContextID(ctx) != nil {
 		if pin {
@@ -887,7 +890,10 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 
 	inst.Connect(ctx, r.Body, w)
 	status := inst.Wait(ctx)
-	w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
+
+	if trail {
+		w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
+	}
 }
 
 func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, pin bool, source server.Source, key, function string, modTags, instTags []string) {
@@ -1219,7 +1225,11 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 		return
 	}
 
-	w.Header().Set("Trailer", api.HeaderStatus)
+	trail := acceptsTrailers(r)
+	if trail {
+		w.Header().Set("Trailer", api.HeaderStatus)
+	}
+
 	w.WriteHeader(http.StatusOK)
 
 	if err := connIO(ctx, content, w); err != nil {
@@ -1228,7 +1238,10 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	status := inst.Status()
-	w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
+
+	if trail {
+		w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
+	}
 }
 
 func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, instance string) {
