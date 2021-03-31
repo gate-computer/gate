@@ -108,7 +108,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 	)
 
 	if s.State.Flags&FlagReadWriting == 0 {
-		r = nil
+		closeRead(&r)
 	}
 	if s.State.Flags&FlagSendReceiving == 0 {
 		send = nil
@@ -154,7 +154,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 			case <-done:
 				err = ctx.Err()
 				done = nil
-				r = nil
+				closeRead(&r)
 			}
 
 			if sending != nil && pkt != nil {
@@ -170,7 +170,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 			case <-done:
 				err = ctx.Err()
 				done = nil
-				r = nil
+				closeRead(&r)
 
 			default: // No blocking.
 			}
@@ -188,7 +188,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 				pkt, _ = b.Split(n)
 				readpos += uint32(n)
 				if err != nil {
-					r = nil
+					closeRead(&r)
 					done = nil
 					if err == io.EOF {
 						err = nil
@@ -197,7 +197,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 			} else if atomic.LoadUint32(&s.State.Flags)&FlagSubscribing == 0 {
 				// Subscriber side has requested read stream closure, and more
 				// data cannot be read.  Synthesize EOF to acknowledge.
-				r = nil
+				closeRead(&r)
 				done = nil
 			}
 		}
@@ -230,6 +230,15 @@ stopped:
 	}
 
 	return err
+}
+
+func closeRead(r *io.Reader) {
+	if *r != nil {
+		if c, ok := (*r).(interface{ CloseRead() error }); ok {
+			_ = c.CloseRead()
+		}
+		*r = nil
+	}
 }
 
 // FinishSubscriber can subscribe to more data and signal that no more data

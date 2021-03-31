@@ -132,7 +132,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 	)
 
 	if s.State.Flags&FlagReadWriting == 0 {
-		w = nil
+		closeWrite(&w)
 	}
 	if s.State.Flags&FlagSubscribing == 0 {
 		send = nil
@@ -180,7 +180,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 			case <-done:
 				err = ctx.Err()
 				done = nil
-				w = nil
+				closeWrite(&w)
 			}
 		} else {
 			select {
@@ -199,7 +199,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 			case <-done:
 				err = ctx.Err()
 				done = nil
-				w = nil
+				closeWrite(&w)
 
 			default: // No blocking.
 			}
@@ -221,7 +221,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 				atomic.StoreUint32(&s.consumed, s.consumed+uint32(n))
 				s.State.Subscribed -= uint32(n)
 				if err != nil {
-					w = nil
+					closeWrite(&w)
 					done = nil
 					if err == io.EOF {
 						err = nil
@@ -230,7 +230,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 			} else if s.State.Flags&FlagSendReceiving == 0 {
 				// Writer side has requested write stream closure, and there is
 				// no more data to write.  Causes subscription to be ended.
-				w = nil
+				closeWrite(&w)
 				done = nil
 			}
 		}
@@ -269,6 +269,15 @@ stopped:
 	}
 
 	return err
+}
+
+func closeWrite(w *io.Writer) {
+	if *w != nil {
+		if c, ok := (*w).(interface{ CloseWrite() error }); ok {
+			_ = c.CloseWrite()
+		}
+		*w = nil
+	}
 }
 
 // CloseWriter can signal end-of-file condition to its peer.
