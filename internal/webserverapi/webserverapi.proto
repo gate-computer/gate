@@ -16,4 +16,5 @@ message IOConnection {
 
 message ConnectionStatus {
 	gate.server.api.Status status = 1;
+	bool input = 2;
 }

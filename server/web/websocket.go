@@ -5,11 +5,15 @@
 package web
 
 import (
-	"context"
 	"errors"
 	"io"
 	"net/http"
+	"sync"
+	"sync/atomic"
 
+	"gate.computer/gate/internal/protojson"
+	internalapi "gate.computer/gate/internal/webserverapi"
+	serverapi "gate.computer/gate/server/api"
 	"github.com/gorilla/websocket"
 )
 
@@ -32,78 +36,148 @@ var websocketUpgrader = websocket.Upgrader{
 	CheckOrigin: func(*http.Request) bool { return true },
 }
 
-type websocketWriter struct {
+var connectionStatusInputMessage = protojson.MustMarshal(&internalapi.ConnectionStatus{
+	Status: &serverapi.Status{State: serverapi.StateRunning},
+	Input:  true,
+})
+
+type websocketResponseWriter struct {
 	conn *websocket.Conn
 }
 
-func newWebsocketWriter(conn *websocket.Conn) *websocketWriter {
-	return &websocketWriter{conn}
-}
+func (w websocketResponseWriter) SetHeader(key, value string) {}
 
-func (w *websocketWriter) SetHeader(key, value string) {}
-
-func (w *websocketWriter) Write(buf []byte) (n int, err error) {
-	err = w.conn.WriteMessage(websocket.BinaryMessage, buf)
-	if err == nil {
-		n = len(buf)
+func (w websocketResponseWriter) Write(buf []byte) (int, error) {
+	if err := w.conn.WriteMessage(websocket.BinaryMessage, buf); err != nil {
+		return 0, err
 	}
-	return
+	return len(buf), nil
 }
 
-func (w *websocketWriter) WriteError(httpStatus int, text string) {
+func (w websocketResponseWriter) WriteError(httpStatus int, text string) {
 	code := websocket.CloseInternalServerErr
-	if httpStatus >= 400 && httpStatus < 500 { // Client error
+	if httpStatus >= 400 && httpStatus < 500 { // Client error.
 		code = websocket.ClosePolicyViolation
 	}
 	w.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(code, text))
 }
 
-type websocketReader struct {
-	conn  *websocket.Conn
-	frame io.Reader
+type websocketReadWriter struct {
+	conn      *websocket.Conn
+	writeMu   sync.Mutex // Guards writing and writeErr when inputHint is zero.
+	writeErr  error
+	readFrame io.Reader
+	inputHint uint32 // Atomic.  If nonzero, the reader API has ceased writing.
 }
 
-func newWebsocketReader(conn *websocket.Conn) *websocketReader {
-	return &websocketReader{conn: conn}
+func newWebsocketReadWriter(conn *websocket.Conn) *websocketReadWriter {
+	return &websocketReadWriter{conn: conn}
 }
 
-func (r *websocketReader) Read(buf []byte) (n int, err error) {
+func (rw *websocketReadWriter) Read(buf []byte) (int, error) {
+	if len(buf) == 0 {
+		return 0, nil
+	}
+
+	if atomic.LoadUint32(&rw.inputHint) == 0 {
+		rw.writeInputHint()
+	}
+
 	for {
-		if r.frame == nil {
-			_, r.frame, err = r.conn.NextReader()
+		if rw.readFrame == nil {
+			_, frame, err := rw.conn.NextReader()
 			if err != nil {
-				return
+				return 0, err
 			}
+
+			rw.readFrame = frame
 		}
 
-		n, err = r.frame.Read(buf)
-		if err == io.EOF {
-			r.frame = nil
-			err = nil
+		n, err := rw.readFrame.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				return n, err
+			}
+			rw.readFrame = nil
 		}
 
-		if n != 0 || err != nil {
-			return
+		if n != 0 {
+			return n, nil
 		}
 	}
 }
 
-type websocketReadCanceler struct {
-	reader websocketReader
-	cancel context.CancelFunc
+func (rw *websocketReadWriter) writeInputHint() {
+	rw.writeMu.Lock()
+	defer rw.writeMu.Unlock()
+
+	if rw.writeErr == nil {
+		rw.writeErr = rw.conn.WriteMessage(websocket.TextMessage, connectionStatusInputMessage)
+	}
+
+	atomic.StoreUint32(&rw.inputHint, 1)
 }
 
-func newWebsocketReadCanceler(conn *websocket.Conn, cancel context.CancelFunc) *websocketReadCanceler {
-	return &websocketReadCanceler{
-		reader: websocketReader{conn: conn},
-		cancel: cancel,
+func (rw *websocketReadWriter) CloseRead() error {
+	if atomic.LoadUint32(&rw.inputHint) == 0 {
+		rw.writeMu.Lock()
+		defer rw.writeMu.Unlock()
+
+		atomic.StoreUint32(&rw.inputHint, 1)
+	}
+
+	return nil
+}
+
+func (rw *websocketReadWriter) Write(buf []byte) (int, error) {
+	if atomic.LoadUint32(&rw.inputHint) == 0 {
+		rw.writeMu.Lock()
+		defer rw.writeMu.Unlock()
+	}
+
+	if rw.writeErr != nil {
+		return 0, rw.writeErr
+	}
+
+	if err := rw.conn.WriteMessage(websocket.BinaryMessage, buf); err != nil {
+		rw.writeErr = err
+		return 0, err
+	}
+	return len(buf), nil
+}
+
+type websocketReadWriteCanceler struct {
+	websocketReadWriter
+	cancel func()
+}
+
+func newWebsocketReadWriteCanceler(conn *websocket.Conn, cancel func()) *websocketReadWriteCanceler {
+	return &websocketReadWriteCanceler{
+		websocketReadWriter{conn: conn},
+		cancel,
 	}
 }
 
-func (r *websocketReadCanceler) Read(buf []byte) (n int, err error) {
-	n, err = r.reader.Read(buf)
+func (crw *websocketReadWriteCanceler) Read(buf []byte) (n int, err error) {
+	n, err = crw.websocketReadWriter.Read(buf)
 	if err != nil {
-		r.cancel()
+		crw.cancel()
+	}
+	return
+}
+
+func (crw *websocketReadWriteCanceler) CloseRead() (err error) {
+	err = crw.websocketReadWriter.CloseRead()
+	if err != nil {
+		crw.cancel()
+	}
+	return
+}
+
+func (crw *websocketReadWriteCanceler) Write(buf []byte) (n int, err error) {
+	n, err = crw.websocketReadWriter.Write(buf)
+	if err != nil {
+		crw.cancel()
 	}
 	return
 }

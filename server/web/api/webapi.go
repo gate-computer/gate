@@ -346,10 +346,17 @@ type IOConnection struct {
 	Connected bool `json:"connected"`
 }
 
-// Second and final text message on successful ActionCall or ActionIO websocket
-// connection.
+// Secondary text message on successful ActionCall or ActionIO websocket
+// connection.  There may be multiple, and binary messages may be interleaved
+// between them.  The final status is reported just before normal connection
+// closure.
+//
+// The input flag is a hint that the program is expecting to receive data on
+// this connection.  The amount and pace is unspecified; the flag might not
+// repeat even if the program continues to receive.
 type ConnectionStatus struct {
-	Status Status `json:"status"` // Instance status after disconnection.
+	Status Status `json:"status"` // Instance status.
+	Input  bool   `json:"input,omitempty"`
 }
 
 // FunctionRegexp matches a valid function name.

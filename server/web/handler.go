@@ -955,7 +955,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		return
 	}
 
-	w := newWebsocketWriter(conn)
+	w := websocketResponseWriter{conn}
 
 	launch := &serverapi.LaunchOptions{
 		Function:  function,
@@ -1028,10 +1028,11 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		return
 	}
 
-	inst.Connect(ctx, newWebsocketReadCanceler(conn, cancel), w)
+	rw := newWebsocketReadWriteCanceler(conn, cancel)
+	inst.Connect(ctx, rw, rw)
 	status := inst.Wait(ctx)
-	statusJSON := protojson.MustMarshal(status) // TODO: send ConnectionStatus
-	if conn.WriteMessage(websocket.TextMessage, statusJSON) == nil {
+	data := protojson.MustMarshal(&internalapi.ConnectionStatus{Status: status})
+	if conn.WriteMessage(websocket.TextMessage, data) == nil {
 		conn.WriteMessage(websocket.CloseMessage, websocketNormalClosure)
 	}
 }
@@ -1270,7 +1271,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 
 	conn.SetReadLimit(0)
 
-	w := newWebsocketWriter(conn)
+	w := websocketResponseWriter{conn}
 	ctx = mustParseAuthorization(ctx, w, s, r.Authorization, true)
 
 	inst, connIO, err := s.Server.InstanceConnection(ctx, instance)
@@ -1292,7 +1293,8 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	err = connIO(ctx, newWebsocketReader(conn), newWebsocketWriter(conn))
+	rw := newWebsocketReadWriter(conn)
+	err = connIO(ctx, rw, rw)
 	if err != nil {
 		// Network error has already been reported by connIO.
 		return
