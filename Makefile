@@ -53,7 +53,6 @@ gen: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
 .PHONY: all
 all: lib bin
 	$(MAKE) -C runtime/loader/test
-	$(GO) build $(GOBUILDFLAGS) -o tmp/bin/test-container ./internal/test/container
 	$(GO) build $(GOBUILDFLAGS) -o tmp/bin/test-grpc-service ./internal/test/grpc-service
 
 .PHONY: check

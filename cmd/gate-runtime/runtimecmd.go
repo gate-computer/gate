@@ -13,7 +13,6 @@ import (
 	"path"
 
 	internal "gate.computer/gate/internal/container"
-	"gate.computer/gate/internal/container/child"
 	"gate.computer/gate/runtime/container"
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -34,11 +33,6 @@ type Config struct {
 var c = new(Config)
 
 func main() {
-	child.ConditionalMain()
-	serverMain()
-}
-
-func serverMain() {
 	c.Runtime.Container = container.DefaultConfig
 
 	flag.Var(confi.FileReader(c), "f", "read a configuration file")

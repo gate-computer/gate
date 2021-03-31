@@ -13,8 +13,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var ExecutablePath = "/proc/self/exe"
-
 func newSysProcAttr(ns *config.NamespaceConfig, cred *NamespaceCreds) *syscall.SysProcAttr {
 	attr := &syscall.SysProcAttr{
 		Setsid:    true,

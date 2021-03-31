@@ -23,7 +23,6 @@ import (
 
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/cmdconf"
-	"gate.computer/gate/internal/container/child"
 	"gate.computer/gate/internal/services"
 	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/runtime"
@@ -159,11 +158,6 @@ var c = new(Config)
 const shutdownTimeout = 15 * time.Second
 
 func Main() {
-	child.ConditionalMain()
-	serverMain()
-}
-
-func serverMain() {
 	log.SetFlags(0)
 
 	c.Runtime.Config = runtime.DefaultConfig

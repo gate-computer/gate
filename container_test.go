@@ -8,7 +8,6 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
 	"testing"
 
@@ -18,14 +17,6 @@ import (
 )
 
 var testExecDir = "lib/gate"
-
-func init() {
-	filename, err := filepath.Abs("tmp/bin/test-container")
-	if err != nil {
-		panic(err)
-	}
-	internal.ExecutablePath = filename
-}
 
 var testNamespaceConfig = container.NamespaceConfig{
 	Newuidmap: "newuidmap",

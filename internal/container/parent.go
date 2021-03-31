@@ -9,12 +9,18 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"syscall"
 
+	"gate.computer/gate/internal/container/child"
 	"gate.computer/gate/internal/container/common"
 	runtimeerrors "gate.computer/gate/internal/error/runtime"
 	config "gate.computer/gate/runtime/container"
 )
+
+const magicKey = "TNGREHAGVZRPBAGNVARE"
+
+var magicValue = runtime.Version()
 
 func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exec.Cmd, error) {
 	executorBin, err := openExecutorBinary(c)
@@ -30,10 +36,9 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	defer loaderBin.Close()
 
 	cmd := &exec.Cmd{
-		Path:   ExecutablePath,
+		Path:   "/proc/self/exe", // Intercepted by the init() function below.
 		Args:   []string{common.ContainerName},
-		Env:    []string{},
-		Dir:    "/",
+		Env:    append(append([]string{}, os.Environ()...), magicKey+"="+magicValue),
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
 			controlSocket,
@@ -95,6 +100,14 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 
 	kill = false
 	return cmd, nil
+}
+
+func init() {
+	// Intercept the self-execution.
+	if len(os.Args) > 0 && os.Args[0] == common.ContainerName && os.Getenv(magicKey) == magicValue {
+		os.Unsetenv(magicKey)
+		child.Exec()
+	}
 }
 
 // Wait for process to exit.  It is requested to exit via the executor API; the

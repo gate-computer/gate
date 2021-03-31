@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path"
 	"runtime"
 	"syscall"
 	"unsafe"
@@ -206,13 +205,9 @@ func furnishNamespaces() error {
 	return nil
 }
 
-// ConditionalMain checks if this is a container process: if so, it runs the
-// container and never returns.
-func ConditionalMain() {
-	if path.Base(os.Args[0]) == common.ContainerName {
-		fmt.Fprintln(os.Stderr, childMain())
-		os.Exit(1)
-	}
+func Exec() {
+	fmt.Fprintln(os.Stderr, childMain())
+	os.Exit(1)
 }
 
 func childMain() (err error) {
