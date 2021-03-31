@@ -243,7 +243,7 @@ func childMain() (err error) {
 
 	// At this point user namespace and cgroup have been configured by parent process.
 
-	if err := syscall.Dup2(unix.Stdout, unix.Stdin); err != nil { // stdin = /dev/null
+	if err := syscall.Dup3(unix.Stdout, unix.Stdin, 0); err != nil { // stdin = /dev/null
 		return fmt.Errorf("duplicating stdout as stdin: %w", err)
 	}
 
@@ -328,7 +328,7 @@ func childMain() (err error) {
 	}
 
 	if !runtimeDebug {
-		if err := syscall.Dup2(unix.Stdout, unix.Stderr); err != nil { // stderr = /dev/null
+		if err := syscall.Dup3(unix.Stdout, unix.Stderr, 0); err != nil { // stderr = /dev/null
 			return fmt.Errorf("duplicating stdout as stderr: %w", err)
 		}
 	}
