@@ -452,6 +452,8 @@ more:
 
 static void wait_process(struct executor *x, int16_t id)
 {
+	debugf("executor: waiting [%d]", id);
+
 	struct process *p = &x->id_procs[id];
 	if (p->pid == 0)
 		die(ERR_EXEC_WAIT_PROCESS_BAD_STATE);
@@ -464,6 +466,9 @@ static void wait_process(struct executor *x, int16_t id)
 		die(ERR_EXEC_WAITPID);
 
 	debugf("executor: reaped [%d] pid %d fd %d status 0x%x", id, p->pid, p->fd, status);
+
+	if (epoll_ctl(x->epoll_fd, EPOLL_CTL_DEL, p->fd, NULL) < 0)
+		die(ERR_EXEC_EPOLL_DEL);
 
 	xclose(p->fd);
 	p->pid = 0;
