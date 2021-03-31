@@ -4,4 +4,4 @@ Description=Gate daemon
 [Service]
 Type=dbus
 BusName=computer.gate.Daemon
-ExecStart=/usr/local/bin/gate-daemon -o runtime.container.namespace.newuidmap=newuidmap -o runtime.container.namespace.newgidmap=newgidmap
+ExecStart=/usr/local/bin/gate-daemon

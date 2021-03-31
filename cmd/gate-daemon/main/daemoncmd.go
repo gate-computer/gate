@@ -48,6 +48,8 @@ import (
 )
 
 const (
+	DefaultNewuidmap   = "newuidmap"
+	DefaultNewgidmap   = "newgidmap"
 	DefaultImageVarDir = ".gate/image" // Relative to home directory.
 )
 
@@ -103,6 +105,8 @@ func Main() {
 
 func mainResult() int {
 	c.Runtime = gateruntime.DefaultConfig
+	c.Runtime.Container.Namespace.Newuidmap = DefaultNewuidmap
+	c.Runtime.Container.Namespace.Newgidmap = DefaultNewgidmap
 	c.Image.VarDir = cmdconf.JoinHome(DefaultImageVarDir)
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
