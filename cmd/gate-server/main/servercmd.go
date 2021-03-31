@@ -33,7 +33,7 @@ import (
 	"gate.computer/gate/server/monitor/webmonitor"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
-	webapi "gate.computer/gate/server/web/api"
+	"gate.computer/gate/server/web/api"
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
@@ -482,7 +482,7 @@ func main2(critLog *log.Logger) error {
 		}
 
 		go func() {
-			critLog.Fatal(http.ListenAndServe(httpAddr, m.HTTPHandler(http.HandlerFunc(handleHTTP))))
+			critLog.Fatal(http.ListenAndServe(httpAddr, m.HTTPHandler(newHTTPHandler())))
 		}()
 	}
 
@@ -497,52 +497,59 @@ func main2(critLog *log.Logger) error {
 	return httpServer.Serve(l)
 }
 
-func newHTTPSHandler(gate http.Handler) http.Handler {
+func newHTTPSHandler(apihandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", serverHeaderValue)
-
-		if r.URL.Path == "/" {
-			if s := c.HTTP.Index.Location; s != "" {
-				w.Header().Set("Location", s)
-			}
-			w.WriteHeader(c.HTTP.Index.Status)
-		} else {
-			gate.ServeHTTP(w, r)
-		}
+		handle(w, r, apihandler)
 	})
 }
 
-func handleHTTP(w http.ResponseWriter, r *http.Request) {
+func newHTTPHandler() http.Handler {
+	apihandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeResponse(w, r, http.StatusMisdirectedRequest, "http not supported")
+	})
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handle(w, r, apihandler)
+	})
+}
+
+func handle(w http.ResponseWriter, r *http.Request, apihandler http.Handler) {
 	w.Header().Set("Server", serverHeaderValue)
 
-	status := http.StatusNotFound
-	message := "not found"
+	if strings.HasPrefix(r.URL.Path, api.Path) {
+		apihandler.ServeHTTP(w, r)
+		return
+	}
 
-	switch {
-	case r.URL.Path == "/":
-		status = c.HTTP.Index.Status
-		message = ""
+	if c.HTTP.Index.Status == http.StatusNotFound || r.URL.Path != "/" {
+		writeResponse(w, r, http.StatusNotFound, "not found")
+		return
+	}
 
+	if r.Method == http.MethodGet || r.Method == http.MethodHead {
 		if s := c.HTTP.Index.Location; s != "" {
-			w.Header().Set("Location", s)
+			w.Header().Set(api.HeaderLocation, s)
 		}
-
-	case strings.HasPrefix(r.URL.Path, webapi.Path):
-		status = http.StatusMisdirectedRequest
-		message = "HTTP scheme not supported"
+		w.WriteHeader(c.HTTP.Index.Status)
+		return
 	}
 
-	if message != "" && acceptsText(r) {
-		w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusMethodNotAllowed)
+}
+
+func writeResponse(w http.ResponseWriter, r *http.Request, status int, message string) {
+	if !acceptsText(r) {
 		w.WriteHeader(status)
-		fmt.Fprintln(w, message)
-	} else {
-		w.WriteHeader(status)
+		return
 	}
+
+	w.Header().Set(api.HeaderContentType, "text/plain")
+	w.WriteHeader(status)
+	fmt.Fprintln(w, message)
 }
 
 func acceptsText(r *http.Request) bool {
-	headers := r.Header[webapi.HeaderAccept]
+	headers := r.Header[api.HeaderAccept]
 	if len(headers) == 0 {
 		return true
 	}
