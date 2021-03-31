@@ -364,12 +364,14 @@ func main2(critLog *log.Logger) error {
 		}
 	}
 
-	nonceChecker, err := database.OpenNonceChecker(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
-	if err != nil {
-		return err
+	if c.HTTP.AccessDB != "none" {
+		db, err := database.OpenNonceChecker(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		c.HTTP.NonceStorage = db
 	}
-	defer nonceChecker.Close()
-	c.HTTP.NonceStorage = nonceChecker
 
 	c.HTTP.ModuleSources = make(map[string]server.Source)
 	for _, x := range c.Source.HTTP {
