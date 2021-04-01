@@ -146,8 +146,10 @@ There are two approaches to building Gate: using Go directly, or via Make.
 
 ### Build using Go
 
-[Go](https://golang.org) 1.16 is required (but some packages may work with
-older versions).
+Build requirements:
+
+  - The **gate** client program requires Go 1.13
+  - Other programs require Go 1.16
 
 The Gate programs and programs importing Gate modules can be built normally
 using `go install`, `go get` etc.  See the
