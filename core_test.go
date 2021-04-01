@@ -14,6 +14,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -77,7 +78,10 @@ func newExecutor() (tester *executor) {
 	return
 }
 
-type serviceRegistry struct{ origin io.Writer }
+type serviceRegistry struct {
+	origin   io.Writer
+	originMu *sync.Mutex
+}
 
 func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
 ) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
@@ -98,6 +102,12 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 					connector := origin.New(nil)
 					go func() {
 						defer connector.Close()
+
+						if services.originMu != nil {
+							services.originMu.Lock()
+							defer services.originMu.Unlock()
+						}
+
 						if f := connector.Connect(context.Background()); f != nil {
 							f(context.Background(), bytes.NewReader(nil), services.origin)
 						}
@@ -359,7 +369,9 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	defer prog.Close()
 	defer executor.Close()
 
-	result, trapID, err := proc.Serve(ctx, serviceRegistry{&output}, nil)
+	var outputMu sync.Mutex
+
+	result, trapID, err := proc.Serve(ctx, serviceRegistry{&output, &outputMu}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else {
@@ -379,6 +391,9 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 			}
 		}
 	}
+
+	outputMu.Lock()
+	defer outputMu.Unlock()
 
 	if s := output.String(); len(s) > 0 {
 		t.Logf("output: %q", s)

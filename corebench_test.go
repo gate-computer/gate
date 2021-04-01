@@ -27,7 +27,7 @@ const benchPrepareCount = 32
 var (
 	benchExecInit sync.Once
 	benchExecutor *executor
-	benchRegistry = serviceRegistry{new(bytes.Buffer)}
+	benchRegistry = serviceRegistry{origin: new(bytes.Buffer)}
 )
 
 func getBenchExecutor() *executor {

@@ -28,7 +28,7 @@ GOTAGS		:= gateexecdir
 GOLDFLAGS	:= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
 GOBUILDFLAGS	:= -tags="$(GOTAGS)" -ldflags="$(GOLDFLAGS)"
 GOTESTRUN	:=
-GOTESTFLAGS	:= -tags="$(GOTAGS)" -run="$(GOTESTRUN)" -count=1
+GOTESTFLAGS	:= -tags="$(GOTAGS)" -run="$(GOTESTRUN)" -count=1 -race
 GOBENCHRUN	:= .*
 GOBENCHFLAGS	:= -tags="$(GOTAGS)" -bench="$(GOBENCHRUN)"
 
