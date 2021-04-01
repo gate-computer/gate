@@ -107,10 +107,11 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 		pkt     packet.Buf
 	)
 
-	if s.State.Flags&FlagReadWriting == 0 {
+	flags := atomic.LoadUint32(&s.State.Flags)
+	if flags&FlagReadWriting == 0 {
 		closeRead(&r)
 	}
-	if s.State.Flags&FlagSendReceiving == 0 {
+	if flags&FlagSendReceiving == 0 {
 		send = nil
 	}
 	if send == nil && r != nil {
@@ -212,7 +213,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 
 stopped:
 	// Update flags tracked by this side.
-	flags := s.State.Flags &^ (FlagReadWriting | FlagSendReceiving)
+	flags = s.State.Flags &^ (FlagReadWriting | FlagSendReceiving)
 	if r != nil {
 		flags |= FlagReadWriting
 	}

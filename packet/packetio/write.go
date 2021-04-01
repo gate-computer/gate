@@ -98,7 +98,7 @@ func (s *WriteStream) Write(data []byte) (n int, err error) {
 		n += copy(s.State.Data[:size], tail)
 	}
 
-	s.produced += uint32(n) // TODO: XXX: atomic?
+	atomic.AddUint32(&s.produced, uint32(n))
 	poke(s.wakeup)
 	return
 }
@@ -131,10 +131,11 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 		pkt  packet.FlowBuf
 	)
 
-	if s.State.Flags&FlagReadWriting == 0 {
+	flags := atomic.LoadUint32(&s.State.Flags)
+	if flags&FlagReadWriting == 0 {
 		closeWrite(&w)
 	}
-	if s.State.Flags&FlagSubscribing == 0 {
+	if flags&FlagSubscribing == 0 {
 		send = nil
 	}
 
@@ -142,7 +143,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 		return errors.New("subscription overflow")
 	}
 
-	for send != nil || s.State.Flags&FlagSendReceiving != 0 {
+	for send != nil || atomic.LoadUint32(&s.State.Flags)&FlagSendReceiving != 0 {
 		var (
 			increment int32
 			sending   chan<- packet.Buf
@@ -163,7 +164,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 
 		var consumed = s.consumed & mask
 
-		if w == nil || consumed == s.produced&mask {
+		if w == nil || consumed == atomic.LoadUint32(&s.produced)&mask {
 			select {
 			case sending <- packet.Buf(pkt):
 				s.State.Subscribed += uint32(increment)
@@ -206,7 +207,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 		}
 
 		if w != nil {
-			if produced := s.produced & mask; consumed != produced {
+			if produced := atomic.LoadUint32(&s.produced) & mask; consumed != produced {
 				var b []byte
 
 				if consumed < produced {
@@ -227,7 +228,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 						err = nil
 					}
 				}
-			} else if s.State.Flags&FlagSendReceiving == 0 {
+			} else if atomic.LoadUint32(&s.State.Flags)&FlagSendReceiving == 0 {
 				// Writer side has requested write stream closure, and there is
 				// no more data to write.  Causes subscription to be ended.
 				closeWrite(&w)
@@ -244,7 +245,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 
 stopped:
 	// Update flags tracked by this side.
-	flags := s.State.Flags &^ (FlagReadWriting | FlagSubscribing)
+	flags = s.State.Flags &^ (FlagReadWriting | FlagSubscribing)
 	if w != nil {
 		flags |= FlagReadWriting
 	}
