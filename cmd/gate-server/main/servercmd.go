@@ -481,8 +481,14 @@ func main2(critLog *log.Logger) error {
 			httpAddr += ":http"
 		}
 
+		httpListener, err := net.Listen("tcp", httpAddr)
+		if err != nil {
+			return err
+		}
+
+		s := http.Server{Handler: m.HTTPHandler(newHTTPHandler())}
 		go func() {
-			critLog.Fatal(http.ListenAndServe(httpAddr, m.HTTPHandler(newHTTPHandler())))
+			critLog.Fatal(s.Serve(httpListener))
 		}()
 	}
 
