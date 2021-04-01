@@ -9,6 +9,7 @@ import (
 
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/server/detail"
+	"google.golang.org/protobuf/proto"
 )
 
 type contextKey int
@@ -51,16 +52,25 @@ func detachedContext(ctx context.Context) context.Context {
 }
 
 func ContextDetail(ctx context.Context) (c *detail.Context) {
+	pri := principal.ContextID(ctx)
+
+	var priString string
+	if pri != nil {
+		priString = pri.String()
+	}
+
 	if x := ctx.Value(contextKeyDetail); x != nil {
 		c = x.(*detail.Context)
+		if pri != nil && c.Principal != priString {
+			c = proto.Clone(c).(*detail.Context)
+			c.Principal = priString
+		}
 	} else {
 		c = new(detail.Context)
+		if pri != nil {
+			c.Principal = priString
+		}
 	}
-
-	if pri := principal.ContextID(ctx); pri != nil {
-		c.Principal = pri.String()
-	}
-
 	return
 }
 
