@@ -29,8 +29,8 @@ can be added easily, and available services are discovered at run time.  See
 ## Building blocks
 
 Gate appears as [Go](https://golang.org) packages and programs.  The execution
-mechanism is implemented in C and assembly, and needs to be built separately
-(see below).  It's highly Linux-dependent.  x86-64 and ARM64 are supported.
+mechanism is implemented in C and assembly.  It is highly Linux-dependent.
+x86-64 and ARM64 are supported.
 
 Important Go packages:
 
@@ -130,9 +130,9 @@ User program support:
 
 Run-time dependencies:
 
-- Programs other than **gate** require Linux 5.2.  (**gate**'s remote access
-  features could be made to work on any operating system, but so far it has
-  been tested only on Linux.)
+- Programs other than **gate** require Linux 5.2.  **gate**'s remote access
+  features should work on any operating system, but are routinely tested only
+  on Linux.
 
 - D-Bus is used for communication between **gate** and **gate-daemon**,
   requiring D-Bus user service (dbus-user-session).  **gate** doesn't require

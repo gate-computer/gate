@@ -13,19 +13,33 @@ import (
 	"github.com/tsavola/confi"
 )
 
-var home = os.Getenv("HOME")
+var (
+	homeDir string
+	homeErr error
+)
 
-func JoinHome(dir string) string {
+func init() {
+	homeDir, homeErr = os.UserHomeDir()
+}
+
+func JoinHome(dir string) (string, error) {
 	if dir == "" {
-		return ""
+		return "", nil
 	}
 	if path.IsAbs(dir) {
-		return dir
+		return dir, nil
 	}
-	if home != "" {
-		return path.Join(home, dir)
+	if homeErr != nil {
+		return "", homeErr
 	}
-	return ""
+	return path.Join(homeDir, dir), nil
+}
+
+func JoinHomeFallback(dir, alternative string) string {
+	if s, err := JoinHome(dir); err == nil {
+		return s
+	}
+	return alternative
 }
 
 // Parse command-line flags into the configuration object.  The default
@@ -33,8 +47,7 @@ func JoinHome(dir string) string {
 func Parse(config interface{}, flags *flag.FlagSet, lenient bool, defaults ...string) {
 	var absDefaults []string
 	for _, p := range defaults {
-		p = JoinHome(p)
-		if p != "" {
+		if p, err := JoinHome(p); err == nil {
 			absDefaults = append(absDefaults, p)
 		}
 	}

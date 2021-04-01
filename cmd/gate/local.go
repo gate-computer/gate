@@ -22,7 +22,7 @@ import (
 	"gate.computer/gate/server/api"
 	webapi "gate.computer/gate/server/web/api"
 	dbus "github.com/godbus/dbus/v5"
-	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -508,12 +508,12 @@ func daemonCallInstanceWaiter(method, id string) {
 
 func openStdio() (r *os.File, w *os.File) {
 	r = os.Stdin
-	if _, err := unix.IoctlGetTermios(int(r.Fd()), unix.TCGETS); err == nil {
+	if term.IsTerminal(int(r.Fd())) {
 		r = copyStdin()
 	}
 
 	w = os.Stdout
-	if _, err := unix.IoctlGetTermios(int(w.Fd()), unix.TCGETS); err == nil {
+	if term.IsTerminal(int(w.Fd())) {
 		w = copyStdout()
 	}
 
@@ -564,19 +564,28 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 }
 
 func openDebugFile() *os.File {
-	var name string
-	if c.DebugLog == "" {
-		name = os.DevNull
-	} else {
-		name = c.DebugLog
+	switch c.DebugLog {
+	case "/dev/stderr":
+		return os.Stderr
+
+	case "":
+		f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		check(err)
+		return f
+
+	default:
+		f, err := os.OpenFile(c.DebugLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		check(err)
+		return f
 	}
-	f, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	check(err)
-	return f
 }
 
 func closeFiles(files ...*os.File) {
 	for _, f := range files {
+		if f == os.Stderr {
+			continue
+		}
+
 		// Avoid the object from being garbage-collected while its file
 		// descriptor is being handled directly.
 		runtime.KeepAlive(f)

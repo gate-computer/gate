@@ -341,9 +341,9 @@ func main2(critLog *log.Logger) error {
 
 		filename := c.Access.SSH.AuthorizedKeys
 		if filename == "" {
-			filename = cmdconf.JoinHome(".ssh/authorized_keys")
-			if filename == "" {
-				return fmt.Errorf("access.ssh.authorizedkeys option or $HOME required")
+			filename, err = cmdconf.JoinHome(".ssh/authorized_keys")
+			if err != nil {
+				return fmt.Errorf("access.ssh.authorizedkeys option required (%w)", err)
 			}
 		}
 

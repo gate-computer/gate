@@ -107,7 +107,7 @@ func mainResult() int {
 	c.Runtime = gateruntime.DefaultConfig
 	c.Runtime.Container.Namespace.Newuidmap = DefaultNewuidmap
 	c.Runtime.Container.Namespace.Newgidmap = DefaultNewgidmap
-	c.Image.VarDir = cmdconf.JoinHome(DefaultImageVarDir)
+	c.Image.VarDir = cmdconf.JoinHomeFallback(DefaultImageVarDir, "")
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9

@@ -15,7 +15,7 @@ import (
 
 	"gate.computer/gate/internal/cmdconf"
 	"github.com/tsavola/confi"
-	"golang.org/x/sys/unix"
+	"golang.org/x/term"
 )
 
 const (
@@ -120,7 +120,10 @@ type command struct {
 func main() {
 	log.SetFlags(0)
 
-	c.IdentityFile = cmdconf.JoinHome(DefaultIdentityFile)
+	defaultIdentityFile, err := cmdconf.JoinHome(DefaultIdentityFile)
+	check(err)
+
+	c.IdentityFile = defaultIdentityFile
 	c.Pin = DefaultPin
 	c.Wait = DefaultWait
 
@@ -233,7 +236,7 @@ func openFile(name string) *os.File {
 
 func terminalOr(fallback io.Writer) io.Writer {
 	for _, f := range []*os.File{os.Stdin, os.Stdout, os.Stderr} {
-		if _, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS); err == nil {
+		if term.IsTerminal(int(f.Fd())) {
 			return f
 		}
 	}
