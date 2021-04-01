@@ -67,8 +67,14 @@ type NamespaceConfig struct {
 var CgroupTitle = "gate-runtime"
 
 type CgroupConfig struct {
+	// Don't configure cgroups.
+	Disabled bool
+
+	// Name of the parent slice.  Default is to keep the current parent.
 	Parent string
-	Title  string
+
+	// Prefix for the created slice's name.
+	Title string
 }
 
 var DefaultConfig = Config{
