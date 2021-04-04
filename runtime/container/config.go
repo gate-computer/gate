@@ -64,26 +64,27 @@ type NamespaceConfig struct {
 	Newgidmap string
 }
 
-var CgroupTitle = "gate-runtime"
-
+// CgroupConfig applied via systemd.
 type CgroupConfig struct {
-	// Don't configure cgroups.
-	Disabled bool
+	// Create ExecutorScope under this slice.  May be empty.
+	ParentSlice string
 
-	// Name of the parent slice.  Default is to keep the current parent.
-	Parent string
+	// If set, create a new scope for the container (executor process and its
+	// children).  May be a complete name (ending with ".scope") or a prefix
+	// (such as "gate-runtime").  If a complete name is specified, multiple
+	// executors cannot be created.  If a prefix is specified, a random name is
+	// generated.
+	ExecutorScope string
 
-	// Prefix for the created slice's name.
-	Title string
+	// If set, the user processes (executor's children) are created directly to
+	// this cgroup.  (Linux 5.7 is required.)
+	LoaderSlice string
 }
 
 var DefaultConfig = Config{
 	Namespace: NamespaceConfig{
 		Subuid: Subuid,
 		Subgid: Subgid,
-	},
-	Cgroup: CgroupConfig{
-		Title: CgroupTitle,
 	},
 	ExecDir: ExecDir,
 }

@@ -20,6 +20,7 @@
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -31,6 +32,28 @@
 #include "debug.h"
 #include "errors.h"
 #include "runtime.h"
+
+#ifndef CLONE_INTO_CGROUP
+#define CLONE_INTO_CGROUP 0x200000000ULL
+#endif
+
+struct sys_clone_args_v0 {
+	uint64_t flags;       // Flags bit mask
+	uint64_t pidfd;       // Where to store PID file descriptor (pid_t *)
+	uint64_t child_tid;   // Where to store child TID, in child's memory (pid_t *)
+	uint64_t parent_tid;  // Where to store child TID, in parent's memory (int *)
+	uint64_t exit_signal; // Signal to deliver to parent on child termination
+	uint64_t stack;       // Pointer to lowest byte of stack
+	uint64_t stack_size;  // Size of stack
+	uint64_t tls;         // Location of new TLS
+};
+
+struct sys_clone_args_v2 {
+	struct sys_clone_args_v0 v0;
+	uint64_t set_tid;      // Pointer to a pid_t array (Linux 5.5)
+	uint64_t set_tid_size; // Number of elements in set_tid (Linux 5.5)
+	uint64_t cgroup;       // File descriptor for target cgroup of child (Linux 5.7)
+};
 
 NORETURN
 static void die(int code)
@@ -54,12 +77,10 @@ static void xdup2(int oldfd, int newfd)
 }
 
 NORETURN
-static int execute_child(void *args)
+static int execute_child(const int io_fds[2])
 {
-	const int *fds = args;
-
-	xdup2(fds[0], GATE_INPUT_FD);
-	xdup2(fds[1], GATE_OUTPUT_FD);
+	xdup2(io_fds[0], GATE_INPUT_FD);
+	xdup2(io_fds[1], GATE_OUTPUT_FD);
 
 	char *none[] = {NULL};
 
@@ -67,19 +88,31 @@ static int execute_child(void *args)
 	die(ERR_EXECHILD_EXEC_LOADER);
 }
 
-static pid_t spawn_child(int *fds, int *pidfd)
+static pid_t spawn_child(const int io_fds[2], int cgroup_fd, int *ret_pidfd)
 {
-	union {
-		char buf[4096];
-		__int128 align;
-	} stack;
+	struct sys_clone_args_v2 args = {
+		.v0 = {
+			.flags = CLONE_PIDFD | CLONE_VFORK,
+			.pidfd = (uintptr_t) ret_pidfd,
+			.exit_signal = SIGCHLD,
+		},
+	};
+	size_t size = sizeof(struct sys_clone_args_v0);
 
-	void *stacktop = stack.buf + sizeof stack.buf;
+	if (cgroup_fd >= 0) {
+		args.v0.flags |= CLONE_INTO_CGROUP;
+		args.cgroup = cgroup_fd;
+		size = sizeof(struct sys_clone_args_v2);
+	}
 
-	return clone(execute_child, stacktop, CLONE_PIDFD | CLONE_VFORK | SIGCHLD, fds, pidfd);
+	pid_t pid = syscall(SYS_clone3, &args, size);
+	if (pid == 0)
+		execute_child(io_fds);
+
+	return pid;
 }
 
-static pid_t create_process(struct cmsghdr *cmsg, int *pidfd)
+static pid_t create_process(const struct cmsghdr *cmsg, int cgroup_fd, int *ret_pidfd)
 {
 	if (cmsg->cmsg_level != SOL_SOCKET)
 		die(ERR_EXEC_CMSG_LEVEL);
@@ -87,18 +120,24 @@ static pid_t create_process(struct cmsghdr *cmsg, int *pidfd)
 	if (cmsg->cmsg_type != SCM_RIGHTS)
 		die(ERR_EXEC_CMSG_TYPE);
 
-	if (cmsg->cmsg_len != CMSG_LEN(2 * sizeof(int)))
+	int num_fds;
+	const int *fds = (int *) CMSG_DATA(cmsg);
+
+	if (cmsg->cmsg_len == CMSG_LEN(2 * sizeof(int))) {
+		num_fds = 2;
+	} else if (cmsg->cmsg_len == CMSG_LEN(3 * sizeof(int))) {
+		num_fds = 3;
+		cgroup_fd = fds[2];
+	} else {
 		die(ERR_EXEC_CMSG_LEN);
+	}
 
-	int *fds = (int *) CMSG_DATA(cmsg);
-
-	*pidfd = -1;
-	pid_t pid = spawn_child(fds, pidfd);
+	pid_t pid = spawn_child(fds, cgroup_fd, ret_pidfd);
 	if (pid <= 0)
 		die(ERR_EXEC_CLONE);
 
-	xclose(fds[1]);
-	xclose(fds[0]);
+	for (int i = 0; i < num_fds; i++)
+		xclose(fds[i]);
 
 	return pid;
 }
@@ -201,7 +240,7 @@ struct exec_status {
 } PACKED;
 
 union control_buffer {
-	char buf[CMSG_SPACE(2 * sizeof(int))]; // Space for 2 file descriptors.
+	char buf[CMSG_SPACE(3 * sizeof(int))]; // Space for 3 file descriptors.
 	struct cmsghdr alignment;
 };
 
@@ -219,6 +258,7 @@ struct process {
 
 struct executor {
 	long clock_ticks;
+	int cgroup_fd;
 	int epoll_fd;
 	int proc_count;
 	bool shutdown;
@@ -240,9 +280,10 @@ struct executor {
 	struct process id_procs[ID_PROCS];
 };
 
-static void init_executor(struct executor *x, long clock_ticks)
+static void init_executor(struct executor *x, long clock_ticks, int cgroup_fd)
 {
 	x->clock_ticks = clock_ticks;
+	x->cgroup_fd = cgroup_fd;
 
 	x->epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 	if (x->epoll_fd < 0)
@@ -328,7 +369,7 @@ more:
 			if (p->pid != 0)
 				die(ERR_EXEC_CREATE_PROCESS_BAD_STATE);
 
-			p->pid = create_process(cmsg, &p->fd);
+			p->pid = create_process(cmsg, x->cgroup_fd, &p->fd);
 			x->proc_count++;
 
 			debugf("executor: created [%d] pid %d fd %d", id, p->pid, p->fd);
@@ -574,8 +615,8 @@ static void xsetrlimit(int resource, rlim_t limit, int exitcode)
 		die(exitcode);
 }
 
-// Stdio, runtime, epoll, exec request input/output, child dups, pidfs.
-#define NOFILE (3 + 3 + 1 + 2 + 2 + ID_PROCS)
+// Stdio, runtime, epoll, exec request, child dups, pidfs.
+#define NOFILE (3 + 4 + 1 + 3 + 2 + ID_PROCS)
 
 int main(int argc, char **argv)
 {
@@ -596,7 +637,15 @@ int main(int argc, char **argv)
 	set_cloexec(STDERR_FILENO);
 	set_cloexec(GATE_CONTROL_FD);
 	set_cloexec(GATE_LOADER_FD);
+	set_cloexec(GATE_CGROUP_FD);
 	set_cloexec(GATE_PROC_FD);
+
+	int cgroup_fd = GATE_CGROUP_FD;
+	struct stat st;
+	if (fstat(cgroup_fd, &st) != 0)
+		die(ERR_EXEC_FSTAT);
+	if (S_ISCHR(st.st_mode)) // It might be /dev/null.
+		cgroup_fd = -1;
 
 	if (GATE_SANDBOX) {
 		if (prctl(PR_SET_DUMPABLE, 0) != 0)
@@ -618,7 +667,7 @@ int main(int argc, char **argv)
 		die(ERR_EXEC_PAGESIZE);
 
 	struct executor *x = xbrk(sizeof(struct executor), pagesize);
-	init_executor(x, clock_ticks);
+	init_executor(x, clock_ticks, cgroup_fd);
 
 	if (GATE_SANDBOX) {
 		xsetrlimit(RLIMIT_DATA, GATE_LIMIT_DATA, ERR_EXEC_SETRLIMIT_DATA);

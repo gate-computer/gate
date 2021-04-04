@@ -25,6 +25,7 @@ var (
 const (
 	LoaderFD   = 4
 	ExecutorFD = 5
+	CgroupFD   = 6
 )
 
 // User/group ids inside the container's user namespace.

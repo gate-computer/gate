@@ -45,6 +45,7 @@
 #define ERR_EXEC_PROCSTAT_READ 51
 #define ERR_EXEC_PROCSTAT_PARSE 52
 #define ERR_EXEC_EPOLL_DEL 53
+#define ERR_EXEC_FSTAT 54
 
 // Process
 #define ERR_RT_READ 4

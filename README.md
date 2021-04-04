@@ -130,7 +130,7 @@ User program support:
 
 Run-time dependencies:
 
-- Programs other than **gate** require Linux 5.2.  **gate**'s remote access
+- Programs other than **gate** require Linux 5.3.  **gate**'s remote access
   features should work on any operating system, but are routinely tested only
   on Linux.
 

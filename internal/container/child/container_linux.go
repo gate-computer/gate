@@ -18,8 +18,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Additional file descriptors passed from container to executor.
 const (
-	procFD = 6
+	procFD = 7
 )
 
 const (

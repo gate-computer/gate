@@ -7,33 +7,34 @@ package container
 import (
 	"crypto/rand"
 	"fmt"
+	"os"
+	"path"
+	"strings"
+	"syscall"
 
 	config "gate.computer/gate/runtime/container"
 	"github.com/coreos/go-systemd/v22/dbus"
 )
 
-func configureCgroup(containerPID int, c *config.CgroupConfig) error {
-	if c.Disabled {
+func configureExecutorCgroup(containerPID int, c *config.CgroupConfig) error {
+	if c.ExecutorScope == "" {
 		return nil
 	}
 
-	title := c.Title
-	if title == "" {
-		title = config.CgroupTitle
+	scope := c.ExecutorScope
+	if !strings.HasSuffix(scope, ".scope") {
+		id := make([]byte, 4)
+		if _, err := rand.Read(id); err != nil {
+			return fmt.Errorf("random: %w", err)
+		}
+		scope = fmt.Sprintf("%s-%x.scope", scope, id)
 	}
-
-	scopeID := make([]byte, 4)
-	if _, err := rand.Read(scopeID); err != nil {
-		return fmt.Errorf("random: %w", err)
-	}
-
-	scope := fmt.Sprintf("%s-%x.scope", title, scopeID)
 
 	props := []dbus.Property{
 		dbus.PropPids(uint32(containerPID)),
 	}
-	if c.Parent != "" {
-		props = append(props, dbus.PropSlice(c.Parent))
+	if c.ParentSlice != "" {
+		props = append(props, dbus.PropSlice(c.ParentSlice))
 	}
 
 	conn, err := dbus.NewSystemdConnection()
@@ -57,4 +58,13 @@ func configureCgroup(containerPID int, c *config.CgroupConfig) error {
 	}
 
 	return nil
+}
+
+func openLoaderCgroupDir(c *config.CgroupConfig) (*os.File, error) {
+	if c.LoaderSlice == "" {
+		return os.Open(os.DevNull)
+	}
+
+	p := path.Join("/sys/fs/cgroup/unified", c.LoaderSlice)
+	return openPath(p, syscall.O_DIRECTORY|syscall.O_NOFOLLOW)
 }

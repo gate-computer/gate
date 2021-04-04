@@ -35,6 +35,12 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	}
 	defer loaderBin.Close()
 
+	cgroupDir, err := openLoaderCgroupDir(&c.Cgroup)
+	if err != nil {
+		return nil, err
+	}
+	defer cgroupDir.Close()
+
 	cmd := &exec.Cmd{
 		Path:   "/proc/self/exe", // Intercepted by the init() function below.
 		Args:   []string{common.ContainerName},
@@ -44,6 +50,7 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 			controlSocket,
 			loaderBin,
 			executorBin,
+			cgroupDir,
 		},
 		SysProcAttr: newSysProcAttr(&c.Namespace, cred),
 	}
@@ -76,7 +83,7 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 		}
 	}()
 
-	if err := configureCgroup(cmd.Process.Pid, &c.Cgroup); err != nil {
+	if err := configureExecutorCgroup(cmd.Process.Pid, &c.Cgroup); err != nil {
 		return nil, err
 	}
 

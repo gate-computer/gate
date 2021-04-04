@@ -47,9 +47,10 @@ const (
 	ERR_EXEC_PROCSTAT_READ                 = 51
 	ERR_EXEC_PROCSTAT_PARSE                = 52
 	ERR_EXEC_EPOLL_DEL                     = 53
+	ERR_EXEC_FSTAT                         = 54
 )
 
-var ExecutorErrors = [84]Error{
+var ExecutorErrors = [55]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_BRK", "runtime executor", "brk call failed"},
 	12: {"ERR_EXEC_PAGESIZE", "runtime executor", "sysconf PAGESIZE call failed"},
@@ -94,6 +95,7 @@ var ExecutorErrors = [84]Error{
 	51: {"ERR_EXEC_PROCSTAT_READ", "runtime executor", "failed to read /proc/<pid>/stat"},
 	52: {"ERR_EXEC_PROCSTAT_PARSE", "runtime executor", "/proc/<pid>/stat parse error"},
 	53: {"ERR_EXEC_EPOLL_DEL", "runtime executor", "epoll_ctl DEL call failed"},
+	54: {"ERR_EXEC_FSTAT", "runtime executor", "fstat call failed"},
 }
 
 var ProcessErrors = [48]Error{
