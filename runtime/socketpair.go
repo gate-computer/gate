@@ -14,7 +14,7 @@ import (
 func socketPipe() (r file.Ref, w *file.File, err error) {
 	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
 	if err != nil {
-		err = fmt.Errorf("socketpair: %v", err)
+		err = fmt.Errorf("socketpair: %w", err)
 		return
 	}
 	defer func() {
@@ -26,7 +26,7 @@ func socketPipe() (r file.Ref, w *file.File, err error) {
 
 	err = syscall.Shutdown(p[0], syscall.SHUT_WR)
 	if err != nil {
-		err = fmt.Errorf("shutdown: %v", err)
+		err = fmt.Errorf("shutdown: %w", err)
 		return
 	}
 

@@ -404,7 +404,7 @@ func mmapp(ptr *[]byte, f *file.File, offset int64, length int) (err error) {
 		return
 	}
 
-	b, err := mmap(f.Fd(), offset, alignPageSize(length), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	b, err := mmap(f.FD(), offset, alignPageSize(length), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 	if err != nil {
 		return
 	}

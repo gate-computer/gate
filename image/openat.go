@@ -13,18 +13,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func openat(dirfd int, path string, flags int, mode uint32) (f *file.File, err error) {
+func openat(dirfd int, path string, flags int, mode uint32) (*file.File, error) {
 	fd, err := syscall.Openat(dirfd, path, flags|unix.O_CLOEXEC, mode)
 	if err != nil {
 		if err == syscall.ENOENT {
-			err = os.ErrNotExist
-			return
+			return nil, os.ErrNotExist
 		}
 
-		err = fmt.Errorf("openat %d %q 0x%x: %v", dirfd, path, flags, err)
-		return
+		return nil, fmt.Errorf("openat %d %q 0x%x: %w", dirfd, path, flags, err)
 	}
 
-	f = file.New(fd)
-	return
+	return file.New(fd), nil
 }

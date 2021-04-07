@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 
@@ -16,6 +17,7 @@ func pipe2(flags int) (r *os.File, w *file.File, err error) {
 
 	err = syscall.Pipe2(p[:], syscall.O_CLOEXEC|flags)
 	if err != nil {
+		err = fmt.Errorf("pipe2: %w", err)
 		return
 	}
 

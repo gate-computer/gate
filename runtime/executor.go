@@ -192,7 +192,7 @@ func (e *Executor) sender(errorLog Logger) {
 			binary.LittleEndian.PutUint16(buf[0:], uint16(req.pid))
 			buf[2] = execOpCreate
 
-			cmsg = unixRights(req.fds()...)
+			cmsg = syscall.UnixRights(req.fds()...)
 
 		case id := <-e.killRequests:
 			if id == math.MaxInt16 {

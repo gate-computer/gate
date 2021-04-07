@@ -14,13 +14,13 @@ import (
 func SocketFilePair(flags int) (f1, f2 *os.File, err error) {
 	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC|flags, 0)
 	if err != nil {
-		err = fmt.Errorf("socketpair: %v", err)
+		err = fmt.Errorf("socketpair: %w", err)
 		return
 	}
 
 	err = syscall.SetNonblock(p[1], true)
 	if err != nil {
-		err = fmt.Errorf("set nonblock: %v", err)
+		err = fmt.Errorf("set nonblock: %w", err)
 		return
 	}
 

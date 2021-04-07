@@ -14,12 +14,12 @@ import (
 func memfdCreateDup(name string, data []byte, asFD int, dupFlags int) error {
 	fd, err := unix.MemfdCreate(name, unix.MFD_ALLOW_SEALING|unix.MFD_CLOEXEC)
 	if err != nil {
-		return fmt.Errorf("creating memfd for %s: %v", name, err)
+		return fmt.Errorf("creating memfd for %s: %w", name, err)
 	}
 	defer syscall.Close(fd)
 
 	if _, err := syscall.Pwrite(fd, data, 0); err != nil {
-		return fmt.Errorf("writing %s: %v", name, err)
+		return fmt.Errorf("writing %s: %w", name, err)
 	}
 
 	if err := syscall.Dup3(fd, asFD, dupFlags); err != nil {

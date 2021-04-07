@@ -7,30 +7,35 @@
 package image
 
 import (
+	"fmt"
+	"syscall"
+
 	"gate.computer/gate/internal/file"
+	"golang.org/x/sys/unix"
 )
 
 const memoryFileWriteSupported = true
 
 // newMemoryFile with the given size.  name can used if a name is needed.  The
 // file must initially be readable, writable, and executable.
-func newMemoryFile(name string, size int64) (f *file.File, err error) {
-	f, err = memfdCreate(name)
+func newMemoryFile(name string, size int64) (*file.File, error) {
+	fd, err := unix.MemfdCreate(name, unix.MFD_CLOEXEC)
 	if err != nil {
-		return
+		return nil, fmt.Errorf("memfd_create: %w", err)
 	}
 	defer func() {
-		if err != nil {
-			f.Close()
+		if fd >= 0 {
+			syscall.Close(fd)
 		}
 	}()
 
-	err = ftruncate(f.Fd(), size)
-	if err != nil {
-		return
+	if err := ftruncate(fd, size); err != nil {
+		return nil, err
 	}
 
-	return
+	f := file.New(fd)
+	fd = -1
+	return f, nil
 }
 
 // protectFileMemory on a best-effort basis.  mask is a combination of

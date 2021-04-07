@@ -9,12 +9,10 @@ import (
 	"syscall"
 )
 
-func fdatasync(fd uintptr) (err error) {
-	err = syscall.Fdatasync(int(fd))
-	if err != nil {
-		err = fmt.Errorf("fdatasync: %v", err)
-		return
+func fdatasync(fd int) error {
+	if err := syscall.Fdatasync(fd); err != nil {
+		return fmt.Errorf("fdatasync: %w", err)
 	}
 
-	return
+	return nil
 }

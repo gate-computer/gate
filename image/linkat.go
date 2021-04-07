@@ -24,7 +24,7 @@ func linkat(olddirfd int, oldpath string, newdirfd int, newpath string, flags in
 			return
 		}
 
-		err = fmt.Errorf("linkat %d %q %d %q %#x: %v", olddirfd, oldpath, newdirfd, newpath, flags, err)
+		err = fmt.Errorf("linkat %d %q %d %q %#x: %w", olddirfd, oldpath, newdirfd, newpath, flags, err)
 		return
 	}
 

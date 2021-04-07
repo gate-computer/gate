@@ -25,7 +25,7 @@ func copyFileRange(r *file.File, roff *int64, w *file.File, woff *int64, length 
 			if err == unix.EXDEV {
 				goto fallback
 			}
-			err = fmt.Errorf("copy_file_range: %v", err)
+			err = fmt.Errorf("copy_file_range: %w", err)
 			return
 		}
 

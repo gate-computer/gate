@@ -99,7 +99,7 @@ func (pmem persistMem) storeInstance(inst *Instance, name string) (err error) {
 	}
 	inst.manDirty = false
 
-	err = fdatasync(f.Fd())
+	err = fdatasync(f.FD())
 	if err != nil {
 		return
 	}
@@ -109,7 +109,7 @@ func (pmem persistMem) storeInstance(inst *Instance, name string) (err error) {
 		return
 	}
 
-	err = fdatasync(pmem.fs.instDir.Fd())
+	err = fdatasync(pmem.fs.instDir.FD())
 	if err != nil {
 		return
 	}

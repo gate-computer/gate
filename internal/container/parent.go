@@ -94,7 +94,8 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	}
 
 	if common.Sandbox {
-		if err := writeOOMScoreAdj(cmd.Process.Pid); err != nil {
+		procOOMScoreAdj := fmt.Sprintf("/proc/%d/oom_score_adj", cmd.Process.Pid)
+		if err := os.WriteFile(procOOMScoreAdj, []byte("1000"), 0); err != nil {
 			return nil, err
 		}
 

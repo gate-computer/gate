@@ -9,12 +9,10 @@ import (
 	"syscall"
 )
 
-func ftruncate(fd uintptr, length int64) (err error) {
-	err = syscall.Ftruncate(int(fd), length)
-	if err != nil {
-		err = fmt.Errorf("ftruncate: %v", err)
-		return
+func ftruncate(fd int, length int64) error {
+	if err := syscall.Ftruncate(fd, length); err != nil {
+		return fmt.Errorf("ftruncate: %w", err)
 	}
 
-	return
+	return nil
 }

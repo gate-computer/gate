@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
-	"os"
 	"syscall"
 
 	"gate.computer/gate/internal/error/notfound"
@@ -120,7 +120,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 		} else {
 			var dest []byte
 
-			dest, err = mmap(instFile.Fd(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+			dest, err = mmap(instFile.FD(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 			if err != nil {
 				return
 			}
@@ -171,9 +171,9 @@ func (inst *Instance) Store(name, progName string, prog *Program) (err error) {
 	return
 }
 
-func (inst *Instance) Unstore() (err error) {
+func (inst *Instance) Unstore() error {
 	if inst.name == "" {
-		return
+		return nil
 	}
 
 	dir := inst.dir
@@ -182,19 +182,18 @@ func (inst *Instance) Unstore() (err error) {
 	inst.name = ""
 
 	if dir == nil {
-		return
+		return nil
 	}
 
-	err = unlinkat(dir.Fd(), name)
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = fdatasync(dir.Fd())
+	if err := syscall.Unlinkat(dir.FD(), name); err != nil {
+		if err == syscall.ENOENT {
+			return fdatasync(dir.FD())
 		}
-		return
+
+		return fmt.Errorf("unlinkat instance %q: %w", name, err)
 	}
 
-	err = fdatasync(dir.Fd())
-	return
+	return fdatasync(dir.FD())
 }
 
 func (inst *Instance) Close() (err error) {

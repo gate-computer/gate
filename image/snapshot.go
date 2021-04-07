@@ -49,7 +49,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	// TODO: reading might be faster.  exportStack could work in-place.
 	instMapOffset := instGlobalsOffset - int64(stackMapSize)
-	instMap, err := mmap(inst.file.Fd(), instMapOffset, int(instMemoryOffset-instMapOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
+	instMap, err := mmap(inst.file.FD(), instMapOffset, int(instMemoryOffset-instMapOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
 		return
 	}

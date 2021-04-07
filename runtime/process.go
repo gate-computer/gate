@@ -238,12 +238,12 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 
 	var cmsg []byte
 	if policy.DebugLog == nil {
-		cmsg = unixRights(int(textFile.Fd()), int(stateFile.Fd()))
+		cmsg = syscall.UnixRights(int(textFile.Fd()), int(stateFile.Fd()))
 	} else {
-		cmsg = unixRights(int(debugWriter.Fd()), int(textFile.Fd()), int(stateFile.Fd()))
+		cmsg = syscall.UnixRights(int(debugWriter.Fd()), int(textFile.Fd()), int(stateFile.Fd()))
 	}
 
-	err = sendmsg(p.writer.Fd(), buf.Bytes(), cmsg, nil, 0)
+	err = syscall.Sendmsg(p.writer.FD(), buf.Bytes(), cmsg, nil, 0)
 	if err != nil {
 		return
 	}

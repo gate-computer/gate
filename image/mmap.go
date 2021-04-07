@@ -9,18 +9,17 @@ import (
 	"syscall"
 )
 
-func mmap(fd uintptr, offset int64, length, prot, flags int) (data []byte, err error) {
-	data, err = syscall.Mmap(int(fd), offset, length, prot, flags)
+func mmap(fd int, offset int64, length, prot, flags int) ([]byte, error) {
+	b, err := syscall.Mmap(fd, offset, length, prot, flags)
 	if err != nil {
-		err = fmt.Errorf("mmap: %v", err)
-		return
+		return nil, fmt.Errorf("mmap: %w", err)
 	}
 
-	return
+	return b, err
 }
 
 func mustMunmap(b []byte) {
 	if err := syscall.Munmap(b); err != nil {
-		panic(fmt.Errorf("munmap: %v", err))
+		panic(fmt.Errorf("munmap: %w", err))
 	}
 }

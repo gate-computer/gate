@@ -83,7 +83,7 @@ func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 		}
 	}()
 
-	err = ftruncate(f.Fd(), progMaxOffset)
+	err = ftruncate(f.FD(), progMaxOffset)
 	return
 }
 
@@ -95,7 +95,7 @@ func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
 		return
 	}
 
-	err = fdatasync(prog.file.Fd())
+	err = fdatasync(prog.file.FD())
 	if err != nil {
 		return
 	}
@@ -108,7 +108,7 @@ func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
 		err = nil
 	}
 
-	err = fdatasync(fs.progDir.Fd())
+	err = fdatasync(fs.progDir.FD())
 	return
 }
 
@@ -175,7 +175,7 @@ func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
 		}
 	}()
 
-	err = ftruncate(f.Fd(), instMaxOffset)
+	err = ftruncate(f.FD(), instMaxOffset)
 	return
 }
 
@@ -191,7 +191,7 @@ func (fs *Filesystem) storeInstance(inst *Instance, name string) (err error) {
 		inst.manDirty = false
 	}
 
-	err = fdatasync(inst.file.Fd())
+	err = fdatasync(inst.file.FD())
 	if err != nil {
 		return
 	}
@@ -201,7 +201,7 @@ func (fs *Filesystem) storeInstance(inst *Instance, name string) (err error) {
 		return
 	}
 
-	err = fdatasync(fs.instDir.Fd())
+	err = fdatasync(fs.instDir.FD())
 	if err != nil {
 		return
 	}
@@ -242,7 +242,7 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 }
 
 func (fs *Filesystem) listNames(dirFD uintptr) (names []string, err error) {
-	dir, err := openAsOSFile(dirFD)
+	dir, err := os.Open(fmt.Sprintf("/proc/self/fd/%d", dirFD))
 	if err != nil {
 		return
 	}
