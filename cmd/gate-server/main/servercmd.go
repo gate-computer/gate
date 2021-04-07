@@ -291,7 +291,7 @@ func main2(critLog *log.Logger) error {
 	if c.Image.VarDir != "" {
 		fs, err = image.NewFilesystem(c.Image.VarDir)
 		if err != nil {
-			return fmt.Errorf("filesystem: %v", err)
+			return fmt.Errorf("filesystem: %w", err)
 		}
 		defer fs.Close()
 	}
@@ -360,7 +360,7 @@ func main2(critLog *log.Logger) error {
 	if c.HTTP.Authority == "" {
 		c.HTTP.Authority, _, err = net.SplitHostPort(c.HTTP.Addr)
 		if err != nil {
-			return fmt.Errorf("http.authority string cannot be inferred: %v", err)
+			return fmt.Errorf("http.authority string cannot be inferred: %w", err)
 		}
 	}
 

@@ -250,7 +250,7 @@ func subjectReadLoop(r *os.File, partial []byte) <-chan read {
 
 			if n, err := io.ReadFull(r, header[offset:]); err != nil {
 				if err != io.EOF {
-					err = fmt.Errorf("subject read: %v", err)
+					err = fmt.Errorf("subject read: %w", err)
 				}
 				reads <- read{buf: header[:offset+n], err: err}
 				return
@@ -269,7 +269,7 @@ func subjectReadLoop(r *os.File, partial []byte) <-chan read {
 
 			if n, err := io.ReadFull(r, buf[offset:]); err != nil {
 				if err != io.EOF {
-					err = fmt.Errorf("subject read: %v", err)
+					err = fmt.Errorf("subject read: %w", err)
 				}
 				reads <- read{buf: buf[:offset+n], err: err}
 				return

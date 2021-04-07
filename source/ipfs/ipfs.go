@@ -65,7 +65,7 @@ func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadC
 	case http.StatusOK:
 		length, err := strconv.ParseInt(resp.Header.Get("X-Content-Length"), 10, 64)
 		if err != nil {
-			return nil, 0, fmt.Errorf("ipfs: X-Content-Length header: %v", err)
+			return nil, 0, fmt.Errorf("ipfs: X-Content-Length header: %w", err)
 		}
 		if length > int64(maxSize) {
 			return nil, length, nil

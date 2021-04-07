@@ -150,6 +150,6 @@ func Wait(cmd *exec.Cmd, done <-chan struct{}) error {
 		if err == nil {
 			err = errors.New("(no error code)")
 		}
-		return fmt.Errorf("container terminated unexpectedly: %v", err)
+		return fmt.Errorf("container terminated unexpectedly: %w", err)
 	}
 }
