@@ -58,8 +58,7 @@ type read struct {
 func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers,
 ) (err error) {
 	if frozen == nil {
-		subject.writerOut.Close()
-		subject.writerOut = nil
+		subject.writerOut.Unref()
 	}
 
 	var (
@@ -173,9 +172,8 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 					}
 					frozen.Output = append(frozen.Output, read.buf...)
 
-					frozen.Input, err = ioutil.ReadAll(subject.writerOut)
-					subject.writerOut.Close()
-					subject.writerOut = nil
+					frozen.Input, err = ioutil.ReadAll(subject.writerOut.File())
+					subject.writerOut.Unref()
 					if err != nil {
 						return
 					}

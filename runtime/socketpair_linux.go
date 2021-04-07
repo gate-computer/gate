@@ -11,7 +11,7 @@ import (
 	"gate.computer/gate/internal/file"
 )
 
-func socketPipe() (r *file.Ref, w *file.File, err error) {
+func socketPipe() (r file.Ref, w *file.File, err error) {
 	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
 	if err != nil {
 		err = fmt.Errorf("socketpair: %v", err)
@@ -30,7 +30,7 @@ func socketPipe() (r *file.Ref, w *file.File, err error) {
 		return
 	}
 
-	r = file.NewRef(p[0])
+	r = file.Own(p[0])
 	w = file.New(p[1])
 	return
 }

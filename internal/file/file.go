@@ -15,24 +15,24 @@ type File struct {
 
 func New(fd int) *File {
 	f := &File{fd}
-	runtime.SetFinalizer(f, finalizeFile)
+	runtime.SetFinalizer(f, (*File).finalize)
 	return f
 }
 
-func finalizeFile(f *File) {
+func (f *File) finalize() {
 	if f.fd >= 0 {
 		log.Printf("closing unreachable file descriptor %d", f.fd)
 		f.Close()
 	}
 }
 
-func (f *File) Close() (err error) {
-	err = closeFD(f.fd)
+func (f *File) Close() error {
+	fd := f.fd
 	f.fd = -1
-	runtime.KeepAlive(f)
-	return
+	return closeFD(fd)
 }
 
+func (f *File) FD() int                                     { return f.fd }
 func (f *File) Fd() uintptr                                 { return uintptr(f.fd) }
 func (f *File) Read(b []byte) (int, error)                  { return read(f.fd, b) }
 func (f *File) ReadAt(b []byte, offset int64) (int, error)  { return pread(f.fd, b, offset) }

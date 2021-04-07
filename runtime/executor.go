@@ -112,43 +112,41 @@ func (e *Executor) NewProcess(ctx context.Context) (*Process, error) {
 	return newProcess(ctx, e)
 }
 
-func (e *Executor) execute(ctx context.Context, proc *execProcess, input *file.Ref, output *file.File,
-) (err error) {
+func (e *Executor) execute(ctx context.Context, proc *execProcess, input file.Ref, output *file.File) error {
 	select {
 	case id, ok := <-e.ids:
 		if !ok {
-			err = context.Canceled // TODO: ?
-			return
+			return context.Canceled // TODO: ?
 		}
 		proc.init(e, id)
 
 	case <-ctx.Done():
-		err = ctx.Err()
-		return
+		return ctx.Err()
 	}
 
-	input.Ref()
+	var (
+		myInput = input.MustRef()
+		unref   = true
+	)
 	defer func() {
-		if err != nil {
-			input.Close()
+		if unref {
+			myInput.Unref()
 		}
 	}()
 
 	select {
-	case e.execRequests <- execRequest{int16(proc.id), proc, input, output}:
-		return
+	case e.execRequests <- execRequest{int16(proc.id), proc, myInput, output}:
+		unref = false
+		return nil
 
 	case <-e.doneSending:
-		err = errExecutorDead
-		return
+		return errExecutorDead
 
 	case <-e.doneReceiving:
-		err = errExecutorDead
-		return
+		return errExecutorDead
 
 	case <-ctx.Done():
-		err = ctx.Err() // TODO: include subsystem in error
-		return
+		return ctx.Err() // TODO: include subsystem in error
 	}
 }
 
@@ -360,15 +358,15 @@ func (p *execProcess) finalize() (status syscall.WaitStatus, err error) {
 type execRequest struct {
 	pid    int16
 	proc   *execProcess
-	input  *file.Ref
+	input  file.Ref
 	output *file.File
 }
 
 func (req *execRequest) fds() []int {
-	return []int{
-		int(req.input.Fd()),
-		int(req.output.Fd()),
-	}
+	fds := make([]int, 2)
+	fds[0] = req.input.File().FD()
+	fds[1] = req.output.FD()
+	return fds
 }
 
 func (req *execRequest) release() {
@@ -376,6 +374,6 @@ func (req *execRequest) release() {
 		return
 	}
 
-	req.input.Close()
+	req.input.Unref()
 	req.output.Close()
 }

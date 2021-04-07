@@ -10,47 +10,68 @@ import (
 	"sync/atomic"
 )
 
-type Ref struct {
+type countedFile struct {
 	File
-	refCount int32 // Atomic
+	count int32 // Atomic.
 }
 
-func NewRef(fd int) *Ref {
-	ref := &Ref{
-		File:     File{fd},
-		refCount: 1,
+func (f *countedFile) finalize() {
+	if f.count != 0 {
+		log.Printf("unreachable file descriptor %d with reference count %d", f.fd, f.count)
 	}
-	runtime.SetFinalizer(ref, finalizeRef)
-	return ref
+	f.File.finalize()
 }
 
-func finalizeRef(ref *Ref) {
-	if ref.refCount != 0 {
-		log.Printf("unreachable file with reference count %d", ref.refCount)
-		if ref.refCount > 0 {
-			ref.File.Close()
-		}
+type Ref struct {
+	file *countedFile
+}
+
+func Own(fd int) Ref {
+	f := &countedFile{
+		File:  File{fd},
+		count: 1,
 	}
+	runtime.SetFinalizer(f, (*countedFile).finalize)
+	return Ref{f}
 }
 
-// Ref increments reference count.
-func (ref *Ref) Ref() *Ref {
-	if atomic.AddInt32(&ref.refCount, 1) <= 1 {
+// MustRef increments reference count or panics.
+func (ref *Ref) MustRef() Ref {
+	if atomic.AddInt32(&ref.file.count, 1) <= 1 {
 		panic("referencing unreferenced file")
 	}
-	return ref
+	return Ref{ref.file}
 }
 
-// Close decrements reference count.  File is closed when reference count drops
-// to zero.
-func (ref *Ref) Close() (err error) {
-	switch n := atomic.AddInt32(&ref.refCount, -1); {
-	case n == 0:
-		err = ref.File.Close()
+// Ref increments reference count if there is a referenced file.
+func (ref *Ref) Ref() Ref {
+	if ref.file == nil {
+		return Ref{}
+	}
+	return ref.MustRef()
+}
 
+// Unref decrements reference count.  File is closed when reference count drops
+// to zero.
+func (ref *Ref) Unref() {
+	f := ref.file
+	if f == nil {
+		return
+	}
+	ref.file = nil
+
+	switch n := atomic.AddInt32(&f.count, -1); {
+	case n == 0:
+		f.Close()
 	case n < 0:
 		panic("file reference count is negative")
 	}
+}
 
-	return
+// File gets a temporary pointer to the referenced file, or nil.
+func (ref *Ref) File() *File {
+	if ref.file == nil {
+		return nil
+	}
+	return &ref.file.File
 }

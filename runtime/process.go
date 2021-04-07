@@ -118,7 +118,7 @@ func (r Result) String() string {
 type Process struct {
 	execution execProcess // Executor's low-level process state.
 	writer    *file.File
-	writerOut *file.Ref
+	writerOut file.Ref
 	reader    *os.File
 	suspended chan struct{}
 	debugFile *os.File
@@ -133,7 +133,7 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 	defer func() {
 		if err != nil {
 			inputW.Close()
-			inputR.Close()
+			inputR.Unref()
 		}
 	}()
 
@@ -368,10 +368,7 @@ func (p *Process) Close() (err error) {
 		p.writer = nil
 	}
 
-	if p.writerOut != nil {
-		p.writerOut.Close()
-		p.writerOut = nil
-	}
+	p.writerOut.Unref()
 
 	if p.debugFile != nil {
 		p.debugFile.Close()
