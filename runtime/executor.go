@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"log"
 	"math"
 	"net"
 	"os/exec"
@@ -256,11 +255,6 @@ func (e *Executor) receiver(errorLog Logger) {
 
 				p := e.procs[id]
 				delete(e.procs, id)
-				if p == nil {
-					// XXX
-					log.Printf("runtime.Executor.receiver: process %d is nil", id)
-					continue
-				}
 				p.status = syscall.WaitStatus(status)
 				close(p.dead)
 			}
