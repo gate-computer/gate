@@ -36,7 +36,7 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	}
 	defer loaderBin.Close()
 
-	cgroupDir, err := openLoaderCgroupDir(&c.Cgroup)
+	cgroupDir, err := openDefaultCgroup(&c.Cgroup)
 	if err != nil {
 		return nil, err
 	}

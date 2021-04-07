@@ -64,21 +64,21 @@ type NamespaceConfig struct {
 	Newgidmap string
 }
 
-// CgroupConfig applied via systemd.
 type CgroupConfig struct {
-	// Create ExecutorScope under this slice.  May be empty.
-	ParentSlice string
+	// Create user processes (executor's children) into this cgroup by default.
+	// It may be a systemd slice name (such as "gate-instance.slice") or an
+	// absolute filesystem path.  (Linux 5.7 is required.)
+	Process string
 
-	// If set, create a new scope for the container (executor process and its
-	// children).  May be a complete name (ending with ".scope") or a prefix
+	// Create a new systemd scope for the container (executor process and its
+	// children).  It may be a complete name (ending with ".scope") or a prefix
 	// (such as "gate-runtime").  If a complete name is specified, multiple
-	// executors cannot be created.  If a prefix is specified, a random name is
-	// generated.
-	ExecutorScope string
+	// executors cannot be created.  If a prefix is specified, a randomized
+	// name is generated.
+	Executor string
 
-	// If set, the user processes (executor's children) are created directly to
-	// this cgroup.  (Linux 5.7 is required.)
-	LoaderSlice string
+	// Create the executor scope under this systemd slice.
+	Parent string
 }
 
 var DefaultConfig = Config{

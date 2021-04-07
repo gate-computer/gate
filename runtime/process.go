@@ -125,7 +125,7 @@ type Process struct {
 	debugging <-chan struct{}
 }
 
-func newProcess(ctx context.Context, e *Executor) (*Process, error) {
+func newProcess(ctx context.Context, e *Executor, group file.Ref) (*Process, error) {
 	inputR, inputW, err := socketPipe()
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func newProcess(ctx context.Context, e *Executor) (*Process, error) {
 
 	p := new(Process)
 
-	err = e.execute(ctx, &p.execution, inputR, outputW)
+	err = e.execute(ctx, &p.execution, inputR, outputW, group)
 	if err != nil {
 		return nil, err
 	}

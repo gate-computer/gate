@@ -108,11 +108,27 @@ func NewExecutor(config *Config) (e *Executor, err error) {
 	return
 }
 
+// NewProcess creates a process into the default group.
 func (e *Executor) NewProcess(ctx context.Context) (*Process, error) {
-	return newProcess(ctx, e)
+	return newProcess(ctx, e, file.Ref{})
 }
 
-func (e *Executor) execute(ctx context.Context, proc *execProcess, input file.Ref, output *file.File) error {
+// NewGroupProcess creates a process into the specified group.  If group is
+// nil, the default group will be used.
+func (e *Executor) NewGroupProcess(ctx context.Context, group *ProcessGroup) (*Process, error) {
+	if group == nil {
+		return e.NewProcess(ctx)
+	}
+	return newProcess(ctx, e, group.dir)
+}
+
+// Group returns a factory type which creates processes into the specified
+// group.  If group is nil, the default group will be used.
+func (e *Executor) Group(group *ProcessGroup) GroupExecutor {
+	return GroupExecutor{e, group}
+}
+
+func (e *Executor) execute(ctx context.Context, proc *execProcess, input file.Ref, output *file.File, group file.Ref) error {
 	select {
 	case id, ok := <-e.ids:
 		if !ok {
@@ -126,16 +142,18 @@ func (e *Executor) execute(ctx context.Context, proc *execProcess, input file.Re
 
 	var (
 		myInput = input.MustRef()
+		myGroup = group.Ref()
 		unref   = true
 	)
 	defer func() {
 		if unref {
 			myInput.Unref()
+			myGroup.Unref()
 		}
 	}()
 
 	select {
-	case e.execRequests <- execRequest{int16(proc.id), proc, myInput, output}:
+	case e.execRequests <- execRequest{int16(proc.id), proc, myInput, output, myGroup}:
 		unref = false
 		return nil
 
@@ -360,12 +378,16 @@ type execRequest struct {
 	proc   *execProcess
 	input  file.Ref
 	output *file.File
+	group  file.Ref
 }
 
 func (req *execRequest) fds() []int {
-	fds := make([]int, 2)
+	fds := make([]int, 2, 3)
 	fds[0] = req.input.File().FD()
 	fds[1] = req.output.FD()
+	if f := req.group.File(); f != nil {
+		fds = append(fds, f.FD())
+	}
 	return fds
 }
 
@@ -376,4 +398,25 @@ func (req *execRequest) release() {
 
 	req.input.Unref()
 	req.output.Close()
+	req.group.Unref()
+}
+
+// GroupExecutor overrides the default process group of an executor.
+type GroupExecutor struct {
+	*Executor
+	*ProcessGroup
+}
+
+// NewProcess creates a process into ge.ProcessGroup.
+func (ge GroupExecutor) NewProcess(ctx context.Context) (*Process, error) {
+	return ge.Executor.NewGroupProcess(ctx, ge.ProcessGroup)
+}
+
+// NewGroupProcess creates a process into the specified group.  If group is
+// nil, ge.ProcessGroup will be used.
+func (ge GroupExecutor) NewGroupProcess(ctx context.Context, group *ProcessGroup) (*Process, error) {
+	if group == nil {
+		group = ge.ProcessGroup
+	}
+	return ge.Executor.NewGroupProcess(ctx, group)
 }

@@ -28,12 +28,33 @@ func DistributeProcesses(executors ...ProcessFactory) ProcessFactory {
 	return cs
 }
 
+// DistributeGroupProcesses among multiple executors.
+func DistributeGroupProcesses(executors ...GroupProcessFactory) GroupProcessFactory {
+	if len(executors) == 1 {
+		return executors[0]
+	}
+
+	return groupSharder{executors}
+}
+
 type sharder struct {
 	factories []ProcessFactory
 }
 
 func (s sharder) NewProcess(ctx context.Context) (*Process, error) {
 	return s.factories[rand.Intn(len(s.factories))].NewProcess(ctx)
+}
+
+type groupSharder struct {
+	factories []GroupProcessFactory
+}
+
+func (s groupSharder) NewProcess(ctx context.Context) (*Process, error) {
+	return s.NewGroupProcess(ctx, nil)
+}
+
+func (s groupSharder) NewGroupProcess(ctx context.Context, g *ProcessGroup) (*Process, error) {
+	return s.factories[rand.Intn(len(s.factories))].NewGroupProcess(ctx, g)
 }
 
 type chanSharder struct {

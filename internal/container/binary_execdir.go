@@ -7,12 +7,14 @@
 package container
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"syscall"
 
 	"gate.computer/gate/internal/container/common"
 	config "gate.computer/gate/runtime/container"
+	"golang.org/x/sys/unix"
 )
 
 func openBinary(c *config.Config, name string) (*os.File, error) {
@@ -20,7 +22,14 @@ func openBinary(c *config.Config, name string) (*os.File, error) {
 	if dir == "" {
 		dir = config.ExecDir
 	}
-	return openPath(path.Join(dir, name), syscall.O_NOFOLLOW)
+	filename := path.Join(dir, name)
+
+	fd, err := syscall.Open(filename, unix.O_CLOEXEC|unix.O_PATH, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open %q: %w", filename, err)
+	}
+
+	return os.NewFile(uintptr(fd), filename), nil
 }
 
 func openExecutorBinary(c *config.Config) (*os.File, error) {
