@@ -16,6 +16,7 @@ import (
 	"gate.computer/gate/internal/container/common"
 	runtimeerrors "gate.computer/gate/internal/error/runtime"
 	config "gate.computer/gate/runtime/container"
+	"golang.org/x/sys/unix"
 )
 
 const magicKey = "TNGREHAGVZRPBAGNVARE"
@@ -52,13 +53,18 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 			executorBin,
 			cgroupDir,
 		},
-		SysProcAttr: newSysProcAttr(&c.Namespace, cred),
+		SysProcAttr: &syscall.SysProcAttr{
+			Pdeathsig: unix.SIGKILL,
+		},
 	}
 
 	if c.Namespace.Disabled {
 		cmd.Args = append(cmd.Args, common.ArgNamespaceDisabled)
-	} else if c.Namespace.SingleUID {
-		cmd.Args = append(cmd.Args, common.ArgSingleUID)
+	} else {
+		if c.Namespace.SingleUID {
+			cmd.Args = append(cmd.Args, common.ArgSingleUID)
+		}
+		setupNamespace(cmd.SysProcAttr, &c.Namespace, cred)
 	}
 
 	stdin, err := cmd.StdinPipe()
