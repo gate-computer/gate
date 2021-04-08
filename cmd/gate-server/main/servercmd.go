@@ -26,6 +26,7 @@ import (
 	"gate.computer/gate/internal/services"
 	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/runtime"
+	"gate.computer/gate/runtime/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
 	_ "gate.computer/gate/server/database/sql"
@@ -265,7 +266,11 @@ func main2(critLog *log.Logger) error {
 		}()
 	}
 
-	var executors []*runtime.Executor
+	var (
+		executors   []*runtime.Executor
+		groupers    []runtime.GroupProcessFactory
+		preparators []runtime.ProcessFactory
+	)
 
 	for i := 0; i < c.Runtime.ExecutorCount; i++ {
 		e, err := runtime.NewExecutor(&c.Runtime.Config)
@@ -273,19 +278,18 @@ func main2(critLog *log.Logger) error {
 			return err
 		}
 		executors = append(executors, e)
+		groupers = append(groupers, e)
 	}
-
-	var factories []runtime.ProcessFactory
 
 	for _, e := range executors {
 		var f runtime.ProcessFactory = e
 		if n := c.Runtime.PrepareProcesses; n > 0 {
 			f = runtime.PrepareProcesses(ctx, f, n)
 		}
-		factories = append(factories, f)
+		preparators = append(preparators, f)
 	}
 
-	c.Server.ProcessFactory = runtime.DistributeProcesses(factories...)
+	c.Server.ProcessFactory = runtime.DistributeProcesses(preparators...)
 
 	var fs *image.Filesystem
 	if c.Image.VarDir != "" {
@@ -352,6 +356,9 @@ func main2(critLog *log.Logger) error {
 		}
 
 		c.Server.AccessPolicy = accessKeys
+
+		grouper := runtime.DistributeGroupProcesses(groupers...)
+		c.Server.ProcessFactory = system.GroupUserProcesses(grouper, c.Server.ProcessFactory)
 
 	default:
 		return fmt.Errorf("unknown access.policy option: %q", c.Access.Policy)
