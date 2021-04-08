@@ -11,10 +11,11 @@ if [ -z "$GZIPPER" ]; then
 	GZIPPER=zopfli
 fi
 
-MUSLCCVERSION=10.2.1
+muslccversion=10.2.1
+ipfsgateway=https://ipfs.io/ipfs/
 
 binarydir=internal/container/child/binary
-muslccdir=tmp/muslcc-$MUSLCCVERSION
+muslccdir=tmp/muslcc-$muslccversion
 
 . runtime/include/runtime.mk
 
@@ -50,10 +51,16 @@ per_arch() {
 	arch=$1
 	comp=$arch-linux-musl-cross
 
+	case $arch in
+		aarch64) url=${ipfsgateway}QmeECAMETVvmAfrnEuoTsCnRPs56VzDY9y4mZQJaGxwFhf;;
+		x86_64)  url=${ipfsgateway}QmRrbNwGqmkQfjJict6UHngBxfSKJV2bCx6ewEVB9t5yiB;;
+		*)       url=https://more.musl.cc/$muslccversion/x86_64-linux-musl/$comp.tgz;;
+	esac
+
 	if [ ! -e $muslccdir/$comp ]; then
 		if [ ! -e $muslccdir/$comp.tgz ]; then
 			mkdir -p $muslccdir
-			curl -o $muslccdir/$comp.tgz https://more.musl.cc/$MUSLCCVERSION/x86_64-linux-musl/$comp.tgz
+			curl -o $muslccdir/$comp.tgz $url
 		fi
 
 		sum=$(readlink -f muslcc-$arch.sha512sum)
