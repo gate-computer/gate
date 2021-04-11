@@ -4,6 +4,6 @@
 
 package main
 
-import . "gate.computer/gate/cmd/gate-daemon/main"
+import m "gate.computer/gate/cmd/gate-daemon/main"
 
-func main() { Main() }
+func main() { m.Main() }

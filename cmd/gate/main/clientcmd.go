@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package client
 
 import (
 	"flag"
@@ -117,7 +117,7 @@ type command struct {
 	do     func()
 }
 
-func main() {
+func Main() {
 	log.SetFlags(0)
 
 	defaultIdentityFile, err := cmdconf.JoinHome(DefaultIdentityFile)

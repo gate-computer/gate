@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package runtime
 
 import (
 	"flag"
@@ -32,7 +32,7 @@ type Config struct {
 
 var c = new(Config)
 
-func main() {
+func Main() {
 	c.Runtime.Container = container.DefaultConfig
 
 	flag.Var(confi.FileReader(c), "f", "read a configuration file")

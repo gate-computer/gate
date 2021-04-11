@@ -4,7 +4,7 @@
 
 // +build !gatedumptext
 
-package main
+package client
 
 import (
 	"errors"
