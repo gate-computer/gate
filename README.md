@@ -72,10 +72,10 @@ Programs:
     For optionally preconfiguring the execution environment for daemon/server,
     e.g. as a system service.
 
-The available services are determined by what is built into the gate-daemon and
-gate-server programs.  The versions provided by this Go module include only the
-services implemented in this repository.  See [extension](Extension.md) about
-bundling additional services.
+The available services are determined by what is built into the **gate-daemon**
+and **gate-server** programs.  The versions provided by this Go module include
+only the services implemented in this repository.  See
+[extension](Extension.md) about bundling additional services.
 
 
 ## Objectives
@@ -153,8 +153,8 @@ Build requirements:
 
 The Gate programs and programs importing Gate modules can be built normally
 using `go install`, `go get` etc.  See the
-[services](https://github.com/gate-computer/services#readme) repository for a
-list of programs.
+[cmd](https://github.com/gate-computer/cmd#readme) repository for a list of
+programs.
 
 Gate runtime needs to execute some separately built binaries.  To make the
 built Go programs self-contained, pre-built binaries are bundled into them by
