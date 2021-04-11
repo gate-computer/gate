@@ -1,8 +1,8 @@
 # Build-time extensions
 
-Service implementations must be imported at build time.  The [services
-module](https://gate.computer/services) provides versions of the gate-daemon
-and gate-server programs with a larger collection of services.
+Service implementations must be imported at build time.
+The [cmd module](https://gate.computer/cmd) provides versions of the
+gate-daemon and gate-server programs with a larger collection of services.
 
 Go packages [implementing services](Service.md) may register themselves as Gate
 extensions.  The convention is to register the extension at import (via the
