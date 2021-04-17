@@ -494,9 +494,9 @@ func exportRemote(module, filename string) {
 func callPost(uri string, params url.Values) webapi.Status {
 	req := &http.Request{
 		Method: http.MethodPost,
+		Header: http.Header{webapi.HeaderTE: []string{webapi.TETrailers}},
 		Body:   os.Stdin,
 	}
-	req.Header.Set(webapi.HeaderTE, webapi.TETrailers)
 
 	_, resp := doHTTP(req, uri, params)
 	checkCopy(os.Stdout, resp.Body)
