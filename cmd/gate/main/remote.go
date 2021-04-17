@@ -469,7 +469,7 @@ var remoteCommands = map[string]command{
 }
 
 func discoverRemoteScope(w io.Writer) {
-	fmt.Fprintln(w, "\nScope values:")
+	fmt.Fprintln(w)
 
 	params := url.Values{
 		webapi.ParamFeature: []string{webapi.FeatureScope},

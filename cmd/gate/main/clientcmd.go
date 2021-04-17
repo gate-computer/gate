@@ -242,6 +242,10 @@ func Main() {
 }
 
 func printScope(w io.Writer, scope []string) {
+	if len(scope) == 0 {
+		return
+	}
+
 	var (
 		aliases = gatescope.ComputeAliases(scope)
 		short   []string
@@ -264,6 +268,7 @@ func printScope(w io.Writer, scope []string) {
 	sort.Strings(short)
 	sort.Strings(long)
 
+	fmt.Fprintln(w, "Scope values:")
 	for _, s := range append(short, long...) {
 		fmt.Fprintf(w, "  %s\n", s)
 	}

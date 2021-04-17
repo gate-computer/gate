@@ -478,7 +478,7 @@ var localCommands = map[string]command{
 }
 
 func discoverLocalScope(w io.Writer) {
-	fmt.Fprintln(w, "\nScope values:")
+	fmt.Fprintln(w)
 
 	call := daemonCall("GetScope")
 	var scope []string
