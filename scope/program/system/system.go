@@ -6,9 +6,15 @@ package system
 
 import (
 	"context"
+
+	"gate.computer/gate/scope"
 )
 
 const Scope = "program:system"
+
+func init() {
+	scope.Register(Scope)
+}
 
 type contextKey int
 

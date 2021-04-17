@@ -11,9 +11,11 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sort"
 	"strings"
 
 	"gate.computer/gate/internal/cmdconf"
+	gatescope "gate.computer/gate/scope"
 	"github.com/tsavola/confi"
 	"golang.org/x/term"
 )
@@ -102,19 +104,26 @@ Default configuration is read from ~/.config/gate/client.toml and/or
 ~/.config/gate/client.d/*.toml.  They will be ignored if the -F option is used.
 `
 
-func parseCallFlags() {
-	debug := flag.Bool("d", c.DebugLog == ShortcutDebugLog, "write debug log to stderr")
+func registerRunFlags() {
+	flag.Func("s", "extend scope (comma-separated; may be specified multiple times)", func(scope string) error {
+		for _, s := range strings.Split(scope, ",") {
+			c.Scope = append(c.Scope, strings.TrimSpace(s))
+		}
+		return nil
+	})
+}
+
+func parseLaunchFlags() {
+	registerRunFlags()
 	flag.Parse()
-	if *debug {
-		c.DebugLog = ShortcutDebugLog
-	}
 }
 
 type command struct {
-	usage  string
-	detail string
-	parse  func()
-	do     func()
+	usage    string
+	detail   string
+	discover func(io.Writer)
+	parse    func()
+	do       func()
 }
 
 func Main() {
@@ -201,6 +210,10 @@ func Main() {
 		fmt.Fprintf(flag.CommandLine.Output(), usageFmt, progname, c.address, flag.CommandLine.Name(), command.usage)
 		flag.PrintDefaults()
 		fmt.Fprint(flag.CommandLine.Output(), command.detail)
+
+		if command.discover != nil {
+			command.discover(flag.CommandLine.Output())
+		}
 	}
 	flag.CommandLine.Usage = flag.Usage
 	if command.parse != nil {
@@ -226,6 +239,34 @@ func Main() {
 
 	command.do()
 	os.Exit(0)
+}
+
+func printScope(w io.Writer, scope []string) {
+	var (
+		aliases = gatescope.ComputeAliases(scope)
+		short   []string
+		long    []string
+	)
+
+	for _, s := range scope {
+		alias := gatescope.MatchAlias(s)
+		if _, found := aliases[alias]; !found {
+			alias = ""
+		}
+
+		if alias != "" {
+			short = append(short, fmt.Sprintf("%s (%s)", alias, s))
+		} else {
+			long = append(long, s)
+		}
+	}
+
+	sort.Strings(short)
+	sort.Strings(long)
+
+	for _, s := range append(short, long...) {
+		fmt.Fprintf(w, "  %s\n", s)
+	}
 }
 
 func openFile(name string) *os.File {

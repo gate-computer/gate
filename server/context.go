@@ -12,43 +12,31 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type contextKey int
-
-const (
-	contextKeyDetail contextKey = iota
-	contextKeyScope
-)
+type contextKey struct{}
 
 func ContextWithIface(ctx context.Context, iface detail.Iface) context.Context {
 	c := ContextDetail(ctx)
 	c.Iface = iface
-	return context.WithValue(ctx, contextKeyDetail, c)
+	return context.WithValue(ctx, contextKey{}, c)
 }
 
 func ContextWithRequestAddr(ctx context.Context, request uint64, addr string) context.Context {
 	c := ContextDetail(ctx)
 	c.Req = request
 	c.Addr = addr
-	return context.WithValue(ctx, contextKeyDetail, c)
+	return context.WithValue(ctx, contextKey{}, c)
 }
 
 func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
 	c := ContextDetail(ctx)
 	c.Op = op
-	return context.WithValue(ctx, contextKeyDetail, c)
-}
-
-func ContextWithScope(ctx context.Context, scope []string) context.Context {
-	if len(scope) == 0 {
-		return ctx
-	}
-	return context.WithValue(ctx, contextKeyScope, scope)
+	return context.WithValue(ctx, contextKey{}, c)
 }
 
 func detachedContext(ctx context.Context) context.Context {
 	c := ContextDetail(ctx)
 	c.Addr = ""
-	return context.WithValue(ctx, contextKeyDetail, c)
+	return context.WithValue(ctx, contextKey{}, c)
 }
 
 func ContextDetail(ctx context.Context) (c *detail.Context) {
@@ -59,7 +47,7 @@ func ContextDetail(ctx context.Context) (c *detail.Context) {
 		priString = pri.String()
 	}
 
-	if x := ctx.Value(contextKeyDetail); x != nil {
+	if x := ctx.Value(contextKey{}); x != nil {
 		c = x.(*detail.Context)
 		if pri != nil && c.Principal != priString {
 			c = proto.Clone(c).(*detail.Context)
@@ -76,23 +64,8 @@ func ContextDetail(ctx context.Context) (c *detail.Context) {
 
 // ContextOp returns the server operation type.
 func ContextOp(ctx context.Context) (op detail.Op) {
-	if x := ctx.Value(contextKeyDetail); x != nil {
+	if x := ctx.Value(contextKey{}); x != nil {
 		op = x.(*detail.Context).Op
 	}
 	return
-}
-
-func ScopeContains(ctx context.Context, scope string) bool {
-	x := ctx.Value(contextKeyScope)
-	if x == nil {
-		return false
-	}
-
-	for _, s := range x.([]string) {
-		if s == scope {
-			return true
-		}
-	}
-
-	return false
 }

@@ -195,6 +195,12 @@ func respondUnsupportedAction(w http.ResponseWriter, r *http.Request, s *webserv
 	reportProtocolError(r.Context(), s, fmt.Errorf("bad action query: %s", r.URL.RawQuery))
 }
 
+func respondUnsupportedFeature(w http.ResponseWriter, r *http.Request, s *webserver) {
+	w.Header().Set("Cache-Control", cacheControlStatic)
+	respond(w, r, http.StatusNotImplemented, "unsupported feature")
+	reportProtocolError(r.Context(), s, fmt.Errorf("bad action query: %s", r.URL.RawQuery))
+}
+
 func respondUnauthorized(ctx context.Context, ew errorWriter, s *webserver) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
 	ew.WriteError(http.StatusUnauthorized, "missing authentication credentials")

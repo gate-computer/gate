@@ -13,7 +13,7 @@ import (
 
 	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/principal"
-	"gate.computer/gate/server"
+	"gate.computer/gate/scope"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
 )
@@ -91,7 +91,7 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 		panic("no principal key and no local authorization")
 	}
 
-	return server.ContextWithScope(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
+	return scope.Context(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
 }
 
 func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byte) [][]byte {

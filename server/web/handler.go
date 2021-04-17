@@ -120,7 +120,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	s.identity = scheme + "://" + s.Authority + p + api.Path // https://authority/path/api/
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(patternAPI, newStaticHandler(s, pathAPI, struct{}{}))
+	mux.HandleFunc(patternAPI, newFeatureHandler(s, pathAPI))
 	mux.HandleFunc(patternModule, newRedirectHandler(s, pathModule))
 	mux.HandleFunc(patternInstance, newRedirectHandler(s, pathInstance))
 	mux.HandleFunc(patternInstances, newInstanceHandler(s, pathInstances))
@@ -169,6 +169,19 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	})
 }
 
+type staticContent struct {
+	content       []byte
+	contentLength string
+}
+
+func prepareStaticContent(data interface{}) staticContent {
+	content := mustMarshalJSON(data)
+	return staticContent{
+		content:       content,
+		contentLength: strconv.Itoa(len(content)),
+	}
+}
+
 // Path handlers.  Route methods and set up CORS.
 
 func newRedirectHandler(s *webserver, path string) http.HandlerFunc {
@@ -198,10 +211,7 @@ func newRedirectHandler(s *webserver, path string) http.HandlerFunc {
 }
 
 func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerFunc {
-	var (
-		content       = mustMarshalJSON(data)
-		contentLength = strconv.Itoa(len(content))
-	)
+	static := prepareStaticContent(data)
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != path {
@@ -214,7 +224,45 @@ func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerF
 
 		switch r.Method {
 		case "GET", "HEAD":
-			handleGetStatic(w, r, s, content, contentLength)
+			handleGetStatic(w, r, s, &static)
+
+		case "OPTIONS":
+			setOptions(w, methods)
+
+		default:
+			respondMethodNotAllowed(w, r, s, methods)
+		}
+	}
+}
+
+func newFeatureHandler(s *webserver, path string) http.HandlerFunc {
+	featureAll, err := s.Server.Features(context.Background())
+	if err != nil {
+		panic(err)
+	}
+
+	featureScope := &api.Features{
+		Scope: featureAll.Scope,
+	}
+
+	var answers = [3]staticContent{
+		prepareStaticContent(struct{}{}),
+		prepareStaticContent(featureScope),
+		prepareStaticContent(featureAll),
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != path {
+			respondPathNotFound(w, r, s)
+			return
+		}
+
+		methods := "OPTIONS"
+		setAccessControl(w, r, s, "GET, HEAD, "+methods)
+
+		switch r.Method {
+		case "GET", "HEAD":
+			handleGetFeatures(w, r, s, &answers)
 
 		case "OPTIONS":
 			setOptions(w, methods)
@@ -381,10 +429,40 @@ func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 
 // Method handlers.  Parse query parameters and check content headers.
 
-func handleGetStatic(w http.ResponseWriter, r *http.Request, s *webserver, content []byte, contentLength string) {
+func handleGetStatic(w http.ResponseWriter, r *http.Request, s *webserver, static *staticContent) {
 	mustNotHaveQuery(w, r, s)
 	mustAcceptJSON(w, r, s)
-	handleStatic(w, r, s, contentLength, content)
+	handleStatic(w, r, s, static)
+}
+
+func handleGetFeatures(w http.ResponseWriter, r *http.Request, s *webserver, answers *[3]staticContent) {
+	query := mustParseOptionalQuery(w, r, s)
+	features := popOptionalParams(query, api.ParamFeature)
+	mustNotHaveParams(w, r, s, query)
+
+	if len(features) > 0 {
+		mustAcceptJSON(w, r, s)
+	}
+
+	level := 0
+
+	for _, v := range features {
+		switch v {
+		case api.FeatureScope:
+			if level == 0 {
+				level = 1
+			}
+
+		case api.FeatureAll:
+			level = len(*answers) - 1
+
+		default:
+			respondUnsupportedFeature(w, r, s)
+			return
+		}
+	}
+
+	handleStatic(w, r, s, &(*answers)[level])
 }
 
 func handleGetKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
@@ -698,12 +776,12 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 // Action handlers.  Check authorization if needed, and serve the response.
 
-func handleStatic(w http.ResponseWriter, r *http.Request, s *webserver, contentLength string, content []byte) {
+func handleStatic(w http.ResponseWriter, r *http.Request, s *webserver, static *staticContent) {
 	w.Header().Set("Cache-Control", cacheControlStatic)
-	w.Header().Set(api.HeaderContentLength, contentLength)
+	w.Header().Set(api.HeaderContentLength, static.contentLength)
 	w.Header().Set(api.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
-	w.Write(content)
+	w.Write(static.content)
 }
 
 func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {

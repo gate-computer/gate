@@ -31,8 +31,10 @@ import (
 
 var remoteCommands = map[string]command{
 	"call": {
-		usage:  "module [function]",
-		detail: moduleUsage,
+		usage:    "module [function]",
+		detail:   moduleUsage,
+		discover: discoverRemoteScope,
+		parse:    parseLaunchFlags,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
@@ -198,8 +200,10 @@ var remoteCommands = map[string]command{
 	},
 
 	"launch": {
-		usage:  "module [function [instancetag...]]",
-		detail: moduleUsage,
+		usage:    "module [function [instancetag...]]",
+		detail:   moduleUsage,
+		discover: discoverRemoteScope,
+		parse:    parseLaunchFlags,
 		do: func() {
 			if flag.NArg() > 1 {
 				c.Function = flag.Arg(1)
@@ -462,6 +466,22 @@ var remoteCommands = map[string]command{
 			fmt.Println(commandInstance(webapi.ActionWait))
 		},
 	},
+}
+
+func discoverRemoteScope(w io.Writer) {
+	fmt.Fprintln(w, "\nScope values:")
+
+	params := url.Values{
+		webapi.ParamFeature: []string{webapi.FeatureScope},
+	}
+
+	req := &http.Request{Method: http.MethodGet}
+	_, resp := doHTTP(req, webapi.Path, params)
+
+	var f webapi.Features
+	check(json.NewDecoder(resp.Body).Decode(&f))
+
+	printScope(w, f.Scope)
 }
 
 func exportRemote(module, filename string) {

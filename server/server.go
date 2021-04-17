@@ -15,6 +15,7 @@ import (
 	"gate.computer/gate/internal/error/resourcelimit"
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/runtime"
+	"gate.computer/gate/scope"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
@@ -196,6 +197,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		return ctx.Err()
 	}
 	return nil
+}
+
+func (*Server) Features(ctx context.Context) (*api.Features, error) {
+	return &api.Features{Scope: scope.Names()}, nil
 }
 
 func (s *Server) UploadModule(ctx context.Context, upload *ModuleUpload, know *api.ModuleOptions) (module string, err error) {

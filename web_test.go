@@ -23,6 +23,7 @@ import (
 
 	_ "gate.computer/gate/internal/test/service-ext"
 	"gate.computer/gate/runtime/abi"
+	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
 	"gate.computer/gate/server/database/sql"
@@ -245,6 +246,38 @@ func TestMethodNotAllowed(t *testing.T) {
 			req.Header.Set(api.HeaderOrigin, "null")
 			checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
 		}
+	}
+}
+
+func TestFeatures(t *testing.T) {
+	expectScope := []string{system.Scope}
+
+	for query, expect := range map[string]*api.Features{
+		"":                         &api.Features{},
+		"?feature=scope":           &api.Features{Scope: expectScope},
+		"?feature=*":               &api.Features{Scope: expectScope},
+		"?feature=*&feature=scope": &api.Features{Scope: expectScope},
+	} {
+		req := httptest.NewRequest(http.MethodGet, api.Path+query, nil)
+		_, content := checkResponse(t, newHandler(t), req, http.StatusOK)
+
+		var features *api.Features
+
+		if err := json.Unmarshal(content, &features); err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(features, expect) {
+			t.Errorf("%q: %#v", query, features)
+		}
+	}
+
+	for query, expect := range map[string]int{
+		"?foo=bar":     http.StatusBadRequest,
+		"?feature=baz": http.StatusNotImplemented,
+	} {
+		req := httptest.NewRequest(http.MethodGet, api.Path+query, nil)
+		checkResponse(t, newHandler(t), req, expect)
 	}
 }
 

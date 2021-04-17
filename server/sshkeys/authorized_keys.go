@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 
 	"gate.computer/gate/internal/principal"
+	"gate.computer/gate/scope"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	"golang.org/x/crypto/ssh"
@@ -87,7 +88,7 @@ func (ak *AuthorizedKeys) Authorize(ctx context.Context) (context.Context, error
 		return ctx, errForbidden
 	}
 
-	if server.ScopeContains(ctx, system.Scope) {
+	if scope.ContextContains(ctx, system.Scope) {
 		ctx = system.ContextWithUserID(ctx, uid)
 	}
 	return ctx, nil

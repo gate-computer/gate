@@ -39,11 +39,21 @@ func daemonCall(method string, args ...interface{}) *dbus.Call {
 	return daemon.Call(bus.DaemonIface+"."+method, 0, args...)
 }
 
+func parseLocalCallFlags() {
+	registerRunFlags()
+	debug := flag.Bool("d", c.DebugLog == ShortcutDebugLog, "write debug log to stderr")
+	flag.Parse()
+	if *debug {
+		c.DebugLog = ShortcutDebugLog
+	}
+}
+
 var localCommands = map[string]command{
 	"call": {
-		usage:  "module [function]",
-		detail: moduleUsage,
-		parse:  parseCallFlags,
+		usage:    "module [function]",
+		detail:   moduleUsage,
+		discover: discoverLocalScope,
+		parse:    parseLocalCallFlags,
 		do: func() {
 			module := flag.Arg(0)
 			if flag.NArg() > 1 {
@@ -223,8 +233,10 @@ var localCommands = map[string]command{
 	},
 
 	"launch": {
-		usage:  "module [function [instancetag...]]",
-		detail: moduleUsage,
+		usage:    "module [function [instancetag...]]",
+		detail:   moduleUsage,
+		discover: discoverLocalScope,
+		parse:    parseLaunchFlags,
 		do: func() {
 			module := flag.Arg(0)
 			if flag.NArg() > 1 {
@@ -463,6 +475,16 @@ var localCommands = map[string]command{
 			fmt.Println(daemonCallWaitInstance(flag.Arg(0)))
 		},
 	},
+}
+
+func discoverLocalScope(w io.Writer) {
+	fmt.Fprintln(w, "\nScope values:")
+
+	call := daemonCall("GetScope")
+	var scope []string
+	check(call.Store(&scope))
+
+	printScope(w, scope)
 }
 
 func exportLocalModule(moduleID, filename string) {

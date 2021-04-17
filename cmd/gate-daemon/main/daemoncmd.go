@@ -33,6 +33,7 @@ import (
 	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/principal"
 	gateruntime "gate.computer/gate/runtime"
+	gatescope "gate.computer/gate/scope"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
@@ -292,7 +293,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 				Transient: true,
 				Tags:      instanceTags,
 			}
-			ctx = server.ContextWithScope(ctx, scope)
+			ctx = gatescope.Context(ctx, scope)
 			instanceID, state, cause, result = doCall(ctx, s(), moduleID, nil, nil, launch, suspendFD, rFD, wFD, debugFD, debugLogging)
 			return
 		},
@@ -318,7 +319,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 				Transient: true,
 				Tags:      instanceTags,
 			}
-			ctx = server.ContextWithScope(ctx, scope)
+			ctx = gatescope.Context(ctx, scope)
 			instanceID, state, cause, result = doCall(ctx, s(), "", moduleFile, moduleOpt, launch, suspendFD, rFD, wFD, debugFD, debugLogging)
 			return
 		},
@@ -359,6 +360,18 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
+		"GetModuleInfo": func(moduleID string) (tags []string, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			tags = getModuleInfo(ctx, s(), moduleID)
+			return
+		},
+
+		"GetScope": func() (scope []string, err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			scope = getScope(ctx, s())
+			return
+		},
+
 		"Launch": func(
 			moduleID string,
 			function string,
@@ -374,7 +387,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 				Suspend:  suspend,
 				Tags:     instanceTags,
 			}
-			ctx = server.ContextWithScope(ctx, scope)
+			ctx = gatescope.Context(ctx, scope)
 			inst := doLaunch(ctx, s(), moduleID, nil, nil, launch, debugFD, debugLogging)
 			instanceID = inst.ID
 			return
@@ -399,7 +412,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 				Suspend:  suspend,
 				Tags:     instanceTags,
 			}
-			ctx = server.ContextWithScope(ctx, scope)
+			ctx = gatescope.Context(ctx, scope)
 			inst := doLaunch(ctx, s(), "", moduleFile, moduleOpt, launch, debugFD, debugLogging)
 			instanceID = inst.ID
 			return
@@ -414,12 +427,6 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 		"ListModules": func() (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			list = listModules(ctx, s())
-			return
-		},
-
-		"GetModuleInfo": func(moduleID string) (tags []string, err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			tags = getModuleInfo(ctx, s(), moduleID)
 			return
 		},
 
@@ -438,7 +445,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			resume := &api.ResumeOptions{
 				Function: function,
 			}
-			ctx = server.ContextWithScope(ctx, scope)
+			ctx = gatescope.Context(ctx, scope)
 			resumeInstance(ctx, s(), instanceID, resume, debugFD, debugLogging)
 			return
 		},
@@ -494,6 +501,12 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	}
 
 	return methods
+}
+
+func getScope(ctx context.Context, s *server.Server) []string {
+	f, err := s.Features(ctx)
+	check(err)
+	return f.Scope
 }
 
 func listModules(ctx context.Context, s *server.Server) []string {
@@ -733,7 +746,7 @@ func (a *access) AuthorizeProgramInstanceSource(ctx context.Context, res *server
 }
 
 func authorizeScope(ctx context.Context) (context.Context, error) {
-	if server.ScopeContains(ctx, system.Scope) {
+	if gatescope.ContextContains(ctx, system.Scope) {
 		ctx = system.ContextWithUserID(ctx, userID)
 	}
 	return ctx, nil

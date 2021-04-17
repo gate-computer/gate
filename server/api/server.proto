@@ -10,6 +10,10 @@ import "google/protobuf/wrappers.proto";
 
 option go_package = "gate.computer/gate/server/api";
 
+message Features {
+	repeated string scope = 1;
+}
+
 message ModuleOptions {
 	bool pin = 1;
 	repeated string tags = 2;

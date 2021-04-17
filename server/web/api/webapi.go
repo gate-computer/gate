@@ -45,12 +45,19 @@ const (
 
 // Query parameters.
 const (
+	ParamFeature     = "feature"
 	ParamAction      = "action"
 	ParamModuleTag   = "module.tag"   // For pin or snapshot action.
 	ParamFunction    = "function"     // For call, launch or resume action.
 	ParamInstance    = "instance"     // For call or launch action.
 	ParamInstanceTag = "instance.tag" // For call, launch or update action.
 	ParamLog         = "log"          // For call, launch or resume action.
+)
+
+// Queryable features.
+const (
+	FeatureAll   = "*"
+	FeatureScope = "scope"
 )
 
 // Actions on modules.  ActionPin can be combined with ActionCall or
@@ -224,6 +231,11 @@ func unsignedBearer(header []byte, claims *Claims) ([]byte, error) {
 	base64.RawURLEncoding.Encode(b[claimsOff:], claimsJSON)
 	b = append(b, '.')
 	return b, nil
+}
+
+// Features supported by the server.
+type Features struct {
+	Scope []string `json:"scope,omitempty"`
 }
 
 // Instance state enumeration.
