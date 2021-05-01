@@ -4,8 +4,8 @@
 
 // Package sql implements a NonceChecker backed by an SQL database.
 //
-// Supports at least PostgreSQL 9.5+ (github.com/lib/pq) and SQLite 3.24+
-// (github.com/mattn/go-sqlite3).
+// Supports at least PostgreSQL 9.5+ (github.com/lib/pq) and
+// SQLite 3.24+ (modernc.org/sqlite, github.com/mattn/go-sqlite3).
 package sql
 
 import (

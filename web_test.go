@@ -37,7 +37,7 @@ import (
 	"gate.computer/wag/compile"
 	"gate.computer/wag/section"
 	"github.com/google/uuid"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type principalKey struct {
@@ -81,7 +81,7 @@ var nonceChecker database.NonceChecker
 
 func init() {
 	db, err := sql.OpenNonceChecker(context.Background(), &sql.Config{
-		Driver: "sqlite3",
+		Driver: "sqlite",
 		DSN:    "file::memory:?cache=shared",
 	})
 	if err != nil {

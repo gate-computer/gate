@@ -14,8 +14,6 @@ require (
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.4.1
 	github.com/kylelemons/godebug v1.1.0 // indirect
-	github.com/mattn/go-sqlite3 v1.8.0
-	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
 	github.com/tsavola/confi v1.5.0
 	github.com/tsavola/mu v1.0.0
 	github.com/tsavola/snide v0.0.0-20201022011019-997fd41f0088
@@ -27,4 +25,5 @@ require (
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0 // indirect
 	google.golang.org/protobuf v1.25.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.49
+	modernc.org/sqlite v1.10.4
 )
