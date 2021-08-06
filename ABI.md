@@ -141,10 +141,10 @@ unless a larger value has been negotiated.  Maximum size of a sent packet is
 
 Packet header consists of little-endian integer fields:
 
-  1. 32-bit size (including this 8-byte header)
+  1. 32-bit size (including this 8-byte header; excluding padding)
   2. 16-bit code
   3. 8-bit domain
-  4. 8 reserved bits which must be zero in sent packets
+  4. 8-bit index
 
 Codes:
 
@@ -160,6 +160,12 @@ Domains:
   - 2 - Flow control.  Used to indicate how much data can be received per
         stream.
   - 3 - Data transfers.  Used to stream data according to flow control.
+
+Index:
+
+  - Must be zero in sent packets.
+  - Must be ignored unless domain is 0 (function call).
+  - See the C API for more information.
 
 See [C API](C.md) documentation for descriptions of built-in packet types.
 
