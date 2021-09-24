@@ -64,11 +64,10 @@ type Instance struct {
 	name     string     // Non-empty means that instance is in stored state.
 }
 
-func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex int,
-) (inst *Instance, err error) {
-	maxMemorySize, err = maxInstanceMemory(prog, maxMemorySize)
+func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex int) (*Instance, error) {
+	maxMemorySize, err := maxInstanceMemory(prog, maxMemorySize)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	var (
@@ -79,8 +78,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 
 	if prog.man.StackUsage != 0 {
 		if entryFuncIndex >= 0 {
-			err = notfound.ErrSuspended
-			return
+			return nil, notfound.ErrSuspended
 		}
 
 		instStackUsage = int(prog.man.StackUsage)
@@ -88,16 +86,15 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 	}
 
 	if instStackUsage > instStackSize-internal.StackUsageOffset {
-		err = resourcelimit.New("call stack size limit exceeded")
-		return
+		return nil, resourcelimit.New("call stack size limit exceeded")
 	}
 
 	instFile, err := prog.storage.newInstanceFile()
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if instFile != nil {
 			instFile.Close()
 		}
 	}()
@@ -113,27 +110,23 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 	)
 	if copyLen > 0 {
 		if prog.storage.instanceFileWriteSupported() {
-			err = copyFileRange(prog.file, &off1, instFile, &off2, copyLen)
-			if err != nil {
-				return
+			if err := copyFileRange(prog.file, &off1, instFile, &off2, copyLen); err != nil {
+				return nil, err
 			}
 		} else {
-			var dest []byte
-
-			dest, err = mmap(instFile.FD(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+			dest, err := mmap(instFile.FD(), off2, copyLen, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 			if err != nil {
-				return
+				return nil, err
 			}
 			defer mustMunmap(dest)
 
-			_, err = prog.file.ReadAt(dest[:copyLen], off1)
-			if err != nil {
-				return
+			if _, err := prog.file.ReadAt(dest[:copyLen], off1); err != nil {
+				return nil, err
 			}
 		}
 	}
 
-	inst = &Instance{
+	inst := &Instance{
 		man: &manifest.Instance{
 			TextAddr:      instTextAddr,
 			StackSize:     uint32(instStackSize),
@@ -149,7 +142,8 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 		coherent: true,
 		file:     instFile,
 	}
-	return
+	instFile = nil
+	return inst, nil
 }
 
 // Store the instance.  The names must not contain path separators.
@@ -390,11 +384,10 @@ func (inst *Instance) ExportStack(textMap stack.TextMap) (stack []byte, err erro
 	return
 }
 
-func (inst *Instance) Stacktrace(textMap stack.TextMap, funcTypes []wa.FuncType,
-) (stacktrace []stack.Frame, err error) {
+func (inst *Instance) Stacktrace(textMap stack.TextMap, funcTypes []wa.FuncType) ([]stack.Frame, error) {
 	b, err := inst.readStack()
 	if err != nil || len(b) == 0 {
-		return
+		return nil, err
 	}
 
 	return stack.Trace(b, inst.man.TextAddr, textMap, funcTypes)

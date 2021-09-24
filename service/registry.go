@@ -180,8 +180,7 @@ func (r *Registry) lookup(name string) (result Factory) {
 }
 
 // StartServing implements the runtime.ServiceRegistry interface function.
-func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
-) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
+func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),

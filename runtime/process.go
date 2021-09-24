@@ -266,21 +266,18 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 //
 // A meaningful trap id is returned also when an error is returned.  The result
 // is meaningful when trap is Exit.
-func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers,
-) (result Result, trapID trap.ID, err error) {
-	trapID = trap.InternalError
-
-	err = ioLoop(contextWithProcess(ctx, p), services, p, buffers)
-	if err != nil {
+func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, error) {
+	if err := ioLoop(contextWithProcess(ctx, p), services, p, buffers); err != nil {
+		trapID := trap.InternalError
 		if _, ok := err.(badprogram.Error); ok {
 			trapID = trap.ABIViolation
 		}
-		return
+		return Result{}, trapID, err
 	}
 
 	status, err := p.execution.finalize()
 	if err != nil {
-		return
+		return Result{}, trap.InternalError, err
 	}
 
 	if p.debugging != nil {
@@ -289,6 +286,9 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 
 	switch {
 	case status.Exited():
+		var trapID trap.ID
+		var result Result
+
 		switch n := status.ExitStatus(); {
 		case n >= 0 && n <= 3:
 			trapID = trap.Exit
@@ -298,8 +298,7 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 			trapID = trap.ID(n - 100)
 
 		default:
-			err = internal.ProcessError(n)
-			return
+			return Result{}, trap.InternalError, internal.ProcessError(n)
 		}
 
 		if p.execution.killRequested() {
@@ -309,27 +308,24 @@ func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *
 			}
 		}
 
+		return result, trapID, nil
+
 	case status.Signaled():
 		switch s := status.Signal(); {
 		case s == os.Kill && p.execution.killRequested():
-			trapID = trap.Killed
-			return
+			return Result{}, trap.Killed, nil
 
 		case s == syscall.SIGXCPU:
 			// During initialization (ok) or by force (instance stack is dirty).
-			trapID = trap.Suspended
+			return Result{}, trap.Suspended, nil
 
 		default:
-			err = fmt.Errorf("process termination signal: %s", s)
-			return
+			return Result{}, trap.InternalError, fmt.Errorf("process termination signal: %s", s)
 		}
 
 	default:
-		err = fmt.Errorf("unknown process status: %d", status)
-		return
+		return Result{}, trap.InternalError, fmt.Errorf("unknown process status: %d", status)
 	}
-
-	return
 }
 
 // Suspend the program if it is still running.  If suspended, Serve call will
@@ -410,8 +406,7 @@ func MustContextProcessKey(ctx context.Context) ProcessKey {
 	return ProcessKey{ctx.Value(contextProcessValueKey{}).(*Process)}
 }
 
-func getRand(fixedTextAddr uint64, needData bool,
-) (textAddr, heapAddr, stackAddr uint64, randData [16]byte, err error) {
+func getRand(fixedTextAddr uint64, needData bool) (textAddr, heapAddr, stackAddr uint64, randData [16]byte, err error) {
 	n := 4 + 4
 	if fixedTextAddr == 0 {
 		n += 4

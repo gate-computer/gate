@@ -306,8 +306,7 @@ func debugBacktrace(res *api.DebugResponse) {
 	check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
 }
 
-func build(res *api.DebugResponse,
-) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
+func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
 	var modkey string
 	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.KnownModuleSource {
 		modkey = x[1]
@@ -391,11 +390,12 @@ func build(res *api.DebugResponse,
 	return
 }
 
-func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType,
-) (frames []stack.Frame) {
+func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType) []stack.Frame {
 	if n := len(buf); n == 0 || n&7 != 0 {
 		panic(fmt.Errorf("invalid stack size %d", n))
 	}
+
+	var frames []stack.Frame
 
 	for len(buf) > 0 {
 		pair := binary.LittleEndian.Uint64(buf)
@@ -411,7 +411,7 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		}
 
 		if len(textMap.FuncAddrs) == 0 || call.RetAddr < textMap.FuncAddrs[0] {
-			return
+			return frames
 		}
 
 		if call.StackOffset&7 != 0 {

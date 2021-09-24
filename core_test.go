@@ -83,8 +83,7 @@ type serviceRegistry struct {
 	originMu *sync.Mutex
 }
 
-func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf,
-) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
+func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
 	d := new(serviceDiscoverer)
 
 	go func() {
@@ -208,16 +207,15 @@ func init() {
 	}
 }
 
-func prepareBuild(exec *executor, storage image.Storage, config compile.Config, wasm []byte, moduleSize int, codeMap *object.CallMap,
-) (r *bytes.Reader, mod compile.Module, build *image.Build) {
-	r = bytes.NewReader(wasm)
+func prepareBuild(exec *executor, storage image.Storage, config compile.Config, wasm []byte, moduleSize int, codeMap *object.CallMap) (*bytes.Reader, compile.Module, *image.Build) {
+	r := bytes.NewReader(wasm)
 
 	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, r)
 	if err != nil {
 		panic(err)
 	}
 
-	build, err = image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
+	build, err := image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
 	if err != nil {
 		panic(err)
 	}
@@ -226,11 +224,10 @@ func prepareBuild(exec *executor, storage image.Storage, config compile.Config, 
 		panic(err)
 	}
 
-	return
+	return r, mod, build
 }
 
-func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMap, wasm []byte, moduleSize int, function string, persistent bool,
-) (prog *image.Program, inst *image.Instance, mod compile.Module) {
+func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMap, wasm []byte, moduleSize int, function string, persistent bool) (*image.Program, *image.Instance, compile.Module) {
 	var config compile.Config
 	var sectionMap image.SectionMap
 
@@ -280,9 +277,8 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 	}
 
 	if persistent {
-		err = compile.LoadCustomSections(&config, r)
-		if err != nil {
-			return
+		if err := compile.LoadCustomSections(&config, r); err != nil {
+			panic(err)
 		}
 	}
 
@@ -291,7 +287,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		startIndex = int(index)
 	}
 
-	prog, err = build.FinishProgram(sectionMap, mod, startIndex, true, nil, 0)
+	prog, err := build.FinishProgram(sectionMap, mod, startIndex, true, nil, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -301,21 +297,20 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		memLimit = memorySizeLimit
 	}
 
-	inst, err = build.FinishInstance(prog, memLimit, entryIndex)
+	inst, err := build.FinishInstance(prog, memLimit, entryIndex)
 	if err != nil {
 		panic(err)
 	}
 
-	return
+	return prog, inst, mod
 }
 
-func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer,
-) (*executor, *image.Program, *image.Instance, *runtime.Process, *object.CallMap, compile.Module) {
-	var err error
+func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer) (*executor, *image.Program, *image.Instance, *runtime.Process, *object.CallMap, compile.Module) {
+	var ok bool
 
 	executor := newExecutor()
 	defer func() {
-		if err != nil {
+		if !ok {
 			executor.Close()
 		}
 	}()
@@ -324,14 +319,13 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 
 	prog, inst, mod := buildInstance(executor, storage, codeMap, wasm, len(wasm), function, true)
 	defer func() {
-		if err != nil {
+		if !ok {
 			prog.Close()
 			inst.Close()
 		}
 	}()
 
-	err = prog.Store(fmt.Sprint(crc32.ChecksumIEEE(wasm)))
-	if err != nil {
+	if err := prog.Store(fmt.Sprint(crc32.ChecksumIEEE(wasm))); err != nil {
 		t.Fatal(err)
 	}
 
@@ -340,7 +334,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		t.Fatal(err)
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			proc.Kill()
 		}
 	}()
@@ -350,11 +344,11 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 		DebugLog:       debugOut,
 	}
 
-	err = proc.Start(prog, inst, policy)
-	if err != nil {
+	if err := proc.Start(prog, inst, policy); err != nil {
 		t.Fatal(err)
 	}
 
+	ok = true
 	return executor, prog, inst, proc, codeMap, mod
 }
 

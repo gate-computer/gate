@@ -171,8 +171,7 @@ func (s *Service) Discoverable(ctx context.Context) bool {
 	return true
 }
 
-func (s *Service) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
-) (service.Instance, error) {
+func (s *Service) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	key := getProcKey(ctx)
 	defer func() {
 		if key != nil {

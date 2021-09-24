@@ -34,8 +34,7 @@ func (identity) Discoverable(context.Context) bool {
 	return true
 }
 
-func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
-) (service.Instance, error) {
+func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	inst := newInstance(config)
 	if err := inst.restore(snapshot); err != nil {
 		return nil, err

@@ -39,23 +39,19 @@ type Build struct {
 	bufferSectionHeaderLength int
 }
 
-func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool,
-) (b *Build, err error) {
-	b = new(Build)
-
-	b.Image, err = image.NewBuild(storage, moduleSize, maxTextSize, objectMap, instance)
+func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool) (*Build, error) {
+	img, err := image.NewBuild(storage, moduleSize, maxTextSize, objectMap, instance)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	b.Loaders = make(map[string]section.CustomContentLoader)
-
-	b.Config = compile.Config{
-		SectionMapper: b.SectionMap.Mapper(),
+	b := &Build{
+		Image:      img,
+		Loaders:    make(map[string]section.CustomContentLoader),
+		entryIndex: -1,
 	}
-
-	b.entryIndex = -1
-	return
+	b.Config.SectionMapper = b.SectionMap.Mapper()
+	return b, nil
 }
 
 func (b *Build) InstallEarlySnapshotLoaders() {

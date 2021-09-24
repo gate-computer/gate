@@ -68,9 +68,8 @@ type Build struct {
 }
 
 // NewBuild for a program and optionally an instance.
-func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool,
-) (b *Build, err error) {
-	b = &Build{
+func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.CallMap, instance bool) (*Build, error) {
+	b := &Build{
 		storage: storage,
 		prog: programBuild{
 			objectMap: objectMap,
@@ -80,36 +79,38 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 		},
 	}
 
+	var ok bool
+	var err error
+
 	b.prog.file, err = b.storage.newProgramFile()
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			b.munmapAll()
 			b.prog.file.Close()
 		}
 	}()
 
 	// Program text.
-	err = mmapp(&b.compileMem, b.prog.file, progTextOffset, maxTextSize)
-	if err != nil {
-		return
+	if err := mmapp(&b.compileMem, b.prog.file, progTextOffset, maxTextSize); err != nil {
+		return nil, err
 	}
 
 	b.prog.text = buffer.MakeStatic(b.compileMem[:0:maxTextSize])
 
 	if moduleSize > 0 {
 		// Program module.
-		err = mmapp(&b.prog.moduleMem, b.prog.file, progModuleOffset, moduleSize)
-		if err != nil {
-			return
+		if err := mmapp(&b.prog.moduleMem, b.prog.file, progModuleOffset, moduleSize); err != nil {
+			return nil, err
 		}
 
 		b.prog.module = buffer.MakeStatic(b.prog.moduleMem[:0:moduleSize])
 	}
 
-	return
+	ok = true
+	return b, nil
 }
 
 func (b *Build) ObjectMap() *object.CallMap {
@@ -208,26 +209,23 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) (
 
 // ReadStack if FinishText has been called with nonzero stackUsage.  It must
 // not be called after FinishProgram.
-func (b *Build) ReadStack(r io.Reader, types []wa.FuncType, funcTypeIndexes []uint32,
-) (err error) {
-	_, err = io.ReadFull(r, b.stack)
-	if err != nil {
-		return
+func (b *Build) ReadStack(r io.Reader, types []wa.FuncType, funcTypeIndexes []uint32) error {
+	if _, err := io.ReadFull(r, b.stack); err != nil {
+		return err
 	}
 
 	textAddr, err := generateRandTextAddr()
 	if err != nil {
-		return
+		return err
 	}
 
-	err = importStack(b.stack, textAddr, *b.prog.objectMap, types, funcTypeIndexes)
-	if err != nil {
-		return
+	if err := importStack(b.stack, textAddr, *b.prog.objectMap, types, funcTypeIndexes); err != nil {
+		return err
 	}
 
 	b.textAddr = textAddr
 	b.stackUsage = len(b.stack)
-	return
+	return nil
 }
 
 // GlobalsMemoryBuffer is valid after FinishText.  It must be populated before
@@ -333,19 +331,17 @@ func (b *Build) FinishProgram(
 
 // FinishInstance after FinishProgram.  Applicable only if an instance storage
 // was specified in NewBuild call.
-func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int,
-) (inst *Instance, err error) {
-	maxMemorySize, err = maxInstanceMemory(prog, maxMemorySize)
+func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int) (*Instance, error) {
+	maxMemorySize, err := maxInstanceMemory(prog, maxMemorySize)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	if entryFuncIndex >= 0 && b.stackUsage != 0 {
-		err = notfound.ErrSuspended
-		return
+		return nil, notfound.ErrSuspended
 	}
 
-	inst = &Instance{
+	inst := &Instance{
 		man: &manifest.Instance{
 			TextAddr:      b.textAddr,
 			StackSize:     uint32(b.inst.stackSize),
@@ -361,7 +357,7 @@ func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int,
 		coherent: true,
 	}
 	b.inst.file = nil
-	return
+	return inst, nil
 }
 
 func (b *Build) Close() (err error) {

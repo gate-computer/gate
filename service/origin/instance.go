@@ -182,8 +182,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	return nil
 }
 
-func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{},
-) func(context.Context, io.Reader, io.Writer) error {
+func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{}) func(context.Context, io.Reader, io.Writer) error {
 	var (
 		id int32
 		s  *stream

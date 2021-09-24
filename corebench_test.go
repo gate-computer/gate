@@ -67,11 +67,10 @@ func init() {
 	}
 }
 
-func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState,
-) (result runtime.Result, trapID trap.ID, err error) {
+func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState) (runtime.Result, trap.ID, error) {
 	proc, err := getBenchExecutor().NewProcess(ctx)
 	if err != nil {
-		return
+		return runtime.Result{}, trap.InternalError, err
 	}
 	defer proc.Kill()
 
@@ -79,31 +78,28 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 		TimeResolution: time.Millisecond,
 	}
 
-	err = proc.Start(prog, inst, policy)
-	if err != nil {
-		return
+	if err := proc.Start(prog, inst, policy); err != nil {
+		return runtime.Result{}, trap.InternalError, err
 	}
 
 	return proc.Serve(ctx, benchRegistry, nil)
 }
 
-func executeProgram(ctx context.Context, prog *image.Program,
-) (result runtime.Result, trapID trap.ID, err error) {
+func executeProgram(ctx context.Context, prog *image.Program) (runtime.Result, trap.ID, error) {
 	proc, err := getBenchExecutor().NewProcess(ctx)
 	if err != nil {
-		return
+		return runtime.Result{}, trap.InternalError, err
 	}
 	defer proc.Kill()
 
 	inst, err := image.NewInstance(prog, 0x7fff0000, stackSize, -1)
 	if err != nil {
-		return
+		return runtime.Result{}, trap.InternalError, err
 	}
 	defer inst.Close()
 
-	err = proc.Start(prog, inst, runtime.ProcessPolicy{})
-	if err != nil {
-		return
+	if err := proc.Start(prog, inst, runtime.ProcessPolicy{}); err != nil {
+		return runtime.Result{}, trap.InternalError, err
 	}
 
 	return proc.Serve(ctx, benchRegistry, nil)

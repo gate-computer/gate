@@ -113,21 +113,20 @@ func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, d
 	panic(nil)
 }
 
-func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, serialized []byte,
-) (header api.TokenHeader) {
+func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, serialized []byte) api.TokenHeader {
+	var header api.TokenHeader
 	if err := json.Unmarshal(serialized, &header); err == nil {
-		return
+		return header
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
 	panic(nil)
 }
 
-func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, serialized []byte,
-) (claims api.Claims) {
-	err := json.Unmarshal(serialized, &claims)
-	if err == nil {
-		return
+func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, serialized []byte) api.Claims {
+	var claims api.Claims
+	if err := json.Unmarshal(serialized, &claims); err == nil {
+		return claims
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")

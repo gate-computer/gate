@@ -91,8 +91,7 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 	return
 }
 
-func ReadBufferSectionHeader(r section.Reader, length uint32,
-) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
+func ReadBufferSectionHeader(r section.Reader, length uint32) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
 	// TODO: limit sizes and count
 
 	inputSize, n, err := binary.Varuint32(r)

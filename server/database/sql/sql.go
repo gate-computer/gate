@@ -87,32 +87,30 @@ func (nr *NonceChecker) Close() error {
 	return nr.db.Close()
 }
 
-func (nr *NonceChecker) CheckNonce(ctx context.Context, scope []byte, nonce string, expire time.Time,
-) (err error) {
+func (nr *NonceChecker) CheckNonce(ctx context.Context, scope []byte, nonce string, expire time.Time) error {
 	conn, err := nr.db.Conn(ctx)
 	if err != nil {
-		return
+		return err
 	}
 	defer conn.Close()
 
 	_, err = conn.ExecContext(ctx, "DELETE FROM nonce WHERE expire < $1", time.Now().Unix())
 	if err != nil {
-		return
+		return err
 	}
 
 	result, err := conn.ExecContext(ctx, "INSERT INTO nonce (scope, nonce, expire) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", scope, nonce, expire.Unix())
 	if err != nil {
-		return
+		return err
 	}
 
 	n, err := result.RowsAffected()
 	if err != nil {
-		return
+		return err
 	}
 	if n == 0 {
-		err = database.ErrNonceReused
-		return
+		return database.ErrNonceReused
 	}
 
-	return
+	return nil
 }

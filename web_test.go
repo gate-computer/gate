@@ -156,34 +156,34 @@ func newSignedRequest(pri principalKey, method, path string, content []byte) (re
 	return
 }
 
-func doRequest(t *testing.T, handler http.Handler, req *http.Request,
-) (resp *http.Response, content []byte) {
+func doRequest(t *testing.T, handler http.Handler, req *http.Request) (*http.Response, []byte) {
 	t.Helper()
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-	resp = w.Result()
+	resp := w.Result()
 	defer resp.Body.Close()
 
 	content, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("response content error: %v", err)
 	}
-	return
+
+	return resp, content
 }
 
-func checkResponse(t *testing.T, handler http.Handler, req *http.Request, expectStatusCode int,
-) (resp *http.Response, content []byte) {
+func checkResponse(t *testing.T, handler http.Handler, req *http.Request, expectStatusCode int) (*http.Response, []byte) {
 	t.Helper()
 
-	resp, content = doRequest(t, handler, req)
+	resp, content := doRequest(t, handler, req)
 	if resp.StatusCode != expectStatusCode {
 		if len(content) > 0 {
 			t.Logf("response content: %q", content)
 		}
 		t.Fatalf("response status: %s", resp.Status)
 	}
-	return
+
+	return resp, content
 }
 
 func checkStatusHeader(t *testing.T, statusHeader string, expect api.Status) {

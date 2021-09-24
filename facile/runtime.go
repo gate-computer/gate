@@ -88,16 +88,13 @@ type RuntimeExecutor struct {
 }
 
 // NewRuntimeExecutor duplicates the container file descriptor (if any).
-func NewRuntimeExecutor(config *RuntimeConfig, containerFD int32,
-) (executor *RuntimeExecutor, err error) {
+func NewRuntimeExecutor(config *RuntimeConfig, containerFD int32) (*RuntimeExecutor, error) {
 	c := config.c
 
 	if containerFD >= 0 {
-		var dupFD int
-
-		dupFD, err = unix.FcntlInt(uintptr(containerFD), unix.F_DUPFD_CLOEXEC, 0)
+		dupFD, err := unix.FcntlInt(uintptr(containerFD), unix.F_DUPFD_CLOEXEC, 0)
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		c.ConnFile = os.NewFile(uintptr(dupFD), "container")
@@ -106,11 +103,10 @@ func NewRuntimeExecutor(config *RuntimeConfig, containerFD int32,
 
 	e, err := runtime.NewExecutor(&c)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	executor = &RuntimeExecutor{e}
-	return
+	return &RuntimeExecutor{e}, nil
 }
 
 func (executor *RuntimeExecutor) Close() error {

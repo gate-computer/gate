@@ -151,11 +151,9 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 }
 
 // importStack converts buffer from portable to native representation in-place.
-func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa.FuncType, funcTypeIndexes []uint32,
-) (err error) {
+func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa.FuncType, funcTypeIndexes []uint32) error {
 	if n := len(buf); n == 0 || n&7 != 0 {
-		err = fmt.Errorf("invalid stack size %d", n)
-		return
+		return fmt.Errorf("invalid stack size %d", n)
 	}
 
 	var level int
@@ -165,22 +163,19 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 	for {
 		if len(buf) == 0 {
-			err = errors.New("ran out of stack before initial call")
-			return
+			return errors.New("ran out of stack before initial call")
 		}
 
 		pair := binary.LittleEndian.Uint64(buf)
 
 		callIndex := uint32(pair)
 		if callIndex >= uint32(len(codeMap.CallSites)) {
-			err = fmt.Errorf("function call site index %d is unknown", callIndex)
-			return
+			return fmt.Errorf("function call site index %d is unknown", callIndex)
 		}
 		call = codeMap.CallSites[callIndex]
 
 		if off := int32(pair >> 32); off != call.StackOffset {
-			err = fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset)
-			return
+			return fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset)
 		}
 
 		binary.LittleEndian.PutUint64(buf, textAddr+uint64(call.RetAddr))
@@ -196,20 +191,17 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		}
 
 		if call.StackOffset&7 != 0 {
-			err = fmt.Errorf("invalid stack offset %d", call.StackOffset)
-			return
+			return fmt.Errorf("invalid stack offset %d", call.StackOffset)
 		}
 		if int(call.StackOffset-8) < minVars*8 {
-			err = fmt.Errorf("inconsistent call stack")
-			return
+			return fmt.Errorf("inconsistent call stack")
 		}
 
 		buf = buf[call.StackOffset-8:]
 
 		init, funcIndex, callIndexAgain, stackOffsetAgain, _ := codeMap.FindCall(call.RetAddr)
 		if init || callIndexAgain != int(callIndex) || stackOffsetAgain != call.StackOffset {
-			err = fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr)
-			return
+			return fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr)
 		}
 
 		sigIndex := funcTypeIndexes[funcIndex]
@@ -218,8 +210,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 	}
 
 	if minVars > 0 {
-		err = fmt.Errorf("inconsistent call stack")
-		return
+		return fmt.Errorf("inconsistent call stack")
 	}
 
 	switch call.StackOffset {
@@ -229,16 +220,14 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 		if funcIndex := binary.LittleEndian.Uint32(buf); funcIndex != math.MaxUint32 {
 			if funcIndex >= uint32(len(codeMap.FuncAddrs)) {
-				err = fmt.Errorf("entry function index %d is unknown", funcIndex)
-				return
+				return fmt.Errorf("entry function index %d is unknown", funcIndex)
 			}
 			funcAddr = codeMap.FuncAddrs[funcIndex]
 
 			sigIndex := funcTypeIndexes[funcIndex]
 			sig := types[sigIndex]
 			if !binding.IsEntryFuncType(sig) {
-				err = fmt.Errorf("entry function %d has invalid signature: %s", funcIndex, sig)
-				return
+				return fmt.Errorf("entry function %d has invalid signature: %s", funcIndex, sig)
 			}
 		}
 
@@ -249,13 +238,12 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		// See the comment in exportStack.
 
 	default:
-		err = fmt.Errorf("initial function call site 0x%x has inconsistent stack offset %d", call.RetAddr, call.StackOffset)
-		return
+		return fmt.Errorf("initial function call site 0x%x has inconsistent stack offset %d", call.RetAddr, call.StackOffset)
 	}
 
 	if n := len(buf); n != 0 {
-		err = fmt.Errorf("%d bytes of excess data at start of stack", n)
-		return
+		return fmt.Errorf("%d bytes of excess data at start of stack", n)
 	}
-	return
+
+	return nil
 }

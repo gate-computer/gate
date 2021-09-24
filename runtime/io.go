@@ -55,8 +55,7 @@ type read struct {
 }
 
 // ioLoop mutates Process and Buffers (if any).
-func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers,
-) (err error) {
+func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers) error {
 	if frozen == nil {
 		subject.writerOut.Unref()
 	}
@@ -73,7 +72,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	)
 	discoverer, initialServiceState, serviceDone, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput, messageOutput)
 	if err != nil {
-		return
+		return err
 	}
 	defer func() {
 		close(messageOutput)
@@ -88,7 +87,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 	pendingMsgs, initialRead, err := splitBufferedPackets(popOutputBuffer(frozen), discoverer)
 	if err != nil {
-		return
+		return err
 	}
 
 	var pendingEvs []packet.Buf
@@ -175,7 +174,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 					frozen.Input, err = ioutil.ReadAll(subject.writerOut.File())
 					subject.writerOut.Unref()
 					if err != nil {
-						return
+						return err
 					}
 
 					var pendingLen int
@@ -191,15 +190,14 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 				}
 
 				if read.err != io.EOF {
-					err = read.err
+					return read.err
 				}
-				return
+				return nil
 			}
 
 			msg, ev, opErr := handlePacket(ctx, read.buf, discoverer)
 			if opErr != nil {
-				err = opErr
-				return
+				return opErr
 			}
 			if msg != nil {
 				pendingMsgs = append(pendingMsgs, msg)
@@ -225,10 +223,9 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 			done = nil
 			subject.execution.suspend()
 
-		case e, ok := <-serviceDone:
+		case err, ok := <-serviceDone:
 			if ok {
-				err = e
-				return
+				return err
 			} else {
 				serviceDone = nil
 			}
@@ -347,35 +344,32 @@ func handlePacket(ctx context.Context, p packet.Buf, discoverer ServiceDiscovere
 	return
 }
 
-func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer,
-) (msgs []packet.Buf, tail []byte, err error) {
+func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer) ([]packet.Buf, []byte, error) {
+	var msgs []packet.Buf
+
 	for {
 		if len(buf) < packet.HeaderSize {
-			tail = buf
-			return
+			return msgs, buf, nil
 		}
 
 		size := binary.LittleEndian.Uint32(buf[packet.OffsetSize:])
 		if size < packet.HeaderSize || size > maxPacketSize {
-			err = badprogram.Errorf("buffered packet has invalid size: %d", size)
-			return
+			return nil, nil, badprogram.Errorf("buffered packet has invalid size: %d", size)
 		}
 
 		if uint32(len(buf)) < size {
-			tail = buf
-			return
+			return msgs, buf, nil
 		}
 
 		p := packet.Buf(buf[:size])
 
 		if code := p.Code(); code < 0 {
-			err = badprogram.Errorf("invalid code in buffered packet: %d", code)
-			return
+			return nil, nil, badprogram.Errorf("invalid code in buffered packet: %d", code)
 		}
 
-		p, err = checkServicePacket(p, discoverer)
+		p, err := checkServicePacket(p, discoverer)
 		if err != nil {
-			return
+			return nil, nil, err
 		}
 
 		msgs = append(msgs, p)
