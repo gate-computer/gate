@@ -570,7 +570,7 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 	r, w, err := os.Pipe()
 	check(err)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, signals...)
 	go func() {
 		defer w.Close()
