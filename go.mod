@@ -3,7 +3,7 @@ module gate.computer/gate
 go 1.16
 
 require (
-	gate.computer/wag v0.33.0
+	gate.computer/wag v0.33.1-0.20211010200511-8b0e430e2944
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect

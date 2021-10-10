@@ -478,11 +478,13 @@ rt_random:
 	mov	w0, #-1
 	b	.Lresume
 
-.globl	rt_stop
-.type	rt_stop,@function
+.globl	rt_trap
+.type	rt_trap,@function
 
-rt_stop:
+rt_trap:
 	ldr	w9, [x29, #0]
+	mov	x29, x2				// Restart caller on resume
+	ldr	x30, [x29], #8			// Pop restart site
 
 	// Fall through
 

@@ -123,12 +123,9 @@ prefix.
 >
 > This function can be used during program startup to seed a pseudorandom
 > number generator, initialize hash tables etc.  But if more than 16 bytes is
-> requested (cumulatively), the program may become suspended inside this
-> function.  The call may proceed if the program is resumed with more entropy.
+> requested (cumulatively), the program may be terminated.
 >
-> The return value is 0.  (If a suspended call is resumed in debug mode and the
-> result is overridden, this function will return without writing all of the
-> requested bytes into the buffer.)
+> The return value is always 0.
 
 
 ### Packets

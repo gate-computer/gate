@@ -515,11 +515,12 @@ rt_random:
 	jmp	.Lresume
 
 .align	16,INT3
-.globl	rt_stop
-.type	rt_stop,@function
+.globl	rt_trap
+.type	rt_trap,@function
 
-rt_stop:
+rt_trap:
 	mov	8(%rsp), %edi
+	mov	%rbp, %rsp			// Restart caller on resume
 
 	// Fall through
 

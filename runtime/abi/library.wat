@@ -6,12 +6,11 @@
 
 (module
  (import "rt" "debug" (func $rt_debug (param i32 i32)))
- (import "rt" "nop" (func $reserved))
  (import "rt" "poll" (func $rt_poll (param i32 i32) (result i32)))
  (import "rt" "random" (func $rt_random (result i32)))
  (import "rt" "read" (func $rt_read (param i32 i32) (result i32)))
- (import "rt" "stop" (func $rt_stop (param i32) (result i64)))
  (import "rt" "time" (func $rt_time (param i32) (result i64)))
+ (import "rt" "trap" (func $rt_trap (param i32) (result i64)))
  (import "rt" "write" (func $rt_write (param i32 i32) (result i32)))
 
  (memory 0)
@@ -20,14 +19,12 @@
        (param $argv i32)    ;; 0 * 4 bytes.
        (param $argvbuf i32) ;; 0 bytes.
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 0))
 
  (func (export "args_sizes_get")
        (param $argc_ptr i32)        ;; 4 bytes.
        (param $argvbufsize_ptr i32) ;; 4 bytes.
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.store (get_local $argc_ptr) (i32.const 0))
        (i32.store (get_local $argvbufsize_ptr) (i32.const 0))
        (i32.const 0))
@@ -36,7 +33,6 @@
        (param $id i32)
        (param $buf i32) ;; 8 bytes.
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.ge_u (get_local $id) (i32.const 4))
            (return (i32.const 28))) ;; EINVAL
        (i64.store (get_local $buf) (i64.const 1000000000)) ;; Worst-case scenario.
@@ -48,16 +44,15 @@
        (param $buf i32) ;; 8 bytes.
        (result i32)
        (local $time i64)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.ge_u (get_local $id) (i32.const 4))
            (return (i32.const 28))) ;; EINVAL
        (block $done
          (block $supported
            (loop $retry
                  (br_if $supported (i32.lt_u (get_local $id) (i32.const 2)))
-                 (set_local $time (call $rt_stop (i32.const 127))) ;; ABI deficiency.
+                 (set_local $time (call $rt_trap (i32.const 127))) ;; ABI deficiency.
                  (br_if $done (i64.ne (get_local $time) (i64.const 0)))
-                 (br $retry))) ;; Implicit call site.
+                 (br $retry)))
          (set_local $time (call $rt_time (i32.add (get_local $id) (i32.const 5))))) ;; Coarse
        (i64.store (get_local $buf) (get_local $time))
        (i32.const 0))
@@ -66,7 +61,6 @@
        (param $env i32)    ;; 3 * 4 bytes.
        (param $envbuf i32) ;; 56 bytes.
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i64.store offset=0  (get_local $envbuf) (i64.const 0x4942415f45544147)) ;; "GATE_ABI"
        (i64.store offset=8  (get_local $envbuf) (i64.const 0x4e4f49535245565f)) ;; "_VERSION"
        (i64.store offset=16 (get_local $envbuf) (i64.const 0x5f4554414700303d)) ;; "=0\0GATE_"
@@ -83,7 +77,6 @@
        (param $envlen_ptr i32)     ;; 4 bytes.
        (param $envbufsize_ptr i32) ;; 4 bytes.
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.store (get_local $envlen_ptr) (i32.const 3))
        (i32.store (get_local $envbufsize_ptr) (i32.const 56))
        (i32.const 0))
@@ -100,7 +93,6 @@
        (local $xfer i32)
        (local $buflen i32)
        (local $n i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (set_local $filter (i32.const 0x5)) ;; POLLIN | POLLOUT
        (if (i32.and (get_local $flags) (i32.const 0x1)) ;; GATE_IO_WAIT
            (set_local $filter (call $rt_poll
@@ -109,7 +101,6 @@
                                         (get_local $sendlen)
                                         (i32.const 0x4) ;; POLLOUT
                                         (i32.const 0)))))
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.and (get_local $filter) (i32.const 0x4)) ;; POLLOUT
            (block $break
              (loop $cont
@@ -122,10 +113,9 @@
                    (br_if $break (i32.ne (get_local $n) (get_local $buflen)))
                    (set_local $send (i32.add (get_local $send) (i32.const 8)))
                    (set_local $sendlen (i32.sub (get_local $sendlen) (i32.const 1)))
-                   (br $cont)))) ;; Implicit call site.
+                   (br $cont))))
        (if (get_local $nsent_ptr)
            (i32.store (get_local $nsent_ptr) (get_local $xfer)))
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (set_local $xfer (i32.const 0))
        (if (i32.and (get_local $filter) (i32.const 0x1)) ;; POLLIN
            (block $break
@@ -139,28 +129,25 @@
                    (br_if $break (i32.ne (get_local $n) (get_local $buflen)))
                    (set_local $recv (i32.add (get_local $recv) (i32.const 8)))
                    (set_local $recvlen (i32.sub (get_local $recvlen) (i32.const 1)))
-                   (br $cont)))) ;; Implicit call site.
+                   (br $cont))))
        (if (get_local $nrecv_ptr)
-           (i32.store (get_local $nrecv_ptr) (get_local $xfer)))
-       (block (br_if 0 (i32.const 1)) (call $reserved)))
+           (i32.store (get_local $nrecv_ptr) (get_local $xfer))))
 
  (func (export "fd")
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 4))
 
  (func (export "fd_close")
        (param $fd i32)
        (result i32)
        (local $result i64)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
        (loop $retry
-             (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
+             (set_local $result (call $rt_trap (i32.const 127))) ;; ABI deficiency.
              (if (i64.eq (get_local $result) (i64.const 0))
-                 (br $retry))) ;; Implicit call site.
+                 (br $retry)))
        (i32.wrap/i64 (get_local $result)))
 
  (func (export "fd_fdstat_get")
@@ -169,8 +156,6 @@
        (result i32)
        (local $flags i32)
        (local $rights i64)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -190,7 +175,6 @@
        (param $fd i32)
        (param $flags i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -202,7 +186,6 @@
        (param $inheriting i64)
        (result i32)
        (local $result i64)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -225,16 +208,15 @@
                              (i64.const 0))
                      (return (i32.const 76))))) ;; ENOTCAPABLE
        (loop $retry
-             (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
+             (set_local $result (call $rt_trap (i32.const 127))) ;; ABI deficiency.
              (if (i64.eq (get_local $result) (i64.const 0))
-                 (br $retry))) ;; Implicit call site.
+                 (br $retry)))
        (i32.wrap/i64 (get_local $result)))
 
  (func (export "fd_filestat_get")
        (param $fd i32)
        (param $buf i32) ;; 56 bytes.
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -257,7 +239,6 @@
        (local $nread i32)
        (local $buflen i32)
        (local $n i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -276,11 +257,10 @@
                (br_if $break (i32.ne (get_local $n) (get_local $buflen)))
                (set_local $iov (i32.add (get_local $iov) (i32.const 8)))
                (set_local $iovlen (i32.sub (get_local $iovlen) (i32.const 1)))
-               (br $cont))) ;; Implicit call site.
+               (br $cont)))
        (i32.store (get_local $nread_ptr) (get_local $nread))
        (if (get_local $nread)
            (return (i32.const 0)))
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 6)) ;; EAGAIN
 
  (func (export "fd_renumber")
@@ -288,7 +268,6 @@
        (param $to i32)
        (result i32)
        (local $result i64)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.or (i32.eq (get_local $from) (i32.const 3))
                            (i32.ge_u (get_local $from) (i32.const 5)))
                    (i32.or (i32.eq (get_local $to) (i32.const 3))
@@ -297,15 +276,14 @@
        (if (i32.eq (get_local $from) (get_local $to))
            (return (i32.const 0)))
        (loop $retry
-             (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
+             (set_local $result (call $rt_trap (i32.const 127))) ;; ABI deficiency.
              (if (i64.eq (get_local $result) (i64.const 0))
-                 (br $retry))) ;; Implicit call site.
+                 (br $retry)))
        (i32.wrap/i64 (get_local $result)))
 
  (func (export "fd_stub_i32")
        (param $fd i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -315,7 +293,6 @@
        (param $fd i32)
        (param i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -325,7 +302,6 @@
        (param $fd i32)
        (param i64)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -335,7 +311,6 @@
        (param $fd i32)
        (param i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -345,7 +320,6 @@
        (param $fd i32)
        (param i64 i64)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -355,7 +329,6 @@
        (param $fd i32)
        (param i64 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -365,7 +338,6 @@
        (param $fd i32)
        (param i64 i64 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -375,7 +347,6 @@
        (param $fd i32)
        (param i32 i32 i64 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -390,7 +361,6 @@
        (local $nwritten i32)
        (local $buflen i32)
        (local $n i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -408,7 +378,7 @@
                          (br_if $break (i32.ne (get_local $n) (get_local $buflen)))
                          (set_local $iov (i32.add (get_local $iov) (i32.const 8)))
                          (set_local $iovlen (i32.sub (get_local $iovlen) (i32.const 1)))
-                         (br $cont))) ;; Implicit call site.
+                         (br $cont)))
              (else (loop $cont
                          (br_if $break (i32.eqz (get_local $iovlen)))
                          (set_local $buflen (i32.load offset=4 (get_local $iov)))
@@ -418,47 +388,40 @@
                          (set_local $nwritten (i32.add (get_local $nwritten) (get_local $buflen)))
                          (set_local $iov (i32.add (get_local $iov) (i32.const 8)))
                          (set_local $iovlen (i32.sub (get_local $iovlen) (i32.const 1)))
-                         (br $cont))))) ;; Implicit call site.
+                         (br $cont)))))
        (i32.store (get_local $nwritten_ptr) (get_local $nwritten))
        (if (get_local $nwritten)
            (return (i32.const 0)))
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 6)) ;; EAGAIN
 
  (func (export "path_stub_i32i32i32")
        (param i32 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 44)) ;; ENOENT
 
  (func (export "path_stub_i32i32i32i32i32")
        (param i32 i32 i32 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 44)) ;; ENOENT
 
  (func (export "path_stub_i32i32i32i32i32i32")
        (param i32 i32 i32 i32 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 44)) ;; ENOENT
 
  (func (export "path_stub_i32i32i32i32i32i32i32")
        (param i32 i32 i32 i32 i32 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 44)) ;; ENOENT
 
  (func (export "path_stub_i32i32i32i32i64i64i32")
        (param i32 i32 i32 i32 i64 i64 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 44)) ;; ENOENT
 
  (func (export "path_stub_i32i32i32i32i32i64i64i32i32")
        (param i32 i32 i32 i32 i32 i64 i64 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 44)) ;; ENOENT
 
  (func (export "poll_oneoff")
@@ -475,7 +438,6 @@
        (local $write_userdata i64)
        (local $result i32) ;; poll(2) revents
        (local $nout i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (block $break
          (loop $cont
                (br_if $break (i32.eqz (get_local $nsub)))
@@ -483,8 +445,8 @@
                (if (i32.ge_u (get_local $type) (i32.const 3))
                    (return (i32.const 28))) ;; EINVAL
                (if (i32.eqz (get_local $type)) ;; EVENTTYPE_CLOCK
-                   (then (drop (call $rt_stop (i32.const 127))) ;; ABI deficiency.
-                         (br $cont))) ;; Implicit call site.
+                   (then (drop (call $rt_trap (i32.const 127))) ;; ABI deficiency.
+                         (br $cont)))
                (set_local $fd (i32.load offset=16 (get_local $sub_ptr)))
                (if (i32.eq (get_local $fd) (i32.const 4))
                    (then (if (i32.eq (get_local $type) (i32.const 1)) ;; EVENTTYPE_FD_READ
@@ -510,7 +472,7 @@
                          (set_local $nout (i32.add (get_local $nout) (i32.const 1)))))
                (set_local $sub_ptr (i32.add (get_local $sub_ptr) (i32.const 56)))
                (set_local $nsub (i32.sub (get_local $nsub) (i32.const 1)))
-               (br $cont))) ;; Implicit call site.
+               (br $cont)))
        (set_local $result (call $rt_poll
                                 (get_local $reading)
                                 (get_local $writing)))
@@ -531,23 +493,20 @@
                  (set_local $out_ptr (i32.add (get_local $out_ptr) (i32.const 32)))
                  (set_local $nout (i32.add (get_local $nout) (i32.const 1)))))
        (i32.store (get_local $nout_ptr) (get_local $nout))
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 0))
 
  (func (export "proc_exit")
        (param $status i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (set_local $status (i32.or (i32.ne (get_local $status) (i32.const 0)) ;; Result
                                   (i32.const 0x2)))                          ;; Terminated
        (loop $cont
-             (drop (call $rt_stop (get_local $status)))
-             (br $cont))) ;; Implicit call site.
+             (drop (call $rt_trap (get_local $status)))
+             (br $cont)))
 
  (func (export "proc_raise")
        (param $signal i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
-       (i32.wrap/i64 (call $rt_stop (i32.const 127)))) ;; ABI deficiency.
+       (i32.wrap/i64 (call $rt_trap (i32.const 127)))) ;; ABI deficiency.
 
  (func (export "random_get")
        (param $buf i32)
@@ -555,7 +514,6 @@
        (result i32)
        (local $result i64)
        (local $value i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (block $break
          (loop $cont
                (if (i32.eqz (get_local $len))
@@ -565,22 +523,20 @@
                    (then (i32.store8 (get_local $buf) (get_local $value))
                          (set_local $buf (i32.add (get_local $buf) (i32.const 1)))
                          (set_local $len (i32.sub (get_local $len) (i32.const 1))))
-                   (else (set_local $result (call $rt_stop (i32.const 127))) ;; ABI deficiency.
+                   (else (set_local $result (call $rt_trap (i32.const 127))) ;; ABI deficiency.
                          (if (i64.ne (get_local $result) (i64.const 0))
                              (br $break))))
-               (br $cont))) ;; Implicit call site.
+               (br $cont)))
        (i32.wrap/i64 (get_local $result)))
 
  (func (export "sched_yield")
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (i32.const 0))
 
  (func (export "sock_recv")
        (param $fd i32)
        (param i32 i32 i32 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -590,7 +546,6 @@
        (param $fd i32)
        (param i32 i32 i32 i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF
@@ -600,7 +555,6 @@
        (param $fd i32)
        (param i32)
        (result i32)
-       (block (br_if 0 (i32.const 1)) (call $reserved))
        (if (i32.or (i32.eq (get_local $fd) (i32.const 3))
                    (i32.ge_u (get_local $fd) (i32.const 5)))
            (return (i32.const 8))) ;; EBADF

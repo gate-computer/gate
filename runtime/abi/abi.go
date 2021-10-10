@@ -24,14 +24,13 @@ const (
 // Mirrors the vector initialization in runtime/loader/loader.c
 var rtFunctions = map[string]map[string]int{
 	"rt": {
-		"stop":   -17,
+		"trap":   -17,
 		"debug":  -16,
 		"write":  -15,
 		"read":   -14,
 		"poll":   -13,
 		"time":   -12,
 		"random": -6,
-		"nop":    -5,
 	},
 }
 
