@@ -44,10 +44,9 @@ func (dom Domain) String() string {
 
 	case DomainData:
 		return "data"
-
-	default:
-		return "<invalid domain>"
 	}
+
+	return dom.invalidString()
 }
 
 const (

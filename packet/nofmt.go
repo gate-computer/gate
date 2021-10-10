@@ -6,6 +6,10 @@
 
 package packet
 
+func (dom Domain) invalidString() string {
+	return "invalid"
+}
+
 func (code Code) String() string {
 	switch {
 	case code >= 0:

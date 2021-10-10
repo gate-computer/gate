@@ -12,6 +12,10 @@ import (
 	"strconv"
 )
 
+func (dom Domain) invalidString() string {
+	return fmt.Sprintf("<invalid domain %d>", dom)
+}
+
 func (code Code) String() string {
 	switch {
 	case code >= 0:
