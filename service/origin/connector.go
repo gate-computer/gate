@@ -69,10 +69,13 @@ func (cr *Connector) Close() (err error) {
 	return
 }
 
-func (cr *Connector) Service() service.Service {
-	return service.Service{
-		Name:     serviceName,
-		Revision: serviceRevision,
+func (cr *Connector) Properties() service.Properties {
+	return service.Properties{
+		Service: service.Service{
+			Name:     serviceName,
+			Revision: serviceRevision,
+		},
+		Streams: true,
 	}
 }
 

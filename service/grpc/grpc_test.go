@@ -132,10 +132,10 @@ func testServiceRepeat(t *testing.T, c io.Closer, services []*grpcservice.Servic
 }
 
 func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, restore, suspend bool) {
-	if x := s.Service().Name; x != "test" {
+	if x := s.Properties().Service.Name; x != "test" {
 		t.Error(x)
 	}
-	if x := s.Service().Revision; x != "0" {
+	if x := s.Properties().Service.Revision; x != "0" {
 		t.Error(x)
 	}
 

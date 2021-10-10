@@ -156,10 +156,13 @@ func newService(c api.InstanceClient, info *api.Service) *Service {
 	}
 }
 
-func (s *Service) Service() service.Service {
-	return service.Service{
-		Name:     s.info.Name,
-		Revision: s.info.Revision,
+func (s *Service) Properties() service.Properties {
+	return service.Properties{
+		Service: service.Service{
+			Name:     s.info.Name,
+			Revision: s.info.Revision,
+		},
+		Streams: true,
 	}
 }
 

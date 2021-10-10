@@ -31,6 +31,12 @@ type Service struct {
 	Revision string `json:"revision"`
 }
 
+// Properties of a service implementation.
+type Properties struct {
+	Service
+	Streams bool // Should Instance.Handle() receive flow and data packets?
+}
+
 // InstanceConfig for a service instance.
 type InstanceConfig struct {
 	packet.Service
@@ -57,7 +63,7 @@ func (InstanceBase) Shutdown(context.Context) error                             
 // See https://github.com/gate-computer/gate/blob/master/Service.md for service
 // naming conventions.
 type Factory interface {
-	Service() Service
+	Properties() Properties
 	Discoverable(ctx context.Context) bool
 	CreateInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
 }
@@ -83,7 +89,7 @@ func (r *Registry) MustRegister(f Factory) {
 }
 
 func (r *Registry) register(f Factory, replace bool) error {
-	service := f.Service()
+	service := f.Properties().Service
 
 	if err := checkString("name", service.Name, unicode.IsLetter, unicode.IsNumber, unicode.IsPunct); err != nil {
 		return err
@@ -156,7 +162,7 @@ func (r *Registry) catalog(ctx context.Context, m map[string]string) {
 
 	for name, f := range r.factories {
 		if f.Discoverable(ctx) {
-			m[name] = f.Service().Revision
+			m[name] = f.Properties().Service.Revision
 		} else {
 			m[name] = ""
 		}
@@ -184,7 +190,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),
-		stopped:    make(chan map[packet.Code]Instance, 1),
+		stopped:    make(chan map[packet.Code]discoveredInstance, 1),
 		services:   make([]discoveredService, len(initial)),
 	}
 
@@ -205,12 +211,12 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 		}
 	}
 
-	instances := make(map[packet.Code]Instance)
+	instances := make(map[packet.Code]discoveredInstance)
 	states := make([]runtime.ServiceState, len(d.services))
 
 	for i, s := range d.services {
 		var code = packet.Code(i)
-		var inst Instance
+		var inst discoveredInstance
 
 		if s.factory != nil {
 			instConfig := InstanceConfig{packet.Service{
@@ -218,12 +224,18 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 				Code:        code,
 			}}
 
-			var err error
-			inst, err = s.factory.CreateInstance(ctx, instConfig, s.Buffer)
+			x, err := s.factory.CreateInstance(ctx, instConfig, s.Buffer)
 			if err != nil {
 				return nil, nil, nil, err
 			}
 
+			inst = discoveredInstance{
+				Instance:  x,
+				maxDomain: packet.DomainInfo,
+			}
+			if s.factory.Properties().Streams {
+				inst.maxDomain = packet.DomainData
+			}
 			s.Buffer = nil
 			states[i].SetAvail()
 		}
@@ -232,7 +244,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 	}
 
 	for _, inst := range instances {
-		if inst != nil {
+		if inst.Instance != nil {
 			if err := inst.Ready(ctx); err != nil {
 				return nil, nil, nil, err
 			}
@@ -283,7 +295,7 @@ func (a *aborter) close(err error) {
 	close(c)
 }
 
-func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]Instance, send chan<- packet.Buf, recv <-chan packet.Buf, abort func(error)) error {
+func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]discoveredInstance, send chan<- packet.Buf, recv <-chan packet.Buf, abort func(error)) error {
 	defer func() {
 		d.stopped <- instances
 		close(d.stopped)
@@ -293,7 +305,7 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 	defer cancel()
 
 	for _, inst := range instances {
-		if inst != nil {
+		if inst.Instance != nil {
 			if err := inst.Start(innerCtx, send, abort); err != nil {
 				return err
 			}
@@ -311,16 +323,23 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 					Code:        code,
 				}}
 
-				var err error
-				inst, err = s.factory.CreateInstance(outerCtx, instConfig, nil)
+				x, err := s.factory.CreateInstance(outerCtx, instConfig, nil)
 				if err != nil {
 					return err
+				}
+
+				inst = discoveredInstance{
+					Instance:  x,
+					maxDomain: packet.DomainInfo,
+				}
+				if s.factory.Properties().Streams {
+					inst.maxDomain = packet.DomainData
 				}
 			}
 
 			instances[code] = inst
 
-			if inst != nil {
+			if inst.Instance != nil {
 				if err := inst.Ready(outerCtx); err != nil {
 					return err
 				}
@@ -330,7 +349,11 @@ func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Reg
 			}
 		}
 
-		if inst != nil {
+		if inst.Instance != nil {
+			if dom := op.Domain(); dom > inst.maxDomain {
+				return fmt.Errorf("service received packet with unexpected domain: %s", dom)
+			}
+
 			if err := inst.Handle(innerCtx, send, op); err != nil {
 				return err
 			}
@@ -347,10 +370,15 @@ type discoveredService struct {
 	factory Factory
 }
 
+type discoveredInstance struct {
+	Instance
+	maxDomain packet.Domain
+}
+
 type discoverer struct {
 	registry   *Registry
 	discovered map[Factory]struct{}
-	stopped    chan map[packet.Code]Instance
+	stopped    chan map[packet.Code]discoveredInstance
 	mu         sync.Mutex
 	services   []discoveredService
 }
@@ -416,7 +444,7 @@ func (d *discoverer) Shutdown(ctx context.Context) (err error) {
 	instances := <-d.stopped
 
 	for _, inst := range instances {
-		if inst != nil {
+		if inst.Instance != nil {
 			if e := inst.Shutdown(ctx); err == nil {
 				err = e
 			}
@@ -437,7 +465,7 @@ func (d *discoverer) Suspend(ctx context.Context) (final []snapshot.Service, err
 	instances := <-d.stopped
 
 	for code, inst := range instances {
-		if inst != nil {
+		if inst.Instance != nil {
 			b, e := inst.Suspend(ctx)
 			if len(b) > 0 {
 				final[code].Buffer = b

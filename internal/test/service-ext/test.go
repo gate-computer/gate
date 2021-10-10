@@ -29,10 +29,12 @@ var Ext = service.Extend(extName, &testConfig, func(ctx context.Context, r *serv
 
 type testService struct{}
 
-func (testService) Service() service.Service {
-	return service.Service{
-		Name:     serviceName,
-		Revision: serviceRevision,
+func (testService) Properties() service.Properties {
+	return service.Properties{
+		Service: service.Service{
+			Name:     serviceName,
+			Revision: serviceRevision,
+		},
 	}
 }
 
@@ -55,12 +57,8 @@ type testInstance struct {
 }
 
 func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) error {
-	switch dom := p.Domain(); {
-	case dom == packet.DomainCall:
+	if p.Domain() == packet.DomainCall {
 		replies <- p
-
-	case dom.IsStream():
-		panic("unexpected stream packet")
 	}
 
 	return nil

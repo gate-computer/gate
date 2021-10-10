@@ -6,7 +6,6 @@ package identity
 
 import (
 	"context"
-	"errors"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/principal"
@@ -23,10 +22,12 @@ var Service identity
 
 type identity struct{}
 
-func (identity) Service() service.Service {
-	return service.Service{
-		Name:     serviceName,
-		Revision: serviceRevision,
+func (identity) Properties() service.Properties {
+	return service.Properties{
+		Service: service.Service{
+			Name:     serviceName,
+			Revision: serviceRevision,
+		},
 	}
 }
 
@@ -88,8 +89,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort f
 }
 
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
-	switch dom := p.Domain(); {
-	case dom == packet.DomainCall:
+	if p.Domain() == packet.DomainCall {
 		inst.pending = true
 		inst.call = callNothing
 		if buf := p.Content(); len(buf) > 0 {
@@ -97,9 +97,6 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		}
 
 		inst.handleCall(ctx, send)
-
-	case dom.IsStream():
-		return errors.New("TODO: unexpected stream packet")
 	}
 
 	return nil

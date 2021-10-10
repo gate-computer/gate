@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"sort"
 
 	"gate.computer/gate/packet"
@@ -26,12 +25,16 @@ type catalog struct {
 
 // New catalog of registered services.  The catalog will reflect the changes
 // made to the registry, but not its clones.
-func New(r *service.Registry) service.Factory { return catalog{r} }
+func New(r *service.Registry) service.Factory {
+	return catalog{r}
+}
 
-func (c catalog) Service() service.Service {
-	return service.Service{
-		Name:     serviceName,
-		Revision: serviceRevision,
+func (c catalog) Properties() service.Properties {
+	return service.Properties{
+		Service: service.Service{
+			Name:     serviceName,
+			Revision: serviceRevision,
+		},
 	}
 }
 
@@ -87,8 +90,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort f
 }
 
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
-	switch dom := p.Domain(); {
-	case dom == packet.DomainCall:
+	if p.Domain() == packet.DomainCall {
 		if string(p.Content()) == "json" {
 			inst.pending = pendingJSON
 		} else {
@@ -96,9 +98,6 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		}
 
 		inst.handleCall(ctx, send)
-
-	case dom.IsStream():
-		return errors.New("TODO: unexpected stream packet")
 	}
 
 	return nil
