@@ -5,8 +5,8 @@ PERFLOCK	?= perflock
 
 DESTDIR		:=
 PREFIX		:= /usr/local
-BINDIR		:= $(PREFIX)/bin
-LIBEXECDIR	:= $(PREFIX)/lib/gate
+BINDIR		= $(PREFIX)/bin
+LIBEXECDIR	= $(PREFIX)/lib/gate
 libexecprefix	= $(shell echo /$(LIBEXECDIR)/ | tr -s /)
 
 GEN_LIB_SOURCES := \
@@ -25,12 +25,12 @@ GEN_BIN_SOURCES := \
 	service/grpc/api/service_grpc.pb.go
 
 GOTAGS		:= gateexecdir
-GOLDFLAGS	:= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
-GOBUILDFLAGS	:= -tags="$(GOTAGS)" -ldflags="$(GOLDFLAGS)"
+GOLDFLAGS	= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
+GOBUILDFLAGS	= -tags="$(GOTAGS)" -ldflags="$(GOLDFLAGS)"
 GOTESTRUN	:=
-GOTESTFLAGS	:= -tags="$(GOTAGS)" -run="$(GOTESTRUN)" -count=1 -race
+GOTESTFLAGS	= -tags="$(GOTAGS)" -run="$(GOTESTRUN)" -count=1 -race
 GOBENCHRUN	:= .*
-GOBENCHFLAGS	:= -tags="$(GOTAGS)" -bench="$(GOBENCHRUN)"
+GOBENCHFLAGS	= -tags="$(GOTAGS)" -bench="$(GOBENCHRUN)"
 
 -include config.mk
 include runtime/include/runtime.mk
