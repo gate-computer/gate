@@ -25,9 +25,9 @@ type instance struct {
 	Config
 	packet.Service
 
-	send      chan<- packet.Buf // Send packets to the user program.
-	wakeup    chan struct{}     // accepting, replying or shutting changed.
-	mu        sync.Mutex        // Protects the fields below.
+	send      chan<- packet.Thunk // Send packets to the user program.
+	wakeup    chan struct{}       // accepting, replying or shutting changed.
+	mu        sync.Mutex          // Protects the fields below.
 	streams   map[int32]*stream
 	accepting int32
 	replying  bool
@@ -105,7 +105,7 @@ func (inst *instance) restore(input []byte) (err error) {
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
 	inst.send = send
 
 	// All streams at this point are restored ones.
@@ -121,7 +121,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort f
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
 	switch p.Domain() {
 	case packet.DomainCall:
 		var ok bool
@@ -222,7 +222,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 
 	for reply != nil && !cancel {
 		select {
-		case inst.send <- reply:
+		case inst.send <- reply.Thunk():
 			reply = nil
 
 		case <-inst.wakeup:

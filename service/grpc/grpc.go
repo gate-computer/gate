@@ -249,7 +249,7 @@ func (inst *instance) Ready(ctx context.Context) error {
 	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf, abort func(error)) error {
+func (inst *instance) Start(ctx context.Context, out chan<- packet.Thunk, abort func(error)) error {
 	c := make(chan []byte, 1)
 	go receiveForward(ctx, inst.code, out, inst.stream, c, abort)
 	inst.leftout = c
@@ -257,7 +257,7 @@ func (inst *instance) Start(ctx context.Context, out chan<- packet.Buf, abort fu
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, out chan<- packet.Buf, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, out chan<- packet.Thunk, p packet.Buf) error {
 	if len(inst.incoming) == 0 {
 		_, err := inst.c.Handle(ctx, &api.HandleRequest{
 			Id:   inst.id,
@@ -316,7 +316,7 @@ func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
 	return r.Value, nil
 }
 
-func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Buf, stream api.Instance_ReceiveClient, leftout chan<- []byte, abort func(error)) {
+func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Thunk, stream api.Instance_ReceiveClient, leftout chan<- []byte, abort func(error)) {
 	defer close(leftout)
 
 	for {
@@ -332,7 +332,7 @@ func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Buf
 		p.SetCode(code)
 
 		select {
-		case out <- p:
+		case out <- p.Thunk():
 
 		case <-ctx.Done():
 			leftout <- receiveBuffer(p, stream, abort)

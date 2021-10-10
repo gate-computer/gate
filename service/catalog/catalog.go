@@ -81,7 +81,7 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
 	if inst.pending != pendingNone {
 		inst.handleCall(ctx, send)
 	}
@@ -89,7 +89,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort f
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
 	if p.Domain() == packet.DomainCall {
 		if string(p.Content()) == "json" {
 			inst.pending = pendingJSON
@@ -103,7 +103,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	return nil
 }
 
-func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
+func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) {
 	// TODO: correct buf size in advance
 	b := bytes.NewBuffer(packet.MakeCall(inst.Code, 128)[:packet.HeaderSize])
 
@@ -119,7 +119,7 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	}
 
 	select {
-	case send <- b.Bytes():
+	case send <- func() packet.Buf { return b.Bytes() }:
 		inst.pending = pendingNone
 
 	case <-ctx.Done():

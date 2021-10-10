@@ -122,7 +122,7 @@ func (s *WriteStream) StopTransfer() {
 // Transfer data from a service's data stream while managing its flow.
 //
 // Write or context error is returned, excluding EOF.
-func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, streamID int32, w io.Writer, send chan<- packet.Buf) error {
+func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, streamID int32, w io.Writer, send chan<- packet.Thunk) error {
 	var (
 		err  error
 		done = ctx.Done()
@@ -146,7 +146,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 	for send != nil || atomic.LoadUint32(&s.State.Flags)&FlagSendReceiving != 0 {
 		var (
 			increment int32
-			sending   chan<- packet.Buf
+			sending   chan<- packet.Thunk
 		)
 
 		if send != nil {
@@ -166,7 +166,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 
 		if w == nil || consumed == atomic.LoadUint32(&s.produced)&mask {
 			select {
-			case sending <- packet.Buf(pkt):
+			case sending <- pkt.Thunk():
 				s.State.Subscribed += uint32(increment)
 				pkt = nil
 				if w == nil {
@@ -185,7 +185,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 			}
 		} else {
 			select {
-			case sending <- packet.Buf(pkt):
+			case sending <- pkt.Thunk():
 				s.State.Subscribed += uint32(increment)
 				pkt = nil
 				if w == nil {

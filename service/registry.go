@@ -45,8 +45,8 @@ type InstanceConfig struct {
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
 	Ready(ctx context.Context) error
-	Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error
-	Handle(ctx context.Context, send chan<- packet.Buf, received packet.Buf) error
+	Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error
+	Handle(ctx context.Context, send chan<- packet.Thunk, received packet.Buf) error
 	Shutdown(ctx context.Context) error
 	Suspend(ctx context.Context) (snapshot []byte, err error)
 }
@@ -54,9 +54,9 @@ type Instance interface {
 // InstanceBase provides default implementations for some Instance methods.
 type InstanceBase struct{}
 
-func (InstanceBase) Ready(context.Context) error                                 { return nil }
-func (InstanceBase) Start(context.Context, chan<- packet.Buf, func(error)) error { return nil }
-func (InstanceBase) Shutdown(context.Context) error                              { return nil }
+func (InstanceBase) Ready(context.Context) error                                   { return nil }
+func (InstanceBase) Start(context.Context, chan<- packet.Thunk, func(error)) error { return nil }
+func (InstanceBase) Shutdown(context.Context) error                                { return nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -186,7 +186,7 @@ func (r *Registry) lookup(name string) (result Factory) {
 }
 
 // StartServing implements the runtime.ServiceRegistry interface function.
-func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Buf, recv <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
+func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Thunk, recv <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
 	d := &discoverer{
 		registry:   r,
 		discovered: make(map[Factory]struct{}),
@@ -295,7 +295,7 @@ func (a *aborter) close(err error) {
 	close(c)
 }
 
-func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]discoveredInstance, send chan<- packet.Buf, recv <-chan packet.Buf, abort func(error)) error {
+func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]discoveredInstance, send chan<- packet.Thunk, recv <-chan packet.Buf, abort func(error)) error {
 	defer func() {
 		d.stopped <- instances
 		close(d.stopped)

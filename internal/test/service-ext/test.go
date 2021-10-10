@@ -56,9 +56,9 @@ type testInstance struct {
 	service.InstanceBase
 }
 
-func (testInstance) Handle(ctx context.Context, replies chan<- packet.Buf, p packet.Buf) error {
+func (testInstance) Handle(ctx context.Context, replies chan<- packet.Thunk, p packet.Buf) error {
 	if p.Domain() == packet.DomainCall {
-		replies <- p
+		replies <- p.Thunk()
 	}
 
 	return nil

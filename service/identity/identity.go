@@ -80,7 +80,7 @@ func (inst *instance) restore(snapshot []byte) (err error) {
 	return
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
 	if inst.pending {
 		inst.handleCall(ctx, send)
 	}
@@ -88,7 +88,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort f
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
 	if p.Domain() == packet.DomainCall {
 		inst.pending = true
 		inst.call = callNothing
@@ -102,7 +102,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 	return nil
 }
 
-func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
+func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) {
 	var id string
 
 	switch inst.call {
@@ -122,7 +122,7 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Buf) {
 	copy(p.Content(), b)
 
 	select {
-	case send <- p:
+	case send <- p.Thunk():
 		inst.pending = false
 		inst.call = callNothing
 

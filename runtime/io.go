@@ -67,7 +67,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	)
 
 	var (
-		messageInput  = make(chan packet.Buf)
+		messageInput  = make(chan packet.Thunk)
 		messageOutput = make(chan packet.Buf)
 	)
 	discoverer, initialServiceState, serviceDone, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput, messageOutput)
@@ -130,7 +130,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		}
 
 		var (
-			doMessageInput  <-chan packet.Buf
+			doMessageInput  <-chan packet.Thunk
 			doMessageOutput chan<- packet.Buf
 			doSubjectInput  <-chan read
 			doSubjectOutput chan<- packet.Buf
@@ -149,8 +149,10 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		}
 
 		select {
-		case p := <-doMessageInput:
-			pendingEvs = append(pendingEvs, initMessagePacket(p))
+		case thunk := <-doMessageInput:
+			if p := thunk(); len(p) > 0 {
+				pendingEvs = append(pendingEvs, initMessagePacket(p))
+			}
 
 		case read, ok := <-doSubjectInput:
 			if !ok {

@@ -99,7 +99,7 @@ func (s *ReadStream) StopTransfer() {
 // subscription.  Buffer size is limited by config.MaxSendSize.
 //
 // Read or context error is returned, excluding EOF.
-func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, streamID int32, send chan<- packet.Buf, r io.Reader) error {
+func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, streamID int32, send chan<- packet.Thunk, r io.Reader) error {
 	var (
 		err     error
 		done    = ctx.Done() // Read side cancellation.
@@ -126,7 +126,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 	}
 
 	for send != nil || atomic.LoadUint32(&s.State.Flags)&FlagSubscribing != 0 {
-		var sending chan<- packet.Buf
+		var sending chan<- packet.Thunk
 
 		if send != nil {
 			if len(pkt) > packet.DataHeaderSize {
@@ -141,7 +141,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 
 		if sending != nil || r == nil || readpos == atomic.LoadUint32(&s.State.Subscribed) {
 			select {
-			case sending <- pkt:
+			case sending <- pkt.Thunk():
 				pkt = nil
 				if r == nil {
 					send = nil

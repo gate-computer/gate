@@ -18,7 +18,7 @@ func TestReadStreamEnd(t *testing.T) {
 		t.Error(err)
 	}
 
-	send := make(chan packet.Buf, 1)
+	send := make(chan packet.Thunk, 1)
 	r, w := io.Pipe()
 	w.Close()
 
@@ -30,8 +30,11 @@ func TestReadStreamEnd(t *testing.T) {
 		t.Error("still live")
 	}
 
-	p := packet.MustBeData(<-send)
-	if p.Code() != testService.Code || p.ID() != testStreamID {
-		t.Error(p)
+	thunk := <-send
+	if p := thunk(); len(p) > 0 {
+		p := packet.MustBeData(p)
+		if p.Code() != testService.Code || p.ID() != testStreamID {
+			t.Error(p)
+		}
 	}
 }

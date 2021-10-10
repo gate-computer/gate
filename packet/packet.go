@@ -73,6 +73,10 @@ const (
 	flowSize            = 8
 )
 
+// Thunk may be called once to acquire a packet.  It returns an empty buffer if
+// no packet was available after all.
+type Thunk func() Buf
+
 // Align packet length up to a multiple of packet alignment.
 func Align(length int) int {
 	return (length + (Alignment - 1)) &^ (Alignment - 1)
@@ -189,6 +193,11 @@ func (b Buf) Cut(headerSize, prefixLen int) (prefix, unused Buf) {
 	return
 }
 
+// Thunk returns a function which returns the packet.
+func (b Buf) Thunk() Thunk {
+	return func() Buf { return b }
+}
+
 // FlowBuf holds a flow packet of at least FlowHeaderSize bytes.
 type FlowBuf Buf
 
@@ -224,6 +233,11 @@ func (b FlowBuf) Set(i int, id, increment int32) {
 	flow := b[FlowHeaderSize+i*flowSize:]
 	binary.LittleEndian.PutUint32(flow[flowOffsetID:], uint32(id))
 	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], uint32(increment))
+}
+
+// Thunk returns a function which returns the packet.
+func (b FlowBuf) Thunk() Thunk {
+	return Buf(b).Thunk()
 }
 
 // DataBuf holds a data packet of at least DataHeaderSize bytes.
@@ -279,4 +293,9 @@ func (b DataBuf) Cut(dataLen int) (prefix Buf, unused DataBuf) {
 	prefix, unusedBuf := Buf(b).Cut(DataHeaderSize, DataHeaderSize+dataLen)
 	unused = DataBuf(unusedBuf)
 	return
+}
+
+// Thunk returns a function which returns the packet.
+func (b DataBuf) Thunk() Thunk {
+	return Buf(b).Thunk()
 }

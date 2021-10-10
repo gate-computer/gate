@@ -168,22 +168,25 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 	}
 
 	done := make(chan int, 1)
-	recv := make(chan packet.Buf)
+	recv := make(chan packet.Thunk)
 	go func() {
 		defer close(done)
-		for i := 0; i < count; i++ {
-			p := <-recv
-			if x := p.Domain(); x != packet.DomainCall {
-				t.Error(x)
-			}
-			if x := p.Code(); x != code {
-				t.Error(x)
-			}
-			if x := len(p.Content()); x != 1 {
-				t.Error(x)
-			}
-			if x := int(p.Content()[0]); x != i {
-				t.Error(x)
+		for i := 0; i < count; {
+			thunk := <-recv
+			if p := thunk(); len(p) > 0 {
+				if x := p.Domain(); x != packet.DomainCall {
+					t.Error(x)
+				}
+				if x := p.Code(); x != code {
+					t.Error(x)
+				}
+				if x := len(p.Content()); x != 1 {
+					t.Error(x)
+				}
+				if x := int(p.Content()[0]); x != i {
+					t.Error(x)
+				}
+				i++
 			}
 		}
 	}()

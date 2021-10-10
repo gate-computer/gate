@@ -52,7 +52,7 @@ type ServiceRegistry interface {
 		ctx context.Context,
 		config ServiceConfig,
 		snapshots []snapshot.Service,
-		send chan<- packet.Buf,
+		send chan<- packet.Thunk,
 		recv <-chan packet.Buf,
 	) (
 		ServiceDiscoverer,

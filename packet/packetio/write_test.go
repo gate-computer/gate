@@ -19,7 +19,7 @@ func TestWriteStreamEnd(t *testing.T) {
 	}
 
 	r, w := io.Pipe()
-	send := make(chan packet.Buf, 2)
+	send := make(chan packet.Thunk, 2)
 
 	if err := s.Transfer(context.Background(), testService, testStreamID, w, send); err != nil {
 		t.Error(err)
@@ -30,12 +30,15 @@ func TestWriteStreamEnd(t *testing.T) {
 	}
 
 	for {
-		p := packet.MustBeFlow(<-send)
-		if p.Code() != testService.Code {
-			t.Fatal(p)
-		}
-		if flowEOF(t, p) {
-			break
+		thunk := <-send
+		if p := thunk(); len(p) > 0 {
+			p := packet.MustBeFlow(p)
+			if p.Code() != testService.Code {
+				t.Fatal(p)
+			}
+			if flowEOF(t, p) {
+				break
+			}
 		}
 	}
 
