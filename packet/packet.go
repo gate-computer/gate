@@ -26,11 +26,6 @@ const (
 	DomainData
 )
 
-// IsStream returns true if the packet is stream-specific (flow or data).
-func (dom Domain) IsStream() bool {
-	return dom&2 != 0
-}
-
 func (dom Domain) String() string {
 	switch dom {
 	case DomainCall:
