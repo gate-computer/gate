@@ -6,6 +6,7 @@ package image
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -363,6 +364,53 @@ func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
 	}
 
 	return
+}
+
+// ReplaceCallStack with a "suspended" function call with given arguments.
+// Pending start function, entry function, and existing suspended state are
+// discarded.  Arguments are not checked against function signature.
+//
+// This is a low-level API primarily useful for testing.
+func (inst *Instance) ReplaceCallStack(funcAddr uint32, funcArgs []uint64) error {
+	if !inst.coherent {
+		return ErrInvalidState
+	}
+
+	textAddr := inst.man.TextAddr
+	if textAddr == 0 {
+		b := make([]byte, 4)
+		if _, err := rand.Read(b); err != nil {
+			return err
+		}
+		textAddr = internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b)
+	}
+
+	count := 1 + 1 + len(funcArgs) // Resume address, link address and params.
+	if count&1 == 1 {
+		count++ // 16-byte aligned for good luck.
+	}
+	stack := make([]byte, count*8)
+
+	b := stack
+	binary.LittleEndian.PutUint64(b, textAddr+uint64(funcAddr)) // Resume at function start.
+	b = b[8:]
+	binary.LittleEndian.PutUint64(b, textAddr+abi.TextAddrExit) // Return to exit routine.
+	b = b[8:]
+	for i := len(funcArgs) - 1; i >= 0; i-- {
+		binary.LittleEndian.PutUint64(b, funcArgs[i])
+		b = b[8:]
+	}
+
+	if _, err := inst.file.WriteAt(stack, int64(inst.man.StackSize)-int64(len(stack))); err != nil {
+		return err
+	}
+
+	inst.man.TextAddr = textAddr
+	inst.man.StackUsage = uint32(len(stack))
+	inst.man.StartFunc = nil
+	inst.man.EntryFunc = nil
+	inst.manDirty = true
+	return nil
 }
 
 func (inst *Instance) readStack() (stack []byte, err error) {
