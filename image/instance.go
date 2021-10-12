@@ -147,6 +147,19 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex 
 	return inst, nil
 }
 
+func (inst *Instance) SetEntryFunc(prog *Program, index int) error {
+	if !inst.coherent {
+		return ErrInvalidState
+	}
+	if index >= 0 && inst.man.StackUsage != 0 {
+		return notfound.ErrSuspended
+	}
+
+	inst.man.EntryFunc = prog.man.EntryFunc(index)
+	inst.manDirty = true
+	return nil
+}
+
 // Store the instance.  The names must not contain path separators.
 func (inst *Instance) Store(name, progName string, prog *Program) (err error) {
 	if !inst.coherent {
