@@ -47,10 +47,9 @@ message Instance {
 	uint32 globals_size = 4;
 	uint32 memory_size = 5;
 	uint32 max_memory_size = 6;
-	uint32 init_routine = 7;
-	Function start_func = 8;
-	Function entry_func = 9;
-	Snapshot snapshot = 10;
+	Function start_func = 7;
+	Function entry_func = 8;
+	Snapshot snapshot = 9;
 }
 
 message Function {

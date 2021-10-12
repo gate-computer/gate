@@ -314,11 +314,9 @@ func (inst *Instance) CheckMutation() (err error) {
 		if vars.StackUnused == inst.man.StackSize {
 			inst.man.TextAddr = 0
 			inst.man.StackUsage = 0
-			inst.man.InitRoutine = abi.TextAddrEnter
 		} else {
 			inst.man.TextAddr = vars.TextAddr
 			inst.man.StackUsage = inst.man.StackSize - vars.StackUnused
-			inst.man.InitRoutine = abi.TextAddrResume
 		}
 		inst.man.MemorySize = vars.CurrentMemoryPages << wa.PageBits
 		inst.man.StartFunc = nil
