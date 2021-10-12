@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	if ExecDir != "" {
+	if ExecDir == "" {
 		if filename, err := os.Executable(); err == nil {
 			ExecDir = path.Dir(filename)
 		}
