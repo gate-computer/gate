@@ -41,7 +41,8 @@ type stackVars struct {
 	RandomAvail           int32
 	_                     uint32 // Used by runtime.
 	TextAddr              uint64
-	Magic                 [4]uint64
+	Result                [2]uint64 // Index is a wa.ScalarCategory.
+	Magic                 [2]uint64
 }
 
 type InstanceStorage interface {

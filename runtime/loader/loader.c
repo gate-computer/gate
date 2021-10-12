@@ -186,7 +186,8 @@ struct stack_vars {
 	int32_t random_avail;
 	uint32_t suspend_bits; // 0x1 = suspended | 0x2 = don't modify suspend reg
 	uint64_t text_addr;
-	uint64_t magic[4];
+	uint64_t result[2]; // [0] is int, [1] is float.
+	uint64_t magic[2];
 } PACKED;
 
 static int receive_info(struct image_info *buf, int *text_fd, int *state_fd)
@@ -382,6 +383,8 @@ clock_gettime_found:
 	vars->random_avail = sizeof info.random;
 	vars->suspend_bits = 0;
 	vars->text_addr = (uint64_t) text_ptr;
+	for (unsigned i = 0; i < sizeof vars->result / sizeof vars->result[0]; i++)
+		vars->result[i] = 0x5adfad0cafe;
 	for (unsigned i = 0; i < sizeof vars->magic / sizeof vars->magic[0]; i++)
 		vars->magic[i] = GATE_STACK_MAGIC;
 

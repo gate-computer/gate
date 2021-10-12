@@ -206,21 +206,29 @@ signal_restorer:
 .globl	trap_handler
 .type	trap_handler,@function
 
-// In:  rax = (result << 32) | trap_id
+// In:  rax  = int result
+//      xmm0 = float result
+//      edx  = trap id
 trap_handler:
-	test	%eax, %eax
+	test	%edx, %edx
 	je	.Ltrap_exit
-	cmp	$4, %eax			// CallStackExhausted
+	cmp	$4, %edx			// CallStackExhausted
 	je	.Ltrap_call_stack_exhausted
 
-	mov	%eax, %edi
+	mov	%edx, %edi
 	add	$100, %edi
 	jmp	.Lexit
 
 .Ltrap_exit:
+	mov	%rax, %rdx
+
+	stack_vars
+	mov	%rdx, 32(%rcx)			// result[0]
+	movq	%xmm0, 40(%rcx)			// result[1]
+
 	mov	$1, %edi			// Status on failure
-	shr	$32, %rax			// Program result
-	cmove	%eax, %edi			// Status on success
+	test	%edx, %edx			// Program result
+	cmove	%edx, %edi			// Status on success
 	jmp	.Lexit
 
 .Ltrap_call_stack_exhausted:
@@ -315,7 +323,7 @@ rt_nop:
 	// Fall through
 
 .Lresume:
-	lea	16(%r15), %rcx			// wag object ABI resume routine
+	lea	0x20(%r15), %rcx		// wag object ABI resume routine
 
 	// Fall through
 

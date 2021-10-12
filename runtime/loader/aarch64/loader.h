@@ -37,7 +37,7 @@ static inline void enter(
 	void *init_routine)
 {
 	uintptr_t link_ptr = 0;
-	if (((uintptr_t) init_routine & 0x7f) == 16) { // Resume routine
+	if (((uintptr_t) init_routine & 0x7f) == 0x20) { // Resume routine
 		link_ptr = *(uintptr_t *) stack_ptr;
 		stack_ptr += sizeof(uintptr_t);
 	}

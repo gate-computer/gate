@@ -222,17 +222,25 @@ signal_restorer:
 .globl	trap_handler
 .type	trap_handler,@function
 
-// In:  x0 = (result << 32) | trap_id
+// In:  x0 = int result
+//      d0 = float result
+//      w2 = trap id
 trap_handler:
-	cbz	w0, .Ltrap_exit
-	cmp	w0, #4				// CallStackExhausted
+	cbz	w2, .Ltrap_exit
+	cmp	w2, #4				// CallStackExhausted
 	b.eq	.Ltrap_call_stack_exhausted
 
-	add	w9, w0, #100
+	add	w9, w2, #100
 	b	.Lexit
 
 .Ltrap_exit:
-	cmp	xzr, x0, lsr #32		// Program result
+	mov	x10, x0
+
+	stack_vars
+	str	x10, [x1, #32]			// result[0]
+	str	d0, [x1, #40]			// result[1]
+
+	cmp	w10, #0				// Program result
 	cset	w9, ne				// Status depending on result
 	b	.Lexit
 
@@ -318,7 +326,7 @@ rt_nop:
 	// Fall through to .Lresume.
 
 .Lresume:
-	add	x1, x27, #16			// wag object ABI resume routine
+	add	x1, x27, #0x20			// wag object ABI resume routine
 	br	x1
 
 .globl	rt_poll
@@ -483,7 +491,7 @@ rt_random:
 
 rt_trap:
 	ldr	w9, [x29, #0]
-	mov	x29, x2				// Restart caller on resume
+	mov	x29, x3				// Restart caller on resume
 	ldr	x30, [x29], #8			// Pop restart site
 
 	// Fall through
