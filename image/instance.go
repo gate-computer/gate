@@ -307,7 +307,27 @@ func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintp
 }
 
 // CheckMutation can be invoked after the mutation has ended.
-func (inst *Instance) CheckMutation() (err error) {
+func (inst *Instance) CheckMutation() error {
+	_, err := inst.checkMutation()
+	return err
+}
+
+// CheckHaltedMutation is like CheckMutation, but it also returns the result of
+// the top-level function.  The result is undefined if the program terminated
+// in some other way.
+//
+// This is useful only with ReplaceCallStack, if you know that the program
+// exits by returning.
+func (inst *Instance) CheckHaltedMutation(result wa.ScalarCategory) (uint64, error) {
+	vars, err := inst.checkMutation()
+	if err != nil {
+		return 0, err
+	}
+
+	return vars.Result[result], nil
+}
+
+func (inst *Instance) checkMutation() (vars stackVars, err error) {
 	if inst.coherent {
 		return
 	}
