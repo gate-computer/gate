@@ -594,6 +594,50 @@ rt_debug:
 	int3
 
 .align	16,INT3
+.globl	rt_read8
+.type	rt_read8,@function
+
+rt_read8:
+	sub	$8, %rsp			// allocate buffer
+	mov	$GATE_INPUT_FD, %edi
+	mov	%rsp, %rsi			// buffer
+	mov	$8, %edx			// buffer size
+	mov	$SYS_read, %eax
+	syscall
+	pop	%rcx				// free buffer
+
+	cmp	$-EAGAIN, %eax
+	je	rt_read8			// TODO: poll
+
+	mov	$ERR_RT_READ, %edi
+	cmp	$8, %eax
+	jne	.Lexit
+
+	mov	%rcx, %rax			// result
+	jmp	.Lresume
+
+	int3
+
+.align	16,INT3
+.globl	rt_write8
+.type	rt_write8,@function
+
+rt_write8:
+	mov	$GATE_OUTPUT_FD, %edi
+	lea	8(%rsp), %rsi			// data (function argument)
+	mov	$8, %edx			// data size
+	mov	$SYS_write, %eax
+	syscall
+
+	mov	$ERR_RT_WRITE, %edi
+	cmp	$8, %eax
+	jne	.Lexit
+
+	jmp	rt_nop
+
+	int3
+
+.align	16,INT3
 .globl	runtime_code_end
 
 runtime_code_end:

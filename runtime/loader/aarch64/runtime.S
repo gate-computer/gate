@@ -558,6 +558,42 @@ rt_debug:
 
 	b	rt_debug
 
+.globl	rt_read8
+.type	rt_read8,@function
+
+rt_read8:
+	mov	w0, #GATE_INPUT_FD
+	sub	x1, x29, #8			// buffer
+	mov	x2, #8				// buffer size
+	mov	w8, #SYS_read
+	svc	#0
+
+	cmp	x0, #-EAGAIN
+	b.eq	rt_read8			// TODO: poll
+
+	mov	w9, #ERR_RT_READ
+	cmp	x0, #8
+	b.ne	.Lexit
+
+	ldr	x0, [x29, #-8]			// result
+	b	.Lresume
+
+.globl	rt_write8
+.type	rt_write8,@function
+
+rt_write8:
+	mov	w0, #GATE_OUTPUT_FD
+	mov	x1, x29				// buffer
+	mov	x2, #8				// buffer size
+	mov	w8, #SYS_write
+	svc	#0
+
+	mov	w9, #ERR_RT_WRITE
+	cmp	x0, #8
+	b.ne	.Lexit
+
+	b	rt_nop
+
 .globl	runtime_code_end
 
 runtime_code_end:

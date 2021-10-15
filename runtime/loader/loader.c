@@ -78,9 +78,11 @@ extern code rt_nop;
 extern code rt_poll;
 extern code rt_random;
 extern code rt_read;
+extern code rt_read8;
 extern code rt_time;
 extern code rt_trap;
 extern code rt_write;
+extern code rt_write8;
 extern code runtime_code_begin;
 extern code runtime_code_end;
 extern code runtime_init;
@@ -443,6 +445,8 @@ clock_gettime_found:
 
 	// These assignments reflect the rtFunctions map in runtime/abi/abi.go
 	// TODO: check that runtime and vector contents don't overlap
+	*(vector_end - 19) = runtime_func_addr(runtime_ptr, &rt_write8);
+	*(vector_end - 18) = runtime_func_addr(runtime_ptr, &rt_read8);
 	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_trap);
 	*(vector_end - 16) = runtime_func_addr(runtime_ptr, debug_func);
 	*(vector_end - 15) = runtime_func_addr(runtime_ptr, &rt_write);
