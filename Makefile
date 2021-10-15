@@ -57,6 +57,7 @@ all: lib bin
 
 .PHONY: check
 check: all
+	$(GO) build -o /dev/null ./cmd/gate-resource
 	$(MAKE) -C runtime/loader/test check
 	GOARCH=amd64 $(GO) build -o /dev/null ./...
 	GOARCH=arm64 $(GO) build -o /dev/null ./...
