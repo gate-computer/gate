@@ -443,7 +443,8 @@ clock_gettime_found:
 
 	code *debug_func = debug_flag ? &rt_debug : &rt_nop;
 
-	// These assignments reflect the rtFunctions map in runtime/abi/abi.go
+	// These assignments reflect the functions map in runtime/abi/rt/rt.go
+	// and rtFunctions map in runtime/abi/abi.go
 	// TODO: check that runtime and vector contents don't overlap
 	*(vector_end - 19) = runtime_func_addr(runtime_ptr, &rt_write8);
 	*(vector_end - 18) = runtime_func_addr(runtime_ptr, &rt_read8);
