@@ -11,6 +11,7 @@ import (
 )
 
 var (
+	wasmABI        = readFile("testdata/abi.wasm")
 	wasmHello      = readFile("testdata/hello.wasm")
 	wasmHelloDebug = readFile("testdata/hello-debug.wasm")
 	wasmNop        = readFile("testdata/nop.wasm")

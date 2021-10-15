@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #ifdef __wasi__
-#include <wasi/core.h>
+#include <wasi/api.h>
 #endif
 
 #ifdef __cplusplus

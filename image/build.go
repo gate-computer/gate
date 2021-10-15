@@ -279,7 +279,7 @@ func (b *Build) FinishProgram(
 	}
 
 	man := &manifest.Program{
-		LibraryChecksum:         runtimeabi.LibraryChecksum,
+		LibraryChecksum:         runtimeabi.LibraryChecksum(),
 		TextRevision:            TextRevision,
 		TextAddr:                b.textAddr,
 		TextSize:                uint32(b.prog.textSize),

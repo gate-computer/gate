@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -215,7 +217,7 @@ func init() {
 func prepareBuild(exec *executor, storage image.Storage, config compile.Config, wasm []byte, moduleSize int, codeMap *object.CallMap) (*bytes.Reader, compile.Module, *image.Build) {
 	r := bytes.NewReader(wasm)
 
-	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, r)
+	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{MaxExports: 100, Config: config}, r)
 	if err != nil {
 		panic(err)
 	}
@@ -409,6 +411,53 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 		t.Logf("output: %q", s)
 	}
 	return s
+}
+
+func TestABI(t *testing.T) {
+	src, err := ioutil.ReadFile("testdata/abi.c")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	re := regexp.MustCompile(`^([A-Za-z0-9_]+)\s*\(\s*([A-Za-z0-9_]*)\s*\)`)
+
+	for _, line := range strings.Split(string(src), "\n") {
+		m := re.FindStringSubmatch(line)
+		if len(m) == 0 {
+			continue
+		}
+
+		switch m[1] {
+		case "TEST":
+			testABI(t, m[2])
+		case "TEST_TRAP":
+			testABITrap(t, m[2])
+		default:
+			t.Error(m[0])
+		}
+	}
+}
+
+func testABI(t *testing.T, name string) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		var debug bytes.Buffer
+		runProgram(t, wasmABI, "test_"+name, &debug, trap.Exit)
+		if s := debug.String(); s != "PASS\n" {
+			t.Error(strings.TrimRight(s, "\n"))
+		}
+	})
+}
+
+func testABITrap(t *testing.T, name string) {
+	t.Helper()
+	t.Run(name, func(t *testing.T) {
+		var debug bytes.Buffer
+		runProgram(t, wasmABI, "testtrap_"+name, &debug, trap.ABIDeficiency)
+		if s := debug.String(); s != "" {
+			t.Error(strings.TrimRight(s, "\n"))
+		}
+	})
 }
 
 func TestRunNop(t *testing.T) {

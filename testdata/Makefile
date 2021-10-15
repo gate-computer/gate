@@ -1,7 +1,7 @@
 CC		:= clang
 WAT2WASM	:= wat2wasm
 
-CPPFLAGS	+= -nostdlibinc -I../include
+CPPFLAGS	+= -nostdlibinc -I../include -Iwasi-libc/libc-bottom-half/headers/public
 CFLAGS		+= --target=wasm32-unknown-unknown -Os -fomit-frame-pointer -fno-inline -g -Wall -Wextra -Wimplicit-fallthrough
 LDFLAGS		+= -nostdlib -Wl,--allow-undefined -Wl,--no-entry
 
@@ -16,6 +16,7 @@ all: $(patsubst %.c,%.wasm,$(wildcard *.c)) nop.wasm
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $*.o
 	chmod -x $@
 
+abi.wasm: LDFLAGS += -Wl,--export-all
 hello.wasm: LDFLAGS += -Wl,--export=greet -Wl,--export=twice -Wl,--export=multi -Wl,--export=repl -Wl,--export=fail -Wl,--export=test_ext
 hello-debug.wasm: LDFLAGS += -Wl,--export=debug
 randomseed.wasm: LDFLAGS += -Wl,--export=dump,--export=toomuch,--export=toomuch2

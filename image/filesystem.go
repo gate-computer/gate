@@ -144,7 +144,7 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (*Program, error
 		return nil, err
 	}
 
-	if prog.man.LibraryChecksum != abi.LibraryChecksum {
+	if prog.man.LibraryChecksum != abi.LibraryChecksum() {
 		return nil, nil
 	}
 
