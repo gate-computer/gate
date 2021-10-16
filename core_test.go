@@ -352,7 +352,7 @@ func startInstance(ctx context.Context, t *testing.T, storage image.Storage, was
 	return executor, prog, inst, proc, codeMap, mod
 }
 
-func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, expectTrap trap.ID) (output bytes.Buffer) {
+func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, expectTrap trap.ID) string {
 	t.Helper()
 
 	ctx := context.Background()
@@ -363,6 +363,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	defer prog.Close()
 	defer executor.Close()
 
+	var output bytes.Buffer
 	var outputMu sync.Mutex
 
 	result, trapID, err := proc.Serve(ctx, serviceRegistry{&output, &outputMu}, nil)
@@ -389,10 +390,11 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	outputMu.Lock()
 	defer outputMu.Unlock()
 
-	if s := output.String(); len(s) > 0 {
+	s := output.String()
+	if len(s) > 0 {
 		t.Logf("output: %q", s)
 	}
-	return
+	return s
 }
 
 func TestRunNop(t *testing.T) {
@@ -400,8 +402,8 @@ func TestRunNop(t *testing.T) {
 }
 
 func testRunHello(t *testing.T, debug io.Writer) {
-	output := runProgram(t, wasmHello, "greet", debug, trap.Exit)
-	if s := output.String(); s != "hello, world\n" {
+	s := runProgram(t, wasmHello, "greet", debug, trap.Exit)
+	if s != "hello, world\n" {
 		t.Errorf("%q", s)
 	}
 }
