@@ -3,7 +3,7 @@ module gate.computer/gate
 go 1.16
 
 require (
-	gate.computer/wag v0.33.1-0.20211015053701-d4711504f428
+	gate.computer/wag v0.33.1-0.20211017184050-b09bc1f9ab1c
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
@@ -19,7 +19,7 @@ require (
 	github.com/tsavola/snide v0.0.0-20201022011019-997fd41f0088
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
-	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
+	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 	google.golang.org/grpc v1.32.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0 // indirect

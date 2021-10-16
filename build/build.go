@@ -101,7 +101,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		// Duplicate sections are checked automatically.
 
 		b.SectionMap.ExportWrap = b.SectionMap.Sections[section.Custom]
-		return
+		return section.Unwrapped
 	}
 
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {

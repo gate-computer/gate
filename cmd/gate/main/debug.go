@@ -346,9 +346,8 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		return
 	}
 
-	var codeReader = objectdebug.NewReadTeller(reader)
 	var codeConfig = &compile.CodeConfig{
-		Mapper:      codeMap.Mapper(codeReader),
+		Mapper:      &codeMap,
 		Breakpoints: make(map[uint32]compile.Breakpoint),
 		Config:      config,
 	}
@@ -357,7 +356,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		codeConfig.Breakpoints[uint32(offset)] = compile.Breakpoint{}
 	}
 
-	err = compile.LoadCodeSection(codeConfig, codeReader, mod, abi.Library())
+	err = compile.LoadCodeSection(codeConfig, reader, mod, abi.Library())
 	if err != nil {
 		return
 	}

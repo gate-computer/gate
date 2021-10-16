@@ -228,12 +228,7 @@ func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, cont
 	}
 	b.Snapshot.Breakpoints = append([]uint64(nil), breakpoints...)
 
-	codeReader := compile.Reader(reader)
-	if len(breakpoints) > 0 {
-		codeReader = debug.NewReadTeller(codeReader)
-	}
-
-	_check(compile.LoadCodeSection(b.CodeConfig(mapper), codeReader, b.Module, abi.Library()))
+	_check(compile.LoadCodeSection(b.CodeConfig(mapper), reader, b.Module, abi.Library()))
 
 	_check(b.VerifyBreakpoints())
 
