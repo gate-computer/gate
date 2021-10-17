@@ -24,13 +24,20 @@ GEN_BIN_SOURCES := \
 	service/grpc/api/service.pb.go \
 	service/grpc/api/service_grpc.pb.go
 
-GOTAGS		:= gateexecdir
-GOLDFLAGS	= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
-GOBUILDFLAGS	= -tags="$(GOTAGS)" -ldflags="$(GOLDFLAGS)"
-GOTESTRUN	:=
-GOTESTFLAGS	= -tags="$(GOTAGS)" -run="$(GOTESTRUN)" -count=1 -race
-GOBENCHRUN	:= .*
-GOBENCHFLAGS	= -tags="$(GOTAGS)" -bench="$(GOBENCHRUN)"
+TAGS		:= gateexecdir
+
+BUILDFLAGS	= -tags="$(TAGS)" -ldflags="$(BUILDLDFLAGS)"
+BUILDLDFLAGS	= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
+
+TEST		:= .
+TESTFLAGS	= -tags="$(TAGS)" -ldflags="$(TESTLDFLAGS)" -run="$(TEST)" -count=1 -race
+TESTLDFLAGS	= -X gate.computer/wag/internal.Panic=1
+ifneq ($(TEST),)
+TESTFLAGS	+= -v
+endif
+
+BENCH		:= .
+BENCHFLAGS	= -tags="$(TAGS)" -bench="$(BENCH)"
 
 -include config.mk
 include runtime/include/runtime.mk
@@ -42,10 +49,10 @@ lib: $(GEN_LIB_SOURCES)
 
 .PHONY: bin
 bin: $(GEN_BIN_SOURCES)
-	$(GO) build $(GOBUILDFLAGS) -o bin/gate ./cmd/gate
-	$(GO) build $(GOBUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
-	$(GO) build $(GOBUILDFLAGS) -o bin/gate-runtime ./cmd/gate-runtime
-	$(GO) build $(GOBUILDFLAGS) -o bin/gate-server ./cmd/gate-server
+	$(GO) build $(BUILDFLAGS) -o bin/gate ./cmd/gate
+	$(GO) build $(BUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
+	$(GO) build $(BUILDFLAGS) -o bin/gate-runtime ./cmd/gate-runtime
+	$(GO) build $(BUILDFLAGS) -o bin/gate-server ./cmd/gate-server
 
 .PHONY: gen
 gen: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
@@ -53,7 +60,7 @@ gen: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
 .PHONY: all
 all: lib bin
 	$(MAKE) -C runtime/loader/test
-	$(GO) build $(GOBUILDFLAGS) -o tmp/bin/test-grpc-service ./internal/test/grpc-service
+	$(GO) build $(BUILDFLAGS) -o tmp/bin/test-grpc-service ./internal/test/grpc-service
 
 .PHONY: check
 check: all
@@ -65,11 +72,11 @@ check: all
 	GOOS=darwin $(GO) build -o /dev/null ./cmd/gate
 	GOOS=windows $(GO) build -o /dev/null ./cmd/gate
 	$(GO) vet ./...
-	$(GO) test $(GOTESTFLAGS) ./...
+	$(GO) test $(TESTFLAGS) ./...
 
 .PHONY: benchmark
 benchmark: lib bin
-	$(PERFLOCK) $(GO) test -run=^$$ $(GOBENCHFLAGS) ./... | tee bench-new.txt
+	$(PERFLOCK) $(GO) test -run=- $(BENCHFLAGS) ./... | tee bench-new.txt
 	[ ! -e bench-old.txt ] || benchstat bench-old.txt bench-new.txt
 
 .PHONY: install-lib
