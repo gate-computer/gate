@@ -19,6 +19,7 @@ import (
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/internal"
 	"gate.computer/gate/server/internal/error/resourcenotfound"
 	"gate.computer/wag/object/stack"
 )
@@ -57,7 +58,9 @@ type Server struct {
 }
 
 func New(ctx context.Context, config *Config) (_ *Server, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	s := &Server{
 		programs:  make(map[string]*program),
@@ -204,7 +207,10 @@ func (*Server) Features(ctx context.Context) (*api.Features, error) {
 }
 
 func (s *Server) UploadModule(ctx context.Context, upload *ModuleUpload, know *api.ModuleOptions) (module string, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	know = _prepareModuleOptions(know)
 
 	policy := new(progPolicy)
@@ -224,7 +230,10 @@ func (s *Server) UploadModule(ctx context.Context, upload *ModuleUpload, know *a
 }
 
 func (s *Server) SourceModule(ctx context.Context, source *ModuleSource, know *api.ModuleOptions) (module string, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	know = _prepareModuleOptions(know)
 
 	policy := new(progPolicy)
@@ -298,7 +307,10 @@ func (s *Server) _loadUnknownModule(ctx context.Context, policy *progPolicy, upl
 }
 
 func (s *Server) NewInstance(ctx context.Context, module string, launch *api.LaunchOptions, invoke *InvokeOptions) (_ *Instance, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	launch = _prepareLaunchOptions(launch)
 
 	policy := new(instPolicy)
@@ -347,7 +359,10 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 }
 
 func (s *Server) UploadModuleInstance(ctx context.Context, upload *ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *InvokeOptions) (_ *Instance, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	know = _prepareModuleOptions(know)
 	launch = _prepareLaunchOptions(launch)
 
@@ -360,7 +375,10 @@ func (s *Server) UploadModuleInstance(ctx context.Context, upload *ModuleUpload,
 }
 
 func (s *Server) SourceModuleInstance(ctx context.Context, source *ModuleSource, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *InvokeOptions) (module string, _ *Instance, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	know = _prepareModuleOptions(know)
 	launch = _prepareLaunchOptions(launch)
 
@@ -498,7 +516,9 @@ func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, p
 }
 
 func (s *Server) ModuleInfo(ctx context.Context, module string) (_ *api.ModuleInfo, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -542,7 +562,9 @@ func (s *Server) ModuleInfo(ctx context.Context, module string) (_ *api.ModuleIn
 }
 
 func (s *Server) Modules(ctx context.Context) (_ *api.Modules, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -576,7 +598,9 @@ func (s *Server) Modules(ctx context.Context) (_ *api.Modules, err error) {
 }
 
 func (s *Server) ModuleContent(ctx context.Context, module string) (stream io.ReadCloser, length int64, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -641,7 +665,10 @@ func (x *moduleContent) Close() error {
 }
 
 func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleOptions) (err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	know = _prepareModuleOptions(know)
 	if !know.GetPin() {
 		panic("Server.PinModule called without ModuleOptions.Pin")
@@ -695,7 +722,9 @@ func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleO
 }
 
 func (s *Server) UnpinModule(ctx context.Context, module string) (err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -732,7 +761,9 @@ func (s *Server) UnpinModule(ctx context.Context, module string) (err error) {
 type IOFunc func(context.Context, io.Reader, io.Writer) error
 
 func (s *Server) InstanceConnection(ctx context.Context, instance string) (_ *Instance, _ IOFunc, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -767,7 +798,9 @@ func (s *Server) InstanceConnection(ctx context.Context, instance string) (_ *In
 }
 
 func (s *Server) InstanceInfo(ctx context.Context, instance string) (_ *api.InstanceInfo, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -786,7 +819,9 @@ func (s *Server) InstanceInfo(ctx context.Context, instance string) (_ *api.Inst
 }
 
 func (s *Server) WaitInstance(ctx context.Context, instID string) (_ *api.Status, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -802,7 +837,9 @@ func (s *Server) WaitInstance(ctx context.Context, instID string) (_ *api.Status
 }
 
 func (s *Server) KillInstance(ctx context.Context, instance string) (_ *Instance, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -818,7 +855,9 @@ func (s *Server) KillInstance(ctx context.Context, instance string) (_ *Instance
 }
 
 func (s *Server) SuspendInstance(ctx context.Context, instance string) (_ *Instance, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -838,7 +877,9 @@ func (s *Server) SuspendInstance(ctx context.Context, instance string) (_ *Insta
 }
 
 func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *api.ResumeOptions, invoke *InvokeOptions) (_ *Instance, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	resume = prepareResumeOptions(resume)
 	policy := new(instPolicy)
@@ -870,7 +911,9 @@ func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *ap
 }
 
 func (s *Server) DeleteInstance(ctx context.Context, instance string) (err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
@@ -887,7 +930,10 @@ func (s *Server) DeleteInstance(ctx context.Context, instance string) (err error
 }
 
 func (s *Server) Snapshot(ctx context.Context, instance string, know *api.ModuleOptions) (module string, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	know = _prepareModuleOptions(know)
 	if !know.GetPin() {
 		panic("Server.SnapshotInstance called without ModuleOptions.Pin")
@@ -948,7 +994,10 @@ func (s *Server) _snapshot(ctx context.Context, instance string, know *api.Modul
 }
 
 func (s *Server) UpdateInstance(ctx context.Context, instance string, update *api.InstanceUpdate) (_ *api.InstanceInfo, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	update = prepareInstanceUpdate(update)
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
@@ -972,7 +1021,10 @@ func (s *Server) UpdateInstance(ctx context.Context, instance string, update *ap
 }
 
 func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.DebugRequest) (_ *api.DebugResponse, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
+
 	policy := new(progPolicy)
 
 	ctx = _context(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
@@ -1012,7 +1064,9 @@ func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.De
 }
 
 func (s *Server) Instances(ctx context.Context) (_ *api.Instances, err error) {
-	defer func() { err = asError(recover()) }()
+	if internal.DontPanic() {
+		defer func() { err = asError(recover()) }()
+	}
 
 	ctx = _context(s.AccessPolicy.Authorize(ctx))
 
