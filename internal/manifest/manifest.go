@@ -12,6 +12,17 @@ import (
 const MaxSize = 4096 // Including header.
 const MaxBreakpoints = 100
 
+func (x *ByteRange) End() int64 {
+	return x.Start + int64(x.Size)
+}
+
+func (x *ByteRange) GetEnd() int64 {
+	if x != nil {
+		return x.End()
+	}
+	return 0
+}
+
 func (man *Program) InitEntryFuncs(mod compile.Module, funcAddrs []uint32) {
 	man.EntryIndexes = make(map[string]uint32)
 	man.EntryAddrs = make(map[uint32]uint32)

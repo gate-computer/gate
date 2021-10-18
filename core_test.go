@@ -232,7 +232,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 	var sectionMap image.SectionMap
 
 	if persistent {
-		config.SectionMapper = sectionMap.Mapper()
+		config.ModuleMapper = &sectionMap
 	}
 
 	r, mod, build := prepareBuild(exec, storage, config, wasm, moduleSize, codeMap)

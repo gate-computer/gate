@@ -9,8 +9,8 @@ package gate.internal.manifest;
 option go_package = "gate.computer/gate/internal/manifest";
 
 message ByteRange {
-	int64 offset = 1;
-	int64 length = 2;
+	int64 start = 1;
+	uint32 size = 2;
 }
 
 message Program {
@@ -28,7 +28,7 @@ message Program {
 	ByteRange snapshot_section = 12;
 	ByteRange export_section_wrap = 13;
 	ByteRange buffer_section = 14;
-	int64 buffer_section_header_length = 15;
+	uint32 buffer_section_header_size = 15;
 	ByteRange stack_section = 16;
 	bytes global_types = 17; // Limited by wag's maxGlobals check.
 	Function start_func = 18;

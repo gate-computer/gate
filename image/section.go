@@ -28,7 +28,7 @@ func (mappings *SectionMap) manifestSections() (sections []*manifest.ByteRange) 
 
 func manifestByteRange(mapping section.ByteRange) *manifest.ByteRange {
 	return &manifest.ByteRange{
-		Offset: mapping.Offset,
-		Length: mapping.Length,
+		Start: mapping.Start,
+		Size:  mapping.Size,
 	}
 }

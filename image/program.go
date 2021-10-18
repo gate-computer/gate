@@ -43,7 +43,7 @@ func (prog *Program) ResolveEntryFunc(exportName string, started bool) (index in
 		startIndex uint32
 		startFound bool
 	)
-	if prog.man.SnapshotSection.Length == 0 && !started {
+	if prog.man.SnapshotSection.Size == 0 && !started {
 		startIndex, startFound = prog.man.EntryIndexes["_start"]
 	}
 
@@ -81,19 +81,19 @@ func (prog *Program) NewModuleReader() io.Reader {
 }
 
 func (prog *Program) LoadBuffers() (bs snapshot.Buffers, err error) {
-	if prog.man.BufferSection.Length == 0 {
+	if prog.man.BufferSection.Size == 0 {
 		return
 	}
 
-	header := make([]byte, prog.man.BufferSectionHeaderLength)
+	header := make([]byte, prog.man.BufferSectionHeaderSize)
 
-	off := progModuleOffset + prog.man.BufferSection.Offset
+	off := progModuleOffset + prog.man.BufferSection.Start
 	_, err = prog.file.ReadAt(header, off)
 	if err != nil {
 		return
 	}
 
-	bs, n, dataBuf, err := wasm.ReadBufferSectionHeader(bytes.NewReader(header), uint32(prog.man.BufferSection.Length))
+	bs, n, dataBuf, err := wasm.ReadBufferSectionHeader(bytes.NewReader(header), prog.man.BufferSection.Size)
 	if err != nil {
 		return
 	}

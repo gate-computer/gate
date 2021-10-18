@@ -50,7 +50,7 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 		Loaders:    make(map[string]section.CustomContentLoader),
 		entryIndex: -1,
 	}
-	b.Config.SectionMapper = b.SectionMap.Mapper()
+	b.Config.ModuleMapper = &b.SectionMap
 	return b, nil
 }
 
@@ -140,37 +140,12 @@ func (b *Build) SetMaxMemorySize(maxMemorySize int) (err error) {
 // BindFunctions (imports and entry function) after initial module sections
 // have been loaded.
 func (b *Build) BindFunctions(entryName string) (err error) {
-	m := &b.SectionMap
-	if m.ExportWrap.Length != 0 {
-		exportLen := m.Sections[section.Export].Length
-
-		// We didn't read the custom export section content, so offsets are
-		// off.  Fix them.
-		for i := int(section.Export); i < len(m.Sections); i++ {
-			m.Sections[i].Offset -= exportLen
-		}
-		if m.Buffer.Length != 0 {
-			m.Buffer.Offset -= exportLen
-		}
-		if m.Stack.Length != 0 {
-			m.Stack.Offset -= exportLen
-		}
-
-		// Validate export wrapper payload length before accessing exports.
-		exportEnd := m.Sections[section.Export].Offset + exportLen
-		wrapperEnd := m.ExportWrap.Offset + m.ExportWrap.Length
-		if exportEnd != wrapperEnd {
-			err = badprogram.Err("gate.export section length does not match wrapped export section length")
-			return
-		}
-	}
-
 	err = binding.BindImports(&b.Module, b.Image.ImportResolver())
 	if err != nil {
 		return
 	}
 
-	if m.ExportWrap.Length != 0 {
+	if b.SectionMap.ExportWrap.Size != 0 {
 		// Exports are hidden.
 		if entryName != "" {
 			err = notfound.ErrSuspended
@@ -316,7 +291,7 @@ func (b *Build) finishImageText(stackUsage int) error {
 
 // FinishImageText after code and snapshot sections have been loaded.
 func (b *Build) FinishImageText() (err error) {
-	if b.SectionMap.Stack.Offset != 0 {
+	if b.SectionMap.Stack.Start != 0 {
 		return // Already done by stack section loader.
 	}
 

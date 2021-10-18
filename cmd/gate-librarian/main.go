@@ -125,10 +125,10 @@ func Main(filename, objdump, gopkg string, verbose bool, command []string) error
 		}
 	}
 
-	sections := section.MakeMap()
+	sections := new(section.Map)
 	config := compile.ModuleConfig{
 		Config: compile.Config{
-			SectionMapper: sections.Mapper(),
+			ModuleMapper: sections,
 		},
 	}
 	if _, err := compile.LoadInitialSections(&config, bytes.NewReader(data)); err != nil {
@@ -138,7 +138,7 @@ func Main(filename, objdump, gopkg string, verbose bool, command []string) error
 	b := new(bytes.Buffer)
 	r := bytes.NewReader(data)
 
-	if _, err := io.CopyN(b, r, sections.Sections[section.Type].Offset); err != nil {
+	if _, err := io.CopyN(b, r, sections.Sections[section.Type].Start); err != nil {
 		return err
 	}
 	librarySections := map[section.ID]bool{

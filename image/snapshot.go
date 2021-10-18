@@ -30,14 +30,14 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	)
 
 	var (
-		stackUsage   int
-		stackMapSize int
-		newTextAddr  uint64
+		stackUsage  int
+		stackMapLen int
+		newTextAddr uint64
 	)
 	if suspended || inst.Final() {
 		if inst.man.StackUsage != 0 {
 			stackUsage = int(inst.man.StackUsage)
-			stackMapSize = alignPageSize(stackUsage)
+			stackMapLen = alignPageSize(stackUsage)
 			newTextAddr = inst.man.TextAddr
 		} else if suspended {
 			// Resume at virtual call site at beginning of enter routine.
@@ -47,7 +47,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 
 	// TODO: reading might be faster.  exportStack could work in-place.
-	instMapOffset := instGlobalsOffset - int64(stackMapSize)
+	instMapOffset := instGlobalsOffset - int64(stackMapLen)
 	instMap, err := mmap(inst.file.FD(), instMapOffset, int(instMemoryOffset-instMapOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
 	if err != nil {
 		return nil, err
@@ -55,12 +55,12 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	defer mustMunmap(instMap)
 
 	var (
-		instGlobalsMapping = instMap[stackMapSize:]
+		instGlobalsMapping = instMap[stackMapLen:]
 		instGlobalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(oldProg.man.GlobalTypes)*8:]
 		instStackData      []byte
 	)
-	if stackMapSize != 0 {
-		instStackData = instMap[stackMapSize-stackUsage : stackMapSize]
+	if stackMapLen != 0 {
+		instStackData = instMap[stackMapLen-stackUsage : stackMapLen]
 	}
 
 	// New module sections.
@@ -74,10 +74,12 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	off = mapOldSection(off, newRanges, oldRanges, section.Table)
 
 	memorySection := makeMemorySection(inst.man.MemorySize, oldProg.man.MemorySizeLimit)
-	off = mapNewSection(off, newRanges, len(memorySection), section.Memory)
+	// TODO: ensure that memorySection size is within bounds
+	off = mapNewSection(off, newRanges, uint32(len(memorySection)), section.Memory)
 
 	globalSection := makeGlobalSection(oldProg.man.GlobalTypes, instGlobalsData)
-	off = mapNewSection(off, newRanges, len(globalSection), section.Global)
+	// TODO: ensure that globalSection size is within bounds
+	off = mapNewSection(off, newRanges, uint32(len(globalSection)), section.Global)
 
 	snapshotSection := makeSnapshotSection(inst.man.Snapshot)
 	snapshotSectionOffset := off
@@ -88,23 +90,23 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		exportSectionWrapFrame []byte
 	)
 	if suspended || inst.Final() {
-		if oldRanges[section.Export].Length != 0 {
-			if oldLen := oldProg.man.ExportSectionWrap.GetLength(); oldLen != 0 {
+		if oldRanges[section.Export].Size != 0 {
+			if oldSize := oldProg.man.ExportSectionWrap.GetSize(); oldSize != 0 {
 				exportSectionWrap = &manifest.ByteRange{
-					Offset: off,
-					Length: oldLen,
+					Start: off,
+					Size:  oldSize,
 				}
 			} else {
-				exportSectionWrapFrame = makeExportSectionWrapFrame(oldRanges[section.Export].Length)
+				exportSectionWrapFrame = makeExportSectionWrapFrame(oldRanges[section.Export].Size)
 				exportSectionWrap = &manifest.ByteRange{
-					Offset: off,
-					Length: int64(len(exportSectionWrapFrame)) + oldRanges[section.Export].Length,
+					Start: off,
+					Size:  uint32(len(exportSectionWrapFrame)) + oldRanges[section.Export].Size,
 				}
 			}
-			off += exportSectionWrap.Length
+			off += int64(exportSectionWrap.Size)
 			newRanges[section.Export] = &manifest.ByteRange{
-				Offset: off - oldRanges[section.Export].Length,
-				Length: oldRanges[section.Export].Length,
+				Start: off - int64(oldRanges[section.Export].Size),
+				Size:  oldRanges[section.Export].Size,
 			}
 		}
 	} else {
@@ -116,49 +118,50 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 
 	bufferHeader, bufferSectionSize := makeBufferSectionHeader(buffers)
 	bufferSectionOffset := off
-	off += bufferSectionSize
+	off += int64(bufferSectionSize)
 
 	var (
 		stackHeader        []byte
-		stackSectionSize   int
+		stackSectionLen    int
 		stackSectionOffset int64
 	)
 	if stackUsage != 0 {
 		stackHeader = makeStackSectionHeader(stackUsage)
-		stackSectionSize = len(stackHeader) + stackUsage
+		stackSectionLen = len(stackHeader) + stackUsage
 		stackSectionOffset = off
-		off += int64(stackSectionSize)
+		off += int64(stackSectionLen)
 	}
 
 	dataHeader := makeDataSectionHeader(int(inst.man.MemorySize))
-	dataSectionSize := len(dataHeader) + int(inst.man.MemorySize)
-	off = mapNewSection(off, newRanges, dataSectionSize, section.Data)
+	dataSectionLen := len(dataHeader) + int(inst.man.MemorySize)
+	// TODO: check if dataSectionLen is out of bounds
+	off = mapNewSection(off, newRanges, uint32(dataSectionLen), section.Data)
 
 	// New module size.
 	newModuleSize := oldProg.man.ModuleSize
 
-	newModuleSize -= oldRanges[section.Memory].Length
-	newModuleSize -= oldRanges[section.Global].Length
-	newModuleSize -= oldProg.man.SnapshotSection.GetLength()
-	newModuleSize -= oldProg.man.ExportSectionWrap.GetLength()
-	if oldProg.man.ExportSectionWrap.GetLength() == 0 {
-		newModuleSize -= oldRanges[section.Export].Length
+	newModuleSize -= int64(oldRanges[section.Memory].Size)
+	newModuleSize -= int64(oldRanges[section.Global].Size)
+	newModuleSize -= int64(oldProg.man.SnapshotSection.GetSize())
+	newModuleSize -= int64(oldProg.man.ExportSectionWrap.GetSize())
+	if oldProg.man.ExportSectionWrap.GetSize() == 0 {
+		newModuleSize -= int64(oldRanges[section.Export].Size)
 	}
-	newModuleSize -= oldRanges[section.Start].Length
-	newModuleSize -= oldProg.man.BufferSection.GetLength()
-	newModuleSize -= oldProg.man.StackSection.GetLength()
-	newModuleSize -= oldRanges[section.Data].Length
+	newModuleSize -= int64(oldRanges[section.Start].Size)
+	newModuleSize -= int64(oldProg.man.BufferSection.GetSize())
+	newModuleSize -= int64(oldProg.man.StackSection.GetSize())
+	newModuleSize -= int64(oldRanges[section.Data].Size)
 
 	newModuleSize += int64(len(memorySection))
 	newModuleSize += int64(len(globalSection))
 	newModuleSize += int64(len(snapshotSection))
-	newModuleSize += exportSectionWrap.GetLength()
-	if exportSectionWrap.GetLength() == 0 {
-		newModuleSize += newRanges[section.Export].Length
+	newModuleSize += int64(exportSectionWrap.GetSize())
+	if exportSectionWrap.GetSize() == 0 {
+		newModuleSize += int64(newRanges[section.Export].Size)
 	}
-	newModuleSize += bufferSectionSize
-	newModuleSize += int64(stackSectionSize)
-	newModuleSize += int64(dataSectionSize)
+	newModuleSize += int64(bufferSectionSize)
+	newModuleSize += int64(stackSectionLen)
+	newModuleSize += int64(dataSectionLen)
 
 	// New program file.
 	newFile, err := oldProg.storage.newProgramFile()
@@ -174,8 +177,8 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	// Copy module header and sections up to and including table section.
 	copyLen := int(wasmModuleHeaderSize)
 	for i := section.Table; i >= section.Type; i-- {
-		if newRanges[i].Length != 0 {
-			copyLen = int(newRanges[i].Offset + newRanges[i].Length)
+		if newRanges[i].Size != 0 {
+			copyLen = int(newRanges[i].End())
 			break
 		}
 	}
@@ -192,7 +195,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		return nil, err
 	}
 	newOff += int64(n)
-	oldOff += oldRanges[section.Memory].Length + oldRanges[section.Global].Length
+	oldOff += int64(oldRanges[section.Memory].Size) + int64(oldRanges[section.Global].Size)
 
 	// Write new snapshot section, and skip old one.
 	n, err = newFile.WriteAt(snapshotSection, newOff)
@@ -200,13 +203,13 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		return nil, err
 	}
 	newOff += int64(n)
-	oldOff += oldProg.man.SnapshotSection.GetLength()
+	oldOff += int64(oldProg.man.SnapshotSection.GetSize())
 
 	// Copy export section, possibly writing or skipping wrapper.
-	copyLen = int(oldRanges[section.Export].Length)
-	if exportSectionWrap.GetLength() != 0 {
-		if oldLen := oldProg.man.ExportSectionWrap.GetLength(); oldLen != 0 {
-			copyLen = int(oldLen)
+	copyLen = int(oldRanges[section.Export].Size)
+	if exportSectionWrap.GetSize() != 0 {
+		if oldSize := oldProg.man.ExportSectionWrap.GetSize(); oldSize != 0 {
+			copyLen = int(oldSize)
 		} else {
 			n, err = newFile.WriteAt(exportSectionWrapFrame, newOff)
 			if err != nil {
@@ -215,8 +218,8 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 			newOff += int64(n)
 		}
 	} else {
-		if oldLen := oldProg.man.ExportSectionWrap.GetLength(); oldLen != 0 {
-			oldOff += oldLen - oldRanges[section.Export].Length
+		if oldSize := oldProg.man.ExportSectionWrap.GetSize(); oldSize != 0 {
+			oldOff += int64(oldSize) - int64(oldRanges[section.Export].Size)
 		}
 	}
 	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen); err != nil {
@@ -224,10 +227,10 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	}
 
 	// Skip start section.
-	oldOff += oldRanges[section.Start].Length
+	oldOff += int64(oldRanges[section.Start].Size)
 
 	// Copy element and code sections.
-	copyLen = int(oldRanges[section.Element].Length + oldRanges[section.Code].Length)
+	copyLen = int(oldRanges[section.Element].Size) + int(oldRanges[section.Code].Size)
 	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen); err != nil {
 		return nil, err
 	}
@@ -246,11 +249,11 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		}
 		newOff += int64(n)
 	}
-	oldOff += oldProg.man.BufferSection.GetLength()
+	oldOff += int64(oldProg.man.BufferSection.GetSize())
 
 	// Write new stack section, and skip old one.
-	if stackSectionSize > 0 {
-		newStackSection := make([]byte, stackSectionSize)
+	if stackSectionLen > 0 {
+		newStackSection := make([]byte, stackSectionLen)
 		copy(newStackSection, stackHeader)
 
 		newStack := newStackSection[len(stackHeader):]
@@ -269,7 +272,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 		}
 		newOff += int64(n)
 	}
-	oldOff += oldProg.man.StackSection.GetLength()
+	oldOff += int64(oldProg.man.StackSection.GetSize())
 
 	// Copy new data section from instance, and skip old one.
 	n, err = newFile.WriteAt(dataHeader, newOff)
@@ -282,7 +285,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	if err := copyFileRange(inst.file, &instOff, newFile, &newOff, int(inst.man.MemorySize)); err != nil {
 		return nil, err
 	}
-	oldOff += oldRanges[section.Data].Length
+	oldOff += int64(oldRanges[section.Data].Size)
 
 	// Copy remaining (custom) sections.
 	copyLen = int(oldProg.man.ModuleSize - (oldOff - progModuleOffset))
@@ -337,18 +340,18 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 			ModuleSize:      newModuleSize,
 			Sections:        newRanges,
 			SnapshotSection: &manifest.ByteRange{
-				Offset: snapshotSectionOffset,
-				Length: int64(len(snapshotSection)),
+				Start: snapshotSectionOffset,
+				Size:  uint32(len(snapshotSection)),
 			},
 			ExportSectionWrap: exportSectionWrap,
 			BufferSection: &manifest.ByteRange{
-				Offset: bufferSectionOffset,
-				Length: bufferSectionSize,
+				Start: bufferSectionOffset,
+				Size:  bufferSectionSize,
 			},
-			BufferSectionHeaderLength: int64(len(bufferHeader)),
+			BufferSectionHeaderSize: uint32(len(bufferHeader)),
 			StackSection: &manifest.ByteRange{
-				Offset: stackSectionOffset,
-				Length: int64(stackSectionSize),
+				Start: stackSectionOffset,
+				Size:  uint32(stackSectionLen),
 			},
 			GlobalTypes:   oldProg.man.GlobalTypes,
 			StartFunc:     oldProg.man.StartFunc,
@@ -396,7 +399,7 @@ func makeGlobalSection(globalTypes []byte, segment []byte) []byte {
 	}
 
 	const (
-		// Section id, payload length, item count.
+		// Section id, payload size, item count.
 		maxHeaderSize = 1 + binary.MaxVarintLen32 + binary.MaxVarintLen32
 
 		// Type, mutable flag, const op, const value, end op.
@@ -406,18 +409,18 @@ func makeGlobalSection(globalTypes []byte, segment []byte) []byte {
 	buf := make([]byte, maxHeaderSize+len(globalTypes)*maxItemSize)
 
 	// Items:
-	itemsSize := putGlobals(buf[maxHeaderSize:], globalTypes, segment)
+	itemsLen := putGlobals(buf[maxHeaderSize:], globalTypes, segment)
 
 	// Header:
-	countSize := putVaruint32Before(buf, maxHeaderSize, uint32(len(globalTypes)))
-	payloadLen := countSize + itemsSize
-	payloadLenSize := putVaruint32Before(buf, maxHeaderSize-countSize, uint32(payloadLen))
-	buf[maxHeaderSize-countSize-payloadLenSize-1] = byte(section.Global)
+	countLen := putVaruint32Before(buf, maxHeaderSize, uint32(len(globalTypes)))
+	payloadLen := countLen + itemsLen
+	payloadSizeLen := putVaruint32Before(buf, maxHeaderSize-countLen, uint32(payloadLen))
+	buf[maxHeaderSize-countLen-payloadSizeLen-1] = byte(section.Global)
 
-	return buf[maxHeaderSize-countSize-payloadLenSize-1 : maxHeaderSize+itemsSize]
+	return buf[maxHeaderSize-countLen-payloadSizeLen-1 : maxHeaderSize+itemsLen]
 }
 
-func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize int) {
+func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalLen int) {
 	for _, b := range globalTypes {
 		t := wa.GlobalType(b)
 
@@ -427,7 +430,7 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 		encoded := t.Encode()
 		n := copy(target, encoded[:])
 		target = target[n:]
-		totalSize += n
+		totalLen += n
 
 		switch t.Type() {
 		case wa.I32:
@@ -452,11 +455,11 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 			panic(t)
 		}
 		target = target[n:]
-		totalSize += n
+		totalLen += n
 
 		target[0] = byte(opcode.End)
 		target = target[1:]
-		totalSize++
+		totalLen++
 	}
 
 	return
@@ -465,10 +468,10 @@ func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalSize in
 func makeSnapshotSection(snap *manifest.Snapshot) []byte {
 	manifest.InflateSnapshot(&snap)
 
-	// Section id, payload length.
+	// Section id, payload size.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
-	var maxPayloadSize = (0 +
+	var maxPayloadLen = (0 +
 		1 + // Name length
 		len(wasm.SectionSnapshot) + // Name string
 		1 + // Snapshot version
@@ -479,7 +482,7 @@ func makeSnapshotSection(snap *manifest.Snapshot) []byte {
 		binary.MaxVarintLen32 + // Breakpoint count
 		binary.MaxVarintLen64*len(snap.Breakpoints)) // Breakpoint array
 
-	b := make([]byte, maxSectionFrameSize+maxPayloadSize)
+	b := make([]byte, maxSectionFrameSize+maxPayloadLen)
 	i := maxSectionFrameSize
 	b[i] = byte(len(wasm.SectionSnapshot))
 	i++
@@ -495,53 +498,57 @@ func makeSnapshotSection(snap *manifest.Snapshot) []byte {
 		i += binary.PutUvarint(b[i:], uint64(offset))
 	}
 
-	payloadLen := uint32(i - maxSectionFrameSize)
-	payloadLenSize := putVaruint32Before(b, maxSectionFrameSize, payloadLen)
-	b[maxSectionFrameSize-payloadLenSize-1] = byte(section.Custom)
-	return b[maxSectionFrameSize-payloadLenSize-1 : i]
+	payloadLen := i - maxSectionFrameSize
+	// TODO: check if payloadLen is out of bounds
+
+	payloadSizeLen := putVaruint32Before(b, maxSectionFrameSize, uint32(payloadLen))
+	b[maxSectionFrameSize-payloadSizeLen-1] = byte(section.Custom)
+	return b[maxSectionFrameSize-payloadSizeLen-1 : i]
 }
 
-func makeExportSectionWrapFrame(exportSectionSize int64) []byte {
-	// Section id, payload length.
+func makeExportSectionWrapFrame(exportSectionSize uint32) []byte {
+	// Section id, payload size.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
 	// Name length, name string.
-	var nameHeaderSize = 1 + len(wasm.SectionExport)
+	var nameHeaderLen = 1 + len(wasm.SectionExport)
 
-	b := make([]byte, maxSectionFrameSize+nameHeaderSize)
+	b := make([]byte, maxSectionFrameSize+nameHeaderLen)
 	i := maxSectionFrameSize
 	b[i] = byte(len(wasm.SectionExport))
 	i++
 	i += copy(b[i:], wasm.SectionExport)
 
-	payloadLen := uint32(nameHeaderSize) + uint32(exportSectionSize)
-	payloadLenSize := putVaruint32Before(b, maxSectionFrameSize, payloadLen)
-	b[maxSectionFrameSize-payloadLenSize-1] = byte(section.Custom)
-	return b[maxSectionFrameSize-payloadLenSize-1 : i]
+	payloadSize := uint64(nameHeaderLen) + uint64(exportSectionSize)
+	// TODO: check if payloadSize is out of bounds
+
+	payloadSizeLen := putVaruint32Before(b, maxSectionFrameSize, uint32(payloadSize))
+	b[maxSectionFrameSize-payloadSizeLen-1] = byte(section.Custom)
+	return b[maxSectionFrameSize-payloadSizeLen-1 : i]
 }
 
-func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSize int64) {
+func makeBufferSectionHeader(buffers snapshot.Buffers) ([]byte, uint32) {
 	if len(buffers.Services) == 0 && len(buffers.Input) == 0 && len(buffers.Output) == 0 {
-		return
+		return nil, 0
 	}
 
-	// Section id, payload length.
+	// Section id, payload size.
 	const maxSectionFrameSize = 1 + varint.MaxLen
 
-	maxHeaderSize := maxSectionFrameSize
-	maxHeaderSize += 1                       // Section name length
-	maxHeaderSize += len(wasm.SectionBuffer) // Section name
-	maxHeaderSize += varint.MaxLen           // Input data size
-	maxHeaderSize += varint.MaxLen           // Output data size
-	maxHeaderSize += varint.MaxLen           // Service count
+	maxHeaderLen := maxSectionFrameSize
+	maxHeaderLen += 1                       // Section name length
+	maxHeaderLen += len(wasm.SectionBuffer) // Section name
+	maxHeaderLen += varint.MaxLen           // Input data size
+	maxHeaderLen += varint.MaxLen           // Output data size
+	maxHeaderLen += varint.MaxLen           // Service count
 
 	for _, s := range buffers.Services {
-		maxHeaderSize += 1             // Service name length
-		maxHeaderSize += len(s.Name)   // Service name
-		maxHeaderSize += varint.MaxLen // Service data size
+		maxHeaderLen += 1             // Service name length
+		maxHeaderLen += len(s.Name)   // Service name
+		maxHeaderLen += varint.MaxLen // Service data size
 	}
 
-	buf := make([]byte, maxHeaderSize)
+	buf := make([]byte, maxHeaderLen)
 
 	tail := buf[maxSectionFrameSize:]
 	tail = putByte(tail, byte(len(wasm.SectionBuffer)))
@@ -550,24 +557,28 @@ func makeBufferSectionHeader(buffers snapshot.Buffers) (header []byte, sectionSi
 	tail = varint.Put(tail, int32(len(buffers.Output)))
 	tail = varint.Put(tail, int32(len(buffers.Services)))
 
-	dataSize := int64(len(buffers.Input)) + int64(len(buffers.Output))
+	dataLen := len(buffers.Input) + len(buffers.Output)
 
 	for _, s := range buffers.Services {
 		tail = putByte(tail, byte(len(s.Name)))
 		tail = putString(tail, s.Name)
 		tail = varint.Put(tail, int32(len(s.Buffer)))
 
-		dataSize += int64(len(s.Buffer))
+		dataLen += len(s.Buffer)
 	}
 
-	payloadLen := uint32(len(buf)-len(tail)-maxSectionFrameSize) + uint32(dataSize)
-	payloadLenSize := putVaruint32Before(buf, maxSectionFrameSize, payloadLen)
-	buf[maxSectionFrameSize-payloadLenSize-1] = byte(section.Custom)
-	buf = buf[maxSectionFrameSize-payloadLenSize-1:]
+	payloadLen := len(buf) - len(tail) - maxSectionFrameSize + dataLen
+	// TODO: check if payloadLen is out of bounds
 
-	header = buf[:len(buf)-len(tail)]
-	sectionSize = int64(len(header)) + dataSize
-	return
+	payloadSizeLen := putVaruint32Before(buf, maxSectionFrameSize, uint32(payloadLen))
+	buf[maxSectionFrameSize-payloadSizeLen-1] = byte(section.Custom)
+	buf = buf[maxSectionFrameSize-payloadSizeLen-1:]
+
+	header := buf[:len(buf)-len(tail)]
+	sectionLen := len(header) + dataLen
+	// TODO: check if sectionLen is out of bounds
+
+	return header, uint32(sectionLen)
 }
 
 func writeBufferSectionDataAt(f *file.File, bs snapshot.Buffers, off int64) (total int, err error) {
@@ -598,7 +609,7 @@ func writeBufferSectionDataAt(f *file.File, bs snapshot.Buffers, off int64) (tot
 }
 
 func makeStackSectionHeader(stackSize int) []byte {
-	// Section id, payload length.
+	// Section id, payload size.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
 	// Name length, name string.
@@ -606,16 +617,16 @@ func makeStackSectionHeader(stackSize int) []byte {
 
 	buf := make([]byte, maxSectionFrameSize+customHeaderSize)
 	buf[0] = byte(section.Custom)
-	payloadLenSize := binary.PutUvarint(buf[1:], uint64(customHeaderSize+stackSize))
-	buf[1+payloadLenSize] = byte(len(wasm.SectionStack))
-	copy(buf[1+payloadLenSize+1:], wasm.SectionStack)
+	payloadSizeLen := binary.PutUvarint(buf[1:], uint64(customHeaderSize+stackSize))
+	buf[1+payloadSizeLen] = byte(len(wasm.SectionStack))
+	copy(buf[1+payloadSizeLen+1:], wasm.SectionStack)
 
-	return buf[:1+payloadLenSize+1+len(wasm.SectionStack)]
+	return buf[:1+payloadSizeLen+1+len(wasm.SectionStack)]
 }
 
 func makeDataSectionHeader(memorySize int) []byte {
 	const (
-		// Section id, payload length.
+		// Section id, payload size.
 		maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
 		// Count, memory index, init expression, size.
@@ -630,13 +641,15 @@ func makeDataSectionHeader(memorySize int) []byte {
 	segment[2] = byte(opcode.I32Const)
 	segment[3] = 0 // Offset
 	segment[4] = byte(opcode.End)
-	segmentHeaderSize := 5 + binary.PutUvarint(segment[5:], uint64(memorySize))
+	segmentHeaderLen := 5 + binary.PutUvarint(segment[5:], uint64(memorySize))
 
-	payloadLen := segmentHeaderSize + memorySize
-	payloadLenSize := putVaruint32Before(buf, maxSectionFrameSize, uint32(payloadLen))
-	buf[maxSectionFrameSize-payloadLenSize-1] = byte(section.Data)
+	payloadLen := segmentHeaderLen + memorySize
+	// TODO: check if payloadLen is out of bounds
 
-	return buf[maxSectionFrameSize-payloadLenSize-1 : maxSectionFrameSize+segmentHeaderSize]
+	payloadSizeLen := putVaruint32Before(buf, maxSectionFrameSize, uint32(payloadLen))
+	buf[maxSectionFrameSize-payloadSizeLen-1] = byte(section.Data)
+
+	return buf[maxSectionFrameSize-payloadSizeLen-1 : maxSectionFrameSize+segmentHeaderLen]
 }
 
 func putByte(dest []byte, x byte) (tail []byte) {
@@ -657,24 +670,24 @@ func putVaruint32Before(dest []byte, offset int, x uint32) (n int) {
 }
 
 func mapOldSection(offset int64, dest, src []*manifest.ByteRange, i section.ID) int64 {
-	if src[i].Length != 0 {
+	if src[i].Size != 0 {
 		dest[i] = &manifest.ByteRange{
-			Offset: offset,
-			Length: src[i].Length,
+			Start: offset,
+			Size:  src[i].Size,
 		}
-		offset += src[i].Length
+		offset += int64(src[i].Size)
 	}
 	return offset
 }
 
-func mapNewSection(offset int64, dest []*manifest.ByteRange, length int, i section.ID) int64 {
-	if length != 0 {
+func mapNewSection(offset int64, dest []*manifest.ByteRange, size uint32, i section.ID) int64 {
+	if size != 0 {
 		dest[i] = &manifest.ByteRange{
-			Offset: offset,
-			Length: int64(length),
+			Start: offset,
+			Size:  size,
 		}
 	}
-	return offset + int64(length)
+	return offset + int64(size)
 }
 
 func putVarint(dest []byte, x int64) (n int) {
