@@ -318,7 +318,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 	check(err)
 
 	wFD := dbus.UnixFD(w.Fd())
-	call := daemonCall("Download", wFD, modkey)
+	call := daemonCall("DownloadModule", wFD, modkey)
 	closeFiles(w)
 
 	var moduleLen int64
