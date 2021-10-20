@@ -61,6 +61,9 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	if c.Namespace.Disabled {
 		cmd.Args = append(cmd.Args, common.ArgNamespaceDisabled)
 	} else {
+		if !common.Sandbox {
+			return nil, errors.New("container namespace must be disabled when sandbox is disabled")
+		}
 		if c.Namespace.SingleUID {
 			cmd.Args = append(cmd.Args, common.ArgSingleUID)
 		}
