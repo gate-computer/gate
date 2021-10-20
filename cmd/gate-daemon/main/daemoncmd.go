@@ -61,7 +61,10 @@ var Defaults = []string{
 }
 
 type Config struct {
-	Runtime gateruntime.Config
+	Runtime struct {
+		gateruntime.Config
+		PrepareProcesses int
+	}
 
 	Image struct {
 		VarDir string
@@ -105,7 +108,7 @@ func Main() {
 }
 
 func mainResult() int {
-	c.Runtime = gateruntime.DefaultConfig
+	c.Runtime.Config = gateruntime.DefaultConfig
 	c.Runtime.Container.Namespace.Newuidmap = DefaultNewuidmap
 	c.Runtime.Container.Namespace.Newgidmap = DefaultNewgidmap
 	c.Image.VarDir = cmdconf.JoinHomeFallback(DefaultImageVarDir, "")
@@ -145,7 +148,7 @@ func mainResult() int {
 	c.Principal.Services, err = services.Init(context.Background(), &originConfig, defaultlog.StandardLogger{})
 	check(err)
 
-	exec, err := gateruntime.NewExecutor(&c.Runtime)
+	exec, err := gateruntime.NewExecutor(&c.Runtime.Config)
 	check(err)
 	defer exec.Close()
 
@@ -187,11 +190,16 @@ func mainResult() int {
 		panic(reply)
 	}
 
-	s, err := server.New(ctx, &server.Config{
+	serverConfig := &server.Config{
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
-	})
+	}
+	if n := c.Runtime.PrepareProcesses; n > 0 {
+		serverConfig.ProcessFactory = gateruntime.PrepareProcesses(ctx, exec, n)
+	}
+
+	s, err := server.New(ctx, serverConfig)
 	check(err)
 	defer s.Shutdown(ctx)
 
