@@ -37,6 +37,8 @@
 #define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
 
+#define LOADER_FILENAME "gate-runtime-loader." GATE_COMPAT_VERSION
+
 struct sys_clone_args_v0 {
 	uint64_t flags;       // Flags bit mask
 	uint64_t pidfd;       // Where to store PID file descriptor (pid_t *)
@@ -82,9 +84,10 @@ static int execute_child(const int io_fds[2])
 	xdup2(io_fds[0], GATE_INPUT_FD);
 	xdup2(io_fds[1], GATE_OUTPUT_FD);
 
+	char *args[] = {LOADER_FILENAME, NULL};
 	char *none[] = {NULL};
 
-	syscall(SYS_execveat, GATE_LOADER_FD, "", none, none, AT_EMPTY_PATH);
+	syscall(SYS_execveat, GATE_LOADER_FD, "", args, none, AT_EMPTY_PATH);
 	die(ERR_EXECHILD_EXEC_LOADER);
 }
 

@@ -129,7 +129,7 @@ var ProcessErrors = [48]Error{
 	33: {"ERR_LOAD_SIGACTION", "process loader", "sigaction call failed"},
 	34: {"ERR_LOAD_MUNMAP_LOADER", "process loader", "failed to munmap loader .text and .rodata"},
 	35: {"ERR_LOAD_SECCOMP", "process loader", "seccomp call failed"},
-	36: {"ERR_LOAD_ARG_ENV", "process loader", "loader executed with arguments or environment"},
+	36: {"ERR_LOAD_ARG_ENV", "process loader", "loader executed with wrong number of arguments or environment variables"},
 	37: {"ERR_LOAD_NO_VDSO", "process loader", "vdso address not found in auxiliary vector"},
 	39: {"ERR_LOAD_FCNTL_INPUT", "process loader", "failed to set input file flags"},
 	40: {"ERR_LOAD_FCNTL_OUTPUT", "process loader", "failed to set output file flags"},

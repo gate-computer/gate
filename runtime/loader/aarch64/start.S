@@ -20,11 +20,9 @@ _start:
 	mov	x2, sp				// Stack iterator
 
 	ldr	x1, [x2]			// argc
-	cmp	x1, #0
+	cmp	x1, #1
 	b.ne	.Lvector_not_empty
-	add	x2, x2, #8
-
-	add	x2, x2, #8			// Skip argv null terminator
+	add	x2, x2, #24			// Skip argc, argv[0] and null terminator
 
 	ldr	x1, [x2]
 	cmp	x1, #0

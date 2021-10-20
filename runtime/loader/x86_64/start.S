@@ -19,11 +19,9 @@ _start:
 	mov	%rsp, %rdx			// Stack iterator
 
 	mov	(%rdx), %rdi			// argc
-	test	%rdi, %rdi
+	dec	%rdi
 	jne	.Lvector_not_empty
-	add	$8, %rdx
-
-	add	$8, %rdx			// Skip argv null terminator
+	add	$24, %rdx			// Skip argc, argv[0] and null terminator
 
 	cmpq	$0, (%rdx)			// env null terminator
 	jne	.Lvector_not_empty

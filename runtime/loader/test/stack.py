@@ -29,7 +29,7 @@ def preexec():
     resource.setrlimit(resource.RLIMIT_STACK, (GATE_LOADER_STACK_SIZE, GATE_LOADER_STACK_SIZE))
 
 
-argv = []
+argv = ["./stack"]
 envp = {}
 
 min_alloc = None
@@ -39,7 +39,7 @@ max_usage = None
 instances = collections.defaultdict(int)
 
 for _ in range(10000):
-    proc = subprocess.Popen(argv, executable="./stack", stdout=subprocess.PIPE, preexec_fn=preexec, env=envp)
+    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, preexec_fn=preexec, env=envp)
     output = proc.stdout.read()
     code = proc.wait()
     if code != 0:
