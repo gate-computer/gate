@@ -14,6 +14,7 @@ import (
 
 	"gate.computer/gate/internal/file"
 	"gate.computer/gate/internal/manifest"
+	"gate.computer/gate/runtime/abi"
 	"gate.computer/wag/object"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
@@ -120,29 +121,31 @@ func (fs *Filesystem) LoadProgram(name string) (prog *Program, err error) {
 	return fs.loadProgram(fs, name)
 }
 
-func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, err error) {
+func (fs *Filesystem) loadProgram(storage Storage, name string) (*Program, error) {
 	f, err := openat(int(fs.progDir.Fd()), name, syscall.O_RDONLY, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = nil
+			return nil, nil
 		}
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if f != nil {
 			f.Close()
 		}
 	}()
 
-	prog = &Program{
+	prog := &Program{
 		storage: storage,
 		man:     new(manifest.Program),
-		file:    f,
 	}
 
-	err = unmarshalManifest(f, prog.man, progManifestOffset, programFileTag)
-	if err != nil {
-		return
+	if err := unmarshalManifest(f, prog.man, progManifestOffset, programFileTag); err != nil {
+		return nil, err
+	}
+
+	if prog.man.LibraryChecksum != abi.LibraryChecksum() {
+		return nil, nil
 	}
 
 	var (
@@ -155,13 +158,17 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (prog *Program, 
 
 	// TODO: preadv
 
-	_, err = io.ReadFull(io.NewSectionReader(f, progCallSitesOffset, int64(prog.man.CallSitesSize)), callSitesBytes(&prog.Map))
-	if err != nil {
-		return
+	if _, err := io.ReadFull(io.NewSectionReader(f, progCallSitesOffset, int64(prog.man.CallSitesSize)), callSitesBytes(&prog.Map)); err != nil {
+		return nil, err
 	}
 
-	_, err = io.ReadFull(io.NewSectionReader(f, progFuncAddrsOffset, int64(prog.man.FuncAddrsSize)), funcAddrsBytes(&prog.Map))
-	return
+	if _, err := io.ReadFull(io.NewSectionReader(f, progFuncAddrsOffset, int64(prog.man.FuncAddrsSize)), funcAddrsBytes(&prog.Map)); err != nil {
+		return nil, err
+	}
+
+	prog.file = f
+	f = nil
+	return prog, nil
 }
 
 func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
