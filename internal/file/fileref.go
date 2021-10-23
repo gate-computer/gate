@@ -27,8 +27,12 @@ type Ref struct {
 }
 
 func Own(fd int) Ref {
+	_, file, line, ok := runtime.Caller(2)
+	if !ok {
+		log.Print("failed to discover caller of file.Own")
+	}
 	f := &countedFile{
-		File:  File{fd},
+		File:  File{fd, file, line},
 		count: 1,
 	}
 	runtime.SetFinalizer(f, (*countedFile).finalize)

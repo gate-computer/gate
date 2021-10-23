@@ -16,18 +16,24 @@ import (
 )
 
 type File struct {
-	fd int
+	fd   int
+	file string
+	line int
 }
 
 func New(fd int) *File {
-	f := &File{fd}
+	_, file, line, ok := runtime.Caller(2)
+	if !ok {
+		log.Print("failed to discover caller of file.New")
+	}
+	f := &File{fd, file, line}
 	runtime.SetFinalizer(f, (*File).finalize)
 	return f
 }
 
 func (f *File) finalize() {
 	if f.fd >= 0 {
-		log.Printf("closing unreachable file descriptor %d", f.fd)
+		log.Printf("closing unreachable file descriptor %d created at %s:%d", f.fd, f.file, f.line)
 		f.Close()
 	}
 }
