@@ -7,7 +7,6 @@ package client
 import (
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 )
@@ -36,7 +35,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 			if os.IsNotExist(err) {
 				temp = true
 			} else {
-				log.Fatal(err)
+				fatal(err)
 			}
 		}
 	}
@@ -54,7 +53,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 	}
 
 	if checkCopy(out, in) != length {
-		log.Fatal(io.ErrUnexpectedEOF)
+		fatal(io.ErrUnexpectedEOF)
 	}
 	check(out.Close())
 

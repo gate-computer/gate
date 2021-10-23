@@ -66,6 +66,9 @@ func debug(call debugCallFunc) {
 		switch flag.Arg(1) {
 		case "break":
 			req.Op = api.DebugOpConfigUnion
+			if req.Config == nil {
+				req.Config = new(api.DebugConfig)
+			}
 			req.Config.DebugInfo = true
 
 		case "delete":
@@ -74,22 +77,22 @@ func debug(call debugCallFunc) {
 		case "detach":
 			req.Op = api.DebugOpConfigSet
 			if flag.NArg() > 2 {
-				log.Fatal("detach command does not support offsets")
+				fatal("detach command does not support offsets")
 			}
 
 		case "bt", "backtrace":
 			req.Op = api.DebugOpReadStack
 			if flag.NArg() > 2 {
-				log.Fatal("stacktrace command does not support offsets")
+				fatal("stacktrace command does not support offsets")
 			}
 
 		case "dumptext":
 			if flag.NArg() > 2 {
-				log.Fatal("dumptext command does not support offsets")
+				fatal("dumptext command does not support offsets")
 			}
 
 		default:
-			log.Fatalf("unknown debug op: %s", flag.Arg(1))
+			fatalf("unknown debug op: %s", flag.Arg(1))
 		}
 
 		if flag.NArg() > 2 {
@@ -161,7 +164,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 			}
 		}
 
-		log.Fatalf("invalid breakpoint expression: %q", s)
+		fatalf("invalid breakpoint expression: %q", s)
 	}
 
 	if len(breakLocs) == 0 && len(breakFuncs) == 0 {
@@ -170,7 +173,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 
 	_, _, codeMap, _, info := build(call(instID, &api.DebugRequest{Op: api.DebugOpConfigGet}))
 	if info == nil {
-		log.Fatal("module contains no debug information")
+		fatal("module contains no debug information")
 	}
 
 	var (
@@ -261,7 +264,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 		}
 
 		if !ok {
-			log.Fatalf("%s:%d: source location not found", br.file, br.line)
+			fatalf("%s:%d: source location not found", br.file, br.line)
 		}
 	}
 
@@ -289,7 +292,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 		}
 
 		if !ok {
-			log.Fatalf("%s: function not found", name)
+			fatalf("%s: function not found", name)
 		}
 	}
 
@@ -298,7 +301,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 
 func debugBacktrace(res *api.DebugResponse) {
 	if len(res.Data) == 0 {
-		log.Fatal("no stack")
+		fatal("no stack")
 	}
 
 	mod, _, codeMap, names, info := build(res)
@@ -311,7 +314,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.KnownModuleSource {
 		modkey = x[1]
 	} else {
-		log.Fatal("unsupported module specification:", res.Module)
+		fatal("unsupported module specification:", res.Module)
 	}
 
 	r, w, err := os.Pipe()

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -101,10 +100,10 @@ var localCommands = map[string]command{
 				os.Exit(int(status.Result))
 
 			case api.StateKilled:
-				log.Fatal(statusString(status))
+				fatal(statusString(status))
 
 			default:
-				log.Fatal(instanceID, statusString(status))
+				fatal(instanceID, statusString(status))
 			}
 		},
 	},
@@ -303,7 +302,7 @@ var localCommands = map[string]command{
 
 			_, resp := doHTTP(nil, webapi.PathKnownModules+flag.Arg(1), nil)
 			if resp.ContentLength < 0 {
-				log.Fatal("server did not specify content length")
+				fatal("server did not specify content length")
 			}
 
 			r, w, err := os.Pipe()
@@ -461,7 +460,7 @@ var localCommands = map[string]command{
 				tags = tail
 			}
 			if len(tags) == 0 {
-				log.Fatal("no tags")
+				fatal("no tags")
 			}
 
 			call := daemonCall("UpdateInstance", flag.Arg(0), true, tags)

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -79,7 +78,7 @@ var remoteCommands = map[string]command{
 			}
 
 			if status.State != webapi.StateTerminated || status.Cause != "" {
-				log.Fatal(status)
+				fatal(status)
 			}
 			os.Exit(status.Result)
 		},
@@ -329,7 +328,7 @@ var remoteCommands = map[string]command{
 			var reply webapi.IOConnection
 			check(conn.ReadJSON(&reply))
 			if !reply.Connected {
-				log.Fatal("connection rejected")
+				fatal("connection rejected")
 			}
 
 			replWebsocket(conn)
@@ -383,7 +382,7 @@ var remoteCommands = map[string]command{
 
 			location := resp.Header.Get(webapi.HeaderLocation)
 			if location == "" {
-				log.Fatal("no Location header in response")
+				fatal("no Location header in response")
 			}
 
 			fmt.Println(path.Base(location))
@@ -441,7 +440,7 @@ var remoteCommands = map[string]command{
 				Tags:    c.InstanceTags,
 			}
 			if len(update.Tags) == 0 {
-				log.Fatal("no tags")
+				fatal("no tags")
 			}
 
 			updateJSON, err := json.Marshal(update)
@@ -601,7 +600,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 				msg = string(text)
 			}
 		}
-		log.Fatal(msg)
+		fatal(msg)
 	}
 
 	if serialized := resp.Header.Get(webapi.HeaderStatus); serialized != "" {
@@ -648,7 +647,7 @@ func makeWebsocketURL(uri string, params url.Values) string {
 	case "https":
 		u.Scheme = "wss"
 	default:
-		log.Fatalf("address has unsupported scheme: %q", u.Scheme)
+		fatalf("address has unsupported scheme: %q", u.Scheme)
 	}
 
 	return u.String()
@@ -684,7 +683,7 @@ func makeAuthorization() string {
 
 		privateKey, ok := x.(*ed25519.PrivateKey)
 		if !ok {
-			log.Fatalf("%s: not an Ed25519 private key", c.IdentityFile)
+			fatalf("%s: not an Ed25519 private key", c.IdentityFile)
 		}
 
 		publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
@@ -695,7 +694,7 @@ func makeAuthorization() string {
 		return auth
 	} else {
 		if aud.Scheme != "http" {
-			log.Fatalf("%s scheme with empty identity", aud.Scheme)
+			fatalf("%s scheme with empty identity", aud.Scheme)
 		}
 
 		ips, err := net.LookupIP(aud.Hostname())
@@ -703,7 +702,7 @@ func makeAuthorization() string {
 
 		for _, ip := range ips {
 			if !ip.IsLoopback() {
-				log.Fatalf("non-loopback host with empty identity: %s", ip)
+				fatalf("non-loopback host with empty identity: %s", ip)
 			}
 		}
 
@@ -717,7 +716,7 @@ func makeAuthorization() string {
 func unmarshalStatus(serialized string) (status webapi.Status) {
 	check(json.Unmarshal([]byte(serialized), &status))
 	if status.Error != "" {
-		log.Fatal(status.String())
+		fatal(status.String())
 	}
 	return
 }

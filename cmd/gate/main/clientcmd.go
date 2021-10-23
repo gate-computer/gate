@@ -5,6 +5,7 @@
 package client
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"gate.computer/gate/internal"
 	"gate.computer/gate/internal/cmdconf"
 	gatescope "gate.computer/gate/scope"
 	"github.com/tsavola/confi"
@@ -289,9 +291,34 @@ func terminalOr(fallback io.Writer) io.Writer {
 	return fallback
 }
 
+func fatal(x interface{}, args ...interface{}) {
+	var (
+		err error
+		ok  bool
+	)
+	if len(args) == 0 {
+		err, ok = x.(error)
+	}
+	if !ok {
+		args = append([]interface{}{x}, args...)
+		err = errors.New(fmt.Sprint(args...))
+	}
+	if err == nil {
+		err = errors.New("nil")
+	}
+	check(err)
+}
+
+func fatalf(format string, args ...interface{}) {
+	check(fmt.Errorf(format, args...))
+}
+
 func check(err error) {
 	if err != nil {
-		log.Fatal(err)
+		if internal.CmdPanic == "" {
+			log.Fatal(err)
+		}
+		panic(err)
 	}
 }
 
