@@ -28,11 +28,11 @@ func (opt *ModuleUpload) _validate() {
 	h := api.KnownModuleHash.New()
 
 	if _, err := io.Copy(h, opt.Stream); err != nil {
-		panic(wrapContentError(err))
+		_check(wrapContentError(err))
 	}
 
 	if err := opt.takeStream().Close(); err != nil {
-		panic(wrapContentError(err))
+		_check(wrapContentError(err))
 	}
 
 	_validateHashBytes(opt.Hash, h.Sum(nil))

@@ -20,6 +20,7 @@ import (
 	gatescope "gate.computer/gate/scope"
 	"github.com/tsavola/confi"
 	"golang.org/x/term"
+	"import.name/pan"
 )
 
 const (
@@ -130,6 +131,12 @@ type command struct {
 
 func Main() {
 	log.SetFlags(0)
+
+	if internal.CmdPanic == "" {
+		defer func() {
+			pan.Fatal(recover())
+		}()
+	}
 
 	defaultIdentityFile, err := cmdconf.JoinHome(DefaultIdentityFile)
 	check(err)
@@ -314,14 +321,9 @@ func fatalf(format string, args ...interface{}) {
 }
 
 func check(err error) {
-	if err != nil {
-		if internal.CmdPanic == "" {
-			log.Fatal(err)
-		}
-		panic(err)
-	}
+	pan.Check(err)
 }
 
 func check_(_ interface{}, err error) {
-	check(err)
+	pan.Check(err)
 }

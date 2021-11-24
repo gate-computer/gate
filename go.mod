@@ -24,6 +24,7 @@ require (
 	google.golang.org/grpc v1.32.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0 // indirect
 	google.golang.org/protobuf v1.25.0
+	import.name/pan v0.1.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.49
 	modernc.org/sqlite v1.10.4
 )

@@ -38,7 +38,7 @@ func _validateHashBytes(hash1 string, digest2 []byte) {
 	_check(err)
 
 	if subtle.ConstantTimeCompare(digest1, digest2) != 1 {
-		panic(failrequest.New(event.FailModuleHashMismatch, "module hash does not match content"))
+		_check(failrequest.New(event.FailModuleHashMismatch, "module hash does not match content"))
 	}
 }
 
@@ -106,7 +106,7 @@ func _buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy 
 	err = content.Close()
 	content = nil
 	if err != nil {
-		panic(wrapContentError(err))
+		_check(wrapContentError(err))
 	}
 
 	actualHash := hasher.Sum(nil)

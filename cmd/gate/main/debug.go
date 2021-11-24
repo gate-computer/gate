@@ -394,7 +394,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType) []stack.Frame {
 	if n := len(buf); n == 0 || n&7 != 0 {
-		panic(fmt.Errorf("invalid stack size %d", n))
+		check(fmt.Errorf("invalid stack size %d", n))
 	}
 
 	var frames []stack.Frame
@@ -404,12 +404,12 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 
 		callIndex := uint32(pair)
 		if callIndex >= uint32(len(textMap.CallSites)) {
-			panic(fmt.Errorf("function call site index %d is unknown", callIndex))
+			check(fmt.Errorf("function call site index %d is unknown", callIndex))
 		}
 		call := textMap.CallSites[callIndex]
 
 		if off := int32(pair >> 32); off != call.StackOffset {
-			panic(fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset))
+			check(fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset))
 		}
 
 		if len(textMap.FuncAddrs) == 0 || call.RetAddr < textMap.FuncAddrs[0] {
@@ -417,15 +417,15 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		}
 
 		if call.StackOffset&7 != 0 {
-			panic(fmt.Errorf("invalid stack offset %d", call.StackOffset))
+			check(fmt.Errorf("invalid stack offset %d", call.StackOffset))
 		}
 		if call.StackOffset == 0 {
-			panic(errors.New("inconsistent call stack"))
+			check(errors.New("inconsistent call stack"))
 		}
 
 		init, funcIndex, callIndexAgain, stackOffset, retOff := textMap.FindCall(call.RetAddr)
 		if init || callIndexAgain != int(callIndex) || stackOffset != call.StackOffset {
-			panic(fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr))
+			check(fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr))
 		}
 
 		numParams := len(funcTypes[funcIndex].Params)
@@ -450,7 +450,8 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		buf = buf[stackOffset:]
 	}
 
-	panic(errors.New("ran out of stack before initial call"))
+	check(errors.New("ran out of stack before initial call"))
+	panic("unreachable")
 }
 
 func asUint64(x interface{}) uint64 {

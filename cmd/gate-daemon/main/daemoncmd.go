@@ -19,7 +19,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	goruntime "runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,6 +45,7 @@ import (
 	dbus "github.com/godbus/dbus/v5"
 	"github.com/tsavola/confi"
 	"google.golang.org/protobuf/proto"
+	"import.name/pan"
 )
 
 const (
@@ -97,11 +97,7 @@ func Main() {
 	log.SetFlags(0)
 
 	defer func() {
-		x := recover()
-		if err, ok := x.(error); ok {
-			log.Fatal(err)
-		}
-		panic(x)
+		pan.Fatal(recover())
 	}()
 
 	os.Exit(mainResult())
@@ -208,7 +204,7 @@ func mainResult() int {
 		host, port, err := net.SplitHostPort(c.HTTP.Addr)
 		check(err)
 		if host == "" {
-			panic(errors.New("HTTP hostname must be configured explicitly"))
+			check(errors.New("HTTP hostname must be configured explicitly"))
 		}
 		verifyLoopbackHost("HTTP", host)
 
@@ -221,7 +217,7 @@ func mainResult() int {
 		}
 
 		if len(c.HTTP.Origins) == 0 {
-			panic(errors.New("no HTTP origins configured"))
+			check(errors.New("no HTTP origins configured"))
 		}
 		for _, origin := range c.HTTP.Origins {
 			if origin != "" && origin != "null" {
@@ -262,7 +258,7 @@ func verifyLoopbackHost(errorDesc, host string) {
 
 	for _, ip := range ips {
 		if !ip.IsLoopback() {
-			panic(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
+			check(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
 		}
 	}
 }
@@ -280,7 +276,8 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 		if initedServer != nil {
 			return initedServer
 		}
-		panic(errors.New("daemon initialization was aborted"))
+		check(errors.New("daemon initialization was aborted"))
+		panic("unreachable")
 	}
 
 	methods := map[string]interface{}{
@@ -680,9 +677,7 @@ func connectInstance(ctx context.Context, s *server.Server, instanceID string, r
 	defer r.Close()
 	w := os.NewFile(uintptr(wFD), "w")
 	defer w.Close()
-	if err != nil {
-		panic(err) // First SetNonblock error.
-	}
+	check(err) // First SetNonblock error.
 
 	_, connIO, err := s.InstanceConnection(ctx, instanceID)
 	check(err)
@@ -794,16 +789,10 @@ func invokeOptions(debugFD dbus.UnixFD, debugLogging bool) *server.InvokeOptions
 }
 
 func asBusError(x interface{}) *dbus.Error {
-	if x != nil {
-		if err, ok := x.(error); ok {
-			if _, ok := err.(goruntime.Error); ok {
-				panic(x)
-			}
-			return dbus.MakeFailedError(err)
-		}
-		panic(x)
+	if x == nil {
+		return nil
 	}
-	return nil
+	return dbus.MakeFailedError(pan.Error(x))
 }
 
 func newHTTPHandler(api http.Handler, origin string) http.Handler {
@@ -811,13 +800,13 @@ func newHTTPHandler(api http.Handler, origin string) http.Handler {
 
 	for _, static := range c.HTTP.Static {
 		if !strings.HasPrefix(static.URI, "/") {
-			panic(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
+			check(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
 		}
 		if static.Path == "" {
-			panic(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
+			check(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
 		}
 		if strings.HasSuffix(static.URI, "/") != strings.HasSuffix(static.Path, "/") {
-			panic(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
+			check(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
 		}
 
 		mux.HandleFunc(static.URI, newStaticHTTPHandler(static.URI, static.Path, origin))
@@ -874,7 +863,5 @@ func newStaticHTTPHandler(staticPattern, staticPath, staticOrigin string) http.H
 }
 
 func check(err error) {
-	if err != nil {
-		panic(err)
-	}
+	pan.Check(err)
 }

@@ -41,7 +41,7 @@ func _validateInstanceID(s string) {
 		}
 	}
 
-	panic(failrequest.New(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
+	_check(failrequest.New(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
 }
 
 func contextWithInstanceID(ctx context.Context, id string) context.Context {
@@ -55,7 +55,7 @@ func instanceStorageKey(pri *principal.ID, instID string) string {
 func _parseInstanceStorageKey(key string) (*principal.ID, string) {
 	i := strings.LastIndexByte(key, '.')
 	if i < 0 {
-		panic(fmt.Errorf("invalid instance storage key: %q", key))
+		_check(fmt.Errorf("invalid instance storage key: %q", key))
 	}
 
 	pri, err := principal.ParseID(key[:i])
@@ -319,22 +319,22 @@ func (inst *Instance) _checkResume(function string) {
 
 func (inst *Instance) _resumeCheck(_ instanceLock, function string) {
 	if !inst.exists {
-		panic(resourcenotfound.ErrInstance)
+		_check(resourcenotfound.ErrInstance)
 	}
 
 	switch inst.status.State {
 	case api.StateSuspended:
 		if function != "" {
-			panic(failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance"))
+			_check(failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance"))
 		}
 
 	case api.StateHalted:
 		if function == "" {
-			panic(failrequest.Errorf(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
+			_check(failrequest.Errorf(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
 		}
 
 	default:
-		panic(failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or halted"))
+		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or halted"))
 	}
 }
 
@@ -382,10 +382,10 @@ func (inst *Instance) _snapshot(prog *program) (*image.Program, snapshot.Buffers
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		panic(resourcenotfound.ErrInstance)
+		_check(resourcenotfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		panic(failrequest.Errorf(event.FailInstanceStatus, "instance must not be running"))
+		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	buffers := inst.buffers
@@ -401,10 +401,10 @@ func (inst *Instance) _annihilate() {
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		panic(resourcenotfound.ErrInstance)
+		_check(resourcenotfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		panic(failrequest.Errorf(event.FailInstanceStatus, "instance must not be running"))
+		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	inst.doAnnihilate(lock)
@@ -539,11 +539,11 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		panic(public.Err("unsupported debug op")) // TODO: http response code: not implemented
+		_check(public.Err("unsupported debug op")) // TODO: http response code: not implemented
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
-		panic(failrequest.Errorf(event.FailInstanceStatus, "instance must be stopped"))
+		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
 	info := inst.image.DebugInfo()
@@ -557,7 +557,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(config.Breakpoints) > manifest.MaxBreakpoints {
-			panic(public.Err("too many breakpoints"))
+			_check(public.Err("too many breakpoints"))
 		}
 
 		info = config.DebugInfo
@@ -574,7 +574,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
-			panic(public.Err("too many breakpoints"))
+			_check(public.Err("too many breakpoints"))
 		}
 
 		if config.DebugInfo {
