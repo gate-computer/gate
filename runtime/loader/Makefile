@@ -13,7 +13,7 @@ CFLAGS		+= -std=gnu99 -Os -fPIE -fomit-frame-pointer -fno-stack-protector -g -Wa
 LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segment=0x200000000 -Wl,--build-id=none
 
 binary		:= ../../lib/gate/gate-runtime-loader.$(GATE_COMPAT_VERSION)
-objects		:= $(ARCH)/start.o loader.o $(ARCH)/runtime.o
+objects		:= $(ARCH)/start.o loader.o $(ARCH)/runtime2.o
 
 $(binary): $(objects)
 	mkdir -p $(dir $@)
@@ -23,7 +23,7 @@ loader.o: loader.c $(wildcard $(ARCH)/*.h ../include/$(ARCH)/*.h ../include/*.h)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ loader.c
 
 $(ARCH)/start.o: $(ARCH)/start.S Makefile ../include/runtime.mk
-$(ARCH)/runtime.o: $(ARCH)/runtime.S poll.S seccomp.S $(wildcard ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
+$(ARCH)/runtime2.o: $(ARCH)/runtime2.S $(ARCH)/runtime.S poll.S seccomp.S $(wildcard ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
 
 %.o: %.S
 	$(CCAS) $(CPPFLAGS) -c -o $@ $*.S

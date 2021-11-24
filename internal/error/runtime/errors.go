@@ -50,6 +50,50 @@ const (
 	ERR_EXEC_FSTAT                         = 54
 )
 
+const (
+	ERR_RT_READ                  = 4
+	ERR_RT_WRITE                 = 5
+	ERR_RT_DEBUG                 = 6
+	ERR_RT_MPROTECT              = 7
+	ERR_RT_MREMAP                = 8
+	ERR_RT_CLOCK_GETTIME         = 9
+	ERR_RT_POLL                  = 10
+	ERR_SENTINEL_PDEATHSIG       = 11
+	ERR_SENTINEL_CLOSE           = 12
+	ERR_SENTINEL_SIGSUSPEND      = 13
+	ERR_EXECHILD_DUP2            = 14
+	ERR_EXECHILD_EXEC_LOADER     = 15
+	ERR_LOAD_PDEATHSIG           = 18
+	ERR_LOAD_SETRLIMIT_NOFILE    = 19
+	ERR_LOAD_SETRLIMIT_NPROC     = 20
+	ERR_LOAD_PRCTL_NOT_DUMPABLE  = 21
+	ERR_LOAD_PERSONALITY_DEFAULT = 22
+	ERR_LOAD_READ_INFO           = 23
+	ERR_LOAD_MAGIC_1             = 24
+	ERR_LOAD_MAGIC_2             = 25
+	ERR_LOAD_MMAP_VECTOR         = 26
+	ERR_LOAD_MPROTECT_VECTOR     = 27
+	ERR_LOAD_MMAP_TEXT           = 28
+	ERR_LOAD_MMAP_STACK          = 29
+	ERR_LOAD_MMAP_HEAP           = 30
+	ERR_LOAD_CLOSE_STATE         = 31
+	ERR_LOAD_MUNMAP_STACK        = 32
+	ERR_LOAD_SIGACTION           = 33
+	ERR_LOAD_MUNMAP_LOADER       = 34
+	ERR_LOAD_SECCOMP             = 35
+	ERR_LOAD_ARG_ENV             = 36
+	ERR_LOAD_NO_VDSO             = 37
+	ERR_LOAD_FCNTL_INPUT         = 39
+	ERR_LOAD_FCNTL_OUTPUT        = 40
+	ERR_LOAD_MPROTECT_HEAP       = 41
+	ERR_LOAD_CLOSE_TEXT          = 42
+	ERR_LOAD_SETPRIORITY         = 43
+	ERR_LOAD_NO_CLOCK_GETTIME    = 44
+	ERR_LOAD_CLOCK_GETTIME       = 45
+	ERR_LOAD_READ_TEXT           = 46
+	ERR_LOAD_MREMAP_HEAP         = 47
+)
+
 var ExecutorErrors = [55]Error{
 	10: {"ERR_CONT_EXEC_EXECUTOR", "runtime container", "failed to execute executor"},
 	11: {"ERR_EXEC_BRK", "runtime executor", "brk call failed"},

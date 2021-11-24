@@ -47,7 +47,7 @@ static inline void enter(
 	register uint64_t r4 asm("r4") = signal_handler;
 	register uint64_t r5 asm("r5") = SIGACTION_FLAGS;
 	register uint64_t r6 asm("r6") = signal_restorer;
-	register uint64_t r7 asm("r7") = runtime_init;
+	register uint64_t r9 asm("r9") = runtime_init;
 	register void *r27 asm("r27") = init_routine;
 	register void *r28 asm("r28") = stack_limit;
 	register void *r29 asm("r29") = stack_ptr;
@@ -100,9 +100,9 @@ static inline void enter(
 
 		// Execute runtime_init.
 
-		"br   x7                                 \n"
+		"b    trampoline                         \n"
 		:
-		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r7), "r"(r27), "r"(r28), "r"(r29), "r"(r30));
+		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r9), "r"(r27), "r"(r28), "r"(r29), "r"(r30));
 
 	// clang-format on
 

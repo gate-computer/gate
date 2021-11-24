@@ -10,8 +10,8 @@ all: signal stack
 
 check: signal.check stack.check
 
-signal: signal.o ../$(ARCH)/runtime.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -Wl,-Ttext-segment=0x40000000 -Wl,--section-start=.runtime=0x50000000 -o $@ signal.o ../$(ARCH)/runtime.o
+signal: signal.o ../$(ARCH)/runtime2.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -Wl,-Ttext-segment=0x40000000 -Wl,--section-start=.runtime=0x50000000 -o $@ signal.o ../$(ARCH)/runtime2.o
 
 signal.o: signal.c Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ signal.c

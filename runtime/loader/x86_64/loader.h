@@ -90,8 +90,8 @@ static inline void enter(
 
 		// Execute runtime_init.
 
-		"mov  %%rbp, %%rcx                          \n"
-		"jmp  retpoline                             \n"
+		"mov  %%rbp, %%r9                           \n"
+		"jmp  trampoline                            \n"
 		:
 		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r13), "r"(r15));
 

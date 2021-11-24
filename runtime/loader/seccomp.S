@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#define SECCOMP_SET_MODE_FILTER 1
+#include <asm/mman.h>
+#include <linux/bpf_common.h>
+#include <sys/syscall.h>
 
 #define SECCOMP_RET_KILL_PROCESS 0x80000000
 #define SECCOMP_RET_ALLOW        0x7fff0000
@@ -56,4 +58,4 @@
 	bpf_stmt BPF_RET | BPF_K,             SECCOMP_RET_ALLOW
 	bpf_stmt BPF_RET | BPF_K,             SECCOMP_RET_KILL_PROCESS
 
-.equ	seccomp_filter_len, (. - .Lseccomp_filter) / 8
+.equ	.Lseccomp_filter_len, (. - .Lseccomp_filter) / 8

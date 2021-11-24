@@ -3,6 +3,7 @@ module gate.computer/gate
 go 1.16
 
 require (
+	gate.computer/ga v0.0.0-20211218044256-b13e95063354
 	gate.computer/wag v0.33.1-0.20211018064058-2c01f4772f32
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/coreos/go-systemd/v22 v22.3.0
@@ -12,7 +13,7 @@ require (
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.4.1
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 	google.golang.org/grpc v1.32.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0

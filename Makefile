@@ -10,7 +10,9 @@ LIBEXECDIR	= $(PREFIX)/lib/gate
 libexecprefix	= $(shell echo /$(LIBEXECDIR)/ | tr -s /)
 
 GEN_LIB_SOURCES := \
-	runtime/include/errors.h
+	runtime/include/errors.h \
+	runtime/loader/aarch64/runtime.S \
+	runtime/loader/x86_64/runtime.S
 
 GEN_BIN_SOURCES := \
 	internal/error/runtime/errors.go \
@@ -109,12 +111,15 @@ install-systemd-user:
 	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/systemd/user/gate.service > $(PREFIX)/share/systemd/user/gate.service
 	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/dbus/services/computer.gate.Daemon.service > $(PREFIX)/share/dbus-1/services/computer.gate.Daemon.service
 
-internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S)
+internal/error/runtime/errors.go runtime/include/errors.h: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.c runtime/*/*/*.S internal/container/child/*.go internal/cmd/runtime-assembly/*.go)
 	mkdir -p tmp
-	$(GO) run internal/cmd/runtime-errors/generate.go -- tmp/errors.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S internal/container/child/*.go)
+	$(GO) run internal/cmd/runtime-errors/generate.go -- tmp/errors.go $(wildcard runtime/*/*.c runtime/*/*/*.h runtime/*/*.S runtime/*/*/*.S internal/container/child/*.go internal/cmd/runtime-assembly/*.go)
 	$(GOFMT) -w tmp/errors.go
 	test -s tmp/errors.go
 	mv tmp/errors.go internal/error/runtime/errors.go
+
+runtime/loader/aarch64/runtime.S runtime/loader/x86_64/runtime.S: internal/cmd/runtime-assembly/generate.go
+	$(GO) run internal/cmd/runtime-assembly/generate.go
 
 %.pb.go: %.proto go.mod
 	$(GO) build -o tmp/bin/protoc-gen-go google.golang.org/protobuf/cmd/protoc-gen-go

@@ -226,10 +226,12 @@ grow_memory:
 	b.gt	.Lout_of_memory
 	ldr	x9, [x27, -32]
 	add	x0, x9, x12
-	movz	x2, 3, lsl #0
-	mov	w8, 226
+	mov	x1, x12
+	mov	x2, x13
+	mov	x3, 0
+	mov	w8, 216
 	svc	0
-	cmp	x0, 0
+	cmp	x0, x0
 	b.ne	.Lgrow_memory_error
 	str	w13, [x11, 4]
 	b	.Lresume

@@ -196,10 +196,12 @@ grow_memory:
 	jg	.Lout_of_memory
 	mov	r9, [r15 - 32]
 	lea	rdi, [r9 + r12]
-	mov	edx, 3
-	mov	eax, 10
+	mov	rsi, r12
+	mov	rdx, r13
+	xor	r10d, r10d
+	mov	eax, 25
 	syscall
-	test	rax, rax
+	cmp	rax, rdi
 	jne	.Lgrow_memory_error
 	mov	[rbp + 4], r13d
 	jmp	.Lresume
