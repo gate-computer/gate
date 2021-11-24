@@ -9,7 +9,7 @@ include ../include/runtime.mk
 ARCH		:= $(shell $(CC) -dumpmachine | cut -d- -f1)
 
 CPPFLAGS	+= -I$(ARCH) -I../include/$(ARCH) -I../include -DNDEBUG -DPIE -DGATE_LOADER_ADDR=0x200000000
-CFLAGS		+= -std=gnu99 -Os -fPIE -fomit-frame-pointer -fno-stack-protector -g -Wall -Wextra -Wno-unused-parameter
+CFLAGS		+= -std=gnu99 -Os -fPIE -fomit-frame-pointer -fno-stack-protector -g -Wall -Wextra -Wno-unused-parameter -Wimplicit-fallthrough
 LDFLAGS		+= -static -nostartfiles -nostdlib -Wl,-z,noexecstack -Wl,-Ttext-segment=0x200000000 -Wl,--build-id=none
 
 binary		:= ../../lib/gate/gate-runtime-loader.$(GATE_COMPAT_VERSION)
