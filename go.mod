@@ -16,7 +16,6 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/tsavola/confi v1.5.0
 	github.com/tsavola/mu v1.0.0
-	github.com/tsavola/snide v0.0.0-20201022011019-997fd41f0088
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac

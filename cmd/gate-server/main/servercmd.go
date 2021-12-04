@@ -43,7 +43,6 @@ import (
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
 	"github.com/tsavola/confi"
-	"github.com/tsavola/snide"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -415,15 +414,7 @@ func main2(critLog *log.Logger) error {
 		handler = handlers.LoggingHandler(f, handler)
 	}
 
-	var l net.Listener
-	if c.HTTP.Net == "snide" {
-		if !c.HTTP.TLS.Enabled {
-			return errors.New("snide HTTP listener configured without TLS")
-		}
-		l, err = snide.Listen(c.HTTP.Addr)
-	} else {
-		l, err = net.Listen(c.HTTP.Net, c.HTTP.Addr)
-	}
+	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
 		return err
 	}
