@@ -16,7 +16,7 @@ import (
 	"gate.computer/gate/runtime/container"
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
-	"github.com/tsavola/confi"
+	"import.name/confi"
 )
 
 type Config struct {

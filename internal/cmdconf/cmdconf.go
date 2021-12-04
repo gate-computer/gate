@@ -10,7 +10,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/tsavola/confi"
+	"import.name/confi"
 )
 
 var (

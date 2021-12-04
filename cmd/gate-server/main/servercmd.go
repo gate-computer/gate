@@ -42,9 +42,9 @@ import (
 	"gate.computer/gate/source/ipfs"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
-	"github.com/tsavola/confi"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
+	"import.name/confi"
 )
 
 const serverHeaderValue = "gate"

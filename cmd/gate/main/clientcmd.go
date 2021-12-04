@@ -18,7 +18,7 @@ import (
 	"gate.computer/gate/internal"
 	"gate.computer/gate/internal/cmdconf"
 	gatescope "gate.computer/gate/scope"
-	"github.com/tsavola/confi"
+	"import.name/confi"
 	"golang.org/x/term"
 	"import.name/pan"
 )

@@ -11,7 +11,6 @@ github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 h1:q763qf9huN11kDQavWs
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
-github.com/coreos/go-systemd/v22 v22.0.0/go.mod h1:xO0FLkIi5MaZafQlIrOotqXZ90ih+1atmu1JpKERPPk=
 github.com/coreos/go-systemd/v22 v22.3.0 h1:C8u/Ljj8G8O6rqWJh2J8cDyeEFBMWvXlvJ/ccMyzcqw=
 github.com/coreos/go-systemd/v22 v22.3.0/go.mod h1:xO0FLkIi5MaZafQlIrOotqXZ90ih+1atmu1JpKERPPk=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
@@ -65,8 +64,6 @@ github.com/naoina/toml v0.1.1/go.mod h1:NBIhNtsFMo3G2szEBne+bO4gS192HuIYRqfvOWb4
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 h1:OdAsTTz6OkFY5QxjkYwrChwuRruF69c169dPK26NUlk=
 github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
-github.com/tsavola/confi v1.5.0 h1:lbpKR1JO/w9px+vln/6m1EK5ys5vsmjwea+hbFXoVMs=
-github.com/tsavola/confi v1.5.0/go.mod h1:jDz8ndC0blU/9D7QrKGKULsFxiDqoLZ2rCoaC6CsbJ0=
 github.com/tsavola/mu v1.0.0 h1:U0Xhjsfc5gDJHfMjGFK0vByPG9QpxnRJ8P3F2k32KlI=
 github.com/tsavola/mu v1.0.0/go.mod h1:uh+UOPcLhbDz4XoMmPg0/9Rl7BCIV0snqUWQEgZrSXc=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
@@ -154,6 +151,8 @@ google.golang.org/protobuf v1.25.0 h1:Ejskq+SyPohKW+1uil0JJMtmHCgJPJ/qWTxr8qp+R4
 google.golang.org/protobuf v1.25.0/go.mod h1:9JNX74DMeImyA3h4bdi1ymwjUzf21/xIlbajtzgsN7c=
 honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
+import.name/confi v1.6.0 h1:zQ3ki06ZDp4+ohhlNqC07nzwY70WaQmSoXr9xiIu7ec=
+import.name/confi v1.6.0/go.mod h1:jeyJVWX3Z5bFX91LPdetqunSrmgrWztnrgUQbQM/bJo=
 import.name/pan v0.1.0 h1:Te9iR+GASlpx2bDymxr7GKfhuMD6qor3q+TL7mhTDcs=
 import.name/pan v0.1.0/go.mod h1:snP0jwjUyxGNm7n8LD3QF/uG7HNg8lg22zwC3wm0h9M=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.49 h1:l/z5YU1YTeIo872V3L577f49PgLvSGTstopFJMASdAc=
