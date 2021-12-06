@@ -15,7 +15,7 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/snapshot"
-	"github.com/tsavola/mu"
+	"import.name/lock"
 )
 
 const maxServiceStringLen = 127
@@ -268,7 +268,7 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 }
 
 type aborter struct {
-	mu mu.Mutex
+	mu sync.Mutex
 	c  chan<- error
 }
 
@@ -281,7 +281,7 @@ func (a *aborter) abort(err error) {
 
 func (a *aborter) close(err error) {
 	var c chan<- error
-	a.mu.Guard(func() {
+	lock.Guard(&a.mu, func() {
 		c = a.c
 		a.c = nil
 	})

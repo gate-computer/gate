@@ -16,7 +16,7 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/gate/packet/packetio"
 	"gate.computer/gate/service"
-	"github.com/tsavola/mu"
+	"import.name/lock"
 )
 
 type instance struct {
@@ -27,7 +27,7 @@ type instance struct {
 
 	send      chan<- packet.Buf // Send packets to the user program.
 	wakeup    chan struct{}     // accepting, replying or shutting changed.
-	mu        mu.Mutex          // Protects the fields below.
+	mu        sync.Mutex        // Protects the fields below.
 	streams   map[int32]*stream
 	accepting int32
 	replying  bool
@@ -124,13 +124,14 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort f
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
 	switch p.Domain() {
 	case packet.DomainCall:
-		if !inst.mu.GuardBool(func() bool {
+		var ok bool
+		lock.Guard(&inst.mu, func() {
 			if n := inst.accepting + 1; n > 0 {
 				inst.accepting = n
-				return true
+				ok = true
 			}
-			return false
-		}) {
+		})
+		if !ok {
 			return errors.New("TODO: too many simultaneous origin accept calls")
 		}
 
@@ -143,7 +144,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 			id, increment := p.Get(i)
 
 			var s *stream
-			inst.mu.Guard(func() {
+			lock.Guard(&inst.mu, func() {
 				s = inst.streams[id]
 			})
 			if s == nil {
@@ -161,7 +162,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p pack
 		p := packet.DataBuf(p)
 
 		var s *stream
-		inst.mu.Guard(func() {
+		lock.Guard(&inst.mu, func() {
 			s = inst.streams[p.ID()]
 		})
 		if s == nil {
@@ -191,7 +192,8 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 	for s == nil {
 		select {
 		case <-inst.wakeup:
-			if inst.mu.GuardBool(func() bool {
+			var ok bool
+			lock.Guard(&inst.mu, func() {
 				if inst.accepting > 0 && !inst.replying && !inst.shutting {
 					for id = 0; inst.streams[id] != nil; id++ {
 					}
@@ -199,8 +201,9 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 					inst.streams[id] = s
 					inst.replying = true
 				}
-				return inst.shutting
-			}) {
+				ok = inst.shutting
+			})
+			if ok {
 				return nil
 			}
 
@@ -223,8 +226,8 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 			reply = nil
 
 		case <-inst.wakeup:
-			cancel = inst.mu.GuardBool(func() bool {
-				return inst.shutting
+			lock.Guard(&inst.mu, func() {
+				cancel = inst.shutting
 			})
 
 		case <-connectorClosed:
@@ -235,7 +238,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		}
 	}
 
-	inst.mu.Guard(func() {
+	lock.Guard(&inst.mu, func() {
 		if cancel {
 			delete(inst.streams, id)
 		} else {
@@ -257,7 +260,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		err := s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
 		if !s.Live() {
-			inst.mu.Guard(func() {
+			lock.Guard(&inst.mu, func() {
 				if !inst.shutting {
 					delete(inst.streams, id)
 				}
@@ -276,14 +279,14 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 
 	for _, id := range restored {
 		var s *stream
-		inst.mu.Guard(func() {
+		lock.Guard(&inst.mu, func() {
 			s = inst.streams[id]
 		})
 
 		// Errors would be I/O errors, but there is no connection.
 		_ = s.transfer(ctx, inst.Service, id, nil, nil, inst.send)
 
-		inst.mu.Guard(func() {
+		lock.Guard(&inst.mu, func() {
 			if !inst.shutting {
 				delete(inst.streams, id)
 			}
@@ -292,7 +295,7 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 }
 
 func (inst *instance) shutdown() {
-	inst.mu.Guard(func() {
+	lock.Guard(&inst.mu, func() {
 		inst.shutting = true
 		for inst.replying {
 			inst.notify.Wait()

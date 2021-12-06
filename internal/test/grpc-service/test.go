@@ -19,10 +19,10 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service/grpc/api"
 	"github.com/google/uuid"
-	"github.com/tsavola/mu"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"import.name/lock"
 )
 
 const (
@@ -159,7 +159,7 @@ func (s *rootServer) Init(ctx context.Context, req *api.InitRequest) (*api.InitR
 type instanceServer struct {
 	api.UnimplementedInstanceServer
 
-	mu        mu.Mutex
+	mu        sync.Mutex
 	instances map[string]*instance
 }
 
@@ -171,7 +171,7 @@ func newInstanceServer() *instanceServer {
 
 func (s *instanceServer) registerInstance(inst *instance) (id []byte) {
 	id = newInstanceID()
-	s.mu.Guard(func() {
+	lock.Guard(&s.mu, func() {
 		s.instances[string(id)] = inst
 	})
 	return
@@ -186,7 +186,7 @@ func (s *instanceServer) removeInstance(id []byte) (*instance, error) {
 }
 
 func (s *instanceServer) lookupInstance(id []byte, remove bool) (inst *instance, err error) {
-	s.mu.Guard(func() {
+	lock.Guard(&s.mu, func() {
 		inst = s.instances[string(id)]
 		if remove {
 			delete(s.instances, string(id))
@@ -267,7 +267,7 @@ func newInstanceID() []byte {
 }
 
 type instance struct {
-	mu        mu.Mutex
+	mu        sync.Mutex
 	loopback  chan packet.Buf
 	receiving <-chan struct{}
 	outgoing  []byte
@@ -307,7 +307,7 @@ func (inst *instance) sendTo(stream api.Instance_ReceiveServer) error {
 		loopback <-chan packet.Buf
 		outgoing []byte
 	)
-	inst.mu.Guard(func() {
+	lock.Guard(&inst.mu, func() {
 		if inst.receiving == nil {
 			loopback = inst.loopback
 			if loopback != nil {
@@ -325,7 +325,7 @@ func (inst *instance) sendTo(stream api.Instance_ReceiveServer) error {
 		n := packet.Buf(outgoing).EncodedSize()
 
 		if err := stream.Send(&wrapperspb.BytesValue{Value: outgoing[:n:n]}); err != nil {
-			inst.mu.Guard(func() {
+			lock.Guard(&inst.mu, func() {
 				inst.outgoing = outgoing
 			})
 			return err
@@ -336,7 +336,7 @@ func (inst *instance) sendTo(stream api.Instance_ReceiveServer) error {
 
 	for p := range loopback {
 		if err := stream.Send(&wrapperspb.BytesValue{Value: p}); err != nil {
-			inst.mu.Guard(func() {
+			lock.Guard(&inst.mu, func() {
 				inst.outgoing = p
 			})
 			return err
@@ -348,7 +348,7 @@ func (inst *instance) sendTo(stream api.Instance_ReceiveServer) error {
 
 func (inst *instance) handle(ctx context.Context, p packet.Buf) {
 	var loopback chan<- packet.Buf
-	inst.mu.Guard(func() {
+	lock.Guard(&inst.mu, func() {
 		if len(inst.incoming) == 0 && inst.loopback != nil {
 			loopback = inst.loopback
 		}
@@ -363,7 +363,7 @@ func (inst *instance) handle(ctx context.Context, p packet.Buf) {
 		}
 	}
 
-	inst.mu.Guard(func() {
+	lock.Guard(&inst.mu, func() {
 		inst.incoming = append(inst.incoming, p...)
 	})
 }

@@ -12,13 +12,14 @@ import (
 	"math"
 	"net"
 	"os/exec"
+	"sync"
 	"sync/atomic"
 	"syscall"
 
 	"gate.computer/gate/internal/container"
 	"gate.computer/gate/internal/defaultlog"
 	"gate.computer/gate/internal/file"
-	"github.com/tsavola/mu"
+	"import.name/lock"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -38,7 +39,7 @@ type Executor struct {
 	doneSending   chan struct{}
 	doneReceiving chan struct{}
 
-	mu    mu.Mutex
+	mu    sync.Mutex
 	procs map[int16]*execProcess
 }
 
@@ -202,7 +203,7 @@ func (e *Executor) sender(errorLog Logger) {
 
 		select {
 		case req = <-e.execRequests:
-			e.mu.Guard(func() {
+			lock.Guard(&e.mu, func() {
 				e.procs[req.pid] = req.proc
 			})
 
@@ -261,7 +262,7 @@ func (e *Executor) receiver(errorLog Logger) {
 		buffered += n
 		b := buf[:buffered]
 
-		e.mu.Guard(func() {
+		lock.Guard(&e.mu, func() {
 			for ; len(b) >= 8; b = b[8:] {
 				// This is like exec_status in runtime/executor/executor.c
 				var (

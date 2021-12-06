@@ -34,7 +34,7 @@ import (
 	objectabi "gate.computer/wag/object/abi"
 	"gate.computer/wag/object/stack/stacktrace"
 	"gate.computer/wag/wa"
-	"github.com/tsavola/mu"
+	"import.name/lock"
 )
 
 const (
@@ -91,7 +91,7 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 
 		for p := range recv {
 			var name string
-			d.nameMu.Guard(func() {
+			lock.Guard(&d.nameMu, func() {
 				name = d.names[p.Code()]
 			})
 
@@ -144,7 +144,7 @@ func (services serviceRegistry) StartServing(ctx context.Context, config runtime
 
 type serviceDiscoverer struct {
 	services []runtime.ServiceState
-	nameMu   mu.Mutex
+	nameMu   sync.Mutex
 	names    []string
 }
 
@@ -159,7 +159,7 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 
 		d.services = append(d.services, s)
 
-		d.nameMu.Guard(func() {
+		lock.Guard(&d.nameMu, func() {
 			d.names = append(d.names, name)
 		})
 	}

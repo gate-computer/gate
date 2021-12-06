@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/principal"
@@ -15,8 +16,8 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/grpc/api"
 	"github.com/google/uuid"
-	"github.com/tsavola/mu"
 	"google.golang.org/grpc"
+	"import.name/lock"
 )
 
 type procKey struct {
@@ -25,14 +26,14 @@ type procKey struct {
 }
 
 var (
-	procMu   mu.Mutex
+	procMu   sync.Mutex
 	procKeys = make(map[runtime.ProcessKey]procKey)
 )
 
 func getProcKey(ctx context.Context) (key []byte) {
 	opaque := runtime.MustContextProcessKey(ctx)
 
-	procMu.Guard(func() {
+	lock.Guard(&procMu, func() {
 		if x, found := procKeys[opaque]; found {
 			x.n++
 			procKeys[opaque] = x
@@ -45,7 +46,7 @@ func getProcKey(ctx context.Context) (key []byte) {
 
 	array := uuid.New()
 	key = array[:]
-	procMu.Guard(func() {
+	lock.Guard(&procMu, func() {
 		if x, found := procKeys[opaque]; found {
 			x.n++
 			procKeys[opaque] = x

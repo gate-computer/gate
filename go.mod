@@ -11,14 +11,14 @@ require (
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.4.1
-	github.com/tsavola/mu v1.0.0
 	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac
 	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
 	google.golang.org/grpc v1.32.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0 // indirect
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0
 	google.golang.org/protobuf v1.25.0
 	import.name/confi v1.6.0
+	import.name/lock v0.0.0-20211205191324-f24933776f0b
 	import.name/pan v0.1.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.49
 	modernc.org/sqlite v1.10.4
