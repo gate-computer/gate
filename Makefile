@@ -76,6 +76,7 @@ check: all
 
 .PHONY: benchmark
 benchmark: lib bin
+	@ $(PERFLOCK) true
 	$(PERFLOCK) $(GO) test -run=- $(BENCHFLAGS) ./... | tee bench-new.txt
 	[ ! -e bench-old.txt ] || benchstat bench-old.txt bench-new.txt
 

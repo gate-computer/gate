@@ -31,6 +31,7 @@ func newBenchHandler(s *server.Server) http.Handler {
 	config := &web.Config{
 		Server:    s,
 		Authority: "bench",
+		Origins:   []string{"null"},
 	}
 
 	return web.NewHandler("/", config)
