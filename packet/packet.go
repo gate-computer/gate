@@ -166,12 +166,12 @@ func (b Buf) Content() []byte {
 	return b[HeaderSize:]
 }
 
-// Split a packet into two parts.  The headerSize parameter determins how many
-// bytes are initialized in the second part: the header is copied from the
-// first part.  The length of the first part is given as the prefixLen
-// parameter.  If the buffer is too short for the second part, the length of
-// the second buffer will be zero.
-func (b Buf) Split(headerSize, prefixLen int) (prefix, unused Buf) {
+// Cut a packet into two parts.  The headerSize parameter determins how
+// many bytes are initialized in the second part: the header is copied
+// from the first part.  The length of the first part is given as the
+// prefixLen parameter.  If the buffer is too short for the second part,
+// the length of the second buffer will be zero.
+func (b Buf) Cut(headerSize, prefixLen int) (prefix, unused Buf) {
 	prefixCap := Align(prefixLen)
 	if prefixCap > len(b) {
 		prefixCap = len(b)
@@ -275,8 +275,8 @@ func (b DataBuf) EOF() bool {
 	return b.DataLen() == 0
 }
 
-func (b DataBuf) Split(dataLen int) (prefix Buf, unused DataBuf) {
-	prefix, unusedBuf := Buf(b).Split(DataHeaderSize, DataHeaderSize+dataLen)
+func (b DataBuf) Cut(dataLen int) (prefix Buf, unused DataBuf) {
+	prefix, unusedBuf := Buf(b).Cut(DataHeaderSize, DataHeaderSize+dataLen)
 	unused = DataBuf(unusedBuf)
 	return
 }

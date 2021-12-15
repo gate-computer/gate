@@ -186,7 +186,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 
 				b := packet.MakeData(config.Code, streamID, n)
 				n, err = r.Read(b.Data())
-				pkt, _ = b.Split(n)
+				pkt, _ = b.Cut(n)
 				readpos += uint32(n)
 				if err != nil {
 					closeRead(&r)
