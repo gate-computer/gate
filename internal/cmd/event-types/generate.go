@@ -11,7 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
-	"strings"
+	"unicode"
 
 	"gate.computer/gate/server/event"
 )
@@ -44,14 +44,14 @@ func main() {
 	sort.Strings(names)
 
 	for _, name := range names {
-		fmt.Fprintf(b, "func (x *%s) EventName() string {", strings.Replace(strings.Title(strings.Replace(strings.ToLower(name), "_", " ", -1)), " ", "", -1))
+		fmt.Fprintf(b, "func (x *%s) EventName() string {", snake2title(name))
 		fmt.Fprintf(b, " return \"%s\" }\n", name)
 	}
 
 	fmt.Fprintln(b)
 
 	for _, name := range names {
-		fmt.Fprintf(b, "func (*%s) EventType() int32 {", strings.Replace(strings.Title(strings.Replace(strings.ToLower(name), "_", " ", -1)), " ", "", -1))
+		fmt.Fprintf(b, "func (*%s) EventType() int32 {", snake2title(name))
 		fmt.Fprintf(b, " return int32(Type_%s) }\n", name)
 	}
 
@@ -59,4 +59,28 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func snake2title(snake string) string {
+	var (
+		title string
+		up    = true
+	)
+
+	for _, code := range snake {
+		if code == '_' {
+			up = true
+		} else {
+			r := rune(code)
+			if up {
+				r = unicode.ToUpper(r)
+				up = false
+			} else {
+				r = unicode.ToLower(r)
+			}
+			title += string(r)
+		}
+	}
+
+	return title
 }

@@ -17,7 +17,6 @@ import (
 	"os"
 	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -413,7 +412,7 @@ func TestKnownModule(t *testing.T) {
 		fn := spec[0]
 		expect := spec[1]
 
-		t.Run("Call"+strings.Title(fn), func(t *testing.T) {
+		t.Run("Call_"+fn, func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathKnownModules+hashHello+"?action=call&function="+fn, nil)
 			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
@@ -439,7 +438,7 @@ func TestKnownModule(t *testing.T) {
 			}
 		})
 
-		t.Run("Launch"+strings.Title(fn), func(t *testing.T) {
+		t.Run("Launch_"+fn, func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathKnownModules+hashHello+"?action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -706,7 +705,7 @@ func TestModuleSource(t *testing.T) {
 		fn := spec[0]
 		expect := spec[1]
 
-		t.Run("AnonCall"+strings.Title(fn), func(t *testing.T) {
+		t.Run("AnonCall_"+fn, func(t *testing.T) {
 			req := newRequest(http.MethodPost, api.PathModule+"/test/hello?action=call&function="+fn, nil)
 			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusOK)
@@ -734,12 +733,12 @@ func TestModuleSource(t *testing.T) {
 			}
 		})
 
-		t.Run("AnonPinCallUnauthorized"+strings.Title(fn), func(t *testing.T) {
+		t.Run("AnonPinCallUnauthorized_"+fn, func(t *testing.T) {
 			req := newRequest(http.MethodPost, api.PathModule+"/test/hello?action=pin&action=call&function="+fn, nil)
 			checkResponse(t, handler, req, http.StatusUnauthorized)
 		})
 
-		t.Run("Call"+strings.Title(fn), func(t *testing.T) {
+		t.Run("Call_"+fn, func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathKnownModules+hashHello+"?action=unpin", nil)
 			doRequest(t, handler, req)
 
@@ -775,7 +774,7 @@ func TestModuleSource(t *testing.T) {
 			checkResponse(t, handler, req, http.StatusNotFound)
 		})
 
-		t.Run("PinCall"+strings.Title(fn), func(t *testing.T) {
+		t.Run("PinCall_"+fn, func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=pin&action=call&function="+fn, nil)
 			req.Header.Set(api.HeaderTE, api.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
@@ -808,7 +807,7 @@ func TestModuleSource(t *testing.T) {
 			checkResponse(t, handler, req, http.StatusNoContent)
 		})
 
-		t.Run("Launch"+strings.Title(fn), func(t *testing.T) {
+		t.Run("Launch_"+fn, func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -832,7 +831,7 @@ func TestModuleSource(t *testing.T) {
 			checkResponse(t, handler, req, http.StatusNotFound)
 		})
 
-		t.Run("PinLaunch"+strings.Title(fn), func(t *testing.T) {
+		t.Run("PinLaunch_"+fn, func(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, api.PathModule+"/test/hello?action=pin&action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
