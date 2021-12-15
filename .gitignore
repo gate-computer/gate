@@ -2,7 +2,6 @@
 bench-*.txt
 bin
 config.mk
-fuzz.zip
 lib
 testdata/filesystem
 tmp
