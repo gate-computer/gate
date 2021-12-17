@@ -27,6 +27,10 @@ import (
 
 const maxWebsocketRequestSize = 4096
 
+type respondedType struct{}
+
+var responded respondedType
+
 type errorWriter interface {
 	SetHeader(key, value string)
 	WriteError(status int, text string)
@@ -154,7 +158,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		}, nil)
 
 		defer func() {
-			if x := recover(); x != nil {
+			if x := recover(); x != nil && x != responded {
 				panic(x)
 			}
 		}()
@@ -829,7 +833,7 @@ func handleModuleDownload(w http.ResponseWriter, r *http.Request, s *webserver, 
 	content, length, err := s.Server.ModuleContent(ctx, key)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, "", "", err)
-		panic(nil)
+		panic(responded)
 	}
 	defer content.Close()
 
@@ -851,7 +855,7 @@ func handleModuleUpload(w http.ResponseWriter, r *http.Request, s *webserver, ke
 
 	if _, err := s.Server.UploadModule(ctx, upload, modulePin(true, modTags)); err != nil {
 		respondServerError(ctx, wr, s, "", key, "", "", err)
-		panic(nil)
+		panic(responded)
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -879,7 +883,7 @@ func handleModulePin(w http.ResponseWriter, r *http.Request, s *webserver, key s
 
 	if err := s.Server.PinModule(ctx, key, modulePin(true, modTags)); err != nil {
 		respondServerError(ctx, wr, s, "", key, "", "", err)
-		panic(nil)
+		panic(responded)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -892,7 +896,7 @@ func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key
 
 	if err := s.Server.UnpinModule(ctx, key); err != nil {
 		respondServerError(ctx, wr, s, "", key, "", "", err)
-		panic(nil)
+		panic(responded)
 	}
 
 	w.WriteHeader(http.StatusNoContent)

@@ -79,7 +79,7 @@ origins:
 
 		w.WriteHeader(http.StatusForbidden)
 		reportRequestError(r.Context(), s, event.FailClientDenied, "", "", "", "", nil)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -110,13 +110,13 @@ func mustAcceptApplication(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	respondNotAcceptable(w, r, s)
-	panic(nil)
+	panic(responded)
 }
 
 func mustNotHaveQuery(w http.ResponseWriter, r *http.Request, s *webserver) {
 	if r.URL.RawQuery != "" {
 		respondExcessQueryParams(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -124,7 +124,7 @@ func mustParseQuery(w http.ResponseWriter, r *http.Request, s *webserver) url.Va
 	query, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
 		respondQueryError(w, r, s, err)
-		panic(nil)
+		panic(responded)
 	}
 
 	return query
@@ -154,16 +154,16 @@ func popLastParam(w http.ResponseWriter, r *http.Request, s *webserver, query ur
 			switch r.Method {
 			case "GET", "HEAD":
 				w.WriteHeader(http.StatusNoContent)
-				panic(nil)
+				panic(responded)
 			}
 		}
 
 		respondMissingQueryParam(w, r, s, key)
-		panic(nil)
+		panic(responded)
 
 	default:
 		respondDuplicateQueryParam(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -178,7 +178,7 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 
 	default:
 		respondDuplicateQueryParam(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -188,7 +188,7 @@ func popOptionalLastLogParam(w http.ResponseWriter, r *http.Request, s *webserve
 
 	default:
 		respondUnsupportedLog(w, r, s, value)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -211,7 +211,7 @@ func mustPopOptionalLastFunctionParam(w http.ResponseWriter, r *http.Request, s 
 	value = popOptionalLastParam(w, r, s, query, api.ParamFunction)
 	if value != "" && !api.FunctionRegexp.MatchString(value) {
 		respondInvalidFunction(w, r, s, value)
-		panic(nil)
+		panic(responded)
 	}
 	return
 }
@@ -219,7 +219,7 @@ func mustPopOptionalLastFunctionParam(w http.ResponseWriter, r *http.Request, s 
 func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) {
 	if len(query) > 0 {
 		respondExcessQueryParams(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -229,37 +229,37 @@ func mustHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver, c
 		tokens := strings.SplitN(values[0], ";", 2)
 		if strings.TrimSpace(tokens[0]) != contentType {
 			respondUnsupportedMediaType(w, r, s)
-			panic(nil)
+			panic(responded)
 		}
 
 	case 0:
 		respondUnsupportedMediaType(w, r, s)
-		panic(nil)
+		panic(responded)
 
 	default:
 		respondDuplicateHeader(w, r, s, api.HeaderContentType)
-		panic(nil)
+		panic(responded)
 	}
 }
 
 func mustHaveContentLength(w http.ResponseWriter, r *http.Request, s *webserver) {
 	if r.ContentLength < 0 {
 		respondLengthRequired(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
 func mustNotHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver) {
 	if _, found := r.Header[api.HeaderContentType]; found {
 		respondUnsupportedMediaType(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
 func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	if r.ContentLength != 0 {
 		respondContentNotEmpty(w, r, s)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -274,11 +274,11 @@ func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter
 		}
 
 		respondUnauthorized(ctx, wr, s)
-		panic(nil)
+		panic(responded)
 
 	default:
 		// TODO: RFC 6750 says that this should be Bad Request
 		respondUnauthorizedErrorDesc(ctx, wr, s, "invalid_request", "multiple Authorization headers", event.FailAuthInvalid, nil)
-		panic(nil)
+		panic(responded)
 	}
 }

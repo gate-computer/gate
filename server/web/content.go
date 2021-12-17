@@ -33,7 +33,7 @@ func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webser
 		decoder, err := gzip.NewReader(wr.request.Body)
 		if err != nil {
 			respondContentDecodeError(ctx, wr, s, err)
-			panic(nil)
+			panic(responded)
 		}
 
 		return http.MaxBytesReader(wr.response, decoder, wr.request.ContentLength)
@@ -42,5 +42,5 @@ func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webser
 bad:
 	wr.response.Header().Set("Accept-Encoding", "gzip")
 	respondUnsupportedEncoding(ctx, wr, s)
-	panic(nil)
+	panic(responded)
 }

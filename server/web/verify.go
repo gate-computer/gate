@@ -26,11 +26,11 @@ func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, exp
 	switch margin := expires - time.Now().Unix(); {
 	case margin < 0:
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token has expired", event.FailAuthExpired, nil)
-		panic(nil)
+		panic(responded)
 
 	case margin > maxExpireMargin:
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token expiration is too far in the future", event.FailAuthInvalid, nil)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -46,7 +46,7 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, audie
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
 
 func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, alg string, signedData, signature []byte) {
@@ -69,7 +69,7 @@ func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri 
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
 
 func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, nonce string, expires int64) {
@@ -79,12 +79,12 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 
 	if s.NonceStorage == nil {
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "nonce not supported", event.FailAuthInvalid, nil)
-		panic(nil)
+		panic(responded)
 	}
 
 	if err := s.NonceStorage.CheckNonce(ctx, pri.PublicKey(), nonce, time.Unix(expires, 0)); err != nil {
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "token has already been used", event.FailAuthReused, err)
-		panic(nil)
+		panic(responded)
 	}
 }
 
@@ -92,7 +92,7 @@ func mustValidateScope(ctx context.Context, ew errorWriter, s *webserver, scope 
 	array := strings.SplitN(scope, " ", maxScopeLength)
 	if len(array) == maxScopeLength && strings.Index(array[maxScopeLength-1], " ") >= 0 {
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "scope has too many tokens", event.FailScopeTooLarge, nil)
-		panic(nil)
+		panic(responded)
 	}
 
 	return array

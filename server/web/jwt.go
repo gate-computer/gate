@@ -38,7 +38,7 @@ func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str
 
 	// TODO: RFC 6750 says that this should be Bad Request
 	respondUnauthorizedError(ctx, ew, s, "invalid_request")
-	panic(nil)
+	panic(responded)
 }
 
 func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) context.Context {
@@ -100,7 +100,7 @@ func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
 
 func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, dest, src []byte) {
@@ -110,7 +110,7 @@ func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, d
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
 
 func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, serialized []byte) api.TokenHeader {
@@ -120,7 +120,7 @@ func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, s
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
 
 func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, serialized []byte) api.Claims {
@@ -130,7 +130,7 @@ func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, 
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
 
 func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, header api.TokenHeader) *principal.Key {
@@ -145,7 +145,7 @@ func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, heade
 
 			errorDesc := public.Error(err, "principal key error")
 			respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
-			panic(nil)
+			panic(responded)
 		}
 
 	case api.SignAlgNone:
@@ -155,5 +155,5 @@ func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, heade
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")
-	panic(nil)
+	panic(responded)
 }
