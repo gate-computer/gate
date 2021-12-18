@@ -22,7 +22,6 @@ GEN_BIN_SOURCES := \
 	server/detail/detail.pb.go \
 	server/event/event.pb.go \
 	server/event/type.gen.go \
-	server/monitor/monitor.pb.go \
 	service/grpc/api/service.pb.go \
 	service/grpc/api/service_grpc.pb.go
 

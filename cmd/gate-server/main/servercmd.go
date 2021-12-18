@@ -30,8 +30,6 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
 	_ "gate.computer/gate/server/database/sql"
-	"gate.computer/gate/server/monitor"
-	"gate.computer/gate/server/monitor/webmonitor"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/server/web/api"
@@ -137,16 +135,6 @@ type Config struct {
 		ForceRSA     bool
 	}
 
-	Monitor struct {
-		monitor.Config
-
-		HTTP struct {
-			Net  string
-			Addr string
-			webmonitor.Config
-		}
-	}
-
 	Log struct {
 		Syslog  bool
 		Verbose bool
@@ -173,9 +161,6 @@ func Main() {
 	c.HTTP.Index.Status = DefaultIndexStatus
 	c.ACME.CacheDir = DefaultACMECacheDir
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
-	c.Monitor.BufSize = monitor.DefaultBufSize
-	c.Monitor.HTTP.Net = DefaultNet
-	c.Monitor.HTTP.StaticDir = "server/monitor/webmonitor"
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
@@ -230,7 +215,6 @@ func Main() {
 	} else {
 		c.Server.Monitor = server.ErrorLogger(errLog)
 	}
-	c.Monitor.HTTP.ErrorLog = errLog
 
 	var err error
 	c.Principal.Services, err = services.Init(context.Background(), &originConfig, errLog)
@@ -245,25 +229,6 @@ func main2(critLog *log.Logger) error {
 	var err error
 
 	ctx := context.Background()
-
-	if c.Monitor.HTTP.Addr != "" {
-		if c.Monitor.HTTP.Origins == nil && strings.HasPrefix(c.Monitor.HTTP.Addr, "localhost:") {
-			c.Monitor.HTTP.Origins = []string{"http://" + c.Monitor.HTTP.Addr}
-		}
-
-		monitor, handler := webmonitor.New(ctx, &c.Monitor.Config, &c.Monitor.HTTP.Config)
-		c.Server.Monitor = server.MultiMonitor(c.Server.Monitor, monitor)
-
-		listener, err := net.Listen(c.Monitor.HTTP.Net, c.Monitor.HTTP.Addr)
-		if err != nil {
-			return err
-		}
-
-		server := http.Server{Handler: handler}
-		go func() {
-			critLog.Fatal(server.Serve(listener))
-		}()
-	}
 
 	var (
 		executors   []*runtime.Executor
