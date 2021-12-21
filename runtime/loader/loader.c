@@ -339,6 +339,7 @@ clock_gettime_found:
 	if (gettime(CLOCK_MONOTONIC_COARSE, &t) != 0)
 		return ERR_LOAD_CLOCK_GETTIME;
 
+	t.tv_sec--; // Ensure that rt_time never returns zero timestamp.
 	t.tv_nsec &= info.time_mask;
 	uint64_t local_monotonic_time_base = (uint64_t) t.tv_sec * 1000000000ULL + (uint64_t) t.tv_nsec;
 
