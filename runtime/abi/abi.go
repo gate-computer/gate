@@ -169,14 +169,14 @@ func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (in
 		libfn, found = gateFunctions[prefix]
 		if found {
 			if strings.HasPrefix(suffix, "0") {
-				panic("TODO") // TODO: return nice error message (syntax error)
+				return 0, badprogram.Errorf("invalid size suffix in symbol: %s", f)
 			}
 			if n, e := strconv.ParseUint(suffix, 10, 32); e != nil {
 				if !errors.Is(e, strconv.ErrRange) || !allDigits(suffix) {
-					panic("TODO") // TODO: return nice error message (syntax error)
+					return 0, badprogram.Errorf("invalid size suffix in symbol: %s", f)
 				}
 			} else if n < maxPacketSize {
-				panic("TODO") // TODO: return nice error message (value range)
+				return 0, badprogram.Errorf("value of symbol size suffix is too small: %s", f)
 			}
 			// Max receive size is just validated and thrown away.
 		}
