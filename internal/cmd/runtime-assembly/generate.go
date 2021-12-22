@@ -358,34 +358,58 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	a.Function("grow_memory")
 	// result = increment in pages
 	{
-		a.JumpIfImm(ga.EQ, result, 0, ".resume")
+		var (
+			stackVars = local0
+			oldPages  = local1
+			newPages  = local2
+			memAddr   = param0
+			oldBytes  ga.Reg
+		)
+		if variant == "android" {
+			oldBytes = param1
+		} else {
+			oldBytes = local3
+		}
 
-		a.MoveReg(param1, result)
-		a.ShiftImm(ga.Left, param1, 16) // mprotect len
+		macroCurrentMemoryPages(a, oldPages, stackVars, scratch0)
 
-		macroCurrentMemoryPages(a, local1, local0, scratch0)
-		a.ShiftImm(ga.Left, local1, 16) // old bytes
+		a.JumpIfImm(ga.EQ, result, 0, ".grow_memory_done")
 
-		a.AddReg(local2, local1, param1) // new bytes
-		a.Load(scratch0, wagTextBase, -5*8)
-		a.JumpIfReg(ga.GT, local2, scratch0, ".out_of_memory")
+		a.AddReg(newPages, oldPages, result)
 
-		a.Load(scratch0, wagTextBase, -4*8)
-		a.AddReg(param0, scratch0, local1) // mprotect addr, mremap old_address
+		a.Load(scratch0, wagTextBase, -5*8) // memory growth limit in pages
+		a.JumpIfReg(ga.GT, newPages, scratch0, ".out_of_memory")
+
+		a.Load(memAddr, wagTextBase, -4*8) // mremap old_address
+
+		a.MoveReg(oldBytes, oldPages)
+		a.ShiftImm(ga.Left, oldBytes, 16) // mremap old_size
 
 		if variant == "android" {
-			a.MoveReg(param1, local1) // mremap old_size
-			a.MoveReg(param2, local2) // mremap new_size
-			a.MoveImm(sysparam3, 0)   // mremap flags
+			a.MoveReg(param2, newPages)
+			a.ShiftImm(ga.Left, param2, 16) // mremap new_size
+
+			a.MoveImm(sysparam3, 0) // mremap flags
+
 			a.Syscall(linux.SYS_MREMAP)
-			a.JumpIfReg(ga.NE, result, param0, ".grow_memory_error")
+			a.JumpIfReg(ga.NE, result, memAddr, ".grow_memory_error")
 		} else {
+			a.AddReg(memAddr, memAddr, oldBytes) // mprotect addr
+
+			a.MoveReg(param1, result)
+			a.ShiftImm(ga.Left, param1, 16) // mprotect len
+
 			a.MoveImm(param2, unix.PROT_READ|unix.PROT_WRITE) // mprotect prot
+
 			a.Syscall(linux.SYS_MPROTECT)
 			a.JumpIfImm(ga.NE, result, 0, ".grow_memory_error")
 		}
 
-		a.Store4Bytes(local0, 4, local2) // current_memory_pages
+		a.Store4Bytes(stackVars, 4, newPages)
+
+		a.Label(".grow_memory_done")
+
+		a.MoveReg(result, oldPages)
 		a.Jump(".resume")
 	}
 

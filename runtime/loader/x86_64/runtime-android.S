@@ -179,31 +179,32 @@ current_memory:
 .type	grow_memory,@function
 
 grow_memory:
-	test	rax, rax
-	je	.Lresume
-	mov	rsi, rax
-	shl	rsi, 16
 	mov	rbp, rbx
 	mov	r9, 13835058055282163710
 	and	rbp, r9
 	mov	r9, GATE_STACK_LIMIT_OFFSET
 	sub	rbp, r9
 	mov	r12d, [rbp + 4]
-	shl	r12, 16
-	lea	r13, [r12 + rsi]
+	test	rax, rax
+	je	.Lgrow_memory_done
+	lea	r13, [r12 + rax]
 	mov	r9, [r15 - 40]
 	cmp	r13, r9
 	jg	.Lout_of_memory
-	mov	r9, [r15 - 32]
-	lea	rdi, [r9 + r12]
+	mov	rdi, [r15 - 32]
 	mov	rsi, r12
+	shl	rsi, 16
 	mov	rdx, r13
+	shl	rdx, 16
 	xor	r10d, r10d
 	mov	eax, 25
 	syscall
 	cmp	rax, rdi
 	jne	.Lgrow_memory_error
 	mov	[rbp + 4], r13d
+
+.Lgrow_memory_done:
+	mov	rax, r12
 	jmp	.Lresume
 
 .Lgrow_memory_error:

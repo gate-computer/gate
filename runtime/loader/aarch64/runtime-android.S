@@ -207,10 +207,6 @@ current_memory:
 
 grow_memory:
 	str	lr, [x29, -8]!
-	cmp	x0, 0
-	b.eq	.Lresume
-	mov	x1, x0
-	lsl	x1, x1, 16
 	mov	x11, x28
 	movn	x9, 1, lsl #0
 	movk	x9, 49151, lsl #48
@@ -219,21 +215,26 @@ grow_memory:
 	mov	x9, GATE_STACK_LIMIT_OFFSET
 	sub	x11, x11, x9
 	ldr	w12, [x11, 4]
-	lsl	x12, x12, 16
-	add	x13, x12, x1
+	cmp	x0, 0
+	b.eq	.Lgrow_memory_done
+	add	x13, x12, x0
 	ldr	x9, [x27, -40]
 	cmp	x13, x9
 	b.gt	.Lout_of_memory
-	ldr	x9, [x27, -32]
-	add	x0, x9, x12
+	ldr	x0, [x27, -32]
 	mov	x1, x12
+	lsl	x1, x1, 16
 	mov	x2, x13
+	lsl	x2, x2, 16
 	mov	x3, 0
 	mov	w8, 216
 	svc	0
 	cmp	x0, x0
 	b.ne	.Lgrow_memory_error
 	str	w13, [x11, 4]
+
+.Lgrow_memory_done:
+	mov	x0, x12
 	b	.Lresume
 
 .Lgrow_memory_error:
