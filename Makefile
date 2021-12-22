@@ -32,7 +32,7 @@ BUILDLDFLAGS	= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
 
 TEST		:= .
 TESTFLAGS	= -tags="$(TAGS)" -ldflags="$(TESTLDFLAGS)" -run="$(TEST)" -count=1 -race
-TESTLDFLAGS	= -X gate.computer/wag/internal.Panic=1
+TESTLDFLAGS	=
 ifneq ($(TEST),)
 TESTFLAGS	+= -v
 endif
