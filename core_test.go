@@ -32,9 +32,14 @@ import (
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
 	objectabi "gate.computer/wag/object/abi"
+	"gate.computer/wag/object/debug/dump"
 	"gate.computer/wag/object/stack/stacktrace"
 	"gate.computer/wag/wa"
 	"import.name/lock"
+)
+
+const (
+	dumpText = false
 )
 
 const (
@@ -255,7 +260,10 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		panic(err)
 	}
 
-	// dump.Text(os.Stderr, codeConfig.Text.Bytes(), 0, codeMap.FuncAddrs, nil)
+	var textDump []byte
+	if dumpText {
+		textDump = append([]byte(nil), codeConfig.Text.Bytes()...)
+	}
 
 	entryIndex, err := internalbuild.ResolveEntryFunc(mod, function, false)
 	if err != nil {
@@ -276,8 +284,14 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		panic(err)
 	}
 
-	if persistent {
+	if persistent || dumpText {
 		if err := compile.LoadCustomSections(&config, r); err != nil {
+			panic(err)
+		}
+	}
+
+	if dumpText {
+		if err := dump.Text(os.Stderr, textDump, 0, codeMap.FuncAddrs, nil); err != nil {
 			panic(err)
 		}
 	}
