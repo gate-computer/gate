@@ -12,7 +12,7 @@ if [ -z "$GZIPPER" ]; then
 fi
 
 muslccversion=10.2.1
-ipfsgateway=https://ipfs.io/ipfs/
+ipfsgateway=https://cloudflare-ipfs.com/ipfs/
 
 binarydir=internal/container/child/binary
 muslccdir=tmp/muslcc-$muslccversion
