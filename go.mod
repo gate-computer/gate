@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	gate.computer/ga v0.0.0-20211218044256-b13e95063354
-	gate.computer/wag v0.33.1-0.20211218164237-6e9c77cac22f
+	gate.computer/wag v0.33.1-0.20211221154506-5a8a3a0740ab
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/coreos/go-systemd/v22 v22.3.0
 	github.com/godbus/dbus/v5 v5.0.3
