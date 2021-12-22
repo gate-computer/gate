@@ -66,7 +66,7 @@ type Instance struct {
 	name     string     // Non-empty means that instance is in stored state.
 }
 
-func NewInstance(prog *Program, maxMemorySize, maxStackSize int, entryFuncIndex int) (*Instance, error) {
+func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int) (*Instance, error) {
 	maxMemorySize, err := maxInstanceMemory(prog, maxMemorySize)
 	if err != nil {
 		return nil, err

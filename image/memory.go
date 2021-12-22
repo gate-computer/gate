@@ -37,19 +37,25 @@ func (mem) Programs() (_ []string, _ error)                   { return }
 func (mem) LoadProgram(string) (_ *Program, _ error)          { return }
 func (mem) loadProgram(Storage, string) (_ *Program, _ error) { return }
 
-func (mem) newInstanceFile() (f *file.File, err error) {
-	f, err = newMemoryFile(memInstanceName, instMaxOffset)
+func (mem) newInstanceFile() (*file.File, error) {
+	var ok bool
+
+	f, err := newMemoryFile(memInstanceName, instMaxOffset)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			f.Close()
 		}
 	}()
 
-	err = protectFileMemory(f, syscall.PROT_READ|syscall.PROT_WRITE)
-	return
+	if err := protectFileMemory(f, syscall.PROT_READ|syscall.PROT_WRITE); err != nil {
+		return nil, err
+	}
+
+	ok = true
+	return f, nil
 }
 
 func (mem) instanceFileWriteSupported() bool       { return memoryFileWriteSupported }

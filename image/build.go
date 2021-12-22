@@ -142,10 +142,9 @@ func (b *Build) TextBuffer() interface {
 }
 
 // FinishText after TextBuffer has been populated.
-func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) (err error) {
+func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) error {
 	if stackSize < internal.StackUsageOffset+stackUsage {
-		err = resourcelimit.New("call stack size limit exceeded")
-		return
+		return resourcelimit.New("call stack size limit exceeded")
 	}
 
 	b.prog.textSize = b.prog.text.Len()
@@ -162,28 +161,31 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) (
 
 	if !b.inst.enabled {
 		// Program stack, globals and memory contents.
-		err = mmapp(&b.compileMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapSize)
+		err := mmapp(&b.compileMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapSize)
 		if err != nil {
-			return
+			return err
 		}
 	} else {
 		b.inst.stackSize = alignPageSize(stackSize)
 
-		b.inst.file, err = b.storage.newInstanceFile()
+		f, err := b.storage.newInstanceFile()
 		if err != nil {
-			return
+			return err
 		}
 		defer func() {
-			if err != nil {
-				b.inst.file.Close()
+			if f != nil {
+				f.Close()
 			}
 		}()
 
 		// Instance stack, globals and memory contents.
-		err = mmapp(&b.compileMem, b.inst.file, int64(b.inst.stackSize-stackMapSize), mapSize)
+		err = mmapp(&b.compileMem, f, int64(b.inst.stackSize-stackMapSize), mapSize)
 		if err != nil {
-			return
+			return err
 		}
+
+		b.inst.file = f
+		f = nil
 	}
 
 	b.stack = b.compileMem[stackMapSize-stackUsage : stackMapSize : stackMapSize]
@@ -204,7 +206,7 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) (
 		writeObjectMapAt(b.prog.file, b.prog.objectMap, progCallSitesOffset)
 	}
 
-	return
+	return nil
 }
 
 // ReadStack if FinishText has been called with nonzero stackUsage.  It must
