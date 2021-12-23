@@ -46,7 +46,7 @@ type InstanceConfig struct {
 type Instance interface {
 	Ready(ctx context.Context) error
 	Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error
-	Handle(ctx context.Context, send chan<- packet.Thunk, received packet.Buf) error
+	Handle(ctx context.Context, send chan<- packet.Thunk, received packet.Buf) (packet.Buf, error)
 	Shutdown(ctx context.Context) error
 	Suspend(ctx context.Context) (snapshot []byte, err error)
 }
@@ -57,6 +57,7 @@ type InstanceBase struct{}
 func (InstanceBase) Ready(context.Context) error                                   { return nil }
 func (InstanceBase) Start(context.Context, chan<- packet.Thunk, func(error)) error { return nil }
 func (InstanceBase) Shutdown(context.Context) error                                { return nil }
+func (InstanceBase) Suspend(context.Context) ([]byte, error)                       { return nil, nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -325,14 +326,14 @@ func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []
 	return
 }
 
-func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
+func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	code := p.Code()
 	s := d.services[code]
 
 	if s.instance == nil {
 		if s.factory == nil {
 			// TODO: service unavailable: buffer up to max packet size
-			return nil
+			return nil, nil
 		}
 
 		instConfig := InstanceConfig{packet.Service{
@@ -342,7 +343,7 @@ func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p pac
 
 		inst, err := s.factory.CreateInstance(ctx, instConfig, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		s.instance = inst
@@ -353,16 +354,16 @@ func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p pac
 		d.services[code] = s
 
 		if err := s.instance.Ready(ctx); err != nil {
-			return err
+			return nil, err
 		}
 
 		if err := s.instance.Start(ctx, send, d.abort); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	if dom := p.Domain(); dom > s.maxDomain {
-		return fmt.Errorf("%s received packet with unexpected domain: %s", code, dom)
+		return nil, fmt.Errorf("%s received packet with unexpected domain: %s", code, dom)
 	}
 
 	return s.instance.Handle(ctx, send, p)

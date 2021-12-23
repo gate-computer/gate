@@ -127,10 +127,14 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 	for {
 		for len(pendingMsgs) > 0 {
-			if err := server.Handle(ctx, messageInput, pendingMsgs[0]); err != nil {
+			p, err := server.Handle(ctx, messageInput, pendingMsgs[0])
+			if err != nil {
 				return err
 			}
 			pendingMsgs = pendingMsgs[1:]
+			if len(p) > 0 {
+				pendingEvs = append(pendingEvs, p)
+			}
 		}
 
 		var nextEv packet.Buf

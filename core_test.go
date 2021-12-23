@@ -131,7 +131,7 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 	return d.services, nil
 }
 
-func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
+func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	var name string
 	lock.Guard(&d.nameMu, func() {
 		name = d.names[p.Code()]
@@ -161,24 +161,22 @@ func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk
 				},
 			}, nil)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			d.origin = inst
 
 			if err := d.origin.Ready(ctx); err != nil {
-				return err
+				return nil, err
 			}
 			if err := d.origin.Start(ctx, send, func(e error) { panic(e) }); err != nil {
-				return err
+				return nil, err
 			}
 		}
 
-		if err := d.origin.Handle(ctx, send, p); err != nil {
-			return err
-		}
+		return d.origin.Handle(ctx, send, p)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (d *serviceDiscoverer) Shutdown(ctx context.Context) error {

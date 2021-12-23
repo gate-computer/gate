@@ -207,8 +207,12 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 			p := packet.MakeCall(code, 1)
 			p.Content()[0] = byte(i)
 
-			if err := inst.Handle(ctx, recv, p); err != nil {
+			reply, err := inst.Handle(ctx, recv, p)
+			if err != nil {
 				t.Fatal(err)
+			}
+			if len(reply) > 0 {
+				t.Fatal(reply) // Not implemented.
 			}
 		}
 

@@ -121,7 +121,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	switch p.Domain() {
 	case packet.DomainCall:
 		var ok bool
@@ -132,7 +132,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 			}
 		})
 		if !ok {
-			return errors.New("TODO: too many simultaneous origin accept calls")
+			return nil, errors.New("TODO: too many simultaneous origin accept calls")
 		}
 
 		poke(inst.wakeup)
@@ -148,13 +148,13 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 				s = inst.streams[id]
 			})
 			if s == nil {
-				return errors.New("TODO: stream not found")
+				return nil, errors.New("TODO: stream not found")
 			}
 
 			if increment < 0 {
 				// TODO
 			} else if err := packetio.Subscribe(s, increment); err != nil {
-				return fmt.Errorf("TODO: %v", err)
+				return nil, fmt.Errorf("TODO: %v", err)
 			}
 		}
 
@@ -166,21 +166,21 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 			s = inst.streams[p.ID()]
 		})
 		if s == nil {
-			return errors.New("TODO: stream not found")
+			return nil, errors.New("TODO: stream not found")
 		}
 
 		if p.DataLen() != 0 {
 			if _, err := s.Write(p.Data()); err != nil {
-				return fmt.Errorf("TODO (%v)", err)
+				return nil, fmt.Errorf("TODO (%v)", err)
 			}
 		} else {
 			if err := s.CloseWrite(); err != nil {
-				return fmt.Errorf("TODO (%v)", err)
+				return nil, fmt.Errorf("TODO (%v)", err)
 			}
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{}) func(context.Context, io.Reader, io.Writer) error {

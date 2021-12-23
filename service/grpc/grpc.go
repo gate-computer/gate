@@ -257,27 +257,27 @@ func (inst *instance) Start(ctx context.Context, out chan<- packet.Thunk, abort 
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, out chan<- packet.Thunk, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, out chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if len(inst.incoming) == 0 {
 		_, err := inst.c.Handle(ctx, &api.HandleRequest{
 			Id:   inst.id,
 			Data: p,
 		})
 		if err == nil {
-			return nil
+			return nil, nil
 		}
 
 		select {
 		case <-ctx.Done():
 
 		default:
-			return err
+			return nil, err
 		}
 
 	}
 
 	inst.incoming = append(inst.incoming, p...)
-	return nil
+	return nil, nil
 }
 
 func (inst *instance) Shutdown(ctx context.Context) error {

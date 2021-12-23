@@ -56,12 +56,12 @@ type testInstance struct {
 	service.InstanceBase
 }
 
-func (testInstance) Handle(ctx context.Context, replies chan<- packet.Thunk, p packet.Buf) error {
+func (testInstance) Handle(ctx context.Context, replies chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() == packet.DomainCall {
-		replies <- p.Thunk()
+		return p, nil
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (testInstance) Suspend(ctx context.Context) ([]byte, error) {

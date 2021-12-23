@@ -88,7 +88,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() == packet.DomainCall {
 		inst.pending = true
 		inst.call = callNothing
@@ -99,7 +99,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 		inst.handleCall(ctx, send)
 	}
 
-	return nil
+	return nil, nil
 }
 
 func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) {
