@@ -185,13 +185,14 @@ func (r *Registry) lookup(name string) (result Factory) {
 	}
 }
 
-// StartServing implements the runtime.ServiceRegistry interface function.
-func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Thunk, recv <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
+func (r *Registry) CreateServer(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
+	done := make(chan error, 1)
 	d := &discoverer{
-		registry:   r,
-		discovered: make(map[Factory]struct{}),
-		stopped:    make(chan map[packet.Code]discoveredInstance, 1),
-		services:   make([]discoveredService, len(initial)),
+		registry:  r,
+		config:    serviceConfig,
+		aborter:   aborter{c: done},
+		factories: make(map[Factory]struct{}),
+		services:  make([]serverService, len(initial)),
 	}
 
 	for i, s := range initial {
@@ -202,26 +203,22 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 		}
 
 		if f := d.registry.lookup(s.Name); f != nil {
-			if _, dupe := d.discovered[f]; dupe {
+			if _, dupe := d.factories[f]; dupe {
 				return nil, nil, nil, runtime.ErrDuplicateService
 			}
 
-			d.discovered[f] = struct{}{}
+			d.factories[f] = struct{}{}
 			d.services[i].factory = f
 		}
 	}
 
-	instances := make(map[packet.Code]discoveredInstance)
 	states := make([]runtime.ServiceState, len(d.services))
 
 	for i, s := range d.services {
-		var code = packet.Code(i)
-		var inst discoveredInstance
-
 		if s.factory != nil {
 			instConfig := InstanceConfig{packet.Service{
 				MaxSendSize: serviceConfig.MaxSendSize,
-				Code:        code,
+				Code:        packet.Code(i),
 			}}
 
 			x, err := s.factory.CreateInstance(ctx, instConfig, s.Buffer)
@@ -229,40 +226,19 @@ func (r *Registry) StartServing(ctx context.Context, serviceConfig runtime.Servi
 				return nil, nil, nil, err
 			}
 
-			inst = discoveredInstance{
-				Instance:  x,
-				maxDomain: packet.DomainInfo,
-			}
-			if s.factory.Properties().Streams {
-				inst.maxDomain = packet.DomainData
-			}
 			s.Buffer = nil
+			s.instance = x
 			states[i].SetAvail()
 		}
-
-		instances[code] = inst
 	}
 
-	for _, inst := range instances {
-		if inst.Instance != nil {
-			if err := inst.Ready(ctx); err != nil {
+	for _, s := range d.services {
+		if s.instance != nil {
+			if err := s.instance.Ready(ctx); err != nil {
 				return nil, nil, nil, err
 			}
 		}
 	}
-
-	done := make(chan error, 1)
-
-	go func() {
-		err := errors.New("service panicked")
-
-		a := aborter{c: done}
-		defer func() {
-			a.close(err)
-		}()
-
-		err = serve(ctx, serviceConfig, r, d, instances, send, recv, a.abort)
-	}()
 
 	return d, states, done, nil
 }
@@ -276,10 +252,7 @@ func (a *aborter) abort(err error) {
 	if err == nil {
 		err = errors.New("service aborted with unspecified error")
 	}
-	a.close(err)
-}
 
-func (a *aborter) close(err error) {
 	var c chan<- error
 	lock.Guard(&a.mu, func() {
 		c = a.c
@@ -295,139 +268,56 @@ func (a *aborter) close(err error) {
 	close(c)
 }
 
-func serve(outerCtx context.Context, serviceConfig runtime.ServiceConfig, r *Registry, d *discoverer, instances map[packet.Code]discoveredInstance, send chan<- packet.Thunk, recv <-chan packet.Buf, abort func(error)) error {
-	defer func() {
-		d.stopped <- instances
-		close(d.stopped)
-	}()
+type serverService struct {
+	snapshot.Service
+	factory   Factory
+	instance  Instance
+	maxDomain packet.Domain
+}
 
-	innerCtx, cancel := context.WithCancel(outerCtx)
-	defer cancel()
+type discoverer struct {
+	registry *Registry
+	config   runtime.ServiceConfig
+	aborter
+	factories map[Factory]struct{}
+	services  []serverService
+}
 
-	for _, inst := range instances {
-		if inst.Instance != nil {
-			if err := inst.Start(innerCtx, send, abort); err != nil {
+func (d *discoverer) Start(ctx context.Context, send chan<- packet.Thunk) error {
+	for _, s := range d.services {
+		if s.instance != nil {
+			if err := s.instance.Start(ctx, send, d.abort); err != nil {
 				return err
 			}
-		}
-	}
-
-	for op := range recv {
-		code := op.Code()
-
-		inst, found := instances[code]
-		if !found {
-			if s := d.getServices()[code]; s.factory != nil {
-				instConfig := InstanceConfig{packet.Service{
-					MaxSendSize: serviceConfig.MaxSendSize,
-					Code:        code,
-				}}
-
-				x, err := s.factory.CreateInstance(outerCtx, instConfig, nil)
-				if err != nil {
-					return err
-				}
-
-				inst = discoveredInstance{
-					Instance:  x,
-					maxDomain: packet.DomainInfo,
-				}
-				if s.factory.Properties().Streams {
-					inst.maxDomain = packet.DomainData
-				}
-			}
-
-			instances[code] = inst
-
-			if inst.Instance != nil {
-				if err := inst.Ready(outerCtx); err != nil {
-					return err
-				}
-				if err := inst.Start(innerCtx, send, abort); err != nil {
-					return err
-				}
-			}
-		}
-
-		if inst.Instance != nil {
-			if dom := op.Domain(); dom > inst.maxDomain {
-				return fmt.Errorf("service received packet with unexpected domain: %s", dom)
-			}
-
-			if err := inst.Handle(innerCtx, send, op); err != nil {
-				return err
-			}
-		} else {
-			// TODO: service unavailable: buffer up to max packet size
 		}
 	}
 
 	return nil
 }
 
-type discoveredService struct {
-	snapshot.Service
-	factory Factory
-}
-
-type discoveredInstance struct {
-	Instance
-	maxDomain packet.Domain
-}
-
-type discoverer struct {
-	registry   *Registry
-	discovered map[Factory]struct{}
-	stopped    chan map[packet.Code]discoveredInstance
-	mu         sync.Mutex
-	services   []discoveredService
-}
-
-func (d *discoverer) getServices() []discoveredService {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	return d.services
-}
-
-func (d *discoverer) setServices(services []discoveredService) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.services = services
-}
-
 func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []runtime.ServiceState, err error) {
-	oldCount := len(d.services)
-	newCount := oldCount + len(newNames)
-
-	newServices := make([]discoveredService, oldCount, newCount)
-	copy(newServices, d.services)
-
 	for _, name := range newNames {
-		s := discoveredService{
+		s := serverService{
 			Service: snapshot.Service{
 				Name: name,
 			},
 		}
 
 		if f := d.registry.lookup(name); f != nil && f.Discoverable(ctx) {
-			if _, dupe := d.discovered[f]; dupe {
+			if _, dupe := d.factories[f]; dupe {
 				err = runtime.ErrDuplicateService
 				return
 			}
 
-			d.discovered[f] = struct{}{}
+			d.factories[f] = struct{}{}
 			s.factory = f
 		}
 
-		newServices = append(newServices, s)
+		d.services = append(d.services, s)
 	}
 
-	d.setServices(newServices)
-
-	states = make([]runtime.ServiceState, len(newServices))
-	for i, s := range newServices {
+	states = make([]runtime.ServiceState, len(d.services))
+	for i, s := range d.services {
 		if s.factory != nil {
 			states[i].SetAvail()
 		}
@@ -435,17 +325,54 @@ func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []
 	return
 }
 
-func (d *discoverer) NumServices() int {
-	return len(d.services)
+func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
+	code := p.Code()
+	s := d.services[code]
+
+	if s.instance == nil {
+		if s.factory == nil {
+			// TODO: service unavailable: buffer up to max packet size
+			return nil
+		}
+
+		instConfig := InstanceConfig{packet.Service{
+			MaxSendSize: d.config.MaxSendSize,
+			Code:        code,
+		}}
+
+		inst, err := s.factory.CreateInstance(ctx, instConfig, nil)
+		if err != nil {
+			return err
+		}
+
+		s.instance = inst
+		s.maxDomain = packet.DomainInfo
+		if s.factory.Properties().Streams {
+			s.maxDomain = packet.DomainData
+		}
+		d.services[code] = s
+
+		if err := s.instance.Ready(ctx); err != nil {
+			return err
+		}
+
+		if err := s.instance.Start(ctx, send, d.abort); err != nil {
+			return err
+		}
+	}
+
+	if dom := p.Domain(); dom > s.maxDomain {
+		return fmt.Errorf("%s received packet with unexpected domain: %s", code, dom)
+	}
+
+	return s.instance.Handle(ctx, send, p)
 }
 
 // Shutdown instances.
 func (d *discoverer) Shutdown(ctx context.Context) (err error) {
-	instances := <-d.stopped
-
-	for _, inst := range instances {
-		if inst.Instance != nil {
-			if e := inst.Shutdown(ctx); err == nil {
+	for _, s := range d.services {
+		if s.instance != nil {
+			if e := s.instance.Shutdown(ctx); err == nil {
 				err = e
 			}
 		}
@@ -458,15 +385,11 @@ func (d *discoverer) Shutdown(ctx context.Context) (err error) {
 func (d *discoverer) Suspend(ctx context.Context) (final []snapshot.Service, err error) {
 	final = make([]snapshot.Service, len(d.services))
 
-	for i, s := range d.services {
-		final[i] = s.Service
-	}
+	for code, s := range d.services {
+		final[code] = s.Service
 
-	instances := <-d.stopped
-
-	for code, inst := range instances {
-		if inst.Instance != nil {
-			b, e := inst.Suspend(ctx)
+		if s.instance != nil {
+			b, e := s.instance.Suspend(ctx)
 			if len(b) > 0 {
 				final[code].Buffer = b
 			}

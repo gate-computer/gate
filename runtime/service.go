@@ -48,31 +48,23 @@ type ServiceConfig struct {
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
-	StartServing(
-		ctx context.Context,
-		config ServiceConfig,
-		snapshots []snapshot.Service,
-		send chan<- packet.Thunk,
-		recv <-chan packet.Buf,
-	) (
-		ServiceDiscoverer,
-		[]ServiceState,
-		<-chan error,
-		error,
-	)
+	CreateServer(context.Context, ServiceConfig, []snapshot.Service, chan<- packet.Thunk) (InstanceServer, []ServiceState, <-chan error, error)
 }
 
-// ServiceDiscoverer is used to look up service availability when responding to
-// a program's service discovery packet.  It modifies the internal state of the
-// ServiceRegistry server.
-type ServiceDiscoverer interface {
+type InstanceServer interface {
+	Start(context.Context, chan<- packet.Thunk) error
 	Discover(ctx context.Context, newNames []string) (all []ServiceState, err error)
-	NumServices() int
+	Handle(context.Context, chan<- packet.Thunk, packet.Buf) error
 	Shutdown(context.Context) error
 	Suspend(context.Context) ([]snapshot.Service, error)
 }
 
-func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer ServiceDiscoverer) (resp packet.Buf, err error) {
+type serviceDiscoverer struct {
+	server      InstanceServer
+	numServices int
+}
+
+func (discoverer *serviceDiscoverer) handlePacket(ctx context.Context, req packet.Buf) (resp packet.Buf, err error) {
 	if d := req.Domain(); d != packet.DomainCall {
 		err = badprogram.Errorf("service discovery packet has wrong domain: %d", d)
 		return
@@ -83,12 +75,11 @@ func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer Servic
 		return
 	}
 
-	curCount := discoverer.NumServices()
 	reqCount := int(binary.LittleEndian.Uint16(req[packet.OffsetServicesCount:]))
-	respCount := curCount + reqCount
+	respCount := discoverer.numServices + reqCount
 	if respCount > maxServices {
 		respCount = maxServices
-		reqCount = maxServices - curCount
+		reqCount = maxServices - discoverer.numServices
 	}
 
 	nameBuf := req[packet.ServicesHeaderSize:]
@@ -113,13 +104,34 @@ func handleServicesPacket(ctx context.Context, req packet.Buf, discoverer Servic
 		nameBuf = nameBuf[nameLen:]
 	}
 
-	services, err := discoverer.Discover(ctx, names)
+	services, err := discoverer.server.Discover(ctx, names)
 	if err != nil {
 		return
 	}
+	discoverer.numServices = len(services)
 
 	resp = makeServicesPacket(packet.DomainCall, services)
 	return
+}
+
+func (discoverer *serviceDiscoverer) checkPacket(p packet.Buf) (packet.Buf, error) {
+	if int(p.Code()) >= discoverer.numServices {
+		return nil, badprogram.Errorf("invalid service code in packet: %d", p.Code())
+	}
+
+	switch p.Domain() {
+	case packet.DomainCall, packet.DomainInfo, packet.DomainFlow:
+
+	case packet.DomainData:
+		if n := len(p); n < packet.DataHeaderSize {
+			return nil, badprogram.Errorf("data packet is too short: %d bytes", n)
+		}
+
+	default:
+		return nil, badprogram.Errorf("invalid domain in packet: %d", p.Domain())
+	}
+
+	return p, nil
 }
 
 func makeServicesPacket(domain packet.Domain, services []ServiceState) (resp packet.Buf) {

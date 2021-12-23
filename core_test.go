@@ -90,69 +90,26 @@ type serviceRegistry struct {
 	originMu *sync.Mutex
 }
 
-func (services serviceRegistry) StartServing(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Thunk, recv <-chan packet.Buf) (runtime.ServiceDiscoverer, []runtime.ServiceState, <-chan error, error) {
-	d := new(serviceDiscoverer)
-
-	go func() {
-		var originInstance service.Instance
-
-		for p := range recv {
-			var name string
-			lock.Guard(&d.nameMu, func() {
-				name = d.names[p.Code()]
-			})
-
-			switch name {
-			case "origin":
-				if originInstance == nil {
-					connector := origin.New(nil)
-					go func() {
-						defer connector.Close()
-
-						if services.originMu != nil {
-							services.originMu.Lock()
-							defer services.originMu.Unlock()
-						}
-
-						if f := connector.Connect(context.Background()); f != nil {
-							f(context.Background(), bytes.NewReader(nil), services.origin)
-						}
-					}()
-
-					var err error
-					originInstance, err = connector.CreateInstance(ctx, service.InstanceConfig{
-						Service: packet.Service{
-							Code:        p.Code(),
-							MaxSendSize: config.MaxSendSize,
-						},
-					}, nil)
-					if err != nil {
-						panic(err)
-					}
-					defer originInstance.Shutdown(context.Background())
-
-					if err := originInstance.Ready(ctx); err != nil {
-						panic(err)
-					}
-					if err := originInstance.Start(ctx, send, func(e error) { panic(e) }); err != nil {
-						panic(err)
-					}
-				}
-
-				if err := originInstance.Handle(ctx, send, p); err != nil {
-					panic(err)
-				}
-			}
-		}
-	}()
-
+func (services serviceRegistry) CreateServer(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
+	d := &serviceDiscoverer{
+		registry: services,
+		config:   config,
+	}
 	return d, nil, make(chan error), nil
 }
 
 type serviceDiscoverer struct {
+	registry serviceRegistry
+	config   runtime.ServiceConfig
 	services []runtime.ServiceState
 	nameMu   sync.Mutex
 	names    []string
+
+	origin service.Instance
+}
+
+func (*serviceDiscoverer) Start(context.Context, chan<- packet.Thunk) error {
+	return nil
 }
 
 func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]runtime.ServiceState, error) {
@@ -174,16 +131,65 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 	return d.services, nil
 }
 
-func (d *serviceDiscoverer) NumServices() int {
-	return len(d.services)
-}
+func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) error {
+	var name string
+	lock.Guard(&d.nameMu, func() {
+		name = d.names[p.Code()]
+	})
 
-func (*serviceDiscoverer) Shutdown(context.Context) error {
+	switch name {
+	case "origin":
+		if d.origin == nil {
+			connector := origin.New(nil)
+			go func() {
+				defer connector.Close()
+
+				if d.registry.originMu != nil {
+					d.registry.originMu.Lock()
+					defer d.registry.originMu.Unlock()
+				}
+
+				if f := connector.Connect(context.Background()); f != nil {
+					f(context.Background(), bytes.NewReader(nil), d.registry.origin)
+				}
+			}()
+
+			inst, err := connector.CreateInstance(ctx, service.InstanceConfig{
+				Service: packet.Service{
+					Code:        p.Code(),
+					MaxSendSize: d.config.MaxSendSize,
+				},
+			}, nil)
+			if err != nil {
+				return err
+			}
+			d.origin = inst
+
+			if err := d.origin.Ready(ctx); err != nil {
+				return err
+			}
+			if err := d.origin.Start(ctx, send, func(e error) { panic(e) }); err != nil {
+				return err
+			}
+		}
+
+		if err := d.origin.Handle(ctx, send, p); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (*serviceDiscoverer) Suspend(context.Context) ([]snapshot.Service, error) {
-	return nil, nil
+func (d *serviceDiscoverer) Shutdown(ctx context.Context) error {
+	if d.origin == nil {
+		return nil
+	}
+	return d.origin.Shutdown(ctx)
+}
+
+func (d *serviceDiscoverer) Suspend(ctx context.Context) ([]snapshot.Service, error) {
+	return nil, d.Shutdown(ctx)
 }
 
 var testFS *image.Filesystem

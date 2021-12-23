@@ -66,24 +66,32 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		done      = ctx.Done()
 	)
 
-	var (
-		messageInput  = make(chan packet.Thunk)
-		messageOutput = make(chan packet.Buf)
-	)
-	discoverer, initialServiceState, serviceDone, err := services.StartServing(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput, messageOutput)
+	messageInput := make(chan packet.Thunk)
+	server, initialServiceState, serviceDone, err := services.CreateServer(ctx, ServiceConfig{maxPacketSize}, popServiceBuffers(frozen), messageInput)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		close(messageOutput)
 		if frozen != nil && err == nil {
-			frozen.Services, err = discoverer.Suspend(ctx)
+			frozen.Services, err = server.Suspend(ctx)
 		} else {
-			if e := discoverer.Shutdown(ctx); err == nil {
+			if e := server.Shutdown(ctx); err == nil {
 				err = e
 			}
 		}
 	}()
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	if err := server.Start(ctx, messageInput); err != nil {
+		return err
+	}
+
+	discoverer := &serviceDiscoverer{
+		server:      server,
+		numServices: len(initialServiceState),
+	}
 
 	pendingMsgs, initialRead, err := splitBufferedPackets(popOutputBuffer(frozen), discoverer)
 	if err != nil {
@@ -118,30 +126,27 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 	}()
 
 	for {
-		var (
-			nextMsg packet.Buf
-			nextEv  packet.Buf
-		)
-		if len(pendingMsgs) > 0 {
-			nextMsg = pendingMsgs[0]
+		for len(pendingMsgs) > 0 {
+			if err := server.Handle(ctx, messageInput, pendingMsgs[0]); err != nil {
+				return err
+			}
+			pendingMsgs = pendingMsgs[1:]
 		}
+
+		var nextEv packet.Buf
 		if len(pendingEvs) > 0 {
 			nextEv = pendingEvs[0]
 		}
 
 		var (
 			doMessageInput  <-chan packet.Thunk
-			doMessageOutput chan<- packet.Buf
 			doSubjectInput  <-chan read
 			doSubjectOutput chan<- packet.Buf
 		)
 		if nextEv == nil {
 			doMessageInput = messageInput
 		}
-		if nextMsg != nil {
-			doMessageOutput = messageOutput
-		}
-		if (nextMsg == nil && nextEv == nil) || dead == nil {
+		if nextEv == nil || dead == nil {
 			doSubjectInput = subjectInput
 		}
 		if nextEv != nil {
@@ -207,9 +212,6 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 			if ev != nil {
 				pendingEvs = append(pendingEvs, ev)
 			}
-
-		case doMessageOutput <- nextMsg:
-			pendingMsgs = pendingMsgs[1:]
 
 		case doSubjectOutput <- nextEv:
 			pendingEvs = pendingEvs[1:]
@@ -324,16 +326,16 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 	return p
 }
 
-func handlePacket(ctx context.Context, p packet.Buf, discoverer ServiceDiscoverer) (msg, reply packet.Buf, err error) {
+func handlePacket(ctx context.Context, p packet.Buf, discoverer *serviceDiscoverer) (msg, reply packet.Buf, err error) {
 	switch code := p.Code(); {
 	case code >= 0:
-		msg, err = checkServicePacket(p, discoverer)
+		msg, err = discoverer.checkPacket(p)
 		if err != nil {
 			return
 		}
 
 	case code == packet.CodeServices:
-		reply, err = handleServicesPacket(ctx, p, discoverer)
+		reply, err = discoverer.handlePacket(ctx, p)
 		if err != nil {
 			return
 		}
@@ -346,7 +348,7 @@ func handlePacket(ctx context.Context, p packet.Buf, discoverer ServiceDiscovere
 	return
 }
 
-func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer) ([]packet.Buf, []byte, error) {
+func splitBufferedPackets(buf []byte, discoverer *serviceDiscoverer) ([]packet.Buf, []byte, error) {
 	var msgs []packet.Buf
 
 	for {
@@ -369,7 +371,7 @@ func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer) ([]packet.Bu
 			return nil, nil, badprogram.Errorf("invalid code in buffered packet: %d", code)
 		}
 
-		p, err := checkServicePacket(p, discoverer)
+		p, err := discoverer.checkPacket(p)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -377,28 +379,4 @@ func splitBufferedPackets(buf []byte, discoverer ServiceDiscoverer) ([]packet.Bu
 		msgs = append(msgs, p)
 		buf = buf[size:]
 	}
-}
-
-func checkServicePacket(p packet.Buf, discoverer ServiceDiscoverer) (msg packet.Buf, err error) {
-	if int(p.Code()) >= discoverer.NumServices() {
-		err = badprogram.Errorf("invalid service code in packet: %d", p.Code())
-		return
-	}
-
-	switch p.Domain() {
-	case packet.DomainCall, packet.DomainInfo, packet.DomainFlow:
-
-	case packet.DomainData:
-		if n := len(p); n < packet.DataHeaderSize {
-			err = badprogram.Errorf("data packet is too short: %d bytes", n)
-			return
-		}
-
-	default:
-		err = badprogram.Errorf("invalid domain in packet: %d", p.Domain())
-		return
-	}
-
-	msg = p
-	return
 }
