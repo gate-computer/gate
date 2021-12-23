@@ -97,7 +97,24 @@ measures:
     mismatch between the caller and the callee.
 
 
-### 2. Seccomp sandbox
+### 2. Runtime
+
+Gate ABI functions are implemented in two layers:
+
+  1. The first layer implements the ABI in WebAssembly (Wag library).
+     Manipulation of data structures is therefore automatically confined to the
+     sandbox.  The functions do their work by invoking internal functions
+     implemented in the second layer.
+
+  2. The second layer contains syscall wrappers ("rt" functions).  They have
+     simple function signatures, facilitating simple implementation in
+     simplified assembler subset ([General Assembly](https://gate.computer/ga)).
+
+     Registers are cleared on function return.  Retpoline and straight-line
+     speculation mitigations are employed.
+
+
+### 3. Seccomp sandbox
 
 The process has [seccomp](https://en.wikipedia.org/wiki/Seccomp) enabled with a
 very restrictive filter, so even if the WebAssembly sandbox could be breached,
@@ -124,9 +141,9 @@ Possible operations:
   - Call getcpu, gettimeofday and time syscalls via vDSO.
 
 
-### 3. Process
+### 4. Process
 
-The process is configured in various ways:
+Operating system process configuration:
 
   - CORE, MEMLOCK, MSGQUEUE, NOFILE, NPROC, RTPRIO, RTTIME and SIGPENDING
     resource limits are set to zero.
@@ -152,7 +169,7 @@ The process is configured in various ways:
   - Out-of-memory score adjustment is set to maximum.
 
 
-### 4. Containment
+### 5. Containment
 
 The user program processes run in a container.  The container also includes an
 init process which spawns and kills the programs.  The container has dedicated
