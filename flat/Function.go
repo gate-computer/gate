@@ -2,14 +2,28 @@
 
 package flat
 
-type Function = byte
+import "strconv"
+
+type Function byte
+
 const (
-	FunctionNONE Function = 0
+	FunctionNONE    Function = 0
 	FunctionRequest Function = 1
 )
 
 var EnumNamesFunction = map[Function]string{
-	FunctionNONE:"NONE",
-	FunctionRequest:"Request",
+	FunctionNONE:    "NONE",
+	FunctionRequest: "Request",
 }
 
+var EnumValuesFunction = map[string]Function{
+	"NONE":    FunctionNONE,
+	"Request": FunctionRequest,
+}
+
+func (v Function) String() string {
+	if s, ok := EnumNamesFunction[v]; ok {
+		return s
+	}
+	return "Function(" + strconv.FormatInt(int64(v), 10) + ")"
+}

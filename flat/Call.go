@@ -26,16 +26,16 @@ func (rcv *Call) Table() flatbuffers.Table {
 	return rcv._tab
 }
 
-func (rcv *Call) FunctionType() byte {
+func (rcv *Call) FunctionType() Function {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
-		return rcv._tab.GetByte(o + rcv._tab.Pos)
+		return Function(rcv._tab.GetByte(o + rcv._tab.Pos))
 	}
 	return 0
 }
 
-func (rcv *Call) MutateFunctionType(n byte) bool {
-	return rcv._tab.MutateByteSlot(4, n)
+func (rcv *Call) MutateFunctionType(n Function) bool {
+	return rcv._tab.MutateByteSlot(4, byte(n))
 }
 
 func (rcv *Call) Function(obj *flatbuffers.Table) bool {
@@ -50,8 +50,8 @@ func (rcv *Call) Function(obj *flatbuffers.Table) bool {
 func CallStart(builder *flatbuffers.Builder) {
 	builder.StartObject(2)
 }
-func CallAddFunctionType(builder *flatbuffers.Builder, functionType byte) {
-	builder.PrependByteSlot(0, functionType, 0)
+func CallAddFunctionType(builder *flatbuffers.Builder, functionType Function) {
+	builder.PrependByteSlot(0, byte(functionType), 0)
 }
 func CallAddFunction(builder *flatbuffers.Builder, function flatbuffers.UOffsetT) {
 	builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(function), 0)
