@@ -133,7 +133,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 			}
 			pendingMsgs = pendingMsgs[1:]
 			if len(p) > 0 {
-				pendingEvs = append(pendingEvs, p)
+				pendingEvs = append(pendingEvs, initMessagePacket(p))
 			}
 		}
 
