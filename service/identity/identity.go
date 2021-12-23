@@ -36,17 +36,8 @@ func (identity) Discoverable(context.Context) bool {
 }
 
 func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
-	inst := newInstance(config)
-	if err := inst.restore(snapshot); err != nil {
-		return nil, err
-	}
-
-	return inst, nil
+	return newInstance(config), nil
 }
-
-const (
-	flagPending byte = 1 << iota
-)
 
 const (
 	callNothing byte = iota
@@ -58,9 +49,6 @@ type instance struct {
 	service.InstanceBase
 
 	code packet.Code
-
-	pending bool
-	call    byte
 }
 
 func newInstance(config service.InstanceConfig) *instance {
@@ -69,43 +57,19 @@ func newInstance(config service.InstanceConfig) *instance {
 	}
 }
 
-func (inst *instance) restore(snapshot []byte) (err error) {
-	if len(snapshot) > 0 {
-		inst.pending = (snapshot[0] & flagPending) != 0
-		if inst.pending && len(snapshot) > 1 {
-			inst.call = snapshot[1]
-		}
-	}
-
-	return
-}
-
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
-	if inst.pending {
-		inst.handleCall(ctx, send)
-	}
-
-	return nil
-}
-
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
-	if p.Domain() == packet.DomainCall {
-		inst.pending = true
-		inst.call = callNothing
-		if buf := p.Content(); len(buf) > 0 {
-			inst.call = buf[0]
-		}
-
-		inst.handleCall(ctx, send)
+	if p.Domain() != packet.DomainCall {
+		return nil, nil
 	}
 
-	return nil, nil
-}
+	call := callNothing
+	if buf := p.Content(); len(buf) > 0 {
+		call = buf[0]
+	}
 
-func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) {
 	var id string
 
-	switch inst.call {
+	switch call {
 	case callPrincipalID:
 		if pri := principal.ContextID(ctx); pri != nil {
 			id = pri.String()
@@ -118,23 +82,7 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) 
 	}
 
 	b := []byte(id)
-	p := packet.MakeCall(inst.code, len(b))
+	p = packet.MakeCall(inst.code, len(b))
 	copy(p.Content(), b)
-
-	select {
-	case send <- p.Thunk():
-		inst.pending = false
-		inst.call = callNothing
-
-	case <-ctx.Done():
-		return
-	}
-}
-
-func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
-	if inst.pending {
-		return []byte{flagPending, inst.call}, nil
-	}
-
-	return nil, nil
+	return p, nil
 }
