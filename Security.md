@@ -117,8 +117,8 @@ Gate ABI functions are implemented in two layers:
 ### 3. Seccomp sandbox
 
 The process has [seccomp](https://en.wikipedia.org/wiki/Seccomp) enabled with a
-very restrictive filter, so even if the WebAssembly sandbox could be breached,
-arbitrary system calls cannot be made.
+very restrictive filter, so even if the WebAssembly sandbox could be breached
+or the runtime functions are buggy, arbitrary system calls cannot be made.
 
 Possible operations:
 
@@ -175,11 +175,11 @@ The user program processes run in a container.  The container also includes an
 init process which spawns and kills the programs.  The container has dedicated
 cgroup, IPC, network, mount, pid, user and UTS namespaces.
 
-By default, the user namespace contains only two unprivileged user ids (there
-is no root user), one which owns the filesystem contents, and one which is used
-to run the processes.  (If the `runtime.container.namespace.singleuid` config
-option is set, there is only one unprivileged user id which is used for
-everything, and it is mapped to the outside user who created the container.)
+By default, the user namespace contains only two unprivileged user ids, one
+owning the filesystem contents and one for running the processes.  There is no
+root user.  (If the `runtime.container.namespace.singleuid` config option is
+set, there is only one unprivileged user id which is used for everything, and
+it is mapped to the outside user who created the container.)
 
 The mount namespace contains only a constrained read-only tmpfs as its root.
 
