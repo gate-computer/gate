@@ -43,27 +43,14 @@ func (c catalog) Discoverable(context.Context) bool {
 }
 
 func (c catalog) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
-	inst := newInstance(c.r, config.Service)
-	if err := inst.restore(snapshot); err != nil {
-		return nil, err
-	}
-
-	return inst, nil
+	return newInstance(c.r, config.Service), nil
 }
-
-const (
-	pendingNone byte = iota
-	pendingJSON
-	pendingError
-)
 
 type instance struct {
 	service.InstanceBase
 
 	r *service.Registry
 	packet.Service
-
-	pending byte
 }
 
 func newInstance(r *service.Registry, config packet.Service) *instance {
@@ -73,41 +60,15 @@ func newInstance(r *service.Registry, config packet.Service) *instance {
 	}
 }
 
-func (inst *instance) restore(snapshot []byte) (err error) {
-	if len(snapshot) > 0 {
-		inst.pending = snapshot[0]
-	}
-
-	return
-}
-
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
-	if inst.pending != pendingNone {
-		inst.handleCall(ctx, send)
-	}
-
-	return nil
-}
-
 func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
-	if p.Domain() == packet.DomainCall {
-		if string(p.Content()) == "json" {
-			inst.pending = pendingJSON
-		} else {
-			inst.pending = pendingError
-		}
-
-		inst.handleCall(ctx, send)
+	if p.Domain() != packet.DomainCall {
+		return nil, nil
 	}
 
-	return nil, nil
-}
-
-func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) {
 	// TODO: correct buf size in advance
 	b := bytes.NewBuffer(packet.MakeCall(inst.Code, 128)[:packet.HeaderSize])
 
-	if inst.pending == pendingJSON {
+	if string(p.Content()) == "json" {
 		res := response{inst.r.Catalog(ctx)}
 		sort.Sort(res)
 
@@ -118,21 +79,7 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk) 
 		}
 	}
 
-	select {
-	case send <- func() packet.Buf { return b.Bytes() }:
-		inst.pending = pendingNone
-
-	case <-ctx.Done():
-		return
-	}
-}
-
-func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
-	if inst.pending != pendingNone {
-		return []byte{inst.pending}, nil
-	}
-
-	return nil, nil
+	return b.Bytes(), nil
 }
 
 type response struct {
