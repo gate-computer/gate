@@ -16,14 +16,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var executorNameArg = common.ExecutorName
-
 func setupBinaries() error {
-	if err := memfdCreateDup(common.ExecutorName, decompress(executorEmbed), common.ExecutorFD, unix.O_CLOEXEC); err != nil {
+	if err := memfdCreateDup(common.ExecutorFilename, decompress(executorEmbed), common.ExecutorFD, unix.O_CLOEXEC); err != nil {
 		return err
 	}
 
-	if err := memfdCreateDup(common.LoaderName, decompress(loaderEmbed), common.LoaderFD, 0); err != nil {
+	if err := memfdCreateDup(common.LoaderFilename, decompress(loaderEmbed), common.LoaderFD, 0); err != nil {
 		return err
 	}
 

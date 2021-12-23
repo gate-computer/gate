@@ -44,7 +44,7 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 
 	cmd := &exec.Cmd{
 		Path:   "/proc/self/exe", // Intercepted by the init() function below.
-		Args:   []string{common.ContainerName},
+		Args:   []string{common.ContainerFilename},
 		Env:    append(append([]string{}, os.Environ()...), magicKey+"="+magicValue),
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
@@ -121,7 +121,7 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 
 func init() {
 	// Intercept the self-execution.
-	if len(os.Args) > 0 && os.Args[0] == common.ContainerName && os.Getenv(magicKey) == magicValue {
+	if len(os.Args) > 0 && os.Args[0] == common.ContainerFilename && os.Getenv(magicKey) == magicValue {
 		os.Unsetenv(magicKey)
 		child.Exec()
 	}

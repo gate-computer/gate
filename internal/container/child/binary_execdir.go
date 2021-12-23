@@ -13,8 +13,6 @@ import (
 	"gate.computer/gate/internal/container/common"
 )
 
-var executorNameArg = common.ExecutorFilename
-
 func setupBinaries() error {
 	syscall.CloseOnExec(common.ExecutorFD)
 	return nil

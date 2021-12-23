@@ -329,7 +329,7 @@ func childMain() (err error) {
 		}
 	}
 
-	args := append([]string{executorNameArg}, os.Args[1:]...)
+	args := append([]string{common.ExecutorFilename}, os.Args[1:]...)
 	err = execveat(common.ExecutorFD, "", args, nil, unix.AT_EMPTY_PATH)
 	if runtimeDebug {
 		return fmt.Errorf("execveat: %w", err)

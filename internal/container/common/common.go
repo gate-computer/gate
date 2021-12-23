@@ -10,15 +10,10 @@ const (
 	CompatVersion = CompatMajor + ".0"
 )
 
-const (
-	ContainerName = "gate-runtime-container"
-	ExecutorName  = "gate-runtime-executor"
-	LoaderName    = "gate-runtime-loader"
-)
-
 var (
-	ExecutorFilename = ExecutorName + "." + CompatMajor
-	LoaderFilename   = LoaderName + "." + CompatVersion
+	ContainerFilename = "gate-runtime-container"
+	ExecutorFilename  = "gate-runtime-executor." + CompatMajor
+	LoaderFilename    = "gate-runtime-loader." + CompatVersion
 )
 
 // File descriptors passed from the parent to the child process.
