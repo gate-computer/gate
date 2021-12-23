@@ -105,10 +105,12 @@ type Localhost struct {
 	client *http.Client
 }
 
-func (*Localhost) Service() service.Service {
-	return service.Service{
-		Name:     serviceName,
-		Revision: serviceRevision,
+func (*Localhost) Properties() service.Properties {
+	return service.Properties{
+		Service: service.Service{
+			Name:     serviceName,
+			Revision: serviceRevision,
+		},
 	}
 }
 

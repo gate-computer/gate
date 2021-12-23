@@ -72,14 +72,18 @@ func TestRequest(t *testing.T) {
 		t.Error(p)
 	}
 
-	c := make(chan packet.Buf, 1)
+	c := make(chan packet.Thunk, 1)
 	if err := inst.Start(context.Background(), c, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := inst.Handle(context.Background(), c, p); err != nil {
+
+	p, err = inst.Handle(context.Background(), c, p)
+	if err != nil {
 		t.Fatal(err)
 	}
-	p = <-c
+	for len(p) == 0 {
+		p = (<-c)()
+	}
 
 	if !packet.IsValidCall(p, testCode) {
 		t.Error(p)

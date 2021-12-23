@@ -7,7 +7,6 @@ package localhost
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"sync"
 
 	"gate.computer/gate/packet"
@@ -45,28 +44,20 @@ func (inst *instance) restore(snapshot []byte) error {
 	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Buf, abort func(error)) error {
+func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
 	c := make(chan handled)
 	inst.unsent = inst.s.start(send, c)
 	inst.handled = c
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Buf, p packet.Buf) error {
-	switch dom := p.Domain(); {
-	case dom == packet.DomainCall:
-		inst.handleCall(ctx, p)
-
-	case dom.IsStream():
-		return errors.New("localhost: unexpected stream packet")
+func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+	if p.Domain() != packet.DomainCall {
+		return nil, nil
 	}
 
-	return nil
-}
-
-func (inst *instance) handleCall(ctx context.Context, p packet.Buf) {
 	if !inst.s.registerRequest(p) {
-		return
+		return nil, nil
 	}
 
 	inst.handlers.Add(1)
@@ -74,6 +65,8 @@ func (inst *instance) handleCall(ctx context.Context, p packet.Buf) {
 		defer inst.handlers.Done()
 		inst.handled <- handle(ctx, inst.local, inst.Service, p)
 	}()
+
+	return nil, nil
 }
 
 func (inst *instance) shut() (requests, unsent []packet.Buf) {
@@ -136,7 +129,7 @@ func (s *sender) init() {
 	s.cond.L = &s.mu
 }
 
-func (s *sender) start(send chan<- packet.Buf, handled <-chan handled) <-chan []packet.Buf {
+func (s *sender) start(send chan<- packet.Thunk, handled <-chan handled) <-chan []packet.Buf {
 	unsent := make(chan []packet.Buf, 1)
 
 	// Locking not necessary.
@@ -147,7 +140,7 @@ func (s *sender) start(send chan<- packet.Buf, handled <-chan handled) <-chan []
 	return unsent
 }
 
-func (s *sender) loop(unsent chan<- []packet.Buf, send chan<- packet.Buf, handled <-chan handled) {
+func (s *sender) loop(unsent chan<- []packet.Buf, send chan<- packet.Thunk, handled <-chan handled) {
 	var buffered []packet.Buf
 
 	defer func() {
@@ -164,7 +157,7 @@ func (s *sender) loop(unsent chan<- []packet.Buf, send chan<- packet.Buf, handle
 
 	for {
 		var (
-			sending  chan<- packet.Buf
+			sending  chan<- packet.Thunk
 			sendable packet.Buf
 		)
 		if len(buffered) > 0 {
@@ -196,7 +189,7 @@ func (s *sender) loop(unsent chan<- []packet.Buf, send chan<- packet.Buf, handle
 			p.SetIndex(index)
 			buffered = append(buffered, p)
 
-		case sending <- sendable:
+		case sending <- sendable.Thunk():
 			buffered = buffered[1:]
 		}
 	}
