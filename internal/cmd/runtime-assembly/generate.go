@@ -444,11 +444,28 @@ func funcRtNop(a *ga.Assembly) {
 
 func funcRtPoll(a *ga.Assembly) {
 	a.Function("rt_poll")
-	// [StackPtr + 16] = input events
-	// [StackPtr + 8] = output events
+	// [StackPtr + 32] = input events
+	// [StackPtr + 24] = output events
+	// [StackPtr + 16] = timeout nanoseconds
+	// [StackPtr + 8] = timeout seconds (negative means no timeout)
 	{
-		a.Load(local0, a.StackPtr, 16)
-		a.Load(local1, a.StackPtr, 8)
+		a.AddImm(param2, a.StackPtr, 8) // ppoll tmo_p (stack layout coincides with timespec)
+		a.Load(scratch0, param2, 0)     // timeout seconds
+		a.JumpIfImm(ga.GE, scratch0, 0, ".poll_with_timeout")
+		a.MoveImm(param2, 0) // ppoll tmo_p (no timeout)
+		a.Jump(".poll")
+
+		a.Label(".poll_with_timeout")
+
+		a.Load(scratch0, param2, 8)         // timeout nanoseconds
+		a.Load(scratch1, wagTextBase, -9*8) // mask
+		a.AndReg(scratch0, scratch1)
+		a.Store(param2, 8, scratch0)
+
+		a.Label(".poll")
+
+		a.Load4Bytes(local0, a.StackPtr, 32)
+		a.Load4Bytes(local1, a.StackPtr, 24)
 		a.MoveImm(scratch0, inputFD)
 		a.MoveImm(scratch1, outputFD)
 
@@ -461,7 +478,6 @@ func funcRtPoll(a *ga.Assembly) {
 		a.Store4Bytes(param0, 12, local1)  // fds[1].events
 
 		a.MoveImm(param1, 2)    // ppoll nfds
-		a.MoveImm(param2, 0)    // ppoll tmo_p
 		a.MoveImm(sysparam3, 0) // ppoll sigmask
 		a.Syscall(linux.SYS_PPOLL)
 
@@ -469,7 +485,7 @@ func funcRtPoll(a *ga.Assembly) {
 		a.Load4Bytes(local1, param0, 12)          // fds[1].events | (fds[1].revents << 16)
 		a.AddImm(a.StackPtr, a.StackPtr, fdsSize) // Release buffer.
 
-		a.JumpIfImm(ga.GT, result, 0, ".poll_revents")
+		a.JumpIfImm(ga.GE, result, 0, ".poll_revents")
 		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".resume_zero")
 		a.JumpIfImm(ga.EQ, result, -int(unix.EINTR), ".resume_zero")
 

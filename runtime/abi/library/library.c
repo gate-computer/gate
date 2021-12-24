@@ -121,7 +121,7 @@ struct event {
 
 int rt_random(void);
 uint64_t rt_time(enum rt_clock id);
-enum rt_events rt_poll(enum rt_events in, enum rt_events out);
+enum rt_events rt_poll(enum rt_events in, enum rt_events out, int64_t nsec, int64_t sec); // Note order.
 size_t rt_read(void *buf, size_t size);
 size_t rt_write(const void *data, size_t size);
 
@@ -418,7 +418,7 @@ void io(const struct iovec *recv, int recvlen, uint32_t *nrecv_ptr, const struct
 {
 	enum rt_events events = RT_POLLIN | RT_POLLOUT;
 	if (flags & IO_WAIT)
-		events = rt_poll(RT_POLLIN, sendlen ? RT_POLLOUT : 0);
+		events = rt_poll(RT_POLLIN, sendlen ? RT_POLLOUT : 0, 0, -1);
 
 	size_t nsent = 0;
 	size_t nrecv = 0;
@@ -520,7 +520,7 @@ enum error poll_oneoff(const struct subscription *sub, struct event *out, int ns
 	}
 
 	if (events) {
-		enum rt_events r = rt_poll(events & RT_POLLIN, events & RT_POLLOUT);
+		enum rt_events r = rt_poll(events & RT_POLLIN, events & RT_POLLOUT, 0, -1);
 
 		if (r & RT_POLLIN) {
 			out[n].userdata = pollin->userdata;

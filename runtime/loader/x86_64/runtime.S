@@ -260,8 +260,22 @@ trampoline:
 .type	rt_poll,@function
 
 rt_poll:
-	mov	rbp, [rsp + 16]
-	mov	r12, [rsp + 8]
+	lea	rdx, [rsp + 8]
+	mov	r9, [rdx]
+	cmp	r9, 0
+	jge	.Lpoll_with_timeout
+	xor	edx, edx
+	jmp	.Lpoll
+
+.Lpoll_with_timeout:
+	mov	r9, [rdx + 8]
+	mov	r8, [r15 - 72]
+	and	r9, r8
+	mov	[rdx + 8], r9
+
+.Lpoll:
+	mov	ebp, [rsp + 32]
+	mov	r12d, [rsp + 24]
 	xor	r9d, r9d
 	mov	r8d, 1
 	sub	rsp, 16
@@ -271,7 +285,6 @@ rt_poll:
 	mov	[rdi + 8], r8d
 	mov	[rdi + 12], r12d
 	mov	esi, 2
-	xor	edx, edx
 	xor	r10d, r10d
 	mov	eax, 271
 	syscall
@@ -279,7 +292,7 @@ rt_poll:
 	mov	r12d, [rdi + 12]
 	add	rsp, 16
 	cmp	rax, 0
-	jg	.Lpoll_revents
+	jge	.Lpoll_revents
 	cmp	rax, -11
 	je	.Lresume_zero
 	cmp	rax, -4

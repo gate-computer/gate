@@ -295,8 +295,22 @@ trampoline:
 
 rt_poll:
 	str	lr, [x29, -8]!
-	ldr	x11, [x29, 16]
-	ldr	x12, [x29, 8]
+	add	x2, x29, 8
+	ldr	x9, [x2, 0]
+	cmp	x9, 0
+	b.ge	.Lpoll_with_timeout
+	mov	x2, 0
+	b	.Lpoll
+
+.Lpoll_with_timeout:
+	ldr	x9, [x2, 8]
+	ldr	x8, [x27, -72]
+	and	x9, x9, x8
+	str	x9, [x2, 8]
+
+.Lpoll:
+	ldr	w11, [x29, 32]
+	ldr	w12, [x29, 24]
 	mov	x9, 0
 	movz	x8, 1, lsl #0
 	sub	x29, x29, 16
@@ -306,7 +320,6 @@ rt_poll:
 	str	w8, [x0, 8]
 	str	w12, [x0, 12]
 	movz	x1, 2, lsl #0
-	mov	x2, 0
 	mov	x3, 0
 	mov	w8, 73
 	svc	0
@@ -314,7 +327,7 @@ rt_poll:
 	ldr	w12, [x0, 12]
 	add	x29, x29, 16
 	cmp	x0, 0
-	b.gt	.Lpoll_revents
+	b.ge	.Lpoll_revents
 	cmp	x0, -11
 	b.eq	.Lresume_zero
 	cmp	x0, -4
