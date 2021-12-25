@@ -179,15 +179,13 @@ func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk
 	return nil, nil
 }
 
-func (d *serviceDiscoverer) Shutdown(ctx context.Context) error {
+func (d *serviceDiscoverer) Shutdown(ctx context.Context, suspend bool) ([]snapshot.Service, error) {
 	if d.origin == nil {
-		return nil
+		return nil, nil
 	}
-	return d.origin.Shutdown(ctx)
-}
 
-func (d *serviceDiscoverer) Suspend(ctx context.Context) ([]snapshot.Service, error) {
-	return nil, d.Shutdown(ctx)
+	b, err := d.origin.Shutdown(ctx, suspend)
+	return []snapshot.Service{{Name: "origin", Buffer: b}}, err
 }
 
 var testFS *image.Filesystem

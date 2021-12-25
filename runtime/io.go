@@ -72,12 +72,15 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 		return err
 	}
 	defer func() {
-		if frozen != nil && err == nil {
-			frozen.Services, err = server.Suspend(ctx)
-		} else {
-			if e := server.Shutdown(ctx); err == nil {
+		snapshot, e := server.Shutdown(ctx, frozen != nil && err == nil)
+		if e != nil {
+			snapshot = nil
+			if err == nil {
 				err = e
 			}
+		}
+		if frozen != nil {
+			frozen.Services = snapshot
 		}
 	}()
 

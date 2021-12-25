@@ -47,8 +47,7 @@ type Instance interface {
 	Ready(ctx context.Context) error
 	Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error
 	Handle(ctx context.Context, send chan<- packet.Thunk, received packet.Buf) (packet.Buf, error)
-	Shutdown(ctx context.Context) error
-	Suspend(ctx context.Context) (snapshot []byte, err error)
+	Shutdown(ctx context.Context, suspend bool) (snapshot []byte, err error)
 }
 
 // InstanceBase provides default implementations for some Instance methods.
@@ -56,8 +55,7 @@ type InstanceBase struct{}
 
 func (InstanceBase) Ready(context.Context) error                                   { return nil }
 func (InstanceBase) Start(context.Context, chan<- packet.Thunk, func(error)) error { return nil }
-func (InstanceBase) Shutdown(context.Context) error                                { return nil }
-func (InstanceBase) Suspend(context.Context) ([]byte, error)                       { return nil, nil }
+func (InstanceBase) Shutdown(context.Context, bool) ([]byte, error)                { return nil, nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -370,10 +368,17 @@ func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p pac
 }
 
 // Shutdown instances.
-func (d *discoverer) Shutdown(ctx context.Context) (err error) {
+func (d *discoverer) Shutdown(ctx context.Context, suspend bool) ([]snapshot.Service, error) {
+	if suspend {
+		return d.suspend(ctx)
+	}
+	return nil, d.shutdown(ctx)
+}
+
+func (d *discoverer) shutdown(ctx context.Context) (err error) {
 	for _, s := range d.services {
 		if s.instance != nil {
-			if e := s.instance.Shutdown(ctx); err == nil {
+			if _, e := s.instance.Shutdown(ctx, false); err == nil {
 				err = e
 			}
 		}
@@ -382,15 +387,14 @@ func (d *discoverer) Shutdown(ctx context.Context) (err error) {
 	return
 }
 
-// Suspend instances.
-func (d *discoverer) Suspend(ctx context.Context) (final []snapshot.Service, err error) {
+func (d *discoverer) suspend(ctx context.Context) (final []snapshot.Service, err error) {
 	final = make([]snapshot.Service, len(d.services))
 
 	for code, s := range d.services {
 		final[code] = s.Service
 
 		if s.instance != nil {
-			b, e := s.instance.Suspend(ctx)
+			b, e := s.instance.Shutdown(ctx, true)
 			if len(b) > 0 {
 				final[code].Buffer = b
 			}

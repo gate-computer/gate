@@ -280,17 +280,15 @@ func (inst *instance) Handle(ctx context.Context, out chan<- packet.Thunk, p pac
 	return nil, nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context) error {
+func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
 	putProcKey(ctx)
 
-	_, err := inst.c.Shutdown(ctx, &api.ShutdownRequest{
-		Id: inst.id,
-	})
-	return err
-}
-
-func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
-	putProcKey(ctx)
+	if !suspend {
+		_, err := inst.c.Shutdown(ctx, &api.ShutdownRequest{
+			Id: inst.id,
+		})
+		return nil, err
+	}
 
 	_, err := inst.c.Suspend(ctx, &api.SuspendRequest{
 		Id: inst.id,

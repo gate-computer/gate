@@ -55,8 +55,7 @@ type InstanceServer interface {
 	Start(context.Context, chan<- packet.Thunk) error
 	Discover(ctx context.Context, newNames []string) (all []ServiceState, err error)
 	Handle(context.Context, chan<- packet.Thunk, packet.Buf) (packet.Buf, error)
-	Shutdown(context.Context) error
-	Suspend(context.Context) ([]snapshot.Service, error)
+	Shutdown(ctx context.Context, suspend bool) ([]snapshot.Service, error)
 }
 
 type serviceDiscoverer struct {

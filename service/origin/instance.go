@@ -294,7 +294,7 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	}
 }
 
-func (inst *instance) shutdown() {
+func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
 	lock.Guard(&inst.mu, func() {
 		inst.shutting = true
 		for inst.replying {
@@ -310,15 +310,10 @@ func (inst *instance) shutdown() {
 	for _, s := range inst.streams {
 		<-s.stopped
 	}
-}
 
-func (inst *instance) Shutdown(ctx context.Context) error {
-	inst.shutdown()
-	return nil
-}
-
-func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
-	inst.shutdown()
+	if !suspend {
+		return nil, nil
+	}
 
 	numStreams := int32(len(inst.streams))
 	if inst.accepting == 0 && numStreams == 0 {

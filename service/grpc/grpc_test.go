@@ -220,18 +220,18 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 	}()
 
 	if suspend {
-		if snapshot, err := inst.Suspend(ctx); err != nil {
+		if snapshot, err := inst.Shutdown(ctx, true); err != nil {
 			t.Error(err)
 		} else if len(snapshot) != 0 {
 			t.Error(snapshot)
 		}
 	} else {
-		if err := inst.Shutdown(ctx); err != nil {
+		if _, err := inst.Shutdown(ctx, false); err != nil {
 			t.Error(err)
 		}
 	}
 
-	if _, err := inst.Suspend(ctx); err == nil {
+	if _, err := inst.Shutdown(ctx, true); err == nil {
 		t.Error("redundant instance suspension did not fail")
 	}
 }
