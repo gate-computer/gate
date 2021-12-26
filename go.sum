@@ -2,6 +2,8 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 gate.computer/ga v0.0.0-20211218044256-b13e95063354/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
 gate.computer/gate v0.0.0-20211223020657-8bf7b223f267 h1:My3uwNeMnODWKDW2ULzfc8DbUvAB5FpgiiFcf1oEJfA=
 gate.computer/gate v0.0.0-20211223020657-8bf7b223f267/go.mod h1:QQ2WKXreLZigt91AgUF9XcrtPp2dDC1hLEro4pHcBx8=
+gate.computer/gate v0.0.0-20211225112301-52aa9133d017 h1:GZNRoOQBi+eF4nE1qwRTA7aqSXrq73OXPGpjJkPfBLI=
+gate.computer/gate v0.0.0-20211225112301-52aa9133d017/go.mod h1:QQ2WKXreLZigt91AgUF9XcrtPp2dDC1hLEro4pHcBx8=
 gate.computer/wag v0.33.1-0.20211221154506-5a8a3a0740ab h1:6n3p135Y/5y6/z1fXl5se0w/uNYtcHnrO3C6ZGu7U9U=
 gate.computer/wag v0.33.1-0.20211221154506-5a8a3a0740ab/go.mod h1:jYcuvkfrrmK1xT0Wf1/vjVSNJTN6wL78GqAaM4MfyHg=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=

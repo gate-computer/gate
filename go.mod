@@ -3,7 +3,7 @@ module gate.computer/localhost
 go 1.16
 
 require (
-	gate.computer/gate v0.0.0-20211223020657-8bf7b223f267
+	gate.computer/gate v0.0.0-20211225112301-52aa9133d017
 	github.com/google/flatbuffers v1.12.0
 )
 

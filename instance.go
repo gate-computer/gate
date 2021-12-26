@@ -69,7 +69,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	return nil, nil
 }
 
-func (inst *instance) shut() (requests, unsent []packet.Buf) {
+func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
 	inst.handlers.Wait()
 
 	if inst.handled != nil {
@@ -77,23 +77,17 @@ func (inst *instance) shut() (requests, unsent []packet.Buf) {
 		inst.handled = nil
 	}
 
-	requests = inst.s.wait()
+	requests := inst.s.wait()
 
+	var unsent []packet.Buf
 	if inst.unsent != nil {
 		unsent = <-inst.unsent
 		inst.unsent = nil
 	}
 
-	return
-}
-
-func (inst *instance) Shutdown(ctx context.Context) error {
-	inst.shut()
-	return nil
-}
-
-func (inst *instance) Suspend(ctx context.Context) ([]byte, error) {
-	requests, unsent := inst.shut()
+	if !suspend {
+		return nil, nil
+	}
 
 	n := binary.MaxVarintLen32 * 2
 	for _, p := range requests {
