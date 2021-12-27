@@ -493,7 +493,7 @@ TEST(io)
 	while (send_num || recv_num) {
 		size_t received;
 		size_t sent;
-		gate_io(recv_iov, recv_num, &received, send_iov, send_num, &sent, GATE_IO_WAIT);
+		gate_io(recv_iov, recv_num, &received, send_iov, send_num, &sent, -1);
 
 		if (sent) {
 			ASSERT(sent == 16);

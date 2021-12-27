@@ -52,7 +52,7 @@ int loop(void)
 	};
 
 	// Send some uninitialized bytes from stack as padding.
-	gate_send(&packet, GATE_ALIGN_PACKET(sizeof packet));
+	gate_send(&packet, GATE_ALIGN_PACKET(sizeof packet), -1);
 
 	for (long i = 0;; i++)
 		iteration(i);

@@ -40,12 +40,13 @@ prefix.
 
 
 ```wasm
-(import "gate" "io_N" (func (param i32 i32 i32 i32 i32 i32 i32)))
+(import "gate" "io_N" (func (param i32 i32 i32 i32 i32 i32 i64)))
 ```
 > Receive and/or send packet data.  (This is an alternative to the WASI I/O
 > functions.)  Parameters 1-3 and 4-6 specify reception and sending parameters,
 > respectively: I/O vector, I/O vector length, and pointer to a buffer for a
-> 32-bit integer for storing the transferred size.  Parameter 7 is for flags.
+> 32-bit integer for storing the transferred size.  Parameter 7 is timeout in
+> nanoseconds.
 >
 > I/O vectors consist of 8-byte entries.  An entry contains two 32-bit fields:
 > pointer and length.
@@ -56,9 +57,8 @@ prefix.
 >
 > `N` is the maximum size of received packets.
 >
-> The call is non-blocking by default.  Blocking behavior can be requested by
-> setting bit #0 in flags.  The call may still be interrupted without any bytes
-> having been transferred.
+> TODO: document timeout parameter
+> The call may still be interrupted without any bytes having been transferred.
 
 
 ```wasm

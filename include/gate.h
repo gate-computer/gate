@@ -93,7 +93,7 @@ struct gate_iovec {
 
 void __gate_debug_type_not_supported(void); // No implementation.
 GATE_PURE uint32_t __GATE_FD(void) GATE_NOEXCEPT;
-void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, const struct gate_iovec *send, int sendlen, size_t *sendsize, unsigned flags) GATE_NOEXCEPT;
+void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, const struct gate_iovec *send, int sendlen, size_t *sendsize, int64_t timeout) GATE_NOEXCEPT;
 
 static inline void __gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
 {
@@ -169,8 +169,6 @@ static inline void __gate_debug_int(int64_t n) GATE_NOEXCEPT
 // Public C API (excluding struct members starting with underscore)
 
 #define GATE_API_VERSION 0
-
-#define GATE_IO_WAIT 0x1
 
 #define GATE_PACKET_ALIGNMENT 8
 
@@ -359,24 +357,24 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 	__wasi_proc_exit(status);
 }
 
-static inline void gate_io(const struct gate_iovec *recv, int recvveclen, size_t *nreceived, const struct gate_iovec *send, int sendveclen, size_t *nsent, unsigned flags) GATE_NOEXCEPT
+static inline void gate_io(const struct gate_iovec *recv, int recvveclen, size_t *nreceived, const struct gate_iovec *send, int sendveclen, size_t *nsent, int64_t timeout) GATE_NOEXCEPT
 {
-	__GATE_IO(recv, recvveclen, nreceived, send, sendveclen, nsent, flags);
+	__GATE_IO(recv, recvveclen, nreceived, send, sendveclen, nsent, timeout);
 }
 
-static inline size_t gate_recv(void *buf, size_t size, unsigned flags) GATE_NOEXCEPT
+static inline size_t gate_recv(void *buf, size_t size, int64_t timeout) GATE_NOEXCEPT
 {
 	const struct gate_iovec iov = {buf, size};
 	size_t n;
-	__GATE_IO(&iov, 1, &n, NULL, 0, NULL, flags);
+	__GATE_IO(&iov, 1, &n, NULL, 0, NULL, timeout);
 	return n;
 }
 
-static inline size_t gate_send(const void *data, size_t size) GATE_NOEXCEPT
+static inline size_t gate_send(const void *data, size_t size, int64_t timeout) GATE_NOEXCEPT
 {
 	const struct gate_iovec iov = {(void *) data, size};
 	size_t n;
-	__GATE_IO(NULL, 0, NULL, &iov, 1, &n, 0);
+	__GATE_IO(NULL, 0, NULL, &iov, 1, &n, timeout);
 	return n;
 }
 

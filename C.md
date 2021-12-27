@@ -17,12 +17,6 @@ GATE_API_VERSION
 
 
 ```c
-GATE_IO_WAIT
-```
-> I/O flag.
-
-
-```c
 GATE_PACKET_ALIGNMENT
 ```
 > Granularity of I/O packet buffers.
@@ -138,9 +132,9 @@ void gate_io(const struct gate_iovec *recv,
              const struct gate_iovec *send,
              int sendveclen,
              size_t *nsent,
-             unsigned flags);
-size_t gate_recv(void *buf, size_t size, unsigned flags);
-size_t gate_send(const void *data, size_t size);
+             int64_t timeout);
+size_t gate_recv(void *buf, size_t size, int64_t timeout);
+size_t gate_send(const void *data, size_t size, int64_t timeout);
 ```
 > Receive and/or send packet data.  The transferred data sizes are returned
 > through the *nreceived* and *nsent* pointers, or as return values.
@@ -150,9 +144,8 @@ size_t gate_send(const void *data, size_t size);
 > `GATE_PACKET_ALIGNMENT-1` padding bytes must be sent after the packet to
 > ensure alignment.
 >
-> The call is non-blocking by default.  Blocking behavior can be requested by
-> specifying the `GATE_IO_WAIT` flag.  The call may still be interrupted
-> without any bytes having been transferred.
+> TODO: document timeout parameter
+> The call may still be interrupted without any bytes having been transferred.
 
 
 #### Packet header

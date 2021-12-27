@@ -4,6 +4,7 @@
 
 // Update ../library.go by running 'go generate' in parent directory.
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -41,10 +42,6 @@ enum clock {
 	CLOCK_REALTIME = 0,
 	CLOCK_MONOTONIC = 1,
 	CLOCKS = 4,
-};
-
-enum io_flags {
-	IO_WAIT = 0x1,
 };
 
 enum {
@@ -414,12 +411,39 @@ enum error fd_write(enum fd fd, const struct iovec *iov, int iovlen, uint32_t *n
 }
 
 EXPORT
-void io(const struct iovec *recv, int recvlen, uint32_t *nrecv_ptr, const struct iovec *send, int sendlen, uint32_t *nsent_ptr, enum io_flags flags)
+void io(const struct iovec *recv, int recvlen, uint32_t *nrecv_ptr, const struct iovec *send, int sendlen, uint32_t *nsent_ptr, int64_t timeout)
 {
 	enum rt_events events = RT_POLLIN | RT_POLLOUT;
-	if (flags & IO_WAIT)
-		events = rt_poll(RT_POLLIN, sendlen ? RT_POLLOUT : 0, 0, -1);
 
+	bool sending = false;
+	for (int i = 0; i < sendlen; i++) {
+		if (send[i].iov_len > 0) {
+			sending = true;
+			break;
+		}
+	}
+
+	// Don't bother with sub-microsecond wait, unless it's the only task.
+	if (timeout >= 0 && timeout < 1000) {
+		if (sending)
+			goto no_wait;
+
+		for (int i = 0; i < recvlen; i++) {
+			if (recv[i].iov_len > 0)
+				goto no_wait;
+		}
+	}
+
+	int64_t sec = -1;
+	int64_t nsec = 0;
+	if (timeout >= 0) {
+		sec = timeout / 1000000000LL;
+		nsec = timeout % 1000000000LL;
+	}
+
+	events = rt_poll(RT_POLLIN, sending ? RT_POLLOUT : 0, nsec, sec);
+
+no_wait:;
 	size_t nsent = 0;
 	size_t nrecv = 0;
 
