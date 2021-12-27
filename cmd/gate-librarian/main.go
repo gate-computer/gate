@@ -139,7 +139,7 @@ func Main(output, ld, objdump, gopkg string, verbose bool, commands [][]string) 
 
 	var linked string
 
-	if len(objects) == 1 {
+	if len(objects) == 1 && ld == "" {
 		linked = objects[0]
 	} else {
 		args := append([]string{"--allow-undefined", "--export-dynamic", "--no-entry", "-o", "/dev/stdout"}, objects...)
