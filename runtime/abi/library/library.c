@@ -21,10 +21,17 @@ enum trap {
 
 #define CLOCKFLAG_ABSTIME (1 << 0)
 
+#define RETURN_FAULT_IF(condition)          \
+	do {                                \
+		if (condition)              \
+			return ERROR_FAULT; \
+	} while (0)
+
 enum error {
 	OK = 0,
 	ERROR_AGAIN = 6,
 	ERROR_BADF = 8,
+	ERROR_FAULT = 21,
 	ERROR_INVAL = 28,
 	ERROR_NOENT = 44,
 	ERROR_NOTSOCK = 57,
@@ -159,6 +166,9 @@ enum error args_get(char **argv, char *argvbuf)
 EXPORT
 enum error args_sizes_get(int32_t *argc_ptr, uint32_t *argvbufsize_ptr)
 {
+	RETURN_FAULT_IF(argc_ptr == NULL);
+	RETURN_FAULT_IF(argvbufsize_ptr == NULL);
+
 	*argc_ptr = 0;
 	*argvbufsize_ptr = 0;
 	return OK;
@@ -169,6 +179,8 @@ enum error clock_res_get(enum clock id, uint64_t *buf)
 {
 	if (id >= CLOCKS)
 		return ERROR_INVAL;
+
+	RETURN_FAULT_IF(buf == NULL);
 
 	*buf = 1000000000ULL; // Worst-case scenario.
 	return OK;
@@ -181,6 +193,8 @@ enum error clock_time_get(enum clock id, uint64_t precision, uint64_t *buf)
 
 	if (id >= CLOCKS)
 		return ERROR_INVAL;
+
+	RETURN_FAULT_IF(buf == NULL);
 
 	switch (id) {
 	case CLOCK_REALTIME:
@@ -199,6 +213,9 @@ enum error clock_time_get(enum clock id, uint64_t precision, uint64_t *buf)
 EXPORT
 enum error environ_get(void **env, uint64_t *buf)
 {
+	RETURN_FAULT_IF(env == NULL);
+	RETURN_FAULT_IF(buf == NULL);
+
 	buf[0] = bytes64('G', 'A', 'T', 'E', '_', 'A', 'B', 'I');
 	buf[1] = bytes64('_', 'V', 'E', 'R', 'S', 'I', 'O', 'N');
 	buf[2] = bytes64('=', '0', 0, 0, 0, 0, 0, 0);
@@ -221,6 +238,9 @@ enum error environ_get(void **env, uint64_t *buf)
 EXPORT
 enum error environ_sizes_get(int32_t *envlen_ptr, uint32_t *envbufsize_ptr)
 {
+	RETURN_FAULT_IF(envlen_ptr == NULL);
+	RETURN_FAULT_IF(envbufsize_ptr == NULL);
+
 	*envlen_ptr = 3;
 	*envbufsize_ptr = 9 * sizeof(uint64_t);
 	return OK;
@@ -250,6 +270,8 @@ enum error fd_close(enum fd fd)
 EXPORT
 enum error fd_fdstat_get(enum fd fd, struct fdstat *buf)
 {
+	RETURN_FAULT_IF(buf == NULL);
+
 	uint16_t flags = 0;
 	uint64_t rights = 0;
 
@@ -316,12 +338,17 @@ enum error fd_fdstat_set_rights(enum fd fd, uint64_t base, uint64_t inheriting)
 EXPORT
 enum error fd_prestat_dir_name(enum fd fd, char *buf, size_t bufsize)
 {
+	RETURN_FAULT_IF(bufsize > 0 && buf == NULL);
+
 	return fd_error(fd, ERROR_INVAL);
 }
 
 EXPORT
 enum error fd_read(enum fd fd, const struct iovec *iov, int iovlen, uint32_t *nread_ptr)
 {
+	RETURN_FAULT_IF(iovlen > 0 && iov == NULL);
+	RETURN_FAULT_IF(nread_ptr == NULL);
+
 	size_t total = 0;
 
 	switch (fd) {
@@ -376,6 +403,9 @@ enum error fd_renumber(enum fd from, enum fd to)
 EXPORT
 enum error fd_write(enum fd fd, const struct iovec *iov, int iovlen, uint32_t *nwritten_ptr)
 {
+	RETURN_FAULT_IF(iovlen > 0 && iov == NULL);
+	RETURN_FAULT_IF(nwritten_ptr == NULL);
+
 	size_t total = 0;
 
 	switch (fd) {
@@ -497,6 +527,10 @@ struct timestamps {
 EXPORT
 enum error poll_oneoff(const struct subscription *sub, struct event *out, int nsub, uint32_t *nout_ptr)
 {
+	RETURN_FAULT_IF(nsub > 0 && sub == NULL);
+	RETURN_FAULT_IF(nsub > 0 && out == NULL);
+	RETURN_FAULT_IF(nout_ptr == NULL);
+
 	enum rt_events pollin = 0;
 	enum rt_events pollout = 0;
 	bool have_timeout = false;
@@ -679,6 +713,8 @@ enum error proc_raise(int signal)
 EXPORT
 enum error random_get(uint8_t *buf, size_t len)
 {
+	RETURN_FAULT_IF(len > 0 && buf == NULL);
+
 	while (len > 0) {
 		int value = rt_random();
 		if (value >= 0) {
