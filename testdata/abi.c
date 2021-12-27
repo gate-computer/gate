@@ -575,6 +575,55 @@ TEST(path_unlink_file)
 
 TEST(poll_oneoff)
 {
+	// Timing.
+	{
+		__wasi_subscription_t subs[4] = {
+			{0, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_REALTIME, 1, 1, __WASI_SUBCLOCKFLAGS_SUBSCRIPTION_CLOCK_ABSTIME}}}},
+			{1, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_REALTIME, 1 << 30, 1, 0}}}},
+			{2, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_MONOTONIC, 0, 1, 0}}}},
+			{3, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_MONOTONIC, 1ULL << 63, 1, __WASI_SUBCLOCKFLAGS_SUBSCRIPTION_CLOCK_ABSTIME}}}},
+		};
+		__wasi_event_t evs[4];
+		size_t count = 99;
+		ASSERT(__wasi_poll_oneoff(subs, evs, 4, &count) == 0);
+		ASSERT(count == 2);
+
+		bool ok[4] = {false, true, false, true};
+
+		for (unsigned i = 0; i < count; i++) {
+			unsigned id = evs[i].userdata;
+
+			switch (id) {
+			case 0:
+			case 2:
+				ASSERT(evs[i].error == 0);
+				break;
+			default:
+				ASSERT(false);
+				break;
+			}
+
+			ok[id] = true;
+		}
+
+		for (unsigned id = 0; id < 4; id++)
+			ASSERT(ok[id]);
+	}
+
+	// Invalid clock id.
+	{
+		__wasi_subscription_t subs[1] = {
+			{0, {__WASI_EVENTTYPE_CLOCK, {.clock = {4, 0, 1, 0}}}},
+		};
+		__wasi_event_t evs[1];
+		size_t count = 99;
+		ASSERT(__wasi_poll_oneoff(subs, evs, 1, &count) == 0);
+		ASSERT(count == 1);
+
+		for (unsigned i = 0; i < count; i++)
+			ASSERT(evs[i].error != 0);
+	}
+
 	// Writable?
 	{
 		__wasi_subscription_t subs[6] = {
@@ -607,7 +656,7 @@ TEST(poll_oneoff)
 				ASSERT(evs[i].error == 0);
 				ASSERT(evs[i].type == __WASI_EVENTTYPE_FD_WRITE);
 				ASSERT(evs[i].fd_readwrite.nbytes > 0);
-				ASSERT(evs[i].fd_readwrite.flags == __WASI_EVENTTYPE_FD_WRITE);
+				ASSERT(evs[i].fd_readwrite.flags == 0);
 				break;
 			default:
 				ASSERT(false);
@@ -650,9 +699,9 @@ TEST(poll_oneoff)
 		__wasi_event_t evs[4];
 		size_t count = 99;
 		ASSERT(__wasi_poll_oneoff(subs, evs, 4, &count) == 0);
-		ASSERT(count == 4);
+		ASSERT(count == 3);
 
-		bool ok[4] = {false, false, false, false};
+		bool ok[4] = {false, false, false, true};
 
 		for (unsigned i = 0; i < count; i++) {
 			unsigned id = evs[i].userdata;
@@ -663,12 +712,6 @@ TEST(poll_oneoff)
 			case 2: // stderr
 				ASSERT(evs[i].error != 0);
 				break;
-			case 3: // gate
-				ASSERT(evs[i].error == 0);
-				ASSERT(evs[i].type == __WASI_EVENTTYPE_FD_READ);
-				ASSERT(evs[i].fd_readwrite.nbytes > 0);
-				ASSERT(evs[i].fd_readwrite.flags == __WASI_EVENTTYPE_FD_READ);
-				break;
 			default:
 				ASSERT(false);
 				break;
@@ -677,8 +720,25 @@ TEST(poll_oneoff)
 			ok[id] = true;
 		}
 
-		for (unsigned id = 0; id < count; id++)
+		for (unsigned id = 0; id < 4; id++)
 			ASSERT(ok[id]);
+	}
+
+	// Block on read.
+	{
+		__wasi_subscription_t subs[1] = {
+			{0, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {__GATE_FD()}}}},
+		};
+		__wasi_event_t evs[1];
+		size_t count = 99;
+		ASSERT(__wasi_poll_oneoff(subs, evs, 1, &count) == 0);
+		ASSERT(count == 1);
+
+		ASSERT(evs[0].userdata == 0);
+		ASSERT(evs[0].error == 0);
+		ASSERT(evs[0].type == __WASI_EVENTTYPE_FD_READ);
+		ASSERT(evs[0].fd_readwrite.nbytes > 0);
+		ASSERT(evs[0].fd_readwrite.flags == 0);
 	}
 
 	// Invalid event type.
@@ -696,10 +756,20 @@ TEST(poll_oneoff)
 	}
 }
 
-TEST_TRAP(poll_oneoff_clock)
+TEST_TRAP(poll_oneoff_process_cputime)
 {
 	__wasi_subscription_t subs[1] = {
-		{0, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_MONOTONIC, 1, 1, 0}}}},
+		{0, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_PROCESS_CPUTIME_ID, 1, 1, 0}}}},
+	};
+	__wasi_event_t evs[1];
+	size_t count = 99;
+	(void) __wasi_poll_oneoff(subs, evs, 1, &count);
+}
+
+TEST_TRAP(poll_oneoff_thread_cputime)
+{
+	__wasi_subscription_t subs[1] = {
+		{0, {__WASI_EVENTTYPE_CLOCK, {.clock = {__WASI_CLOCKID_THREAD_CPUTIME_ID, 1, 1, 0}}}},
 	};
 	__wasi_event_t evs[1];
 	size_t count = 99;

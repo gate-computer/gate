@@ -19,6 +19,8 @@ enum trap {
 #define RT_TRAP_ENUM
 #include <rt.h>
 
+#define CLOCKFLAG_ABSTIME (1 << 0)
+
 enum error {
 	OK = 0,
 	ERROR_AGAIN = 6,
@@ -473,96 +475,189 @@ no_wait:;
 		*nrecv_ptr = nrecv;
 }
 
+// Avoid stack memory access and globals by not using array indexing.
+
+struct timestamps {
+	uint64_t realtime;
+	uint64_t monotonic;
+};
+
+#define TIMESTAMP(container, id) \
+	((id) == CLOCK_REALTIME ? container.realtime : container.monotonic)
+
+#define SET_TIMESTAMP(container, id, value)      \
+	do {                                     \
+		uint64_t v = (value);            \
+		if ((id) == CLOCK_REALTIME)      \
+			container.realtime = v;  \
+		else                             \
+			container.monotonic = v; \
+	} while (0)
+
 EXPORT
 enum error poll_oneoff(const struct subscription *sub, struct event *out, int nsub, uint32_t *nout_ptr)
 {
-	int n = 0;
-	enum rt_events events = 0;
-	const struct subscription *pollin = NULL;
-	const struct subscription *pollout = NULL;
+	enum rt_events pollin = 0;
+	enum rt_events pollout = 0;
+	bool have_timeout = false;
+	uint64_t timeout = ~0ULL;
+	struct timestamps begin = {0};
 
 	for (int i = 0; i < nsub; i++) {
-		out[n].userdata = sub[i].userdata;
-		out[n].error = 0;
-		out[n].type = sub[i].type;
+		uint32_t id;
 
 		switch (sub[i].type) {
 		case EVENTTYPE_CLOCK:
-			if (sub[i].u.clock.clockid >= CLOCKS) {
-				out[n].error = ERROR_INVAL;
-			} else if (sub[i].u.clock.timeout > 0) {
-				rt_trap(TRAP_ABI_DEFICIENCY);
-			}
-			n++;
-			continue;
+			id = sub[i].u.clock.clockid;
+			if (id < CLOCKS) {
+				if (id > CLOCK_MONOTONIC)
+					rt_trap(TRAP_ABI_DEFICIENCY);
 
-		case EVENTTYPE_FD_READ:
-		case EVENTTYPE_FD_WRITE:
+				enum rt_clock rt_id = id + RT_CLOCK_REALTIME_COARSE;
+
+				uint64_t t = sub[i].u.clock.timeout;
+
+				if (t != 0) { // Optimize special case.
+					if (TIMESTAMP(begin, id) == 0)
+						SET_TIMESTAMP(begin, id, rt_time(rt_id));
+				}
+
+				if (sub[i].u.clock.flags & CLOCKFLAG_ABSTIME) {
+					uint64_t now = TIMESTAMP(begin, id);
+					if (t < now)
+						t = now;
+					t -= now;
+				}
+
+				if (t < timeout)
+					timeout = t;
+				have_timeout = true;
+				continue;
+			}
 			break;
 
-		default:
-			out[n].error = ERROR_INVAL;
-			n++;
-			continue;
+		case EVENTTYPE_FD_READ:
+			if (sub[i].u.fd_readwrite.fd == FD_GATE) {
+				pollin = RT_POLLIN;
+				continue;
+			}
+			break;
+
+		case EVENTTYPE_FD_WRITE:
+			if (sub[i].u.fd_readwrite.fd == FD_GATE) {
+				pollout = RT_POLLOUT;
+				continue;
+			}
+			break;
 		}
 
+		timeout = 0;
+		have_timeout = true;
+	}
+
+	int64_t sec = -1;
+	int64_t nsec = 0;
+	if (have_timeout) {
+		sec = timeout / 1000000000ULL;
+		nsec = timeout % 1000000000ULL;
+	}
+
+	enum rt_events r = rt_poll(pollin, pollout, nsec, sec);
+
+	struct timestamps end = {0};
+	for (enum clock id = CLOCK_REALTIME; id <= CLOCK_MONOTONIC; id++) {
+		if (TIMESTAMP(begin, id) != 0)
+			SET_TIMESTAMP(end, id, rt_time(id + RT_CLOCK_REALTIME_COARSE));
+	}
+
+	int n = 0;
+
+	for (int i = 0; i < nsub; i++) {
+		uint32_t id;
+
+		out[n].userdata = sub[i].userdata;
+		out[n].error = 0;
+		out[n].type = sub[i].type;
 		out[n].u.fd_readwrite.nbytes = 0;
 		out[n].u.fd_readwrite.flags = 0;
 
-		switch (sub[i].u.fd_readwrite.fd) {
-		case FD_STDIN:
-			out[n].error = ERROR_PERM;
-			n++;
-			continue;
+		switch (sub[i].type) {
+		case EVENTTYPE_CLOCK:
+			id = sub[i].u.clock.clockid;
+			if (id < CLOCKS) {
+				uint64_t t = sub[i].u.clock.timeout;
 
-		case FD_STDOUT:
-		case FD_STDERR:
-			if (sub[i].type == EVENTTYPE_FD_READ) {
+				if (t == 0) { // Optimize special case.
+					n++;
+					continue;
+				}
+
+				if ((sub[i].u.clock.flags & CLOCKFLAG_ABSTIME) == 0) {
+					uint64_t abstime = TIMESTAMP(end, id) + t;
+					if (abstime < t) // Overflow?
+						continue;
+					t = abstime;
+				}
+
+				if (t <= TIMESTAMP(end, id))
+					n++;
+				continue;
+			}
+			break;
+
+		case EVENTTYPE_FD_READ:
+			switch (sub[i].u.fd_readwrite.fd) {
+			case FD_STDIN:
+			case FD_STDOUT:
+			case FD_STDERR:
 				out[n].error = ERROR_PERM;
-			} else {
+				n++;
+				continue;
+
+			case FD_GATE:
+				if (r & RT_POLLIN) {
+					out[n].u.fd_readwrite.nbytes = 65536;
+					n++;
+				}
+				continue;
+
+			default:
+				out[n].error = ERROR_BADF;
+				n++;
+				continue;
+			}
+			break;
+
+		case EVENTTYPE_FD_WRITE:
+			switch (sub[i].u.fd_readwrite.fd) {
+			case FD_STDIN:
+				out[n].error = ERROR_PERM;
+				n++;
+				continue;
+
+			case FD_STDOUT:
+			case FD_STDERR:
 				out[n].u.fd_readwrite.nbytes = 0x7fffffff;
-				out[n].u.fd_readwrite.flags = EVENTTYPE_FD_WRITE;
+				n++;
+				continue;
+
+			case FD_GATE:
+				if (r & RT_POLLOUT) {
+					out[n].u.fd_readwrite.nbytes = 65536;
+					n++;
+				}
+				continue;
+
+			default:
+				out[n].error = ERROR_BADF;
+				n++;
+				continue;
 			}
-			n++;
-			continue;
-
-		case FD_GATE:
-			if (sub[i].type == EVENTTYPE_FD_READ) {
-				events |= RT_POLLIN;
-				pollin = &sub[i];
-			} else {
-				events |= RT_POLLOUT;
-				pollout = &sub[i];
-			}
-			continue;
-
-		default:
-			out[n].error = ERROR_BADF;
-			n++;
-			continue;
-		}
-	}
-
-	if (events) {
-		enum rt_events r = rt_poll(events & RT_POLLIN, events & RT_POLLOUT, 0, -1);
-
-		if (r & RT_POLLIN) {
-			out[n].userdata = pollin->userdata;
-			out[n].error = 0;
-			out[n].type = pollin->type;
-			out[n].u.fd_readwrite.nbytes = 65536;
-			out[n].u.fd_readwrite.flags = EVENTTYPE_FD_READ;
-			n++;
+			break;
 		}
 
-		if (r & RT_POLLOUT) {
-			out[n].userdata = pollout->userdata;
-			out[n].error = 0;
-			out[n].type = pollout->type;
-			out[n].u.fd_readwrite.nbytes = 65536;
-			out[n].u.fd_readwrite.flags = EVENTTYPE_FD_WRITE;
-			n++;
-		}
+		out[n].error = ERROR_INVAL;
+		n++;
 	}
 
 	*nout_ptr = n;
