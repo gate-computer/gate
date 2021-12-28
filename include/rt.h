@@ -5,7 +5,6 @@
 // This is a public API for writing Gate runtime libraries.  (It is really only
 // suitable for supporting tests.)
 
-#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -22,7 +21,7 @@ uint64_t rt_read8(void);
 void rt_trap(uint32_t id) __attribute__((noreturn));
 
 // Write to debug log.
-void rt_debug(const char *str, size_t len);
+void rt_debug(const void *str, uint32_t len);
 
 #ifdef __cplusplus
 }
