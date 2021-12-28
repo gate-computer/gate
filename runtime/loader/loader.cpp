@@ -86,6 +86,7 @@ extern code rt_random;
 extern code rt_read;
 extern code rt_read8;
 extern code rt_time;
+extern code rt_timemask;
 extern code rt_trap;
 extern code rt_write;
 extern code rt_write8;
@@ -356,7 +357,7 @@ clock_gettime_found:
 		return ERR_LOAD_CLOCK_GETTIME;
 
 	t.tv_sec--; // Ensure that rt_time never returns zero timestamp.
-	t.tv_nsec &= info.time_mask;
+	t.tv_nsec &= uint64_t(info.time_mask);
 	auto local_monotonic_time_base = uint64_t(t.tv_sec) * 1000000000ULL + uint64_t(t.tv_nsec);
 
 	// Runtime: code at start, import vector at end (and maybe space for text)
@@ -463,6 +464,7 @@ clock_gettime_found:
 	// These assignments reflect the functions map in runtime/abi/rt/rt.go
 	// and rtFunctions map in runtime/abi/abi.go
 	// TODO: check that runtime and vector contents don't overlap
+	*(vector_end - 20) = runtime_func_addr(runtime_ptr, &rt_timemask);
 	*(vector_end - 19) = runtime_func_addr(runtime_ptr, &rt_write8);
 	*(vector_end - 18) = runtime_func_addr(runtime_ptr, &rt_read8);
 	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_trap);

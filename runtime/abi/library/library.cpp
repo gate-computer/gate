@@ -77,16 +77,11 @@ class Resolution {
 	Resolution() = delete;
 
 public:
-	static const Resolution worst;
-
-private:
-	explicit Resolution(uint64_t ns):
+	explicit Resolution(uint64_t ns = 0):
 		m_ns(ns) {}
 
 	uint64_t m_ns;
 };
-
-const Resolution Resolution::worst = Resolution(1000000000ULL);
 
 enum class FD : uint32_t {
 	stdin = 0,
@@ -272,10 +267,28 @@ inline Error fd_error(FD fd, Error err)
 extern "C" {
 
 Timestamp rt_time(ClockID id);
+uint32_t rt_timemask();
 size_t rt_read(void* buf, size_t size);
 size_t rt_write(void const* data, size_t size);
 PollEvents rt_poll(PollEvents in, PollEvents out, int64_t nsec, int64_t sec); // Note order.
 int rt_random();
+
+} // extern "C"
+
+namespace {
+
+inline Resolution time_resolution()
+{
+	auto r = uint64_t(~rt_timemask()) + 1;
+	if (r > 1000000000)
+		r = 1000000000;
+
+	return Resolution(r);
+}
+
+} // namespace
+
+extern "C" {
 
 EXPORT Error args_get(char** argv, char* argvbuf)
 {
@@ -299,7 +312,7 @@ EXPORT Error clock_res_get(ClockID id, Resolution* buf)
 	if (!clock_is_valid(id))
 		return Error::inval;
 
-	*buf = Resolution::worst;
+	*buf = time_resolution();
 	return Error::success;
 }
 

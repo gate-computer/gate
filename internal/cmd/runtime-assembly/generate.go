@@ -153,6 +153,7 @@ func generate(arch ga.Arch, sys *ga.System, variant string) string {
 	funcIO(a, "rt_write", linux.SYS_WRITE, outputFD, ga.GT, runtimeerrors.ERR_RT_WRITE)
 	routineOutOfBounds(a)
 	funcRtTime(a)
+	funcRtTimemask(a)
 	funcRtRandom(a)
 	funcRtTrap(a)
 	funcRtDebug(a)
@@ -458,7 +459,7 @@ func funcRtPoll(a *ga.Assembly) {
 		a.Label(".poll_with_timeout")
 
 		a.Load(scratch0, param2, 8)         // timeout nanoseconds
-		a.Load(scratch1, wagTextBase, -9*8) // mask
+		a.Load(scratch1, wagTextBase, -9*8) // time_mask
 		a.AndReg(scratch0, scratch1)
 		a.Store(param2, 8, scratch0)
 
@@ -544,6 +545,14 @@ func funcRtTime(a *ga.Assembly) {
 	{
 		a.Load4Bytes(param0, a.StackPtr, 8)
 		macroTime(a, ".rt_time")
+		a.Jump(".resume")
+	}
+}
+
+func funcRtTimemask(a *ga.Assembly) {
+	a.Function("rt_timemask")
+	{
+		a.Load(result, wagTextBase, -9*8) // time_mask
 		a.Jump(".resume")
 	}
 }
@@ -780,7 +789,7 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) {
 	a.MoveImm(param1, -1) // Outrageous timestamp.
 	a.JumpIfImm(ga.NE, result, 0, ".exit_time")
 
-	a.Load(scratch0, wagTextBase, -9*8) // mask
+	a.Load(scratch0, wagTextBase, -9*8) // time_mask
 	a.AndReg(local2, scratch0)          // Imprecise tv_nsec.
 
 	// Convert tv_sec to nanoseconds in two steps to avoid unnecessary

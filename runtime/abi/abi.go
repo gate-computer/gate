@@ -24,15 +24,16 @@ const (
 // Mirrors the vector initialization in runtime/loader/loader.cpp
 var rtFunctions = map[string]map[string]int{
 	"env": {
-		"rt_write8": -19, // Public ABI.
-		"rt_read8":  -18, // Public ABI.
-		"rt_trap":   -17, // Public ABI.
-		"rt_debug":  -16, // Public ABI.
-		"rt_write":  -15,
-		"rt_read":   -14,
-		"rt_poll":   -13,
-		"rt_time":   -12,
-		"rt_random": -6,
+		"rt_timemask": -20,
+		"rt_write8":   -19, // Public ABI.
+		"rt_read8":    -18, // Public ABI.
+		"rt_trap":     -17, // Public ABI.
+		"rt_debug":    -16, // Public ABI.
+		"rt_write":    -15,
+		"rt_read":     -14,
+		"rt_poll":     -13,
+		"rt_time":     -12,
+		"rt_random":   -6,
 	},
 }
 

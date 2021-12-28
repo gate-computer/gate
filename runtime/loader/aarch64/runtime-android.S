@@ -479,6 +479,14 @@ rt_time:
 .Lrt_time_got_time:
 	b	.Lresume
 
+.globl	rt_timemask
+.type	rt_timemask,@function
+
+rt_timemask:
+	str	lr, [x29, -8]!
+	ldr	x0, [x27, -72]
+	b	.Lresume
+
 .globl	rt_random
 .type	rt_random,@function
 

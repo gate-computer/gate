@@ -176,7 +176,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 	if policy.TimeResolution <= 0 || policy.TimeResolution > time.Second {
 		policy.TimeResolution = time.Second
 	}
-	timeMask := ^(1<<uint(bits.Len32(uint32(policy.TimeResolution))) - 1)
+	timeMask := ^uint32(1<<uint(bits.Len32(uint32(policy.TimeResolution/time.Nanosecond))) - 1)
 
 	info := imageInfo{
 		MagicNumber1:   magicNumber1,
@@ -193,8 +193,8 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		GrowMemorySize: uint32(state.MaxMemorySize()), // TODO: check policy too
 		StartAddr:      state.StartAddr(),
 		EntryAddr:      state.EntryAddr(),
+		TimeMask:       timeMask,
 		MonotonicTime:  state.MonotonicTime(),
-		TimeMask:       uint32(timeMask),
 		MagicNumber2:   magicNumber2,
 	}
 	if info.StackUnused == info.StackSize {

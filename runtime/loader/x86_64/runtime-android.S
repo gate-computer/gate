@@ -447,6 +447,14 @@ rt_time:
 	jmp	.Lresume
 
 .align	16,0xcc
+.globl	rt_timemask
+.type	rt_timemask,@function
+
+rt_timemask:
+	mov	rax, [r15 - 72]
+	jmp	.Lresume
+
+.align	16,0xcc
 .globl	rt_random
 .type	rt_random,@function
 

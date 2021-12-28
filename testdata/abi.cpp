@@ -76,7 +76,7 @@ TEST(clock_res)
 	for (__wasi_clockid_t id = __WASI_CLOCKID_REALTIME; id <= __WASI_CLOCKID_THREAD_CPUTIME_ID; id++) {
 		__wasi_timestamp_t res = 123456789;
 		ASSERT(__wasi_clock_res_get(id, &res) == 0);
-		ASSERT(res == 1000000000);
+		ASSERT(res == 1024);
 	}
 
 	__wasi_timestamp_t res = 0;
