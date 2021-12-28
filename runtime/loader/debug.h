@@ -31,34 +31,34 @@
 		default:                debug_type_not_supported \
 	) /* clang-format on */
 
-#define debug1(a)                         \
-	do {                              \
+#define debug1(a) \
+	do { \
 		debug_generic_func(a)(a); \
 	} while (0)
 
-#define debug2(a, b)                      \
-	do {                              \
+#define debug2(a, b) \
+	do { \
 		debug_generic_func(a)(a); \
 		debug_generic_func(b)(b); \
 	} while (0)
 
-#define debug3(a, b, c)                   \
-	do {                              \
+#define debug3(a, b, c) \
+	do { \
 		debug_generic_func(a)(a); \
 		debug_generic_func(b)(b); \
 		debug_generic_func(c)(c); \
 	} while (0)
 
-#define debug4(a, b, c, d)                \
-	do {                              \
+#define debug4(a, b, c, d) \
+	do { \
 		debug_generic_func(a)(a); \
 		debug_generic_func(b)(b); \
 		debug_generic_func(c)(c); \
 		debug_generic_func(d)(d); \
 	} while (0)
 
-#define debug5(a, b, c, d, e)             \
-	do {                              \
+#define debug5(a, b, c, d, e) \
+	do { \
 		debug_generic_func(a)(a); \
 		debug_generic_func(b)(b); \
 		debug_generic_func(c)(c); \
@@ -66,8 +66,8 @@
 		debug_generic_func(e)(e); \
 	} while (0)
 
-#define debug6(a, b, c, d, e, f)          \
-	do {                              \
+#define debug6(a, b, c, d, e, f) \
+	do { \
 		debug_generic_func(a)(a); \
 		debug_generic_func(b)(b); \
 		debug_generic_func(c)(c); \

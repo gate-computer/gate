@@ -3,7 +3,7 @@ Language: Cpp
 
 AccessModifierOffset: -8
 AlignAfterOpenBracket: AlwaysBreak
-AlignEscapedNewlines: Left
+AlignEscapedNewlines: DontAlign
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: InlineOnly
 AlwaysBreakBeforeMultilineStrings: true

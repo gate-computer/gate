@@ -13,7 +13,7 @@
 	fprintf(stderr, fmt "\n", ##__VA_ARGS__)
 #else
 #define debugf(...) \
-	do {        \
+	do { \
 	} while (0)
 #endif
 

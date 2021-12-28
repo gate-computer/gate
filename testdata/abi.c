@@ -21,30 +21,30 @@ static size_t bytestrlen(const uint8_t *s)
 	return n;
 }
 
-#define TEST(name)                                                     \
+#define TEST(name) \
 	static __attribute__((always_inline)) void test2_##name(void); \
-	void test_##name(void)                                         \
-	{                                                              \
-		test2_##name();                                        \
-		gate_debug("PASS\n");                                  \
-	}                                                              \
+	void test_##name(void) \
+	{ \
+		test2_##name(); \
+		gate_debug("PASS\n"); \
+	} \
 	void test2_##name(void)
 
-#define TEST_TRAP(name)                                                    \
+#define TEST_TRAP(name) \
 	static __attribute__((always_inline)) void testtrap2_##name(void); \
-	void testtrap_##name(void)                                         \
-	{                                                                  \
-		testtrap2_##name();                                        \
-		gate_exit(1);                                              \
-	}                                                                  \
+	void testtrap_##name(void) \
+	{ \
+		testtrap2_##name(); \
+		gate_exit(1); \
+	} \
 	void testtrap2_##name(void)
 
-#define ASSERT(expr)                                                          \
-	do {                                                                  \
-		if (!(expr)) {                                                \
+#define ASSERT(expr) \
+	do { \
+		if (!(expr)) { \
 			gate_debug3(__FILE__ ":", __LINE__, ": " #expr "\n"); \
-			gate_exit(1);                                         \
-		}                                                             \
+			gate_exit(1); \
+		} \
 	} while (0)
 
 TEST(args)

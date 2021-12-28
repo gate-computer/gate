@@ -186,34 +186,34 @@ enum {
 #define GATE_ALIGN_PACKET(size) \
 	(((size) + (size_t)(GATE_PACKET_ALIGNMENT - 1)) & ~(size_t)(GATE_PACKET_ALIGNMENT - 1))
 
-#define gate_debug1(a)                           \
-	do {                                     \
+#define gate_debug1(a) \
+	do { \
 		__gate_debug_generic_func(a)(a); \
 	} while (0)
 
-#define gate_debug2(a, b)                        \
-	do {                                     \
+#define gate_debug2(a, b) \
+	do { \
 		__gate_debug_generic_func(a)(a); \
 		__gate_debug_generic_func(b)(b); \
 	} while (0)
 
-#define gate_debug3(a, b, c)                     \
-	do {                                     \
+#define gate_debug3(a, b, c) \
+	do { \
 		__gate_debug_generic_func(a)(a); \
 		__gate_debug_generic_func(b)(b); \
 		__gate_debug_generic_func(c)(c); \
 	} while (0)
 
-#define gate_debug4(a, b, c, d)                  \
-	do {                                     \
+#define gate_debug4(a, b, c, d) \
+	do { \
 		__gate_debug_generic_func(a)(a); \
 		__gate_debug_generic_func(b)(b); \
 		__gate_debug_generic_func(c)(c); \
 		__gate_debug_generic_func(d)(d); \
 	} while (0)
 
-#define gate_debug5(a, b, c, d, e)               \
-	do {                                     \
+#define gate_debug5(a, b, c, d, e) \
+	do { \
 		__gate_debug_generic_func(a)(a); \
 		__gate_debug_generic_func(b)(b); \
 		__gate_debug_generic_func(c)(c); \
@@ -221,8 +221,8 @@ enum {
 		__gate_debug_generic_func(e)(e); \
 	} while (0)
 
-#define gate_debug6(a, b, c, d, e, f)            \
-	do {                                     \
+#define gate_debug6(a, b, c, d, e, f) \
+	do { \
 		__gate_debug_generic_func(a)(a); \
 		__gate_debug_generic_func(b)(b); \
 		__gate_debug_generic_func(c)(c); \
