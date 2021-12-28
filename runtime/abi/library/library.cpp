@@ -73,15 +73,7 @@ private:
 const Timestamp Timestamp::zero = Timestamp(0);
 const Timestamp Timestamp::max = Timestamp(~0ULL);
 
-class Resolution {
-	Resolution() = delete;
-
-public:
-	explicit Resolution(uint64_t ns = 0):
-		m_ns(ns) {}
-
-	uint64_t m_ns;
-};
+typedef uint64_t Resolution;
 
 enum class FD : uint32_t {
 	stdin = 0,
@@ -198,32 +190,6 @@ struct Event {
 	} u;
 };
 
-class Time {
-public:
-	Time() {}
-
-	Timestamp get(ClockID id) const
-	{
-		if (id == ClockID::realtime)
-			return realtime;
-		else
-			return monotonic;
-	}
-
-	void set(ClockID id, Timestamp t)
-	{
-		if (id == ClockID::realtime)
-			realtime = t;
-		else
-			monotonic = t;
-	}
-
-	// Avoid stack memory access and globals by not using array.
-
-	Timestamp realtime = Timestamp::zero;
-	Timestamp monotonic = Timestamp::zero;
-};
-
 inline uint64_t bytes64(uint8_t a0, uint8_t a1 = 0, uint8_t a2 = 0, uint8_t a3 = 0, uint8_t a4 = 0, uint8_t a5 = 0, uint8_t a6 = 0, uint8_t a7 = 0)
 {
 	return (uint64_t(a0) << 0x00) |
@@ -279,12 +245,91 @@ namespace {
 
 inline Resolution time_resolution()
 {
-	auto r = uint64_t(~rt_timemask()) + 1;
+	auto r = Resolution(~rt_timemask()) + 1;
 	if (r > 1000000000)
 		r = 1000000000;
 
-	return Resolution(r);
+	return r;
 }
+
+inline Timestamp time(ClockID id, Resolution precision)
+{
+	if (precision >= 1000000) // 1ms
+		id = clock_to_coarse(id);
+
+	return rt_time(id);
+}
+
+class Resolutions {
+public:
+	Resolutions() {}
+
+	void merge(ClockID id, Resolution r)
+	{
+		if (r == 0)
+			r = 1;
+
+		if (id == ClockID::realtime) {
+			if (realtime == 0 || realtime > r)
+				realtime = r;
+		} else {
+			if (monotonic == 0 || monotonic > r)
+				monotonic = r;
+		}
+	}
+
+	void coarsify()
+	{
+		if (realtime == 0 && monotonic == 0)
+			return;
+
+		auto min = realtime;
+		if (min > monotonic)
+			min = monotonic;
+
+		if (min >= 1000000) // 1ms
+			return;
+
+		auto r = time_resolution();
+
+		if (realtime && realtime < r)
+			realtime = r;
+
+		if (monotonic && monotonic < r)
+			monotonic = r;
+	}
+
+	// Avoid stack memory access and globals by not using array.
+
+	Resolution realtime = 0;
+	Resolution monotonic = 0;
+};
+
+class Timestamps {
+public:
+	Timestamps() {}
+
+	Timestamp get(ClockID id) const
+	{
+		if (id == ClockID::realtime)
+			return realtime;
+		else
+			return monotonic;
+	}
+
+	void set(ClockID id, Timestamp t)
+	{
+		if (id == ClockID::realtime)
+			realtime = t;
+		else
+			monotonic = t;
+	}
+
+	// Avoid stack memory access and globals by not using array.
+
+	Timestamp realtime = Timestamp::zero;
+	Timestamp monotonic = Timestamp::zero;
+};
 
 } // namespace
 
@@ -324,7 +369,13 @@ EXPORT Error clock_time_get(ClockID id, Resolution precision, Timestamp* buf)
 		return Error::inval;
 
 	if (clock_is_supported(id)) {
-		*buf = rt_time(clock_to_coarse(id));
+		if (precision < 1000000) { // 1ms
+			auto res = time_resolution();
+			if (precision < res)
+				precision = res;
+		}
+
+		*buf = time(id, precision);
 		return Error::success;
 	}
 
@@ -600,11 +651,31 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 	RETURN_FAULT_IF(nsub > 0 && out == nullptr);
 	RETURN_FAULT_IF(nout_ptr == nullptr);
 
+	Resolutions res;
+
+	for (int i = 0; i < nsub; i++) {
+		if (sub[i].tag == EventType::clock) {
+			auto id = sub[i].u.clock.clockid;
+
+			if (clock_is_valid(id)) {
+				if (sub[i].u.clock.timeout.is_nonzero()) // Optimize special case.
+					res.merge(id, sub[i].u.clock.precision);
+			}
+		}
+	}
+
+	res.coarsify();
+
+	Timestamps begin;
+	if (res.realtime)
+		begin.realtime = time(ClockID::realtime, res.realtime);
+	if (res.monotonic)
+		begin.monotonic = time(ClockID::monotonic, res.monotonic);
+
 	PollEvents pollin;
 	PollEvents pollout;
 	bool have_timeout = false;
 	auto timeout = Timestamp::max;
-	Time begin;
 
 	for (int i = 0; i < nsub; i++) {
 		if (sub[i].tag == EventType::clock) {
@@ -615,11 +686,6 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 					trap_abi_deficiency();
 
 				auto t = sub[i].u.clock.timeout;
-
-				if (t.is_nonzero()) { // Optimize special case.
-					if (begin.get(id).is_zero())
-						begin.set(id, rt_time(clock_to_coarse(id)));
-				}
 
 				if (sub[i].u.clock.flags.contains_all(ClockFlags::abstime)) {
 					auto now = begin.get(id);
@@ -658,11 +724,11 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 
 	auto r = rt_poll(pollin, pollout, nsec, sec);
 
-	Time end;
+	Timestamps end;
 	if (begin.realtime.is_nonzero())
-		end.realtime = rt_time(ClockID::realtime_coarse);
+		end.realtime = time(ClockID::realtime, res.realtime);
 	if (begin.monotonic.is_nonzero())
-		end.monotonic = rt_time(ClockID::monotonic_coarse);
+		end.monotonic = time(ClockID::monotonic, res.monotonic);
 
 	int n = 0;
 
