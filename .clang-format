@@ -1,7 +1,7 @@
 ---
 Language: Cpp
 
-AccessModifierOffset: -8
+AccessModifierOffset: -64
 AlignAfterOpenBracket: AlwaysBreak
 AlignEscapedNewlines: DontAlign
 AllowShortCaseLabelsOnASingleLine: true
@@ -19,10 +19,10 @@ BreakStringLiterals: false
 ColumnLimit: 0
 CompactNamespaces: true
 ConstructorInitializerAllOnOneLineOrOnePerLine: true
-ConstructorInitializerIndentWidth: 8
-ContinuationIndentWidth: 8
+ConstructorInitializerIndentWidth: 64
+ContinuationIndentWidth: 64
 DerivePointerAlignment: true
-IndentWidth: 8
+IndentWidth: 64
 KeepEmptyLinesAtTheStartOfBlocks: false
 NamespaceIndentation: Inner
 PointerAlignment: Left
@@ -31,5 +31,7 @@ SpaceBeforeCtorInitializerColon: false
 SpaceBeforeInheritanceColon: false
 SpaceBeforeRangeBasedForLoopColon: false
 SpacesInContainerLiterals: false
+Standard: c++17
+TabWidth: 64
 UseTab: ForContinuationAndIndentation
 ...

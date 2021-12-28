@@ -6,7 +6,7 @@
 
 extern "C" {
 
-uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t *) noexcept;
+uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t*) noexcept;
 
 int check()
 {

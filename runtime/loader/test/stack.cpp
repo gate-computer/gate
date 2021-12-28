@@ -22,10 +22,10 @@ struct sys_sigaction {
 	sigset_t mask;
 };
 
-void *memset(void *s, int c, size_t n)
+void* memset(void* s, int c, size_t n)
 {
 	for (size_t i = 0; i < n; i++)
-		((uint8_t *) s)[i] = c;
+		((uint8_t*) s)[i] = c;
 	return s;
 }
 
@@ -43,20 +43,20 @@ static int sys_fork()
 
 static int sys_sigaction(
 	int signum,
-	const struct sys_sigaction *act,
-	struct sys_sigaction *oldact)
+	const struct sys_sigaction* act,
+	struct sys_sigaction* oldact)
 {
 	size_t masksize = 8;
 	return syscall4(SYS_rt_sigaction, signum, (uintptr_t) act, (uintptr_t) oldact, masksize);
 }
 
 static pid_t sys_wait4(
-	pid_t pid, int *wstatus, int options, struct rusage *rusage)
+	pid_t pid, int* wstatus, int options, struct rusage* rusage)
 {
 	return syscall4(SYS_wait4, pid, (uintptr_t) wstatus, options, (uintptr_t) rusage);
 }
 
-static ssize_t sys_write(int fd, const void *buf, size_t count)
+static ssize_t sys_write(int fd, const void* buf, size_t count)
 {
 	return syscall3(SYS_write, fd, (uintptr_t) buf, count);
 }
@@ -108,12 +108,12 @@ static void scan(uint64_t addr, uint64_t step)
 #endif
 
 		scan_addr = addr;
-		*(volatile uint64_t *) addr; // read memory
+		*(volatile uint64_t*) addr; // read memory
 		addr += step;
 	}
 }
 
-int main(int argc, char **argv, char **envp)
+int main(int argc, char** argv, char** envp)
 {
 	uint64_t init_addr = (uintptr_t) envp;
 

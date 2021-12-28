@@ -6,7 +6,7 @@
 
 extern "C" {
 
-uint16_t __wasi_random_get(void *buf, size_t buflen);
+uint16_t __wasi_random_get(void* buf, size_t buflen);
 
 void dump()
 {
