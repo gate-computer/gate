@@ -122,6 +122,8 @@ int main(int argc, char** argv, char** envp)
 	const struct sys_sigaction sa = {
 		.handler = segfault_handler,
 		.flags = SYS_SA_RESTORER, // it is never needed
+		.restorer = nullptr,
+		.mask = {0},
 	};
 
 	if (sys_sigaction(SIGSEGV, &sa, NULL) != 0)
