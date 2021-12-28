@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_LOADER_DEBUG_H
-#define GATE_RUNTIME_LOADER_DEBUG_H
+#ifndef GATE_RUNTIME_LOADER_DEBUG_HPP
+#define GATE_RUNTIME_LOADER_DEBUG_HPP
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 #include <sys/syscall.h>
 
@@ -24,10 +24,10 @@
 		unsigned int:           debug_uint, \
 		unsigned long int:      debug_uint, \
 		unsigned long long int: debug_uint, \
-		const char *:           debug_str,  \
-		char *:                 debug_str,  \
-		const void *:           debug_ptr,  \
-		void *:                 debug_ptr,  \
+		char const*:            debug_str,  \
+		char*:                  debug_str,  \
+		void const*:            debug_ptr,  \
+		void*:                  debug_ptr,  \
 		default:                debug_type_not_supported \
 	) /* clang-format on */
 
@@ -80,9 +80,9 @@
 
 void debug_type_not_supported(void); // No implementation.
 
-static inline void debug_data(const void *data, size_t size)
+static inline void debug_data(void const* data, size_t size)
 {
-	syscall3(SYS_write, 2, (uintptr_t) data, size);
+	syscall3(SYS_write, 2, uintptr_t(data), size);
 }
 
 static inline void debug_uint(uint64_t n)
@@ -133,17 +133,17 @@ static inline void debug_hex(uint64_t n)
 	debug_data(buf + i, sizeof buf - i);
 }
 
-static inline void debug_ptr(const void *ptr)
+static inline void debug_ptr(void const* ptr)
 {
 	debug_data("0x", 2);
-	debug_hex((uintptr_t) ptr);
+	debug_hex(uintptr_t(ptr));
 }
 
-static inline void debug_str(const char *s)
+static inline void debug_str(char const* s)
 {
 	size_t size = 0;
 
-	for (const char *ptr = s; *ptr != '\0'; ptr++)
+	for (char const* ptr = s; *ptr != '\0'; ptr++)
 		size++;
 
 	debug_data(s, size);

@@ -6,52 +6,54 @@
 // zero-extended register as offset.
 #define MEMORY_ADDRESS_RANGE 0x100000000ULL
 
-static bool strcmp_clock_gettime(const char *name)
+namespace {
+
+bool strcmp_clock_gettime(char const* name)
 {
 	if (strlen(name) != 22)
 		return false;
 
-	if (((const uint64_t *) name)[0] != 0x6c656e72656b5f5fULL) // Little-endian "__kernel"
+	if (reinterpret_cast<uint64_t const*>(name)[0] != 0x6c656e72656b5f5fULL) // Little-endian "__kernel"
 		return false;
 
-	if (((const uint64_t *) name)[1] != 0x675f6b636f6c635fULL) // Little-endian "_clock_g"
+	if (reinterpret_cast<uint64_t const*>(name)[1] != 0x675f6b636f6c635fULL) // Little-endian "_clock_g"
 		return false;
 
-	if (((const uint32_t *) name)[4] != 0x69747465UL) // Little-endian "etti"
+	if (reinterpret_cast<uint32_t const*>(name)[4] != 0x69747465UL) // Little-endian "etti"
 		return false;
 
-	if (((const uint16_t *) name)[10] != 0x656d) // Little-endian "me"
+	if (reinterpret_cast<uint16_t const*>(name)[10] != 0x656d) // Little-endian "me"
 		return false;
 
 	return true;
 }
 
-static inline void enter(
-	void *stack_ptr,
-	void *stack_limit,
+void enter(
+	void* stack_ptr,
+	uintptr_t stack_limit,
 	uint64_t runtime_init,
 	uintptr_t loader_stack,
 	size_t loader_stack_size,
 	uint64_t signal_handler,
 	uint64_t signal_restorer,
-	void *init_routine)
+	uintptr_t init_routine)
 {
 	uintptr_t link_ptr = 0;
-	if (((uintptr_t) init_routine & 0x7f) == 0x20) { // Resume routine
-		link_ptr = *(uintptr_t *) stack_ptr;
-		stack_ptr += sizeof(uintptr_t);
+	if ((uintptr_t(init_routine) & 0x7f) == 0x20) { // Resume routine
+		link_ptr = *reinterpret_cast<uintptr_t*>(stack_ptr);
+		stack_ptr = reinterpret_cast<uintptr_t*>(stack_ptr) + 1;
 	}
 
-	register uintptr_t r0 asm("r0") = loader_stack;   // munmap addr
-	register size_t r1 asm("r1") = loader_stack_size; // munmap length
-	register uint64_t r4 asm("r4") = signal_handler;
-	register uint64_t r5 asm("r5") = SIGACTION_FLAGS;
-	register uint64_t r6 asm("r6") = signal_restorer;
-	register uint64_t r9 asm("r9") = runtime_init;
-	register void *r27 asm("r27") = init_routine;
-	register void *r28 asm("r28") = stack_limit;
-	register void *r29 asm("r29") = stack_ptr;
-	register uintptr_t r30 asm("r30") = link_ptr;
+	register auto r0 asm("r0") = loader_stack;      // munmap addr
+	register auto r1 asm("r1") = loader_stack_size; // munmap length
+	register auto r4 asm("r4") = signal_handler;
+	register auto r5 asm("r5") = SIGACTION_FLAGS;
+	register auto r6 asm("r6") = signal_restorer;
+	register auto r9 asm("r9") = runtime_init;
+	register auto r27 asm("r27") = init_routine;
+	register auto r28 asm("r28") = stack_limit;
+	register auto r29 asm("r29") = stack_ptr;
+	register auto r30 asm("r30") = link_ptr;
 
 	// clang-format off
 
@@ -63,10 +65,10 @@ static inline void enter(
 
 		// Unmap old stack (ASLR breaks this).
 
-		"mov  w8, "xstr(SYS_munmap)"             \n"
+		"mov  w8, " xstr(SYS_munmap) "           \n"
 		"svc  #0                                 \n"
 		"cmp  w0, #0                             \n"
-		"mov  w0, #"xstr(ERR_LOAD_MUNMAP_STACK)" \n"
+		"mov  w0, #" xstr(ERR_LOAD_MUNMAP_STACK) "\n"
 		"b.ne sys_exit                           \n"
 
 		// Build sigaction structure on rt function stack.
@@ -82,20 +84,20 @@ static inline void enter(
 
 		// Segmentation fault signal handler.
 
-		"mov  w0, #"xstr(SIGSEGV)"               \n" // sigaction signum
-		"mov  w8, #"xstr(SYS_rt_sigaction)"      \n"
+		"mov  w0, #" xstr(SIGSEGV) "             \n" // sigaction signum
+		"mov  w8, #" xstr(SYS_rt_sigaction) "    \n"
 		"svc  #0                                 \n"
 		"cmp  w0, #0                             \n"
-		"mov  w0, #"xstr(ERR_LOAD_SIGACTION)"    \n"
+		"mov  w0, #" xstr(ERR_LOAD_SIGACTION) "  \n"
 		"b.ne sys_exit                           \n"
 
 		// Suspend signal handler.
 
-		"mov  w0, #"xstr(SIGXCPU)"               \n" // sigaction signum
-		"mov  w8, #"xstr(SYS_rt_sigaction)"      \n"
+		"mov  w0, #" xstr(SIGXCPU) "             \n" // sigaction signum
+		"mov  w8, #" xstr(SYS_rt_sigaction) "    \n"
 		"svc  #0                                 \n"
 		"cmp  w0, #0                             \n"
-		"mov  w0, #"xstr(ERR_LOAD_SIGACTION)"    \n"
+		"mov  w0, #" xstr(ERR_LOAD_SIGACTION) "  \n"
 		"b.ne sys_exit                           \n"
 
 		// Execute runtime_init.
@@ -108,3 +110,5 @@ static inline void enter(
 
 	__builtin_unreachable();
 }
+
+} // namespace

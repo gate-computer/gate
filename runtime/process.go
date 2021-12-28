@@ -28,7 +28,7 @@ import (
 
 const imageInfoSize = 104
 
-// imageInfo is like the info object in runtime/loader/loader.c
+// imageInfo is like ImageInfo in runtime/loader/loader.cpp
 type imageInfo struct {
 	MagicNumber1   uint32
 	PageSize       uint32

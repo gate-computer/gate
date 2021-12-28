@@ -34,7 +34,7 @@ const (
 
 const stackMagic = 0x7b53c485c17322fe
 
-// stackVars is like stack_vars in runtime/loader/loader.c
+// stackVars is like StackVars in runtime/loader/loader.cpp
 type stackVars struct {
 	StackUnused           uint32 // Other fields are meaningless if this is zero.
 	CurrentMemoryPages    uint32 // WebAssembly pages.

@@ -21,7 +21,7 @@ const (
 	maxPacketSize = 65536
 )
 
-// Mirrors the vector initialization in runtime/loader/loader.c
+// Mirrors the vector initialization in runtime/loader/loader.cpp
 var rtFunctions = map[string]map[string]int{
 	"env": {
 		"rt_write8": -19, // Public ABI.

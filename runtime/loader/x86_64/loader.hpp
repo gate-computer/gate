@@ -6,42 +6,44 @@
 // as variable offset, with a 31-bit constant offset.
 #define MEMORY_ADDRESS_RANGE (0x100000000ULL + 0x80000000ULL)
 
-static bool strcmp_clock_gettime(const char *name)
+namespace {
+
+bool strcmp_clock_gettime(char const* name)
 {
 	if (strlen(name) != 20)
 		return false;
 
-	if (((const uint64_t *) name)[0] != 0x635f6f7364765f5fULL) // Little-endian "__vdso_c"
+	if (reinterpret_cast<uint64_t const*>(name)[0] != 0x635f6f7364765f5fULL) // Little-endian "__vdso_c"
 		return false;
 
-	if (((const uint64_t *) name)[1] != 0x7465675f6b636f6cULL) // Little-endian "lock_get"
+	if (reinterpret_cast<uint64_t const*>(name)[1] != 0x7465675f6b636f6cULL) // Little-endian "lock_get"
 		return false;
 
-	if (((const uint32_t *) name)[4] != 0x656d6974UL) // Little-endian "time"
+	if (reinterpret_cast<uint32_t const*>(name)[4] != 0x656d6974UL) // Little-endian "time"
 		return false;
 
 	return true;
 }
 
-static inline void enter(
-	void *stack_ptr,
-	void *stack_limit,
+void enter(
+	void* stack_ptr,
+	uintptr_t stack_limit,
 	uint64_t runtime_init,
 	uintptr_t loader_stack,
 	size_t loader_stack_size,
 	uint64_t signal_handler,
 	uint64_t signal_restorer,
-	void *init_routine)
+	uintptr_t init_routine)
 {
-	register void *rax asm("rax") = stack_ptr;
-	register void *rbx asm("rbx") = stack_limit;
-	register uint64_t rbp asm("rbp") = runtime_init;
-	register size_t rsi asm("rsi") = loader_stack_size; // munmap length
-	register uintptr_t rdi asm("rdi") = loader_stack;   // munmap addr
-	register uint64_t r9 asm("r9") = signal_handler;
-	register uint64_t r10 asm("r10") = signal_restorer;
-	register long r13 asm("r13") = SIGACTION_FLAGS;
-	register void *r15 asm("r15") = init_routine;
+	register auto rax asm("rax") = stack_ptr;
+	register auto rbx asm("rbx") = stack_limit;
+	register auto rbp asm("rbp") = runtime_init;
+	register auto rsi asm("rsi") = loader_stack_size; // munmap length
+	register auto rdi asm("rdi") = loader_stack;      // munmap addr
+	register auto r9 asm("r9") = signal_handler;
+	register auto r10 asm("r10") = signal_restorer;
+	register auto r13 asm("r13") = SIGACTION_FLAGS;
+	register auto r15 asm("r15") = init_routine;
 
 	// clang-format off
 
@@ -52,9 +54,9 @@ static inline void enter(
 
 		// Unmap old stack (ASLR breaks this).
 
-		"mov  $"xstr(SYS_munmap)", %%eax            \n"
+		"mov  $" xstr(SYS_munmap) ", %%eax          \n"
 		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_MUNMAP_STACK)", %%edi \n"
+		"mov  $" xstr(ERR_LOAD_MUNMAP_STACK) ", %%edi \n"
 		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
@@ -72,19 +74,19 @@ static inline void enter(
 
 		// Segmentation fault signal handler.
 
-		"mov  $"xstr(SIGSEGV)", %%edi               \n"
-		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
+		"mov  $" xstr(SIGSEGV) ", %%edi             \n"
+		"mov  $" xstr(SYS_rt_sigaction) ", %%eax    \n"
 		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
+		"mov  $" xstr(ERR_LOAD_SIGACTION) ", %%edi  \n"
 		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
 		// Suspend signal handler.
 
-		"mov  $"xstr(SIGXCPU)", %%edi               \n"
-		"mov  $"xstr(SYS_rt_sigaction)", %%eax      \n"
+		"mov  $" xstr(SIGXCPU) ", %%edi             \n"
+		"mov  $" xstr(SYS_rt_sigaction) ", %%eax    \n"
 		"syscall                                    \n"
-		"mov  $"xstr(ERR_LOAD_SIGACTION)", %%edi    \n"
+		"mov  $" xstr(ERR_LOAD_SIGACTION) ", %%edi  \n"
 		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
@@ -99,3 +101,5 @@ static inline void enter(
 
 	__builtin_unreachable();
 }
+
+} // namespace

@@ -11,7 +11,7 @@ func ImportFuncs() map[string]map[string]int {
 	return functions
 }
 
-// Mirrors the vector initialization in runtime/loader/loader.c
+// Mirrors the vector initialization in runtime/loader/loader.cpp
 var functions = map[string]map[string]int{
 	"env": {
 		"rt_write8": -19,
