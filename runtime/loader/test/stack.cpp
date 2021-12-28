@@ -2,16 +2,16 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#include <signal.h>
-#include <stdint.h>
+#include <csignal>
+#include <cstdint>
 
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "attribute.h"
-#include "syscall.h"
+#include "attribute.hpp"
+#include "syscall.hpp"
 
 #define SYS_SA_RESTORER 0x04000000
 

@@ -4,7 +4,7 @@
 
 .intel_syntax noprefix
 
-#include "runtime.h"
+#include "runtime.hpp"
 
 .section .text
 

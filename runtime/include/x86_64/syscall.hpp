@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_SYSCALL_H
-#define GATE_RUNTIME_SYSCALL_H
+#ifndef GATE_RUNTIME_SYSCALL_HPP
+#define GATE_RUNTIME_SYSCALL_HPP
 
-#include <stddef.h>
+#include <cstddef>
 
 static inline intptr_t syscall1(int nr, uintptr_t a1)
 {

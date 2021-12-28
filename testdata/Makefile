@@ -1,19 +1,20 @@
-CC		:= clang
+CXX		:= clang++
 WAT2WASM	:= wat2wasm
 
 CPPFLAGS	+= -nostdlibinc -I../include -Iwasi-libc/libc-bottom-half/headers/public
 CFLAGS		+= --target=wasm32-unknown-unknown -Os -fomit-frame-pointer -fno-inline -g -Wall -Wextra -Wimplicit-fallthrough
+CXXFLAGS	+= -std=c++17 -fno-exceptions
 LDFLAGS		+= -nostdlib -Wl,--allow-undefined -Wl,--no-entry
 
 -include ../config.mk
 
-all: $(patsubst %.c,%.wasm,$(wildcard *.c)) nop.wasm
+all: $(patsubst %.cpp,%.wasm,$(wildcard *.cpp)) nop.wasm
 
-%.o: %.c Makefile
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@ $*.c
+%.o: %.cpp Makefile
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -c -o $@ $*.cpp
 
 %.wasm: %.o
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $*.o
+	$(CXX) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $*.o
 	chmod -x $@
 
 abi.wasm: LDFLAGS += -Wl,--export-all

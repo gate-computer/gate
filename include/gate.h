@@ -98,7 +98,7 @@ void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, con
 static inline void __gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
 {
 #ifdef __wasi__
-	__wasi_ciovec_t iov = {(void *) data, size};
+	__wasi_ciovec_t iov = {(uint8_t *) data, size};
 #else
 	uint16_t __wasi_fd_write(uint32_t, const struct gate_iovec *, size_t, size_t *) GATE_NOEXCEPT;
 	struct gate_iovec iov = {(void *) data, size};
@@ -185,53 +185,6 @@ enum {
 
 #define GATE_ALIGN_PACKET(size) \
 	(((size) + (size_t)(GATE_PACKET_ALIGNMENT - 1)) & ~(size_t)(GATE_PACKET_ALIGNMENT - 1))
-
-#define gate_debug1(a) \
-	do { \
-		__gate_debug_generic_func(a)(a); \
-	} while (0)
-
-#define gate_debug2(a, b) \
-	do { \
-		__gate_debug_generic_func(a)(a); \
-		__gate_debug_generic_func(b)(b); \
-	} while (0)
-
-#define gate_debug3(a, b, c) \
-	do { \
-		__gate_debug_generic_func(a)(a); \
-		__gate_debug_generic_func(b)(b); \
-		__gate_debug_generic_func(c)(c); \
-	} while (0)
-
-#define gate_debug4(a, b, c, d) \
-	do { \
-		__gate_debug_generic_func(a)(a); \
-		__gate_debug_generic_func(b)(b); \
-		__gate_debug_generic_func(c)(c); \
-		__gate_debug_generic_func(d)(d); \
-	} while (0)
-
-#define gate_debug5(a, b, c, d, e) \
-	do { \
-		__gate_debug_generic_func(a)(a); \
-		__gate_debug_generic_func(b)(b); \
-		__gate_debug_generic_func(c)(c); \
-		__gate_debug_generic_func(d)(d); \
-		__gate_debug_generic_func(e)(e); \
-	} while (0)
-
-#define gate_debug6(a, b, c, d, e, f) \
-	do { \
-		__gate_debug_generic_func(a)(a); \
-		__gate_debug_generic_func(b)(b); \
-		__gate_debug_generic_func(c)(c); \
-		__gate_debug_generic_func(d)(d); \
-		__gate_debug_generic_func(e)(e); \
-		__gate_debug_generic_func(f)(f); \
-	} while (0)
-
-#define gate_debug gate_debug1
 
 struct gate_packet {
 	uint32_t size;
@@ -380,6 +333,26 @@ static inline size_t gate_send(const void *data, size_t size, int64_t timeout) G
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+template <typename First, typename... Others>
+static inline void gate_debug(First first, Others... others)
+{
+#ifndef NDEBUG
+	__gate_debug_generic_func(first)(first);
+	gate_debug(others...);
+#endif
+}
+
+static inline void gate_debug()
+{
+}
+#else
+#define gate_debug(a) \
+	do { \
+		__gate_debug_generic_func(a)(a); \
+	} while (0)
 #endif
 
 #endif

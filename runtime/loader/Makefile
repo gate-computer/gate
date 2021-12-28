@@ -20,11 +20,11 @@ $(binary): $(objects)
 	mkdir -p $(dir $@)
 	$(CXX) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $(objects)
 
-loader.o: loader.cpp $(wildcard $(ARCH)/*.h ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
+loader.o: loader.cpp $(wildcard $(ARCH)/*.hpp ../include/$(ARCH)/*.hpp ../include/*.hpp) Makefile ../include/runtime.mk
 	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -c -o $@ loader.cpp
 
 $(ARCH)/start.o: $(ARCH)/start.S Makefile ../include/runtime.mk
-$(ARCH)/runtime2.o: $(ARCH)/runtime2.S $(ARCH)/runtime.S poll.S seccomp.S $(wildcard ../include/$(ARCH)/*.h ../include/*.h) Makefile ../include/runtime.mk
+$(ARCH)/runtime2.o: $(ARCH)/runtime2.S $(ARCH)/runtime.S poll.S seccomp.S $(wildcard ../include/$(ARCH)/*.hpp ../include/*.hpp) Makefile ../include/runtime.mk
 
 %.o: %.S
 	$(CCAS) $(CPPFLAGS) -c -o $@ $*.S

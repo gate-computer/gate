@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_ALIGN_H
-#define GATE_RUNTIME_ALIGN_H
+#ifndef GATE_RUNTIME_ALIGN_HPP
+#define GATE_RUNTIME_ALIGN_HPP
 
-#include <stddef.h>
+#include <cstddef>
 
 static inline size_t align_size(size_t size, size_t alignment)
 {

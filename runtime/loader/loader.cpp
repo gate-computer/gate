@@ -21,13 +21,12 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
-#include "align.h"
-#include "attribute.h"
-#include "errors.h"
-#include "runtime.h"
-#include "syscall.h"
-
+#include "align.hpp"
+#include "attribute.hpp"
 #include "debug.hpp"
+#include "errors.hpp"
+#include "runtime.hpp"
+#include "syscall.hpp"
 
 #define SYS_SA_RESTORER 0x04000000
 #define SIGACTION_FLAGS (SYS_SA_RESTORER | SA_SIGINFO)

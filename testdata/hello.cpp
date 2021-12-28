@@ -2,53 +2,50 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+#include <stdint.h>
+
 #include <gate.h>
 
-void *memset(void *s, int c, size_t n)
-{
-	for (size_t i = 0; i < n; i++)
-		((char *) s)[i] = c;
-	return s;
-}
+namespace {
 
-static struct gate_packet *receive_packet(void *buf, size_t bufsize)
+gate_packet* receive_packet(void* buf, size_t bufsize)
 {
 	if (bufsize < GATE_MAX_RECV_SIZE)
 		gate_exit(1);
 
 	size_t offset = 0;
 
-	while (offset < sizeof(struct gate_packet))
-		offset += gate_recv(buf + offset, sizeof(struct gate_packet) - offset, -1);
+	while (offset < sizeof(gate_packet))
+		offset += gate_recv(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(buf) + offset), sizeof(gate_packet) - offset, -1);
 
-	struct gate_packet *header = buf;
-	size_t aligned_size = GATE_ALIGN_PACKET(header->size);
+	auto header = reinterpret_cast<gate_packet*>(buf);
+	auto aligned_size = GATE_ALIGN_PACKET(header->size);
 
 	while (offset < aligned_size)
-		offset += gate_recv(buf + offset, aligned_size - offset, -1);
+		offset += gate_recv(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(buf) + offset), aligned_size - offset, -1);
 
 	return header;
 }
 
-static void send(const void *data, size_t size)
+void send(void const* data, size_t size)
 {
 	size_t offset = 0;
 
 	while (offset < size)
-		offset += gate_send(data + offset, size - offset, -1);
+		offset += gate_send(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(data) + offset), size - offset, -1);
 }
 
-static char receive_buffer[GATE_MAX_RECV_SIZE];
+char receive_buffer[GATE_MAX_RECV_SIZE];
 
-static int discover(int16_t *origin_code, int16_t *test_code)
+int discover(int16_t* origin_code, int16_t* test_code)
 {
 	struct {
-		struct gate_service_name_packet header;
-		char names[12];
+		gate_service_name_packet header;
+		char names[12 + 1]; // Space for terminator.
 	} discover = {
 		.header = {
 			.header = {
-				.size = sizeof discover,
+				.size = sizeof discover - 1, // No terminator.
 				.code = GATE_PACKET_CODE_SERVICES,
 			},
 			.count = 2,
@@ -59,14 +56,14 @@ static int discover(int16_t *origin_code, int16_t *test_code)
 	// Send some uninitialized bytes from stack as padding.
 	send(&discover, GATE_ALIGN_PACKET(sizeof discover));
 
-	struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
+	auto packet = receive_packet(receive_buffer, sizeof receive_buffer);
 
 	if (packet->code != GATE_PACKET_CODE_SERVICES) {
 		__gate_debug_str("error: expected reply packet from services\n");
 		return -1;
 	}
 
-	struct gate_service_state_packet *discovery = (struct gate_service_state_packet *) packet;
+	auto discovery = reinterpret_cast<gate_service_state_packet*>(packet);
 
 	if (discovery->count != 2) {
 		__gate_debug_str("error: expected 2 service states from services\n");
@@ -86,9 +83,9 @@ static int discover(int16_t *origin_code, int16_t *test_code)
 	return 0;
 }
 
-static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *send_flow)
+int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t* send_flow)
 {
-	struct gate_packet accept = {
+	gate_packet accept = {
 		.size = sizeof accept,
 		.code = origin_code,
 		.domain = GATE_PACKET_DOMAIN_CALL,
@@ -98,7 +95,7 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 
 	int32_t id = -1;
 	while (1) {
-		struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
+		auto packet = receive_packet(receive_buffer, sizeof receive_buffer);
 
 		if (packet->code != origin_code) {
 			__gate_debug_str("error: expected packet from origin\n");
@@ -106,29 +103,29 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 		}
 
 		if (packet->domain != GATE_PACKET_DOMAIN_CALL) {
-			gate_debug3("received origin packet with domain ", packet->domain, " while accepting stream\n");
+			gate_debug("received origin packet with domain ", packet->domain, " while accepting stream\n");
 			continue;
 		}
 
-		struct {
-			struct gate_packet header;
+		struct reply_packet {
+			gate_packet header;
 			int32_t id;
 			int32_t error;
-		} GATE_PACKED *reply;
+		} GATE_PACKED* reply;
 
 		if (packet->size != sizeof *reply) {
 			__gate_debug_str("error: accept call reply has unexpected size\n");
 			return -1;
 		}
 
-		reply = (void *) packet;
+		reply = reinterpret_cast<reply_packet*>(packet);
 		id = reply->id;
 		break;
 	}
 
 	struct {
-		struct gate_flow_packet header;
-		struct gate_flow flows[1];
+		gate_flow_packet header;
+		gate_flow flows[1];
 	} flow = {
 		.header = {
 			.header = {
@@ -148,7 +145,7 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 	send(&flow, sizeof flow);
 
 	while (1) {
-		struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
+		auto packet = receive_packet(receive_buffer, sizeof receive_buffer);
 
 		if (packet->code != origin_code) {
 			__gate_debug_str("error: expected packet from origin\n");
@@ -160,7 +157,7 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 			break;
 
 		case GATE_PACKET_DOMAIN_DATA:
-			if (packet->size == sizeof(struct gate_data_packet)) { // EOF
+			if (packet->size == sizeof(gate_data_packet)) { // EOF
 				continue;
 			} else {
 				__gate_debug_str("error: unexpected data from origin\n");
@@ -172,11 +169,11 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 			return -1;
 		}
 
-		int count = (packet->size - sizeof(struct gate_flow_packet)) / sizeof(struct gate_flow);
-		struct gate_flow_packet *flow_packet = (struct gate_flow_packet *) packet;
+		auto count = (packet->size - sizeof(gate_flow_packet)) / sizeof(gate_flow);
+		auto flow_packet = reinterpret_cast<gate_flow_packet*>(packet);
 
-		for (int i = 0; i < count; i++) {
-			struct gate_flow *flow = &flow_packet->flows[i];
+		for (unsigned i = 0; i < count; i++) {
+			auto flow = &flow_packet->flows[i];
 			if (flow->id == id) {
 				*send_flow = flow->increment;
 				return id;
@@ -187,9 +184,9 @@ static int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t *se
 	}
 }
 
-static void close_stream(int16_t origin_code, int32_t id)
+void close_stream(int16_t origin_code, int32_t id)
 {
-	struct gate_data_packet close = {
+	gate_data_packet close = {
 		.header = {
 			.size = sizeof close,
 			.code = origin_code,
@@ -201,15 +198,15 @@ static void close_stream(int16_t origin_code, int32_t id)
 	send(&close, sizeof close);
 }
 
-static int send_hello(int16_t origin_code, int32_t id, int *flow)
+int send_hello(int16_t origin_code, int32_t id, int* flow)
 {
 	struct {
-		struct gate_data_packet header;
-		char data[13];
+		gate_data_packet header;
+		char data[13 + 1]; // Space for terminator.
 	} hello = {
 		.header = {
 			.header = {
-				.size = sizeof hello,
+				.size = sizeof hello - 1, // No terminator.
 				.code = origin_code,
 				.domain = GATE_PACKET_DOMAIN_DATA,
 			},
@@ -218,7 +215,7 @@ static int send_hello(int16_t origin_code, int32_t id, int *flow)
 		.data = "hello, world\n",
 	};
 
-	if ((int) sizeof hello.data > *flow) {
+	if (int(sizeof hello.data) > *flow) {
 		__gate_debug_str("error: not enough flow for hello\n");
 		return -1;
 	}
@@ -229,10 +226,10 @@ static int send_hello(int16_t origin_code, int32_t id, int *flow)
 	return 0;
 }
 
-static int read_command(int16_t origin_code, int32_t id)
+int read_command(int16_t origin_code, int32_t id)
 {
 	while (1) {
-		struct gate_packet *packet = receive_packet(receive_buffer, sizeof receive_buffer);
+		auto packet = receive_packet(receive_buffer, sizeof receive_buffer);
 
 		if (packet->code != origin_code)
 			continue;
@@ -240,18 +237,22 @@ static int read_command(int16_t origin_code, int32_t id)
 		if (packet->domain != GATE_PACKET_DOMAIN_DATA)
 			continue;
 
-		struct gate_data_packet *datapacket = (struct gate_data_packet *) packet;
+		auto datapacket = reinterpret_cast<gate_data_packet*>(packet);
 		if (datapacket->id != id)
 			continue;
 
-		if (packet->size == sizeof(struct gate_data_packet))
+		if (packet->size == sizeof(gate_data_packet))
 			return 0;
 
 		return 1;
 	}
 }
 
-int greet(void)
+} // namespace
+
+extern "C" {
+
+int greet()
 {
 	int16_t origin_code;
 	int16_t test_code;
@@ -275,7 +276,7 @@ int greet(void)
 	return 1;
 }
 
-int twice(void)
+int twice()
 {
 	int16_t origin_code;
 	int16_t test_code;
@@ -300,7 +301,7 @@ int twice(void)
 	return 1;
 }
 
-void multi(void)
+void multi()
 {
 	int16_t origin_code;
 	int16_t test_code;
@@ -330,7 +331,7 @@ void multi(void)
 	}
 }
 
-int repl(void)
+int repl()
 {
 	int16_t origin_code;
 	int16_t test_code;
@@ -365,13 +366,13 @@ int repl(void)
 		}
 }
 
-int fail(void)
+int fail()
 {
 	gate_debug("exiting with return value 1\n");
 	gate_exit(1);
 }
 
-int test_ext(void)
+int test_ext()
 {
 	int16_t origin_code;
 	int16_t test_code;
@@ -385,7 +386,7 @@ int test_ext(void)
 	}
 
 	struct {
-		struct gate_packet header;
+		gate_packet header;
 		uint64_t data;
 	} req = {
 		.header = {
@@ -397,17 +398,26 @@ int test_ext(void)
 
 	send(&req, sizeof req);
 
-	struct gate_packet *resp = receive_packet(receive_buffer, sizeof receive_buffer);
+	auto resp = receive_packet(receive_buffer, sizeof receive_buffer);
 
 	if (resp->code != test_code) {
 		__gate_debug_str("error: expected reply packet from test service\n");
 		return 1;
 	}
 
-	if (*(uint64_t *) (resp + 1) != req.data) {
+	if (*reinterpret_cast<uint64_t*>(resp + 1) != req.data) {
 		__gate_debug_str("error: incorrect data in reply\n");
 		return 1;
 	}
 
 	return 0;
 }
+
+void* memset(void* s, int c, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		reinterpret_cast<uint8_t*>(s)[i] = c;
+	return s;
+}
+
+} // extern "C"

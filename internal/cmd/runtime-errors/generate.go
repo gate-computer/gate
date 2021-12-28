@@ -116,7 +116,7 @@ func main() {
 		fmt.Fprintln(b, "var ErrorsInitialized struct{}")
 	}
 
-	f, err := os.Create("runtime/include/errors.h")
+	f, err := os.Create("runtime/include/errors.hpp")
 	if err != nil {
 		log.Fatal(err)
 	}

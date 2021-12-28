@@ -16,7 +16,7 @@ $(binary): $(objects)
 	mkdir -p $(dir $@)
 	$(CXX) $(CFLAGS) $(CXXFLAGS) $(LDFLAGS) -o $@ $(objects)
 
-%.o: %.cpp $(wildcard ../include/*.h) Makefile ../include/runtime.mk
+%.o: %.cpp $(wildcard ../include/*.hpp) Makefile ../include/runtime.mk
 	$(CXX) $(CPPFLAGS) $(CFLAGS) $(CXXFLAGS) -c -o $@ $*.cpp
 
 install:

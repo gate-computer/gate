@@ -13,7 +13,7 @@ import subprocess
 
 ADDR_NO_RANDOMIZE = ctypes.c_ulong(0x0040000)
 
-GATE_LOADER_STACK_SIZE = 12288  # Must match the definition in runtime/include/runtime.h
+GATE_LOADER_STACK_SIZE = 12288  # Must match the definition in runtime/include/runtime.hpp
 
 page = os.sysconf("SC_PAGESIZE")
 assert (GATE_LOADER_STACK_SIZE % page) == 0

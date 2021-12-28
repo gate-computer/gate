@@ -6,7 +6,7 @@
 
 #include <asm/auxvec.h>
 
-#include "errors.h"
+#include "errors.hpp"
 
 #define SYS_exit_group 94
 
@@ -47,7 +47,7 @@ _start:
 
 	// Stack iterator is passed to main as envp pointer.
 	// At this point it should be well within the highest stack page
-	// (determined experimentally using runtime/loader/test/stack.c).
+	// (determined experimentally using runtime/loader/test/stack.cpp).
 
 	bl	main
 

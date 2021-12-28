@@ -4,11 +4,13 @@
 
 #include <gate.h>
 
-uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t *);
+extern "C" {
 
-int check(void)
+uint16_t __wasi_clock_time_get(uint32_t, uint64_t, uint64_t *) noexcept;
+
+int check()
 {
-	uint64_t t = gate_clock_realtime();
+	auto t = gate_clock_realtime();
 	if (t < 1500000000000000000ULL)
 		return 1;
 
@@ -25,3 +27,5 @@ int check(void)
 
 	return 0;
 }
+
+} // extern "C"

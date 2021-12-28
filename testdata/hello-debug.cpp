@@ -4,7 +4,7 @@
 
 #include <gate.h>
 
-int debug(void)
+extern "C" int debug()
 {
 	gate_debug("hello, ");
 	gate_debug("world\n");

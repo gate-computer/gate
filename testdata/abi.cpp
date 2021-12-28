@@ -13,7 +13,9 @@
 
 #define STRARG(s) s, __builtin_strlen(s)
 
-static size_t bytestrlen(const uint8_t *s)
+namespace {
+
+size_t bytestrlen(uint8_t const* s)
 {
 	size_t n = 0;
 	while (*s++)
@@ -21,28 +23,34 @@ static size_t bytestrlen(const uint8_t *s)
 	return n;
 }
 
+} // namespace
+
 #define TEST(name) \
-	static __attribute__((always_inline)) void test2_##name(void); \
-	void test_##name(void) \
+	namespace test { \
+		static __attribute__((always_inline)) void name(); \
+	} \
+	extern "C" void test_##name() \
 	{ \
-		test2_##name(); \
+		test::name(); \
 		gate_debug("PASS\n"); \
 	} \
-	void test2_##name(void)
+	void test::name()
 
 #define TEST_TRAP(name) \
-	static __attribute__((always_inline)) void testtrap2_##name(void); \
-	void testtrap_##name(void) \
+	namespace testtrap { \
+		static __attribute__((always_inline)) void name(); \
+	} \
+	extern "C" void testtrap_##name() \
 	{ \
-		testtrap2_##name(); \
+		testtrap::name(); \
 		gate_exit(1); \
 	} \
-	void testtrap2_##name(void)
+	void testtrap::name()
 
 #define ASSERT(expr) \
 	do { \
 		if (!(expr)) { \
-			gate_debug3(__FILE__ ":", __LINE__, ": " #expr "\n"); \
+			gate_debug(__FILE__ ":", __LINE__, ": " #expr "\n"); \
 			gate_exit(1); \
 		} \
 	} while (0)
@@ -56,7 +64,7 @@ TEST(args)
 	ASSERT(bufsize == 0);
 
 	uint8_t dummy = 0;
-	uint8_t *argv[1] = {&dummy};
+	uint8_t* argv[1] = {&dummy};
 	uint8_t argbuf[1] = {78};
 	ASSERT(__wasi_args_get(argv, argbuf) == 0);
 	ASSERT(argv[0] == &dummy);
@@ -108,7 +116,7 @@ TEST(environ)
 	ASSERT(count == 3);
 	ASSERT(bufsize > 0 && bufsize < 1000);
 
-	uint8_t *envv[3] = {NULL, NULL, NULL};
+	uint8_t* envv[3] = {nullptr, nullptr, nullptr};
 	uint8_t envbuf[bufsize];
 	ASSERT(__wasi_environ_get(envv, envbuf) == 0);
 	for (int i = 0; i < 3; i++) {
@@ -168,11 +176,11 @@ TEST(datasync)
 
 TEST(fd_fdstat_get)
 {
-	__wasi_fdstat_t stdin = {0};
-	__wasi_fdstat_t stdout = {0};
-	__wasi_fdstat_t stderr = {0};
-	__wasi_fdstat_t gate = {0};
-	__wasi_fdstat_t dummy = {0};
+	__wasi_fdstat_t stdin;
+	__wasi_fdstat_t stdout;
+	__wasi_fdstat_t stderr;
+	__wasi_fdstat_t gate;
+	__wasi_fdstat_t dummy;
 
 	ASSERT(__wasi_fd_fdstat_get(0, &stdin) == 0);
 	ASSERT(__wasi_fd_fdstat_get(1, &stdout) == 0);
@@ -269,7 +277,7 @@ TEST_TRAP(fd_fdstat_set_rights_gate_drop_rw)
 
 TEST(fd_filestat_get)
 {
-	__wasi_filestat_t buf = {0};
+	__wasi_filestat_t buf;
 	for (int fd = 0; fd < 10; fd++)
 		ASSERT(__wasi_fd_filestat_get(fd, &buf) != 0);
 }
@@ -288,7 +296,7 @@ TEST(fd_filestat_set_times)
 
 TEST(fd_pread)
 {
-	__wasi_iovec_t iov = {0};
+	__wasi_iovec_t iov;
 	size_t len = 0;
 	for (int fd = 0; fd < 10; fd++)
 		ASSERT(__wasi_fd_pread(fd, &iov, 1, 0, &len) != 0);
@@ -303,14 +311,14 @@ TEST(fd_prestat_dir_name)
 
 TEST(fd_prestat_get)
 {
-	__wasi_prestat_t buf = {0};
+	__wasi_prestat_t buf;
 	for (int fd = 0; fd < 10; fd++)
 		ASSERT(__wasi_fd_prestat_get(fd, &buf) != 0);
 }
 
 TEST(fd_pwrite)
 {
-	__wasi_ciovec_t iov = {0};
+	__wasi_ciovec_t iov;
 	size_t len = 0;
 	for (int fd = 0; fd < 10; fd++)
 		ASSERT(__wasi_fd_pwrite(fd, &iov, 1, 0, &len) != 0);
@@ -399,7 +407,7 @@ TEST(fd_tell)
 TEST(fd_write)
 {
 	__wasi_ciovec_t iov[1] = {
-		{(uint8_t *) "x", 1},
+		{(uint8_t*) "x", 1},
 	};
 	size_t len = 0;
 	ASSERT(__wasi_fd_write(0, iov, 1, &len) != 0);
@@ -410,9 +418,9 @@ TEST(fd_write)
 TEST(fd_write_stdout)
 {
 	__wasi_ciovec_t iov[3] = {
-		{(uint8_t *) "PAS", 3},
-		{(uint8_t *) "", 0},
-		{(uint8_t *) "S\n", 2},
+		{(uint8_t*) "PAS", 3},
+		{(uint8_t*) "", 0},
+		{(uint8_t*) "S\n", 2},
 	};
 	size_t len = 0;
 	ASSERT(__wasi_fd_write(1, iov, 3, &len) == 0);
@@ -424,7 +432,7 @@ TEST(fd_write_stdout)
 TEST(fd_write_stderr)
 {
 	__wasi_ciovec_t iov[1] = {
-		{(uint8_t *) "PASS\n", 5},
+		{(uint8_t*) "PASS\n", 5},
 	};
 	size_t len = 0;
 	ASSERT(__wasi_fd_write(2, iov, 1, &len) == 0);
@@ -444,9 +452,9 @@ TEST(fd_write_and_read_gate)
 		};
 		const uint8_t buf[3] = {1, 0, 5};
 		__wasi_ciovec_t iov[3] = {
-			{(uint8_t *) &header, 8},
+			{(uint8_t*) &header, 8},
 			{buf, sizeof buf},
-			{(uint8_t *) "bogus", 5},
+			{(uint8_t*) "bogus", 5},
 		};
 		size_t len = 0;
 		ASSERT(__wasi_fd_write(__GATE_FD(), iov, 3, &len) == 0);
@@ -480,7 +488,7 @@ TEST(io)
 	struct gate_iovec send_iov[3] = {
 		{&send_header, 8},
 		{send_buf, sizeof send_buf},
-		{"bogus", 5},
+		{(void*) "bogus", 5},
 	};
 	unsigned send_num = 3;
 
@@ -515,7 +523,7 @@ TEST(path_create_directory)
 
 TEST(path_filestat_get)
 {
-	__wasi_filestat_t buf = {0};
+	__wasi_filestat_t buf;
 	for (int fd = 0; fd < 10; fd++)
 		ASSERT(__wasi_path_filestat_get(fd, __WASI_LOOKUPFLAGS_SYMLINK_FOLLOW, STRARG("bar"), &buf) != 0);
 }
@@ -629,7 +637,7 @@ TEST(poll_oneoff)
 		__wasi_subscription_t subs[6] = {
 			{0, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {0}}}},
 			{1, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {1}}}},
-			{2, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {__GATE_FD()}}}},
+			{2, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {int(__GATE_FD())}}}},
 			{3, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {2}}}},
 			{4, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {3}}}},
 			{5, {__WASI_EVENTTYPE_FD_WRITE, {.fd_write = {5}}}},
@@ -679,9 +687,9 @@ TEST(poll_oneoff)
 		};
 		const uint8_t buf[3] = {1, 0, 5};
 		__wasi_ciovec_t iov[3] = {
-			{(uint8_t *) &header, 8},
+			{(uint8_t*) &header, 8},
 			{buf, sizeof buf},
-			{(uint8_t *) "bogus", 5},
+			{(uint8_t*) "bogus", 5},
 		};
 		size_t len = 0;
 		ASSERT(__wasi_fd_write(__GATE_FD(), iov, 3, &len) == 0);
@@ -694,7 +702,7 @@ TEST(poll_oneoff)
 			{0, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {0}}}},
 			{1, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {1}}}},
 			{2, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {2}}}},
-			{3, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {__GATE_FD()}}}},
+			{3, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {int(__GATE_FD())}}}},
 		};
 		__wasi_event_t evs[4];
 		size_t count = 99;
@@ -727,7 +735,7 @@ TEST(poll_oneoff)
 	// Block on read.
 	{
 		__wasi_subscription_t subs[1] = {
-			{0, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {__GATE_FD()}}}},
+			{0, {__WASI_EVENTTYPE_FD_READ, {.fd_read = {int(__GATE_FD())}}}},
 		};
 		__wasi_event_t evs[1];
 		size_t count = 99;
@@ -806,7 +814,7 @@ TEST(sched_yield)
 
 TEST(sock_recv)
 {
-	__wasi_iovec_t iov = {0};
+	__wasi_iovec_t iov;
 	size_t count = 0;
 	__wasi_roflags_t flags = 0;
 	for (int fd = 0; fd < 10; fd++)
@@ -815,7 +823,7 @@ TEST(sock_recv)
 
 TEST(sock_send)
 {
-	__wasi_ciovec_t iov = {0};
+	__wasi_ciovec_t iov;
 	size_t count = 0;
 	for (int fd = 0; fd < 10; fd++)
 		ASSERT(__wasi_sock_send(fd, &iov, 1, 0, &count) != 0);
@@ -827,16 +835,18 @@ TEST(sock_shutdown)
 		ASSERT(__wasi_sock_shutdown(fd, __WASI_SDFLAGS_WR) != 0);
 }
 
-void *memcpy(void *dest, const void *src, size_t n)
+extern "C" void* memcpy(void* dest, void const* src, size_t n)
 {
+	auto d = reinterpret_cast<uint8_t*>(dest);
+	auto s = reinterpret_cast<uint8_t const*>(src);
 	for (size_t i = 0; i < n; i++)
-		((uint8_t *) dest)[i] = ((const uint8_t *) src)[i];
+		d[i] = s[i];
 	return dest;
 }
 
-void *memset(void *s, int c, size_t n)
+extern "C" void* memset(void* s, int c, size_t n)
 {
 	for (size_t i = 0; i < n; i++)
-		((uint8_t *) s)[i] = c;
+		reinterpret_cast<uint8_t*>(s)[i] = c;
 	return s;
 }

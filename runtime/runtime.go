@@ -4,7 +4,7 @@
 
 package runtime
 
-// Some of these values are also defined in runtime/include/runtime.h
+// Some of these values are also defined in runtime/include/runtime.hpp
 
 const maxPacketSize = 65536
 

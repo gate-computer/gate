@@ -10,7 +10,7 @@
 
 #include <sys/syscall.h>
 
-#include "syscall.h"
+#include "syscall.hpp"
 
 #define debug_generic_func(x) _Generic((x), /* clang-format off */ \
 		_Bool:                  debug_uint, \

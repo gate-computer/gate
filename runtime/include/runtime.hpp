@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_RUNTIME_H
-#define GATE_RUNTIME_RUNTIME_H
+#ifndef GATE_RUNTIME_RUNTIME_HPP
+#define GATE_RUNTIME_RUNTIME_HPP
 
 #include <limits.h>
 

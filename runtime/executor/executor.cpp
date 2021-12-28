@@ -24,11 +24,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "align.h"
-#include "attribute.h"
-#include "debug.h"
-#include "errors.h"
-#include "runtime.h"
+#include "align.hpp"
+#include "attribute.hpp"
+#include "debug.hpp"
+#include "errors.hpp"
+#include "runtime.hpp"
 
 #ifndef CLONE_INTO_CGROUP
 #define CLONE_INTO_CGROUP 0x200000000ULL

@@ -4,9 +4,11 @@
 
 #include <gate.h>
 
+extern "C" {
+
 uint16_t __wasi_random_get(void *buf, size_t buflen);
 
-void dump(void)
+void dump()
 {
 	uint64_t value[2];
 	__wasi_random_get(value, sizeof value);
@@ -16,7 +18,7 @@ void dump(void)
 	gate_debug_hex(value[1]);
 }
 
-void toomuch(void)
+void toomuch()
 {
 	gate_debug("ping");
 
@@ -26,7 +28,7 @@ void toomuch(void)
 	gate_debug("\nunreachable");
 }
 
-void toomuch2(void)
+void toomuch2()
 {
 	char value[10];
 	__wasi_random_get(value, sizeof value);
@@ -37,3 +39,5 @@ void toomuch2(void)
 
 	gate_debug("\nunreachable");
 }
+
+} // extern "C"

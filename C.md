@@ -78,18 +78,15 @@ uint64_t gate_clock_monotonic(void);
 > is unspecified.
 
 
-```c
-void gate_debug(arg);
-void gate_debug1(arg);
-void gate_debug2(arg, arg);
-void gate_debug3(arg, arg, arg);
-void gate_debug4(arg, arg, arg, arg);
-void gate_debug5(arg, arg, arg, arg, arg);
-void gate_debug6(arg, arg, arg, arg, arg, arg);
+```
+gate_debug(arg)     // C macro
+gate_debug(arg...)  // C++ function template
 ```
 > Write to the debug log if enabled by runtime and `NDEBUG` wasn't defined
 > during compilation.  The arguments can be integers, strings or void-pointers.
 > No implicit delimiters (spaces or newlines) are written.
+>
+> C supports only one argument; C++ supports arbitrary number of arguments.
 
 
 ```c

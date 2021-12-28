@@ -416,7 +416,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 }
 
 func TestABI(t *testing.T) {
-	src, err := ioutil.ReadFile("testdata/abi.c")
+	src, err := ioutil.ReadFile("testdata/abi.cpp")
 	if err != nil {
 		t.Fatal(err)
 	}
