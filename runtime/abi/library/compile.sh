@@ -3,12 +3,21 @@
 library=$(dirname "$0")
 project="${library}/../../.."
 
-exec ${WASM_CC:-${CC:-clang}} \
+set -x
+
+exec ${WASM_CXX:-${CXX:-clang++}} \
 	--target=wasm32 \
-	-Os -finline-functions -fomit-frame-pointer \
-	-Wall -Wextra -Wno-unused-parameter \
+	-std=c++17 \
+	-Os \
+	-finline-functions \
+	-fno-exceptions \
+	-fomit-frame-pointer \
+	-Wall \
+	-Wextra \
+	-Wno-return-type-c-linkage \
+	-Wno-unused-parameter \
+	-Wno-unused-private-field \
 	-nostdlib \
 	-I"${project}/include" \
-	-c \
-	"$@" \
-	"${library}/library.c"
+	$@ \
+	"${library}/library.cpp"

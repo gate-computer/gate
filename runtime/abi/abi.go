@@ -4,7 +4,7 @@
 
 package abi
 
-//go:generate go run ../../cmd/gate-librarian -v -go=abi library.go -- library/compile.sh -o /dev/stdout
+//go:generate go run ../../cmd/gate-librarian -v -go=abi library.go -- library/compile.sh -c -o /dev/stdout
 
 import (
 	"bytes"
