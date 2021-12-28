@@ -31,7 +31,7 @@ per_binary() {
 		*)       goarch=$arch;;
 	esac
 
-	make="make -C runtime/$name CC=${pre}cc"
+	make="make -C runtime/$name CC=${pre}cc CXX=${pre}c++"
 	$make clean
 	$make
 

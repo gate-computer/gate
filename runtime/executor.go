@@ -192,7 +192,7 @@ func (e *Executor) sender(errorLog Logger) {
 		}
 	}()
 
-	buf := make([]byte, 4) // sizeof(struct exec_request)
+	buf := make([]byte, 4) // sizeof(ExecRequest)
 
 	// TODO: send multiple entries at once
 	for {
@@ -207,7 +207,7 @@ func (e *Executor) sender(errorLog Logger) {
 				e.procs[req.pid] = req.proc
 			})
 
-			// This is like exec_request in runtime/executor/executor.c
+			// This is like ExecRequest in runtime/executor/executor.cpp
 			binary.LittleEndian.PutUint16(buf[0:], uint16(req.pid))
 			buf[2] = execOpCreate
 
@@ -230,7 +230,7 @@ func (e *Executor) sender(errorLog Logger) {
 				op = execOpSuspend
 			}
 
-			// This is like exec_request in runtime/executor/executor.c
+			// This is like ExecRequest in runtime/executor/executor.cpp
 			binary.LittleEndian.PutUint16(buf[0:], uint16(id))
 			buf[2] = op
 		}
@@ -247,7 +247,7 @@ func (e *Executor) sender(errorLog Logger) {
 func (e *Executor) receiver(errorLog Logger) {
 	defer close(e.doneReceiving)
 
-	buf := make([]byte, 512*8) // N * sizeof(struct exec_status)
+	buf := make([]byte, 512*8) // N * sizeof(ExecStatus)
 	buffered := 0
 
 	for {
@@ -264,7 +264,7 @@ func (e *Executor) receiver(errorLog Logger) {
 
 		lock.Guard(&e.mu, func() {
 			for ; len(b) >= 8; b = b[8:] {
-				// This is like exec_status in runtime/executor/executor.c
+				// This is like ExecStatus in runtime/executor/executor.cpp
 				var (
 					id     = int16(binary.LittleEndian.Uint16(b[0:]))
 					status = int32(binary.LittleEndian.Uint32(b[4:]))
