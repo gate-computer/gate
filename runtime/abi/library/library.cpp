@@ -13,16 +13,6 @@
 
 // Avoid inheritance to avoid stack access and globals.
 
-#define ENUM_CLASS_MEMBERS(Class, Primitive) \
-public: \
-	bool operator==(Class x) const { return m_enum == x.m_enum; } \
-	bool operator!=(Class x) const { return m_enum != x.m_enum; } \
-\
-private: \
-	Class() = delete; \
-	explicit Class(Primitive x): m_enum(x) {} \
-	Primitive m_enum;
-
 #define FLAGS_CLASS_MEMBERS(Class, Primitive) \
 public: \
 	Class() {} \
@@ -48,28 +38,16 @@ private: \
 
 namespace {
 
-class Error {
-public:
-	static const Error success;
-	static const Error again;
-	static const Error badf;
-	static const Error fault;
-	static const Error inval;
-	static const Error notsock;
-	static const Error perm;
-	static const Error notcapable;
-
-	ENUM_CLASS_MEMBERS(Error, uint16_t)
+enum class Error : uint16_t {
+	success = 0,
+	again = 6,
+	badf = 8,
+	fault = 21,
+	inval = 28,
+	notsock = 57,
+	perm = 63,
+	notcapable = 76,
 };
-
-const Error Error::success = Error(0);
-const Error Error::again = Error(6);
-const Error Error::badf = Error(8);
-const Error Error::fault = Error(21);
-const Error Error::inval = Error(28);
-const Error Error::notsock = Error(57);
-const Error Error::perm = Error(63);
-const Error Error::notcapable = Error(76);
 
 class Timestamp {
 public:
@@ -110,28 +88,12 @@ private:
 
 const Resolution Resolution::worst = Resolution(1000000000ULL);
 
-class FD {
-public:
-	static const FD stdin;
-	static const FD stdout;
-	static const FD stderr;
-	static const FD gate;
-
-	Error error(Error err)
-	{
-		if (*this == gate || *this == stdin || *this == stdout || *this == stderr)
-			return err;
-
-		return Error::badf;
-	}
-
-	ENUM_CLASS_MEMBERS(FD, uint32_t)
+enum class FD : uint32_t {
+	stdin = 0,
+	stdout = 1,
+	stderr = 2,
+	gate = 4,
 };
-
-const FD FD::stdin = FD(0);
-const FD FD::stdout = FD(1);
-const FD FD::stderr = FD(2);
-const FD FD::gate = FD(4);
 
 class PollEvents {
 public:
@@ -155,30 +117,12 @@ public:
 const Rights Rights::fd_read = Rights(1 << 1);
 const Rights Rights::fd_write = Rights(1 << 6);
 
-class ClockID {
-public:
-	static const ClockID realtime;
-	static const ClockID monotonic;
-	static const ClockID realtime_coarse;
-	static const ClockID monotonic_coarse;
-
-	bool is_valid() const { return m_enum < 4; }
-	bool is_supported() const { return m_enum < 2; }
-
-	ClockID coarse() const
-	{
-		if (m_enum < 2)
-			return ClockID(m_enum + realtime_coarse.m_enum - realtime.m_enum);
-		return *this;
-	}
-
-	ENUM_CLASS_MEMBERS(ClockID, uint32_t)
+enum class ClockID : uint32_t {
+	realtime = 0,
+	monotonic = 1,
+	realtime_coarse = 5,
+	monotonic_coarse = 6,
 };
-
-const ClockID ClockID::realtime = ClockID(0);
-const ClockID ClockID::monotonic = ClockID(1);
-const ClockID ClockID::realtime_coarse = ClockID(5);
-const ClockID ClockID::monotonic_coarse = ClockID(6);
 
 class ClockFlags {
 public:
@@ -198,27 +142,15 @@ public:
 
 const FDFlags FDFlags::nonblock = FDFlags(1 << 2);
 
-class FileType {
-public:
-	static const FileType unknown;
-
-	ENUM_CLASS_MEMBERS(FileType, uint8_t)
+enum class FileType : uint8_t {
+	unknown = 0,
 };
 
-const FileType FileType::unknown = FileType(0);
-
-class EventType {
-public:
-	static const EventType clock;
-	static const EventType fd_read;
-	static const EventType fd_write;
-
-	ENUM_CLASS_MEMBERS(EventType, uint8_t)
+enum class EventType : uint8_t {
+	clock = 0,
+	fd_read = 1,
+	fd_write = 2,
 };
-
-const EventType EventType::clock = EventType(0);
-const EventType EventType::fd_read = EventType(1);
-const EventType EventType::fd_write = EventType(2);
 
 class EventRWFlags {
 public:
@@ -309,6 +241,32 @@ inline uint64_t bytes64(uint8_t a0, uint8_t a1 = 0, uint8_t a2 = 0, uint8_t a3 =
 	       (uint64_t(a7) << 0x38);
 }
 
+inline bool clock_is_valid(ClockID id)
+{
+	return uint32_t(id) < 4;
+}
+
+inline bool clock_is_supported(ClockID id)
+{
+	return uint32_t(id) < 2;
+}
+
+inline ClockID clock_to_coarse(ClockID id)
+{
+	if (uint32_t(id) < 2)
+		return ClockID(uint32_t(id) + uint32_t(ClockID::realtime_coarse) - uint32_t(ClockID::realtime));
+
+	return id;
+}
+
+inline Error fd_error(FD fd, Error err)
+{
+	if (fd == FD::gate || fd == FD::stdin || fd == FD::stdout || fd == FD::stderr)
+		return err;
+
+	return Error::badf;
+}
+
 } // namespace
 
 extern "C" {
@@ -338,7 +296,7 @@ EXPORT Error clock_res_get(ClockID id, Resolution* buf)
 {
 	RETURN_FAULT_IF(buf == nullptr);
 
-	if (!id.is_valid())
+	if (!clock_is_valid(id))
 		return Error::inval;
 
 	*buf = Resolution::worst;
@@ -349,11 +307,11 @@ EXPORT Error clock_time_get(ClockID id, Resolution precision, Timestamp* buf)
 {
 	RETURN_FAULT_IF(buf == nullptr);
 
-	if (!id.is_valid())
+	if (!clock_is_valid(id))
 		return Error::inval;
 
-	if (id.is_supported()) {
-		*buf = rt_time(id.coarse());
+	if (clock_is_supported(id)) {
+		*buf = rt_time(clock_to_coarse(id));
 		return Error::success;
 	}
 
@@ -475,7 +433,7 @@ EXPORT Error fd_prestat_dir_name(FD fd, char* buf, size_t bufsize)
 {
 	RETURN_FAULT_IF(bufsize > 0 && buf == nullptr);
 
-	return fd.error(Error::inval);
+	return fd_error(fd, Error::inval);
 }
 
 EXPORT Error fd_read(FD fd, IOVec const* iov, int iovlen, uint32_t* nread_ptr)
@@ -639,15 +597,15 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 		if (sub[i].tag == EventType::clock) {
 			auto id = sub[i].u.clock.clockid;
 
-			if (id.is_valid()) {
-				if (!id.is_supported())
+			if (clock_is_valid(id)) {
+				if (!clock_is_supported(id))
 					trap_abi_deficiency();
 
 				auto t = sub[i].u.clock.timeout;
 
 				if (t.is_nonzero()) { // Optimize special case.
 					if (begin.get(id).is_zero())
-						begin.set(id, rt_time(id.coarse()));
+						begin.set(id, rt_time(clock_to_coarse(id)));
 				}
 
 				if (sub[i].u.clock.flags.contains_all(ClockFlags::abstime)) {
@@ -705,7 +663,7 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 		if (sub[i].tag == EventType::clock) {
 			auto id = sub[i].u.clock.clockid;
 
-			if (id.is_valid()) {
+			if (clock_is_valid(id)) {
 				auto t = sub[i].u.clock.timeout;
 
 				if (t.is_zero()) { // Optimize special case.
@@ -837,77 +795,77 @@ EXPORT Error sock_send(FD fd, int a1, int a2, int a3, int a4)
 
 EXPORT Error stub_fd(FD fd)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32(FD fd, int a1)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i64(FD fd, int64_t a1)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32_i32(FD fd, int a1, int a2)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i64_i64(FD fd, int64_t a1, int64_t a2)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i64_i32_i32(FD fd, int64_t a1, int a2, int a3)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i64_i64_i32(FD fd, int64_t a1, int64_t a2, int a3)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i32(FD fd, int a1, int a2, int a3, int a4)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_i32_i32_fd_i32_i32(int a0, int a1, FD fd, int a3, int a4)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32_i32_i64_i32(FD fd, int a1, int a2, int64_t a3, int a4)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32_i32_fd_i32_i32(FD fd, int a1, int a2, FD fd3, int a4, int a5)
 {
-	return fd.error(fd3.error(Error::perm));
+	return fd_error(fd, fd_error(fd3, Error::perm));
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i32_i32(FD fd, int a1, int a2, int a3, int a4, int a5)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32_i32_i32_fd_i32_i32(FD fd, int a1, int a2, int a3, FD fd4, int a5, int a6)
 {
-	return fd.error(fd4.error(Error::perm));
+	return fd_error(fd, fd_error(fd4, Error::perm));
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i64_i64_i32(FD fd, int a1, int a2, int a3, int64_t a4, int64_t a5, int a6)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i32_i64_i64_i32_i32(FD fd, int a1, int a2, int a3, int a4, int64_t a5, int64_t a6, int a7, int a8)
 {
-	return fd.error(Error::perm);
+	return fd_error(fd, Error::perm);
 }
 
 } // extern "C"
