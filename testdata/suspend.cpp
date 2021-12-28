@@ -22,7 +22,7 @@ void delay()
 
 void iteration(long i)
 {
-	gate_debug3("suspend.cpp running: ", i, "\n");
+	gate_debug("suspend.cpp running: ", i, "\n");
 	delay();
 }
 

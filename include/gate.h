@@ -336,6 +336,10 @@ static inline size_t gate_send(const void *data, size_t size, int64_t timeout) G
 #endif
 
 #ifdef __cplusplus
+static inline void gate_debug()
+{
+}
+
 template <typename First, typename... Others>
 static inline void gate_debug(First first, Others... others)
 {
@@ -343,10 +347,6 @@ static inline void gate_debug(First first, Others... others)
 	__gate_debug_generic_func(first)(first);
 	gate_debug(others...);
 #endif
-}
-
-static inline void gate_debug()
-{
 }
 #else
 #define gate_debug(a) \
