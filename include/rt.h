@@ -8,11 +8,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifndef RT_TRAP_ENUM
-enum trap {
-	TRAP_SUCCESS = 0,
-	TRAP_FAILURE = 1,
-};
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 // Write 8 bytes of packet data or terminate.
@@ -21,8 +18,12 @@ void rt_write8(uint64_t value);
 // Read 8 bytes of packet data or terminate.
 uint64_t rt_read8(void);
 
-// Terminate with result 0 or 1.  Other values are undefined.
-void rt_trap(enum trap status) __attribute__((noreturn));
+// Exit with result 0 or 1.  Other values are undefined.
+void rt_trap(uint32_t id) __attribute__((noreturn));
 
 // Write to debug log.
 void rt_debug(const char *str, size_t len);
+
+#ifdef __cplusplus
+}
+#endif
