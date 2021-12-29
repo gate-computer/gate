@@ -678,24 +678,6 @@ TEST(poll_oneoff)
 			ASSERT(ok[id]);
 	}
 
-	// Write packet.
-	{
-		const struct gate_packet header = {
-			.size = 8 + 2 + 1 + 5,
-			.code = GATE_PACKET_CODE_SERVICES,
-			.domain = GATE_PACKET_DOMAIN_CALL,
-		};
-		const uint8_t buf[3] = {1, 0, 5};
-		__wasi_ciovec_t iov[3] = {
-			{(uint8_t*) &header, 8},
-			{buf, sizeof buf},
-			{(uint8_t*) "bogus", 5},
-		};
-		size_t len = 0;
-		ASSERT(__wasi_fd_write(__GATE_FD(), iov, 3, &len) == 0);
-		ASSERT(len == 8 + 2 + 1 + 5);
-	}
-
 	// Readable?
 	{
 		__wasi_subscription_t subs[4] = {
@@ -730,6 +712,24 @@ TEST(poll_oneoff)
 
 		for (unsigned id = 0; id < 4; id++)
 			ASSERT(ok[id]);
+	}
+
+	// Write packet.
+	{
+		const struct gate_packet header = {
+			.size = 8 + 2 + 1 + 5,
+			.code = GATE_PACKET_CODE_SERVICES,
+			.domain = GATE_PACKET_DOMAIN_CALL,
+		};
+		const uint8_t buf[3] = {1, 0, 5};
+		__wasi_ciovec_t iov[3] = {
+			{(uint8_t*) &header, 8},
+			{buf, sizeof buf},
+			{(uint8_t*) "bogus", 5},
+		};
+		size_t len = 0;
+		ASSERT(__wasi_fd_write(__GATE_FD(), iov, 3, &len) == 0);
+		ASSERT(len == 8 + 2 + 1 + 5);
 	}
 
 	// Block on read.
