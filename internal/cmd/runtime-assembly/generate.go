@@ -30,8 +30,9 @@ const (
 )
 
 const (
-	sizeofStructPollfd    = 4 + 4 // sizeof(struct pollfd)
-	sizeofStructSockFprog = 16    // sizeof(struct sock_fprog)
+	sizeofStructPollfd    = 8  // sizeof(struct pollfd)
+	sizeofStructSockFprog = 16 // sizeof(struct sock_fprog)
+	sizeofStructTimespec  = 16 // sizeof(struct timespec)
 )
 
 // Register offsets within ucontext_t.
@@ -311,26 +312,28 @@ func funcSignalRestorer(a *ga.Assembly) {
 
 func funcTrapHandler(a *ga.Assembly) {
 	a.Function("trap_handler")
+	// result = integer result
 	// wagTrap = trap id
 	{
-		a.MoveReg(param0, wagTrap)
+		a.JumpIfImm(ga.EQ, wagTrap, int(trap.Exit), ".trap_exit")
+		a.JumpIfImm(ga.EQ, wagTrap, int(trap.CallStackExhausted), ".trap_call_stack_exhausted")
 
-		a.JumpIfImm(ga.EQ, param0, int(trap.Exit), ".trap_exit")
-		a.JumpIfImm(ga.EQ, param0, int(trap.CallStackExhausted), ".trap_call_stack_exhausted")
-
-		a.AddImm(param0, param0, 100) // Convert trap id to status.
+		a.AddImm(param0, wagTrap, 100) // Convert trap id to status.
 		a.Jump(".exit")
 	}
 
 	a.Label(".trap_exit")
-	// param0 = trap id
+	// result = integer result
+	// wagTrap = trap id
 	{
 		macroStackVars(a, local0, scratch0)
-		a.Store(local0, 32, result) // result[0]
-		a.MoveRegFloat(scratch0, 0)
+		a.Store(local0, 32, result)   // result[0]
+		a.MoveRegFloat(scratch0, 0)   // float result
 		a.Store(local0, 40, scratch0) // result[1]
 
-		a.JumpIfImm(ga.NE, param0, 0, ".exit_failure")
+		a.MoveImm(param0, 1) // failure
+		a.JumpIfImm(ga.NE, wagTrap, 0, ".exit")
+		a.MoveImm(param0, 0) // success
 		a.Jump(".exit")
 	}
 
@@ -365,14 +368,7 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 			stackVars = local0
 			oldPages  = local1
 			newPages  = local2
-			memAddr   = param0
-			oldBytes  ga.Reg
 		)
-		if variant == "android" {
-			oldBytes = param1
-		} else {
-			oldBytes = local3
-		}
 
 		macroCurrentMemoryPages(a, oldPages, stackVars, scratch0)
 
@@ -383,24 +379,28 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 		a.Load(scratch0, wagTextBase, -5*8) // memory growth limit in pages
 		a.JumpIfReg(ga.GT, newPages, scratch0, ".out_of_memory")
 
-		a.Load(memAddr, wagTextBase, -4*8) // mremap old_address
-
-		a.MoveReg(oldBytes, oldPages)
-		a.ShiftImm(ga.Left, oldBytes, 16) // mremap old_size
-
 		if variant == "android" {
+			a.Load(param0, wagTextBase, -4*8) // mremap old_address
+
+			a.MoveReg(param1, oldPages)
+			a.ShiftImm(ga.Left, param1, 16) // mremap old_size
+
 			a.MoveReg(param2, newPages)
 			a.ShiftImm(ga.Left, param2, 16) // mremap new_size
 
 			a.MoveImm(sysparam3, 0) // mremap flags
 
 			a.Syscall(linux.SYS_MREMAP)
-			a.JumpIfReg(ga.NE, result, memAddr, ".grow_memory_error")
+			a.Load(scratch0, wagTextBase, -4*8) // memory addr
+			a.JumpIfReg(ga.NE, result, scratch0, ".grow_memory_error")
 		} else {
-			a.AddReg(memAddr, memAddr, oldBytes) // mprotect addr
-
 			a.MoveReg(param1, result)
 			a.ShiftImm(ga.Left, param1, 16) // mprotect len
+
+			a.Load(param0, wagTextBase, -4*8)  // memory addr
+			a.MoveReg(scratch0, oldPages)
+			a.ShiftImm(ga.Left, scratch0, 16)  // old bytes
+			a.AddReg(param0, param0, scratch0) // mprotect addr
 
 			a.MoveImm(param2, unix.PROT_READ|unix.PROT_WRITE) // mprotect prot
 
@@ -535,7 +535,7 @@ func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, 
 
 		a.JumpIfImm(expect, result, 0, ".resume")
 		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".resume_zero")
-		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".resume_zero")
+		a.JumpIfImm(ga.EQ, result, -int(unix.EINTR), ".resume_zero")
 
 		a.MoveImm(param0, error)
 		a.Jump(".exit")
@@ -548,6 +548,9 @@ func funcRtTime(a *ga.Assembly) {
 	{
 		a.Load4Bytes(param0, a.StackPtr, 8)
 		macroTime(a, ".rt_time")
+		a.Load4Bytes(scratch0, a.StackPtr, 8)
+		a.JumpIfImm(ga.NE, scratch0, unix.CLOCK_MONOTONIC_COARSE, ".resume")
+		macroTimeFixMonotonic(a)
 		a.Jump(".resume")
 	}
 }
@@ -583,45 +586,39 @@ func funcRtRandom(a *ga.Assembly) {
 func funcRtTrap(a *ga.Assembly) {
 	a.Function("rt_trap")
 	// [StackPtr + 8] = status code
+
+	a.Load4Bytes(param0, a.StackPtr, 8)
+	a.MoveReg(a.StackPtr, wagRestartSP) // Restart caller on resume.
+
+	a.Label(".exit")
+	// param0 = status code
 	{
-		a.Load4Bytes(param0, a.StackPtr, 8)
-		a.MoveReg(a.StackPtr, wagRestartSP) // Restart caller on resume.
+		a.Push(param0)
+		a.MoveImm(param0, unix.CLOCK_MONOTONIC_COARSE)
+		macroTime(a, ".rt_trap")
+		macroTimeFixMonotonic(a)
+		a.Pop(param0)
+		a.MoveReg(param1, result)
 
-		a.Label(".exit")
+		a.Label(".exit_time")
 		// param0 = status code
+		// param1 = monotonic time
 		{
-			a.Push(param0)
-			a.MoveImm(param0, unix.CLOCK_MONOTONIC_COARSE)
-			macroTime(a, ".rt_trap")
-			a.Pop(param0)
-			a.MoveReg(param1, result)
+			macroStackVars(a, local0, scratch0)
 
-			a.Label(".exit_time")
+			a.MoveReg(local1, a.StackPtr)
+			a.SubtractReg(local1, local0) // StackVars is at start of stack buffer.
+
+			a.Store4Bytes(local0, 0, local1) // stack_unused
+			a.Store(local0, 8, param1)       // monotonic_time_snapshot
+
+			a.Label("sys_exit")
 			// param0 = status code
-			// param1 = monotonic time
 			{
-				macroStackVars(a, local0, scratch0)
-
-				a.MoveReg(local1, a.StackPtr)
-				a.SubtractReg(local1, local0) // StackVars is at start of stack buffer.
-
-				a.Store4Bytes(local0, 0, local1) // stack_unused
-				a.Store(local0, 8, param1)       // monotonic_time_snapshot
-
-				a.Label("sys_exit")
-				// param0 = status code
-				{
-					a.Syscall(linux.SYS_EXIT_GROUP)
-					a.Unreachable()
-				}
+				a.Syscall(linux.SYS_EXIT_GROUP)
+				a.Unreachable()
 			}
 		}
-	}
-
-	a.Label(".exit_failure")
-	{
-		a.MoveImm(param0, 1)
-		a.Jump(".exit")
 	}
 }
 
@@ -659,18 +656,20 @@ func funcRtDebug(a *ga.Assembly) {
 func funcRtRead8(a *ga.Assembly) {
 	a.Function("rt_read8")
 	{
-		a.SubtractImm(a.StackPtr, 8)
+		a.SubtractImm(a.StackPtr, 8) // Allocate buffer.
 
 		a.Label(".read8_retry")
+
 		a.MoveImm(param0, inputFD)    // fd
 		a.MoveReg(param1, a.StackPtr) // buf
 		a.MoveImm(param2, 8)          // count
 		a.Syscall(linux.SYS_READ)
 		a.MoveReg(local1, result)
 
-		a.Pop(local0)
-
 		a.JumpIfImm(ga.EQ, local1, -int(unix.EAGAIN), ".read8_retry")
+		a.JumpIfImm(ga.EQ, local1, -int(unix.EINTR), ".read8_retry")
+
+		a.Pop(local0) // Release buffer.
 
 		a.MoveImm(param0, runtimeerrors.ERR_RT_READ)
 		a.JumpIfImm(ga.NE, local1, 8, ".exit")
@@ -684,12 +683,16 @@ func funcRtWrite8(a *ga.Assembly) {
 	a.Function("rt_write8")
 	// [StackPtr + 8] = data
 	{
+		a.Label(".write8_retry")
+
 		a.MoveImm(param0, outputFD)     // fd
 		a.AddImm(param1, a.StackPtr, 8) // buf
 		a.MoveImm(param2, 8)            // count
 		a.Syscall(linux.SYS_WRITE)
 
 		a.JumpIfImm(ga.EQ, result, 8, ".resume_zero")
+		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".write8_retry")
+		a.JumpIfImm(ga.EQ, result, -int(unix.EINTR), ".write8_retry")
 
 		a.MoveImm(param0, runtimeerrors.ERR_RT_WRITE)
 		a.Jump(".exit")
@@ -751,19 +754,18 @@ func macroIOPrologue(a *ga.Assembly, outBufSize, outBufAddr, outBufEnd, outMemAd
 	a.JumpIfReg(ga.LT, outBufEnd, outBufAddr, ".out_of_bounds")
 }
 
-// macroTime makes a function call, so it may clobber anything.
+// macroTime makes a function call, so it may clobber anything.  Afterwards
+// timestamp will be in result and stack vars in local0.
 func macroTime(a *ga.Assembly, internalNamePrefix string) {
 	// param0 = clock id
 
-	a.MoveReg(local0, param0)
+	a.SubtractImm(a.StackPtr, sizeofStructTimespec) // Allocate buffer.
+	a.MoveReg(param1, a.StackPtr)                   // clock_gettime tp
 
-	a.SubtractImm(a.StackPtr, 16) // sizeof(struct timespec)
-	a.MoveReg(param1, a.StackPtr) // tp
-
-	macroStackVars(a, local3, scratch0)
+	macroStackVars(a, local0, scratch0)
 
 	if a.Arch == ga.AMD64 {
-		ga.AMD64.OrMem4BytesImm(a, local3.AMD64, 20, 1<<1) // suspend_bits; don't modify suspend reg.
+		ga.AMD64.OrMem4BytesImm(a, local0.AMD64, 20, 1<<1) // suspend_bits; don't modify suspend reg.
 
 		a.Push(wagStackLimit)
 		a.Push(wagTextBase)
@@ -771,13 +773,14 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) {
 
 	a.Load(scratch0, wagTextBase, -11*8) // clock_gettime library function
 	a.Call("trampoline")
+	a.MoveReg(local3, result)
 
 	if a.Arch == ga.AMD64 {
 		a.Pop(wagTextBase)
 		a.Pop(wagStackLimit)
 
 		a.MoveImm(scratch1, 0)
-		ga.AMD64.ExchangeMem4BytesReg(a, local3.AMD64, 20, scratch1.AMD64) // suspend_bits
+		ga.AMD64.ExchangeMem4BytesReg(a, local0.AMD64, 20, scratch1.AMD64) // suspend_bits
 		a.JumpIfBitNotSet(scratch1, 0, internalNamePrefix+"_not_suspended")
 
 		a.MoveImm64(scratch0, 0x4000000000000001) // Suspend calls and loops.
@@ -786,30 +789,35 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) {
 
 	a.Label(internalNamePrefix + "_not_suspended")
 
+	// Release buffer:
+	if sizeofStructTimespec != 8+8 {
+		panic("struct timespec size mismatch")
+	}
 	a.Pop(local1) // tv_sec
 	a.Pop(local2) // tv_nsec
 
 	a.MoveImm(param0, runtimeerrors.ERR_RT_CLOCK_GETTIME)
 	a.MoveImm(param1, -1) // Outrageous timestamp.
-	a.JumpIfImm(ga.NE, result, 0, ".exit_time")
+	a.JumpIfImm(ga.NE, local3, 0, ".exit_time")
 
 	a.Load(scratch0, wagTextBase, -9*8) // time_mask
 	a.AndReg(local2, scratch0)          // Imprecise tv_nsec.
 
 	// Convert tv_sec to nanoseconds in two steps to avoid unnecessary
 	// wrap-around due to signed multiplication.
-	a.MultiplyImm(result, local1, 500000000, scratch0) // 1000000000/(1<<1)
-	a.ShiftImm(ga.Left, result, 1)
-	a.AddReg(result, result, local2) // Total nanoseconds.
+	a.MultiplyImm(local3, local1, 500000000, scratch0) // 1000000000/(1<<1)
+	a.ShiftImm(ga.Left, local3, 1)
+	a.AddReg(result, local3, local2) // Total nanoseconds.
+}
 
-	a.JumpIfImm(ga.NE, local0, unix.CLOCK_MONOTONIC_COARSE, internalNamePrefix+"_got_time")
+func macroTimeFixMonotonic(a *ga.Assembly) {
+	// result = timestamp
+	// local0 = stack vars
 
 	a.Load(scratch0, wagTextBase, -10*8) // local_monotonic_time_base
 	a.SubtractReg(result, scratch0)
-	a.Load(scratch0, local3, 8) // monotonic_time_snapshot
+	a.Load(scratch0, local0, 8) // monotonic_time_snapshot
 	a.AddReg(result, result, scratch0)
-
-	a.Label(internalNamePrefix + "_got_time")
 }
 
 func macroDebug8(a *ga.Assembly, r ga.Reg) {

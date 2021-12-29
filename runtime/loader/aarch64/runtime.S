@@ -157,12 +157,11 @@ signal_restorer:
 
 trap_handler:
 	str	lr, [x29, -8]!
-	mov	x0, x2
-	cmp	x0, 0
+	cmp	x2, 0
 	b.eq	.Ltrap_exit
-	cmp	x0, 4
+	cmp	x2, 4
 	b.eq	.Ltrap_call_stack_exhausted
-	add	x0, x0, 100
+	add	x0, x2, 100
 	b	.Lexit
 
 .Ltrap_exit:
@@ -176,8 +175,10 @@ trap_handler:
 	str	x0, [x11, 32]
 	fmov	x9, d0
 	str	x9, [x11, 40]
-	cmp	x0, 0
-	b.ne	.Lexit_failure
+	movz	x0, 1, lsl #0
+	cmp	x2, 0
+	b.ne	.Lexit
+	mov	x0, 0
 	b	.Lexit
 
 .Ltrap_call_stack_exhausted:
@@ -223,12 +224,12 @@ grow_memory:
 	ldr	x9, [x27, -40]
 	cmp	x13, x9
 	b.gt	.Lout_of_memory
-	ldr	x0, [x27, -32]
-	mov	x14, x12
-	lsl	x14, x14, 16
-	add	x0, x0, x14
 	mov	x1, x0
 	lsl	x1, x1, 16
+	ldr	x0, [x27, -32]
+	mov	x9, x12
+	lsl	x9, x9, 16
+	add	x0, x0, x9
 	movz	x2, 3, lsl #0
 	mov	w8, 226
 	svc	0
@@ -393,7 +394,7 @@ rt_read:
 	b.ge	.Lresume
 	cmp	x0, -11
 	b.eq	.Lresume_zero
-	cmp	x0, -11
+	cmp	x0, -4
 	b.eq	.Lresume_zero
 	movz	x0, 4, lsl #0
 	b	.Lexit
@@ -431,7 +432,7 @@ rt_write:
 	b.gt	.Lresume
 	cmp	x0, -11
 	b.eq	.Lresume_zero
-	cmp	x0, -11
+	cmp	x0, -4
 	b.eq	.Lresume_zero
 	movz	x0, 5, lsl #0
 	b	.Lexit
@@ -446,41 +447,40 @@ rt_write:
 rt_time:
 	str	lr, [x29, -8]!
 	ldr	w0, [x29, 8]
-	mov	x11, x0
 	sub	x29, x29, 16
 	mov	x1, x29
-	mov	x14, x28
+	mov	x11, x28
 	movn	x9, 1, lsl #0
 	movk	x9, 49151, lsl #48
-	and	x14, x14, x9
-	lsl	x14, x14, 4
+	and	x11, x11, x9
+	lsl	x11, x11, 4
 	mov	x9, GATE_STACK_LIMIT_OFFSET
-	sub	x14, x14, x9
+	sub	x11, x11, x9
 	ldr	x9, [x27, -88]
 	bl	trampoline
+	mov	x14, x0
 
 .Lrt_time_not_suspended:
 	ldr	x12, [x29], 8
 	ldr	x13, [x29], 8
 	movz	x0, 9, lsl #0
 	mov	x1, -1
-	cmp	x0, 0
+	cmp	x14, 0
 	b.ne	.Lexit_time
 	ldr	x9, [x27, -72]
 	and	x13, x13, x9
 	movz	x9, 25856, lsl #0
 	movk	x9, 7629, lsl #16
-	mul	x0, x12, x9
-	lsl	x0, x0, 1
-	add	x0, x0, x13
-	cmp	x11, 6
-	b.ne	.Lrt_time_got_time
+	mul	x14, x12, x9
+	lsl	x14, x14, 1
+	add	x0, x14, x13
+	ldr	w9, [x29, 8]
+	cmp	x9, 6
+	b.ne	.Lresume
 	ldr	x9, [x27, -80]
 	sub	x0, x0, x9
-	ldr	x9, [x14, 8]
+	ldr	x9, [x11, 8]
 	add	x0, x0, x9
-
-.Lrt_time_got_time:
 	b	.Lresume
 
 .globl	rt_timemask
@@ -527,41 +527,37 @@ rt_trap:
 .Lexit:
 	str	x0, [x29, -8]!
 	movz	x0, 6, lsl #0
-	mov	x11, x0
 	sub	x29, x29, 16
 	mov	x1, x29
-	mov	x14, x28
+	mov	x11, x28
 	movn	x9, 1, lsl #0
 	movk	x9, 49151, lsl #48
-	and	x14, x14, x9
-	lsl	x14, x14, 4
+	and	x11, x11, x9
+	lsl	x11, x11, 4
 	mov	x9, GATE_STACK_LIMIT_OFFSET
-	sub	x14, x14, x9
+	sub	x11, x11, x9
 	ldr	x9, [x27, -88]
 	bl	trampoline
+	mov	x14, x0
 
 .Lrt_trap_not_suspended:
 	ldr	x12, [x29], 8
 	ldr	x13, [x29], 8
 	movz	x0, 9, lsl #0
 	mov	x1, -1
-	cmp	x0, 0
+	cmp	x14, 0
 	b.ne	.Lexit_time
 	ldr	x9, [x27, -72]
 	and	x13, x13, x9
 	movz	x9, 25856, lsl #0
 	movk	x9, 7629, lsl #16
-	mul	x0, x12, x9
-	lsl	x0, x0, 1
-	add	x0, x0, x13
-	cmp	x11, 6
-	b.ne	.Lrt_trap_got_time
+	mul	x14, x12, x9
+	lsl	x14, x14, 1
+	add	x0, x14, x13
 	ldr	x9, [x27, -80]
 	sub	x0, x0, x9
-	ldr	x9, [x14, 8]
+	ldr	x9, [x11, 8]
 	add	x0, x0, x9
-
-.Lrt_trap_got_time:
 	ldr	x0, [x29], 8
 	mov	x1, x0
 
@@ -585,10 +581,6 @@ sys_exit:
 	mov	w8, 94
 	svc	0
 	brk	0
-
-.Lexit_failure:
-	movz	x0, 1, lsl #0
-	b	.Lexit
 
 .globl	rt_debug
 .type	rt_debug,@function
@@ -653,9 +645,11 @@ rt_read8:
 	mov	w8, 63
 	svc	0
 	mov	x12, x0
-	ldr	x11, [x29], 8
 	cmp	x12, -11
 	b.eq	.Lread8_retry
+	cmp	x12, -4
+	b.eq	.Lread8_retry
+	ldr	x11, [x29], 8
 	movz	x0, 4, lsl #0
 	cmp	x12, 8
 	b.ne	.Lexit
@@ -667,6 +661,8 @@ rt_read8:
 
 rt_write8:
 	str	lr, [x29, -8]!
+
+.Lwrite8_retry:
 	movz	x0, 1, lsl #0
 	add	x1, x29, 8
 	movz	x2, 8, lsl #0
@@ -674,5 +670,9 @@ rt_write8:
 	svc	0
 	cmp	x0, 8
 	b.eq	.Lresume_zero
+	cmp	x0, -11
+	b.eq	.Lwrite8_retry
+	cmp	x0, -4
+	b.eq	.Lwrite8_retry
 	movz	x0, 5, lsl #0
 	b	.Lexit

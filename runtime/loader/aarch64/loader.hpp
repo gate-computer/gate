@@ -39,7 +39,7 @@ void enter(
 	uintptr_t init_routine)
 {
 	uintptr_t link_ptr = 0;
-	if ((uintptr_t(init_routine) & 0x7f) == 0x20) { // Resume routine
+	if ((uintptr_t(init_routine) & 0xff) == 0x20) { // Resume routine
 		link_ptr = *reinterpret_cast<uintptr_t*>(stack_ptr);
 		stack_ptr = reinterpret_cast<uintptr_t*>(stack_ptr) + 1;
 	}

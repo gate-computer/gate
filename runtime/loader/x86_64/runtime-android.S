@@ -132,12 +132,11 @@ signal_restorer:
 .type	trap_handler,@function
 
 trap_handler:
-	mov	rdi, rdx
-	test	rdi, rdi
+	test	rdx, rdx
 	je	.Ltrap_exit
-	cmp	rdi, 4
+	cmp	rdx, 4
 	je	.Ltrap_call_stack_exhausted
-	add	rdi, 100
+	lea	rdi, [rdx + 100]
 	jmp	.Lexit
 
 .Ltrap_exit:
@@ -149,8 +148,10 @@ trap_handler:
 	mov	[rbp + 32], rax
 	movq	r9, xmm0
 	mov	[rbp + 40], r9
-	test	rdi, rdi
-	jne	.Lexit_failure
+	mov	edi, 1
+	test	rdx, rdx
+	jne	.Lexit
+	xor	edi, edi
 	jmp	.Lexit
 
 .Ltrap_call_stack_exhausted:
@@ -201,7 +202,8 @@ grow_memory:
 	xor	r10d, r10d
 	mov	eax, 25
 	syscall
-	cmp	rax, rdi
+	mov	r9, [r15 - 32]
+	cmp	rax, r9
 	jne	.Lgrow_memory_error
 	mov	[rbp + 4], r13d
 
@@ -354,7 +356,7 @@ rt_read:
 	jge	.Lresume
 	cmp	rax, -11
 	je	.Lresume_zero
-	cmp	rax, -11
+	cmp	rax, -4
 	je	.Lresume_zero
 	mov	edi, 4
 	jmp	.Lexit
@@ -390,7 +392,7 @@ rt_write:
 	jg	.Lresume
 	cmp	rax, -11
 	je	.Lresume_zero
-	cmp	rax, -11
+	cmp	rax, -4
 	je	.Lresume_zero
 	mov	edi, 5
 	jmp	.Lexit
@@ -405,23 +407,23 @@ rt_write:
 
 rt_time:
 	mov	edi, [rsp + 8]
-	mov	rbp, rdi
 	sub	rsp, 16
 	mov	rsi, rsp
-	mov	r14, rbx
+	mov	rbp, rbx
 	mov	r9, 13835058055282163710
-	and	r14, r9
+	and	rbp, r9
 	mov	r9, GATE_STACK_LIMIT_OFFSET
-	sub	r14, r9
-	or	dword ptr [r14 + 20], 2
+	sub	rbp, r9
+	or	dword ptr [rbp + 20], 2
 	push	rbx
 	push	r15
 	mov	r9, [r15 - 88]
 	call	trampoline
+	mov	r14, rax
 	pop	r15
 	pop	rbx
 	xor	r8d, r8d
-	xchg	[r14 + 20], r8d
+	xchg	[rbp + 20], r8d
 	test	r8d, 1
 	je	.Lrt_time_not_suspended
 	mov	r9, 4611686018427387905
@@ -432,21 +434,20 @@ rt_time:
 	pop	r13
 	mov	edi, 9
 	mov	esi, -1
-	test	rax, rax
+	test	r14, r14
 	jne	.Lexit_time
 	mov	r9, [r15 - 72]
 	and	r13, r9
-	imul	rax, r12, 500000000
-	shl	rax, 1
-	add	rax, r13
-	cmp	rbp, 6
-	jne	.Lrt_time_got_time
+	imul	r14, r12, 500000000
+	shl	r14, 1
+	lea	rax, [r14 + r13]
+	mov	r9d, [rsp + 8]
+	cmp	r9, 6
+	jne	.Lresume
 	mov	r9, [r15 - 80]
 	sub	rax, r9
-	mov	r9, [r14 + 8]
+	mov	r9, [rbp + 8]
 	add	rax, r9
-
-.Lrt_time_got_time:
 	jmp	.Lresume
 
 .align	16,0xcc
@@ -491,23 +492,23 @@ rt_trap:
 .Lexit:
 	push	rdi
 	mov	edi, 6
-	mov	rbp, rdi
 	sub	rsp, 16
 	mov	rsi, rsp
-	mov	r14, rbx
+	mov	rbp, rbx
 	mov	r9, 13835058055282163710
-	and	r14, r9
+	and	rbp, r9
 	mov	r9, GATE_STACK_LIMIT_OFFSET
-	sub	r14, r9
-	or	dword ptr [r14 + 20], 2
+	sub	rbp, r9
+	or	dword ptr [rbp + 20], 2
 	push	rbx
 	push	r15
 	mov	r9, [r15 - 88]
 	call	trampoline
+	mov	r14, rax
 	pop	r15
 	pop	rbx
 	xor	r8d, r8d
-	xchg	[r14 + 20], r8d
+	xchg	[rbp + 20], r8d
 	test	r8d, 1
 	je	.Lrt_trap_not_suspended
 	mov	r9, 4611686018427387905
@@ -518,21 +519,17 @@ rt_trap:
 	pop	r13
 	mov	edi, 9
 	mov	esi, -1
-	test	rax, rax
+	test	r14, r14
 	jne	.Lexit_time
 	mov	r9, [r15 - 72]
 	and	r13, r9
-	imul	rax, r12, 500000000
-	shl	rax, 1
-	add	rax, r13
-	cmp	rbp, 6
-	jne	.Lrt_trap_got_time
+	imul	r14, r12, 500000000
+	shl	r14, 1
+	lea	rax, [r14 + r13]
 	mov	r9, [r15 - 80]
 	sub	rax, r9
-	mov	r9, [r14 + 8]
+	mov	r9, [rbp + 8]
 	add	rax, r9
-
-.Lrt_trap_got_time:
 	pop	rdi
 	mov	rsi, rax
 
@@ -555,10 +552,6 @@ sys_exit:
 	mov	eax, 231
 	syscall
 	int3
-
-.Lexit_failure:
-	mov	edi, 1
-	jmp	.Lexit
 
 .align	16,0xcc
 .globl	rt_debug
@@ -621,9 +614,11 @@ rt_read8:
 	xor	eax, eax
 	syscall
 	mov	r12, rax
-	pop	rbp
 	cmp	r12, -11
 	je	.Lread8_retry
+	cmp	r12, -4
+	je	.Lread8_retry
+	pop	rbp
 	mov	edi, 4
 	cmp	r12, 8
 	jne	.Lexit
@@ -635,6 +630,8 @@ rt_read8:
 .type	rt_write8,@function
 
 rt_write8:
+
+.Lwrite8_retry:
 	mov	edi, 1
 	lea	rsi, [rsp + 8]
 	mov	edx, 8
@@ -642,5 +639,9 @@ rt_write8:
 	syscall
 	cmp	rax, 8
 	je	.Lresume_zero
+	cmp	rax, -11
+	je	.Lwrite8_retry
+	cmp	rax, -4
+	je	.Lwrite8_retry
 	mov	edi, 5
 	jmp	.Lexit
