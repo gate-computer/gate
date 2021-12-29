@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime"
 	"syscall"
 
 	"gate.computer/gate/internal/error/notfound"
@@ -406,10 +407,13 @@ func (inst *Instance) ReplaceCallStack(funcAddr uint32, funcArgs []uint64) error
 	}
 
 	count := 1 + 1 + len(funcArgs) // Resume address, link address and params.
-	if count&1 == 1 {
-		count++ // 16-byte aligned for good luck.
-	}
 	stack := make([]byte, count*8)
+
+	if runtime.GOARCH == "arm64" {
+		// Resume after first instruction of function prologue, to avoid
+		// storing link register back on stack.
+		funcAddr += 4
+	}
 
 	b := stack
 	binary.LittleEndian.PutUint64(b, textAddr+uint64(funcAddr)) // Resume at function start.
