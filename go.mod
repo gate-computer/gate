@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	gate.computer/ga v0.0.0-20211218044256-b13e95063354
-	gate.computer/wag v0.33.1-0.20211221154506-5a8a3a0740ab
+	gate.computer/wag v0.33.1-0.20211229160117-806f98c36584
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/coreos/go-systemd/v22 v22.3.0
 	github.com/godbus/dbus/v5 v5.0.3
@@ -20,7 +20,7 @@ require (
 	google.golang.org/protobuf v1.25.0
 	import.name/confi v1.6.0
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
-	import.name/pan v0.1.0
+	import.name/pan v0.1.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.49
 	modernc.org/sqlite v1.10.4
 )
