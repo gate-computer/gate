@@ -22,10 +22,10 @@ struct sys_sigaction {
 	sigset_t mask;
 };
 
-void* memset(void* s, int c, size_t n)
+extern "C" void* memset(void* s, int c, size_t n)
 {
 	for (size_t i = 0; i < n; i++)
-		((uint8_t*) s)[i] = c;
+		reinterpret_cast<uint8_t*>(s)[i] = c;
 	return s;
 }
 
@@ -108,7 +108,7 @@ static void scan(uint64_t addr, uint64_t step)
 #endif
 
 		scan_addr = addr;
-		*(volatile uint64_t*) addr; // read memory
+		*reinterpret_cast<uint64_t volatile*>(addr); // read memory
 		addr += step;
 	}
 }
