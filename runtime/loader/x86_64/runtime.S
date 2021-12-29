@@ -13,8 +13,9 @@ runtime_init:
 	mov	esi, 65536
 	mov	eax, 11
 	syscall
+	mov	rbp, rax
 	mov	edi, 34
-	test	rax, rax
+	test	rbp, rbp
 	jne	sys_exit
 	mov	r9, .Lseccomp_filter_len
 	lea	r8, [rip + .Lseccomp_filter]
@@ -26,9 +27,10 @@ runtime_init:
 	xor	esi, esi
 	mov	eax, 317
 	syscall
+	mov	rbp, rax
 	add	rsp, 16
 	mov	edi, 35
-	test	rax, rax
+	test	rbp, rbp
 	jne	sys_exit
 
 .align	16,0x90
@@ -279,17 +281,18 @@ rt_poll:
 	xor	r9d, r9d
 	mov	r8d, 1
 	sub	rsp, 16
-	mov	rdi, rsp
-	mov	[rdi], r9d
-	mov	[rdi + 4], ebp
-	mov	[rdi + 8], r8d
-	mov	[rdi + 12], r12d
+	mov	r13, rsp
+	mov	[r13], r9d
+	mov	[r13 + 4], ebp
+	mov	[r13 + 8], r8d
+	mov	[r13 + 12], r12d
+	mov	rdi, r13
 	mov	esi, 2
 	xor	r10d, r10d
 	mov	eax, 271
 	syscall
-	mov	ebp, [rdi + 4]
-	mov	r12d, [rdi + 12]
+	mov	ebp, [r13 + 4]
+	mov	r12d, [r13 + 12]
 	add	rsp, 16
 	cmp	rax, 0
 	jge	.Lpoll_revents
@@ -618,11 +621,12 @@ rt_read8:
 	mov	edx, 8
 	xor	eax, eax
 	syscall
+	mov	r12, rax
 	pop	rbp
-	cmp	rax, -11
+	cmp	r12, -11
 	je	.Lread8_retry
 	mov	edi, 4
-	cmp	rax, 8
+	cmp	r12, 8
 	jne	.Lexit
 	mov	rax, rbp
 	jmp	.Lresume
@@ -637,7 +641,7 @@ rt_write8:
 	mov	edx, 8
 	mov	eax, 1
 	syscall
-	mov	edi, 5
 	cmp	rax, 8
-	jne	.Lexit
-	jmp	.Lresume_zero
+	je	.Lresume_zero
+	mov	edi, 5
+	jmp	.Lexit

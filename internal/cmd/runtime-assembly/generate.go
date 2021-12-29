@@ -180,9 +180,10 @@ func funcRuntimeInit(a *ga.Assembly) {
 		a.MoveDef(param0, "GATE_LOADER_ADDR")
 		a.MoveImm(param1, 65536) // munmap length
 		a.Syscall(linux.SYS_MUNMAP)
+		a.MoveReg(local0, result)
 
 		a.MoveImm(param0, runtimeerrors.ERR_LOAD_MUNMAP_LOADER)
-		a.JumpIfImm(ga.NE, result, 0, "sys_exit")
+		a.JumpIfImm(ga.NE, local0, 0, "sys_exit")
 	}
 
 	// Build sock_fprog structure on stack and enable seccomp.
@@ -198,11 +199,12 @@ func funcRuntimeInit(a *ga.Assembly) {
 		a.MoveImm(param0, SECCOMP_SET_MODE_FILTER) // seccomp operation
 		a.MoveImm(param1, 0)                       // seccomp flags
 		a.Syscall(linux.SYS_SECCOMP)
+		a.MoveReg(local0, result)
 
 		a.AddImm(a.StackPtr, a.StackPtr, sizeofStructSockFprog) // Release buffer.
 
 		a.MoveImm(param0, runtimeerrors.ERR_LOAD_SECCOMP)
-		a.JumpIfImm(ga.NE, result, 0, "sys_exit")
+		a.JumpIfImm(ga.NE, local0, 0, "sys_exit")
 	}
 
 	a.Label("runtime_init_no_sandbox")
@@ -472,18 +474,19 @@ func funcRtPoll(a *ga.Assembly) {
 
 		fdsSize := sizeofStructPollfd * 2
 		a.SubtractImm(a.StackPtr, fdsSize) // Allocate buffer.
-		a.MoveReg(param0, a.StackPtr)      // ppoll fds
-		a.Store4Bytes(param0, 0, scratch0) // fds[0].fd
-		a.Store4Bytes(param0, 4, local0)   // fds[0].events
-		a.Store4Bytes(param0, 8, scratch1) // fds[1].fd
-		a.Store4Bytes(param0, 12, local1)  // fds[1].events
+		a.MoveReg(local2, a.StackPtr)
+		a.Store4Bytes(local2, 0, scratch0) // fds[0].fd
+		a.Store4Bytes(local2, 4, local0)   // fds[0].events
+		a.Store4Bytes(local2, 8, scratch1) // fds[1].fd
+		a.Store4Bytes(local2, 12, local1)  // fds[1].events
 
-		a.MoveImm(param1, 2)    // ppoll nfds
-		a.MoveImm(sysparam3, 0) // ppoll sigmask
+		a.MoveReg(param0, local2) // ppoll fds
+		a.MoveImm(param1, 2)      // ppoll nfds
+		a.MoveImm(sysparam3, 0)   // ppoll sigmask
 		a.Syscall(linux.SYS_PPOLL)
 
-		a.Load4Bytes(local0, param0, 4)           // fds[0].events | (fds[0].revents << 16)
-		a.Load4Bytes(local1, param0, 12)          // fds[1].events | (fds[1].revents << 16)
+		a.Load4Bytes(local0, local2, 4)           // fds[0].events | (fds[0].revents << 16)
+		a.Load4Bytes(local1, local2, 12)          // fds[1].events | (fds[1].revents << 16)
 		a.AddImm(a.StackPtr, a.StackPtr, fdsSize) // Release buffer.
 
 		a.JumpIfImm(ga.GE, result, 0, ".poll_revents")
@@ -663,13 +666,14 @@ func funcRtRead8(a *ga.Assembly) {
 		a.MoveReg(param1, a.StackPtr) // buf
 		a.MoveImm(param2, 8)          // count
 		a.Syscall(linux.SYS_READ)
+		a.MoveReg(local1, result)
 
 		a.Pop(local0)
 
-		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".read8_retry")
+		a.JumpIfImm(ga.EQ, local1, -int(unix.EAGAIN), ".read8_retry")
 
 		a.MoveImm(param0, runtimeerrors.ERR_RT_READ)
-		a.JumpIfImm(ga.NE, result, 8, ".exit")
+		a.JumpIfImm(ga.NE, local1, 8, ".exit")
 
 		a.MoveReg(result, local0)
 		a.Jump(".resume")
@@ -685,10 +689,10 @@ func funcRtWrite8(a *ga.Assembly) {
 		a.MoveImm(param2, 8)            // count
 		a.Syscall(linux.SYS_WRITE)
 
-		a.MoveImm(param0, runtimeerrors.ERR_RT_WRITE)
-		a.JumpIfImm(ga.NE, result, 8, ".exit")
+		a.JumpIfImm(ga.EQ, result, 8, ".resume_zero")
 
-		a.Jump(".resume_zero")
+		a.MoveImm(param0, runtimeerrors.ERR_RT_WRITE)
+		a.Jump(".exit")
 	}
 }
 
@@ -820,9 +824,10 @@ func macroDebug8(a *ga.Assembly, r ga.Reg) {
 	a.MoveReg(param1, a.StackPtr) // buf
 	a.MoveImm(param2, 8)          // count
 	a.Syscall(linux.SYS_WRITE)
+	a.MoveReg(local0, result)
 
 	a.MoveImm(param0, runtimeerrors.ERR_RT_DEBUG)
-	a.JumpIfImm(ga.NE, result, 8, "sys_exit")
+	a.JumpIfImm(ga.NE, local0, 8, "sys_exit")
 
 	a.AddImm(a.StackPtr, a.StackPtr, 8) // Release buffer.
 

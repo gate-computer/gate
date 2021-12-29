@@ -10,8 +10,9 @@ runtime_init:
 	movz	x1, 1, lsl #16
 	mov	w8, 215
 	svc	0
+	mov	x11, x0
 	movz	x0, 34, lsl #0
-	cmp	x0, 0
+	cmp	x11, 0
 	b.ne	sys_exit
 	mov	x9, .Lseccomp_filter_len
 	adr	x8, .Lseccomp_filter
@@ -23,9 +24,10 @@ runtime_init:
 	mov	x1, 0
 	mov	w8, 277
 	svc	0
+	mov	x11, x0
 	add	x29, x29, 16
 	movz	x0, 35, lsl #0
-	cmp	x0, 0
+	cmp	x11, 0
 	b.ne	sys_exit
 
 .globl	runtime_init_no_sandbox
@@ -315,17 +317,18 @@ rt_poll:
 	mov	x9, 0
 	movz	x8, 1, lsl #0
 	sub	x29, x29, 16
-	mov	x0, x29
-	str	w9, [x0, 0]
-	str	w11, [x0, 4]
-	str	w8, [x0, 8]
-	str	w12, [x0, 12]
+	mov	x13, x29
+	str	w9, [x13, 0]
+	str	w11, [x13, 4]
+	str	w8, [x13, 8]
+	str	w12, [x13, 12]
+	mov	x0, x13
 	movz	x1, 2, lsl #0
 	mov	x3, 0
 	mov	w8, 73
 	svc	0
-	ldr	w11, [x0, 4]
-	ldr	w12, [x0, 12]
+	ldr	w11, [x13, 4]
+	ldr	w12, [x13, 12]
 	add	x29, x29, 16
 	cmp	x0, 0
 	b.ge	.Lpoll_revents
@@ -649,11 +652,12 @@ rt_read8:
 	movz	x2, 8, lsl #0
 	mov	w8, 63
 	svc	0
+	mov	x12, x0
 	ldr	x11, [x29], 8
-	cmp	x0, -11
+	cmp	x12, -11
 	b.eq	.Lread8_retry
 	movz	x0, 4, lsl #0
-	cmp	x0, 8
+	cmp	x12, 8
 	b.ne	.Lexit
 	mov	x0, x11
 	b	.Lresume
@@ -668,7 +672,7 @@ rt_write8:
 	movz	x2, 8, lsl #0
 	mov	w8, 64
 	svc	0
-	movz	x0, 5, lsl #0
 	cmp	x0, 8
-	b.ne	.Lexit
-	b	.Lresume_zero
+	b.eq	.Lresume_zero
+	movz	x0, 5, lsl #0
+	b	.Lexit
