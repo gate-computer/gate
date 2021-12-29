@@ -29,7 +29,7 @@ can be added easily, and available services are discovered at run time.  See
 ## Building blocks
 
 Gate appears as [Go](https://golang.org) packages and programs.  The execution
-mechanism is implemented in C and assembly.  It is highly Linux-dependent.
+mechanism is implemented in C++ and assembly.  It is highly Linux-dependent.
 x86-64 and ARM64 are supported.
 
 Important Go packages:
@@ -169,12 +169,12 @@ install them separately.
 Build requirements:
 
   - Linux
-  - C compiler
+  - C++ compiler
   - Go compiler
   - protobuf-compiler
   - libprotobuf-dev
 
-The components implemented with C and assembly can be built using `make`.
+The components implemented with C++ and assembly can be built using `make`.
 `make bin` builds the Go programs without bundling the non-Go components in
 them.
 
