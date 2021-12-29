@@ -5,19 +5,24 @@
 package gate_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"io/ioutil"
+	"strings"
 )
 
 var (
-	wasmABI        = readFile("testdata/abi.wasm")
-	wasmHello      = readFile("testdata/hello.wasm")
-	wasmHelloDebug = readFile("testdata/hello-debug.wasm")
-	wasmNop        = readFile("testdata/nop.wasm")
-	wasmRandomSeed = readFile("testdata/randomseed.wasm")
-	wasmSuspend    = readFile("testdata/suspend.wasm")
-	wasmTime       = readFile("testdata/time.wasm")
+	wasmABI           = readFile("testdata/abi.wasm")
+	wasmHello         = readFile("testdata/hello.wasm")
+	wasmHelloDebug    = readFile("testdata/hello-debug.wasm")
+	wasmNop           = readFile("testdata/nop.wasm")
+	wasmRandomSeed    = readFile("testdata/randomseed.wasm")
+	wasmSnapshotAMD64 = readFile("testdata/snapshot.amd64.wasm.gz")
+	wasmSnapshotARM64 = readFile("testdata/snapshot.arm64.wasm.gz")
+	wasmSuspend       = readFile("testdata/suspend.wasm")
+	wasmTime          = readFile("testdata/time.wasm")
 )
 
 var (
@@ -26,12 +31,31 @@ var (
 	hashSuspend = sha256hex(wasmSuspend)
 )
 
-func readFile(filename string) (data []byte) {
+func readFile(filename string) []byte {
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
-	return
+
+	if !strings.HasSuffix(filename, ".gz") {
+		return data
+	}
+
+	r, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		panic(err)
+	}
+
+	data, err = ioutil.ReadAll(r)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := r.Close(); err != nil {
+		panic(err)
+	}
+
+	return data
 }
 
 func sha256hex(data []byte) string {

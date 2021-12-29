@@ -925,6 +925,32 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 	}
 }
 
+func TestResumeSnapshot(t *testing.T) {
+	handler := newHandler(t)
+	pri := newPrincipalKey()
+
+	test := func(t *testing.T, snapshot []byte) {
+		req := newSignedRequest(pri, http.MethodPut, api.PathKnownModules+sha256hex(snapshot)+"?action=launch&log=*", snapshot)
+		req.Header.Set(api.HeaderContentType, api.ContentTypeWebAssembly)
+		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
+		id := resp.Header.Get(api.HeaderInstance)
+
+		if testing.Verbose() {
+			time.Sleep(time.Second)
+		}
+
+		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+id+"?action=kill&action=wait", nil)
+		resp, _ = checkResponse(t, handler, req, http.StatusNoContent)
+
+		checkStatusHeader(t, resp.Header.Get(api.HeaderStatus), api.Status{
+			State: api.StateKilled,
+		})
+	}
+
+	t.Run("amd64", func(t *testing.T) { test(t, wasmSnapshotAMD64) })
+	t.Run("arm64", func(t *testing.T) { test(t, wasmSnapshotARM64) })
+}
+
 func TestInstance(t *testing.T) {
 	handler := newHandler(t)
 	pri := newPrincipalKey()

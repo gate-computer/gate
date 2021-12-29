@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -528,7 +529,9 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	exit, trapID, err := proc.Serve(ctx, serviceRegistry{}, nil)
+	var buffers snapshot.Buffers
+
+	exit, trapID, err := proc.Serve(ctx, serviceRegistry{}, &buffers)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else if trapID == 0 {
@@ -553,6 +556,25 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 
 		if len(trace) > 0 {
 			stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
+		}
+	}
+
+	if false {
+		prog2, err := image.Snapshot(prog, inst, buffers, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer prog2.Close()
+
+		data, err := ioutil.ReadAll(prog2.NewModuleReader())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		filename := fmt.Sprintf("testdata/%s.%s.wasm", t.Name(), goruntime.GOARCH)
+
+		if err := ioutil.WriteFile(filename, data, 0644); err != nil {
+			t.Fatal(err)
 		}
 	}
 }
