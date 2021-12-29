@@ -6,6 +6,7 @@ package web
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -24,6 +25,7 @@ type Config struct {
 	NonceStorage  NonceChecker
 	ModuleSources map[string]server.Source
 	NewRequestID  func(*http.Request) uint64
+	NewDebugLog   func() io.WriteCloser
 }
 
 func (c *Config) Configured() bool {

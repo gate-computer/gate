@@ -534,9 +534,9 @@ func handlePutKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			popOptionalLastLogParam(w, r, s, query)
+			log := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleLaunchUpload(w, r, s, pin, key, function, instance, modTags, instTags, suspend)
+			handleLaunchUpload(w, r, s, pin, key, function, instance, modTags, instTags, suspend, log)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -1161,7 +1161,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	}
 }
 
-func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pin bool, key, function, instance string, modTags, instTags []string, suspend bool) {
+func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pin bool, key, function, instance string, modTags, instTags []string, suspend, log bool) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -1176,7 +1176,17 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pi
 	upload := moduleUpload(mustDecodeContent(ctx, wr, s), r.ContentLength, key)
 	defer upload.Close()
 
-	inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, nil)
+	invoke := new(server.InvokeOptions)
+	if log && s.NewDebugLog != nil {
+		invoke.DebugLog = s.NewDebugLog()
+		defer func() {
+			if invoke.DebugLog != nil {
+				invoke.DebugLog.Close()
+			}
+		}()
+	}
+
+	inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return

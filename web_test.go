@@ -76,6 +76,12 @@ func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int) (io.Rea
 	}
 }
 
+type debugLog struct{}
+
+func newDebugLog() io.WriteCloser            { return debugLog{} }
+func (debugLog) Write(b []byte) (int, error) { return os.Stdout.Write(b) }
+func (debugLog) Close() error                { return nil }
+
 var nonceChecker database.NonceChecker
 
 func init() {
@@ -126,6 +132,7 @@ func newHandler(t *testing.T) http.Handler {
 		Origins:       []string{"null"},
 		NonceStorage:  nonceChecker,
 		ModuleSources: map[string]server.Source{"/test": helloSource{}},
+		NewDebugLog:   newDebugLog,
 	}
 
 	h := web.NewHandler("/", config)
@@ -936,7 +943,7 @@ func TestResumeSnapshot(t *testing.T) {
 		id := resp.Header.Get(api.HeaderInstance)
 
 		if testing.Verbose() {
-			time.Sleep(time.Second)
+			time.Sleep(time.Second * 3)
 		}
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+id+"?action=kill&action=wait", nil)
