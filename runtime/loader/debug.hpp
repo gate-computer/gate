@@ -12,80 +12,12 @@
 
 #include "syscall.hpp"
 
-#define debug_generic_func(x) _Generic((x), /* clang-format off */ \
-		_Bool:                  debug_uint, \
-		signed char:            debug_int,  \
-		signed short int:       debug_int,  \
-		signed int:             debug_int,  \
-		signed long int:        debug_int,  \
-		signed long long int:   debug_int,  \
-		unsigned char:          debug_uint, \
-		unsigned short int:     debug_uint, \
-		unsigned int:           debug_uint, \
-		unsigned long int:      debug_uint, \
-		unsigned long long int: debug_uint, \
-		char const*:            debug_str,  \
-		char*:                  debug_str,  \
-		void const*:            debug_ptr,  \
-		void*:                  debug_ptr,  \
-		default:                debug_type_not_supported \
-	) /* clang-format on */
-
-#define debug1(a) \
-	do { \
-		debug_generic_func(a)(a); \
-	} while (0)
-
-#define debug2(a, b) \
-	do { \
-		debug_generic_func(a)(a); \
-		debug_generic_func(b)(b); \
-	} while (0)
-
-#define debug3(a, b, c) \
-	do { \
-		debug_generic_func(a)(a); \
-		debug_generic_func(b)(b); \
-		debug_generic_func(c)(c); \
-	} while (0)
-
-#define debug4(a, b, c, d) \
-	do { \
-		debug_generic_func(a)(a); \
-		debug_generic_func(b)(b); \
-		debug_generic_func(c)(c); \
-		debug_generic_func(d)(d); \
-	} while (0)
-
-#define debug5(a, b, c, d, e) \
-	do { \
-		debug_generic_func(a)(a); \
-		debug_generic_func(b)(b); \
-		debug_generic_func(c)(c); \
-		debug_generic_func(d)(d); \
-		debug_generic_func(e)(e); \
-	} while (0)
-
-#define debug6(a, b, c, d, e, f) \
-	do { \
-		debug_generic_func(a)(a); \
-		debug_generic_func(b)(b); \
-		debug_generic_func(c)(c); \
-		debug_generic_func(d)(d); \
-		debug_generic_func(e)(e); \
-		debug_generic_func(f)(f); \
-	} while (0)
-
-#define debug debug1
-
-void debug_type_not_supported(void); // No implementation.
-
 static inline void debug_data(void const* data, size_t size)
 {
 	syscall3(SYS_write, 2, uintptr_t(data), size);
 }
 
-static inline void debug_uint(uint64_t n)
+static inline void debug(uint64_t n)
 {
 	char buf[20];
 	int i = sizeof buf;
@@ -98,7 +30,7 @@ static inline void debug_uint(uint64_t n)
 	debug_data(buf + i, sizeof buf - i);
 }
 
-static inline void debug_int(int64_t n)
+static inline void debug(int64_t n)
 {
 	uint64_t u;
 
@@ -111,7 +43,7 @@ static inline void debug_int(int64_t n)
 		u = ~n + 1;
 	}
 
-	debug_uint(u);
+	debug(u);
 }
 
 static inline void debug_hex(uint64_t n)
@@ -133,13 +65,13 @@ static inline void debug_hex(uint64_t n)
 	debug_data(buf + i, sizeof buf - i);
 }
 
-static inline void debug_ptr(void const* ptr)
+static inline void debug(void const* ptr)
 {
 	debug_data("0x", 2);
 	debug_hex(uintptr_t(ptr));
 }
 
-static inline void debug_str(char const* s)
+static inline void debug(char const* s)
 {
 	size_t size = 0;
 
@@ -147,6 +79,18 @@ static inline void debug_str(char const* s)
 		size++;
 
 	debug_data(s, size);
+}
+
+static inline void debugln()
+{
+	debug("\n");
+}
+
+template <typename First, typename... Others>
+static inline void debugln(First first, Others... others)
+{
+	debug(first);
+	debugln(others...);
 }
 
 #endif
