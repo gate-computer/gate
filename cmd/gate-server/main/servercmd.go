@@ -33,6 +33,7 @@ import (
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/server/web/api"
+	"gate.computer/gate/server/web/router"
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
@@ -54,7 +55,6 @@ const (
 	DefaultImageVarDir     = "/var/lib/gate/image"
 	DefaultNet             = "tcp"
 	DefaultHTTPAddr        = "localhost:8080"
-	DefaultIndexStatus     = http.StatusNotFound
 	DefaultACMECacheDir    = "/var/cache/gate/acme"
 )
 
@@ -119,11 +119,6 @@ type Config struct {
 			Domains  []string
 			HTTPAddr string
 		}
-
-		Index struct {
-			Status   int
-			Location string
-		}
 	}
 
 	ACME struct {
@@ -158,7 +153,6 @@ func Main() {
 	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = DefaultNet
 	c.HTTP.Addr = DefaultHTTPAddr
-	c.HTTP.Index.Status = DefaultIndexStatus
 	c.ACME.CacheDir = DefaultACMECacheDir
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 
@@ -216,19 +210,20 @@ func Main() {
 		c.Server.Monitor = server.ErrorLogger(errLog)
 	}
 
+	mux := http.NewServeMux()
+	ctx := router.Context(context.Background(), mux)
+
 	var err error
-	c.Principal.Services, err = services.Init(context.Background(), &originConfig, errLog)
+	c.Principal.Services, err = services.Init(ctx, &originConfig, errLog)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 
-	critLog.Fatal(main2(critLog))
+	critLog.Fatal(main2(ctx, mux, critLog))
 }
 
-func main2(critLog *log.Logger) error {
+func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 	var err error
-
-	ctx := context.Background()
 
 	var (
 		executors   []*runtime.Executor
@@ -367,7 +362,9 @@ func main2(critLog *log.Logger) error {
 	if err != nil {
 		return err
 	}
-	handler := newHTTPSHandler(web.NewHandler("/", &c.HTTP.Config))
+
+	mux.Handle(api.Path, web.NewHandler("/", &c.HTTP.Config))
+	handler := newHTTPSHandler(mux)
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
@@ -466,44 +463,18 @@ func main2(critLog *log.Logger) error {
 	return httpServer.Serve(l)
 }
 
-func newHTTPSHandler(apihandler http.Handler) http.Handler {
+func newHTTPSHandler(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handle(w, r, apihandler)
+		w.Header().Set("Server", serverHeaderValue)
+		mux.ServeHTTP(w, r)
 	})
 }
 
 func newHTTPHandler() http.Handler {
-	apihandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", serverHeaderValue)
 		writeResponse(w, r, http.StatusMisdirectedRequest, "http not supported")
 	})
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		handle(w, r, apihandler)
-	})
-}
-
-func handle(w http.ResponseWriter, r *http.Request, apihandler http.Handler) {
-	w.Header().Set("Server", serverHeaderValue)
-
-	if strings.HasPrefix(r.URL.Path, api.Path) {
-		apihandler.ServeHTTP(w, r)
-		return
-	}
-
-	if c.HTTP.Index.Status == http.StatusNotFound || r.URL.Path != "/" {
-		writeResponse(w, r, http.StatusNotFound, "not found")
-		return
-	}
-
-	if r.Method == http.MethodGet || r.Method == http.MethodHead {
-		if s := c.HTTP.Index.Location; s != "" {
-			w.Header().Set(api.HeaderLocation, s)
-		}
-		w.WriteHeader(c.HTTP.Index.Status)
-		return
-	}
-
-	w.WriteHeader(http.StatusMethodNotAllowed)
 }
 
 func writeResponse(w http.ResponseWriter, r *http.Request, status int, message string) {
