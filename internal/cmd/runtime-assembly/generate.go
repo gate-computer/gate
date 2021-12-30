@@ -397,7 +397,7 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 			a.MoveReg(param1, result)
 			a.ShiftImm(ga.Left, param1, 16) // mprotect len
 
-			a.Load(param0, wagTextBase, -4*8)  // memory addr
+			a.Load(param0, wagTextBase, -4*8) // memory addr
 			a.MoveReg(scratch0, oldPages)
 			a.ShiftImm(ga.Left, scratch0, 16)  // old bytes
 			a.AddReg(param0, param0, scratch0) // mprotect addr

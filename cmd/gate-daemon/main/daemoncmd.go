@@ -43,8 +43,8 @@ import (
 	"gate.computer/wag/compile"
 	"github.com/coreos/go-systemd/v22/daemon"
 	dbus "github.com/godbus/dbus/v5"
-	"import.name/confi"
 	"google.golang.org/protobuf/proto"
+	"import.name/confi"
 	"import.name/pan"
 )
 

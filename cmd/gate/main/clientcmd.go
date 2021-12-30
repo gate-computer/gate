@@ -18,8 +18,8 @@ import (
 	"gate.computer/gate/internal"
 	"gate.computer/gate/internal/cmdconf"
 	gatescope "gate.computer/gate/scope"
-	"import.name/confi"
 	"golang.org/x/term"
+	"import.name/confi"
 	"import.name/pan"
 )
 
