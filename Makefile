@@ -1,7 +1,6 @@
 GO		?= go
 GOFMT		?= gofmt
 PROTOC		?= protoc
-PERFLOCK	?= perflock
 
 DESTDIR		:=
 PREFIX		:= /usr/local
@@ -10,9 +9,7 @@ LIBEXECDIR	= $(PREFIX)/lib/gate
 libexecprefix	= $(shell echo /$(LIBEXECDIR)/ | tr -s /)
 
 GEN_LIB_SOURCES := \
-	runtime/include/errors.hpp \
-	runtime/loader/aarch64/runtime.S \
-	runtime/loader/x86_64/runtime.S
+	runtime/include/errors.hpp
 
 GEN_BIN_SOURCES := \
 	internal/error/runtime/errors.go \
@@ -25,61 +22,28 @@ GEN_BIN_SOURCES := \
 	service/grpc/api/service.pb.go \
 	service/grpc/api/service_grpc.pb.go
 
-TAGS		:= gateexecdir
-
-BUILDFLAGS	= -tags="$(TAGS)" -ldflags="$(BUILDLDFLAGS)"
-BUILDLDFLAGS	= -X gate.computer/gate/runtime/container.ExecDir=$(LIBEXECDIR)
-
-TEST		:= .
-TESTFLAGS	= -tags="$(TAGS)" -ldflags="$(TESTLDFLAGS)" -run="$(TEST)" -count=1 -race
-TESTLDFLAGS	=
-ifneq ($(TEST),)
-TESTFLAGS	+= -v
-endif
-
-BENCH		:= .
-BENCHFLAGS	= -tags="$(TAGS)" -bench="$(BENCH)"
-
 -include config.mk
 include runtime/include/runtime.mk
 
 .PHONY: lib
 lib: $(GEN_LIB_SOURCES)
-	$(MAKE) -C runtime/executor
-	$(MAKE) -C runtime/loader
+	@ $(GO) run make.go lib
 
 .PHONY: bin
 bin: $(GEN_BIN_SOURCES)
-	$(GO) build $(BUILDFLAGS) -o bin/gate ./cmd/gate
-	$(GO) build $(BUILDFLAGS) -o bin/gate-daemon ./cmd/gate-daemon
-	$(GO) build $(BUILDFLAGS) -o bin/gate-runtime ./cmd/gate-runtime
-	$(GO) build $(BUILDFLAGS) -o bin/gate-server ./cmd/gate-server
-
-.PHONY: gen
-gen: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
+	@ $(GO) run make.go bin
 
 .PHONY: all
-all: lib bin
-	$(MAKE) -C runtime/loader/test
-	$(GO) build $(BUILDFLAGS) -o tmp/bin/test-grpc-service ./internal/test/grpc-service
+all: $(GEN_LIB_SOURCES) $(GEN_BIN_SOURCES)
+	@ $(GO) run make.go
 
 .PHONY: check
-check: all
-	$(GO) build -o /dev/null ./cmd/gate-librarian
-	$(GO) build -o /dev/null ./cmd/gate-resource
-	$(MAKE) -C runtime/loader/test check
-	GOARCH=amd64 $(GO) build -o /dev/null ./...
-	GOARCH=arm64 $(GO) build -o /dev/null ./...
-	GOOS=darwin $(GO) build -o /dev/null ./cmd/gate
-	GOOS=windows $(GO) build -o /dev/null ./cmd/gate
-	$(GO) vet ./...
-	$(GO) test $(TESTFLAGS) ./...
+check:
+	@ $(GO) run make.go check
 
 .PHONY: benchmark
-benchmark: lib bin
-	@ $(PERFLOCK) true
-	$(PERFLOCK) $(GO) test -run=- $(BENCHFLAGS) ./... | tee bench-new.txt
-	[ ! -e bench-old.txt ] || benchstat bench-old.txt bench-new.txt
+benchmark:
+	@ $(GO) run make.go --help
 
 .PHONY: install-lib
 install-lib:
@@ -110,15 +74,12 @@ install-systemd-user:
 	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/systemd/user/gate.service > $(PREFIX)/share/systemd/user/gate.service
 	sed "s,/usr/local/bin/,$(BINDIR)/,g" etc/dbus/services/computer.gate.Daemon.service > $(PREFIX)/share/dbus-1/services/computer.gate.Daemon.service
 
-internal/error/runtime/errors.go runtime/include/errors.hpp: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.cpp runtime/*/*/*.S internal/container/child/*.go internal/cmd/runtime-assembly/*.go)
+internal/error/runtime/errors.go runtime/include/errors.hpp: internal/cmd/runtime-errors/generate.go $(wildcard runtime/*/*.cpp runtime/*/*/*.S internal/container/child/*.go internal/make/runtime/assembly.go)
 	mkdir -p tmp
-	$(GO) run internal/cmd/runtime-errors/generate.go -- tmp/errors.go $(wildcard runtime/*/*.cpp runtime/*/*/*.hpp runtime/*/*.S runtime/*/*/*.S internal/container/child/*.go internal/cmd/runtime-assembly/*.go)
+	$(GO) run internal/cmd/runtime-errors/generate.go -- tmp/errors.go $(wildcard runtime/*/*.cpp runtime/*/*/*.hpp runtime/*/*.S runtime/*/*/*.S internal/container/child/*.go internal/make/runtime/assembly.go.go)
 	$(GOFMT) -w tmp/errors.go
 	test -s tmp/errors.go
 	mv tmp/errors.go internal/error/runtime/errors.go
-
-runtime/loader/aarch64/runtime.S runtime/loader/x86_64/runtime.S: internal/cmd/runtime-assembly/generate.go
-	$(GO) run internal/cmd/runtime-assembly/generate.go
 
 %.pb.go: %.proto go.mod
 	$(GO) build -o tmp/bin/protoc-gen-go google.golang.org/protobuf/cmd/protoc-gen-go
@@ -140,7 +101,4 @@ server/event/type.gen.go: server/event/event.pb.go internal/cmd/event-types/gene
 
 .PHONY: clean
 clean:
-	rm -rf bin lib tmp
-	$(MAKE) -C runtime/executor clean
-	$(MAKE) -C runtime/loader clean
-	$(MAKE) -C runtime/loader/test clean
+	@ $(GO) run make.go clean

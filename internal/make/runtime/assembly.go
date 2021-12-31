@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package runtime
 
 import (
 	"fmt"
@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"sort"
 
 	"gate.computer/ga"
 	"gate.computer/ga/linux"
@@ -18,7 +17,10 @@ import (
 	"gate.computer/gate/trap"
 	"gate.computer/wag/object/abi"
 	"golang.org/x/sys/unix"
+	"import.name/make"
 )
+
+const source = "internal/make/runtime/assembly.go"
 
 const (
 	verbose  = false
@@ -875,33 +877,46 @@ func maskOut(n uint32) int {
 	return int(int32(^n))
 }
 
-func main() {
-	sys := ga.Linux()
-	sys.StackPtr.ARM64 = ga.X29
+func Task() make.Task {
+	var (
+		dir      = "runtime/loader"
+		archs    = []string{"amd64", "arm64"}
+		machines = []string{"x86_64", "aarch64"}
+		variants = [][2]string{{"", "runtime.S"}, {"android", "runtime-android.S"}}
+	)
 
-	var names []string
-	for name := range ga.Archs {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	for _, archname := range []string{"amd64", "arm64"} {
-		for _, variant := range []string{"", "android"} {
-			arch := ga.Archs[archname]
-			asm := generate(arch, sys, variant)
-
-			filename := "runtime.S"
-			if variant != "" {
-				filename = fmt.Sprintf("runtime-%s.S", variant)
-			}
-			filename = path.Join("runtime", "loader", arch.Machine(), filename)
-
-			if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
-				fmt.Fprintf(os.Stderr, "%s: %v\n", archname, err)
-				os.Exit(1)
-			}
+	var conds []func() bool
+	for _, mach := range machines {
+		for _, variant := range variants {
+			filename := path.Join(dir, mach, variant[1])
+			conds = append(conds, make.Outdated(filename, source))
 		}
 	}
+
+	return make.If(
+		make.Any(conds...),
+		make.Func(func() error {
+			sys := ga.Linux()
+			sys.StackPtr.ARM64 = ga.X29
+
+			for _, archname := range archs {
+				for _, variant := range variants {
+					arch := ga.Archs[archname]
+
+					filename := path.Join(dir, arch.Machine(), variant[1])
+					fmt.Println("Making", filename)
+
+					asm := generate(arch, sys, variant[0])
+
+					if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
+						return fmt.Errorf("%s: %w", filename, err)
+					}
+				}
+			}
+
+			return nil
+		}),
+	)
 }
 
 const boilerplate = `
