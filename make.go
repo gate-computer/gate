@@ -47,14 +47,23 @@ func targets() (targets Tasks) {
 		LDFLAGS  = Fields(Getvar("LDFLAGS", ""))
 	)
 
-	runtimeErrors := runtimeerrors.Task(GOFMT)
+	targets.Add(Target("library",
+		Command(GO, "run", "./cmd/gate-librarian", "-v", "-go=abi", "runtime/abi/library.go", "--", "runtime/abi/library/compile.sh", "-c", "-o", "/dev/stdout")),
+	)
+
+	sources := Group(
+		protoTask(PROTOC, GO, ARCH),
+		eventtypes.Task(GOFMT),
+		runtimeerrors.Task(GOFMT),
+		runtimeassembly.Task(GO),
+	)
+
 	executor := targets.Add(Target("executor",
-		runtimeErrors,
+		sources,
 		executorTask(CXX, CPPFLAGS, CXXFLAGS, LDFLAGS)),
 	)
 	loader := targets.Add(Target("loader",
-		runtimeErrors,
-		runtimeassembly.Task(GO),
+		sources,
 		loaderTask(CXX, ARCH, CPPFLAGS, CXXFLAGS, LDFLAGS)),
 	)
 	lib := targets.Add(TargetDefault("lib",
@@ -62,18 +71,22 @@ func targets() (targets Tasks) {
 		loader,
 	))
 
-	goSources := Group(
-		protoTask(PROTOC, GO, ARCH),
-		runtimeerrors.Task(GOFMT),
-		eventtypes.Task(GOFMT),
+	targets.Add(Target("prebuild",
+		sources,
+		Command("./prebuild.sh")),
 	)
+
 	bin := targets.Add(TargetDefault("bin",
-		goSources,
+		sources,
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate", "./cmd/gate"),
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate-daemon", "./cmd/gate-daemon"),
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate-runtime", "./cmd/gate-runtime"),
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate-server", "./cmd/gate-server"),
 	))
+
+	targets.Add(Target("testdata",
+		Command("make", "-C", "testdata")),
+	)
 
 	targets.Add(Target("check",
 		targets.Add(Target("check/loader",
@@ -81,7 +94,7 @@ func targets() (targets Tasks) {
 			loaderTestTask(CXX, ARCH, CPPFLAGS, CXXFLAGS, LDFLAGS),
 		)),
 		targets.Add(Target("check/go",
-			goSources,
+			sources,
 			Command(GO, "vet", "./..."),
 			lib,
 			goTestTask(GO, ARCH, TAGS),
@@ -96,7 +109,6 @@ func targets() (targets Tasks) {
 
 	targets.Add(Target("benchmark",
 		lib,
-		goSources,
 		benchmarkTask(GO, TAGS),
 	))
 
