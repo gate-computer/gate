@@ -1,24 +1,23 @@
-# -*- encoding: utf-8 -*-
-
 # Copyright (c) 2017 Timo Savola. All rights reserved.
 # Use of this source code is governed by a BSD-style
 # license that can be found in the LICENSE file.
 
-import collections
-import ctypes
-import os
-import resource
-import struct
-import subprocess
+from collections import defaultdict
+from ctypes import CDLL, c_ulong
+from os import sysconf
+from resource import RLIMIT_STACK, setrlimit
+from struct import unpack
+from subprocess import PIPE, Popen
+from sys import argv
 
-ADDR_NO_RANDOMIZE = ctypes.c_ulong(0x0040000)
+ADDR_NO_RANDOMIZE = c_ulong(0x0040000)
 
 GATE_LOADER_STACK_SIZE = 12288  # Must match the definition in runtime/include/runtime.hpp
 
-page = os.sysconf("SC_PAGESIZE")
+page = sysconf("SC_PAGESIZE")
 assert (GATE_LOADER_STACK_SIZE % page) == 0
 
-libc = ctypes.CDLL("libc.so.6")
+libc = CDLL("libc.so.6")
 
 
 def preexec():
@@ -26,20 +25,17 @@ def preexec():
     if ret < 0:
         raise Exception(ret)
 
-    resource.setrlimit(resource.RLIMIT_STACK, (GATE_LOADER_STACK_SIZE, GATE_LOADER_STACK_SIZE))
+    setrlimit(RLIMIT_STACK, (GATE_LOADER_STACK_SIZE, GATE_LOADER_STACK_SIZE))
 
-
-argv = ["./stack"]
-envp = {}
 
 min_alloc = None
 max_alloc = None
 min_usage = None
 max_usage = None
-instances = collections.defaultdict(int)
+instances = defaultdict(int)
 
 for _ in range(10000):
-    proc = subprocess.Popen(argv, stdout=subprocess.PIPE, preexec_fn=preexec, env=envp)
+    proc = Popen(argv[1:], stdout=PIPE, preexec_fn=preexec, env={})
     output = proc.stdout.read()
     code = proc.wait()
     if code != 0:
@@ -47,7 +43,7 @@ for _ in range(10000):
 
     assert len(output) == 8 * 5, len(output)
 
-    init_addr, low_addr, hand_addr, high_addr, _ = struct.unpack(b"QQQQQ", output)
+    init_addr, low_addr, hand_addr, high_addr, _ = unpack(b"QQQQQ", output)
     low_addr += 8  # skip over the faulting address
     alloc = high_addr - low_addr
     usage = high_addr - init_addr

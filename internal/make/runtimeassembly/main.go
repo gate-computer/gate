@@ -2,7 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package runtime
+//go:build ignore
+// +build ignore
+
+package main
 
 import (
 	"fmt"
@@ -17,10 +20,7 @@ import (
 	"gate.computer/gate/trap"
 	"gate.computer/wag/object/abi"
 	"golang.org/x/sys/unix"
-	"import.name/make"
 )
-
-const source = "internal/make/runtime/assembly.go"
 
 const (
 	verbose  = false
@@ -363,6 +363,11 @@ func funcCurrentMemory(a *ga.Assembly) {
 }
 
 func funcGrowMemory(a *ga.Assembly, variant string) {
+	errorCode := runtimeerrors.ERR_RT_MPROTECT
+	if variant == "android" {
+		errorCode = runtimeerrors.ERR_RT_MREMAP
+	}
+
 	a.Function("grow_memory")
 	// result = increment in pages
 	{
@@ -420,7 +425,7 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 
 	a.Label(".grow_memory_error")
 	{
-		a.MoveImm(param0, runtimeerrors.ERR_RT_MPROTECT)
+		a.MoveImm(param0, errorCode)
 		a.Jump(".exit")
 	}
 
@@ -495,7 +500,7 @@ func funcRtPoll(a *ga.Assembly) {
 		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".resume_zero")
 		a.JumpIfImm(ga.EQ, result, -int(unix.EINTR), ".resume_zero")
 
-		a.MoveImm(param0, runtimeerrors.ERR_RT_POLL)
+		a.MoveImm(param0, runtimeerrors.ERR_RT_PPOLL)
 		a.Jump(".exit")
 	}
 
@@ -673,7 +678,7 @@ func funcRtRead8(a *ga.Assembly) {
 
 		a.Pop(local0) // Release buffer.
 
-		a.MoveImm(param0, runtimeerrors.ERR_RT_READ)
+		a.MoveImm(param0, runtimeerrors.ERR_RT_READ8)
 		a.JumpIfImm(ga.NE, local1, 8, ".exit")
 
 		a.MoveReg(result, local0)
@@ -696,7 +701,7 @@ func funcRtWrite8(a *ga.Assembly) {
 		a.JumpIfImm(ga.EQ, result, -int(unix.EAGAIN), ".write8_retry")
 		a.JumpIfImm(ga.EQ, result, -int(unix.EINTR), ".write8_retry")
 
-		a.MoveImm(param0, runtimeerrors.ERR_RT_WRITE)
+		a.MoveImm(param0, runtimeerrors.ERR_RT_WRITE8)
 		a.Jump(".exit")
 	}
 }
@@ -836,7 +841,7 @@ func macroDebug8(a *ga.Assembly, r ga.Reg) {
 	a.Syscall(linux.SYS_WRITE)
 	a.MoveReg(local0, result)
 
-	a.MoveImm(param0, runtimeerrors.ERR_RT_DEBUG)
+	a.MoveImm(param0, runtimeerrors.ERR_RT_DEBUG8)
 	a.JumpIfImm(ga.NE, local0, 8, "sys_exit")
 
 	a.AddImm(a.StackPtr, a.StackPtr, 8) // Release buffer.
@@ -877,46 +882,29 @@ func maskOut(n uint32) int {
 	return int(int32(^n))
 }
 
-func Task() make.Task {
+func main() {
 	var (
-		dir      = "runtime/loader"
 		archs    = []string{"amd64", "arm64"}
-		machines = []string{"x86_64", "aarch64"}
 		variants = [][2]string{{"", "runtime.S"}, {"android", "runtime-android.S"}}
 	)
 
-	var conds []func() bool
-	for _, mach := range machines {
+	sys := ga.Linux()
+	sys.StackPtr.ARM64 = ga.X29
+
+	for _, archname := range archs {
+		arch := ga.Archs[archname]
+
 		for _, variant := range variants {
-			filename := path.Join(dir, mach, variant[1])
-			conds = append(conds, make.Outdated(filename, source))
+			filename := path.Join("runtime/loader", archname, variant[1])
+			fmt.Println("Making", filename)
+			asm := generate(arch, sys, variant[0])
+
+			if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
+				fmt.Fprintf(os.Stderr, "%s: %v\n", filename, err)
+				os.Exit(1)
+			}
 		}
 	}
-
-	return make.If(
-		make.Any(conds...),
-		make.Func(func() error {
-			sys := ga.Linux()
-			sys.StackPtr.ARM64 = ga.X29
-
-			for _, archname := range archs {
-				for _, variant := range variants {
-					arch := ga.Archs[archname]
-
-					filename := path.Join(dir, arch.Machine(), variant[1])
-					fmt.Println("Making", filename)
-
-					asm := generate(arch, sys, variant[0])
-
-					if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
-						return fmt.Errorf("%s: %w", filename, err)
-					}
-				}
-			}
-
-			return nil
-		}),
-	)
 }
 
 const boilerplate = `

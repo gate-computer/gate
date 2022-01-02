@@ -7,7 +7,7 @@
 #include <asm/auxvec.h>
 #include <sys/syscall.h>
 
-#include "errors.hpp"
+#include "errors.gen.h"
 
 .section .text
 

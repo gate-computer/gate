@@ -441,5 +441,3 @@ func getRand(fixedTextAddr uint64, needData bool) (textAddr, heapAddr, stackAddr
 
 	return
 }
-
-var _ struct{} = internal.ErrorsInitialized

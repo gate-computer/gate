@@ -1,7 +1,5 @@
-*.o
 bench-*.txt
 bin
-config.mk
 lib
 testdata/filesystem
 tmp

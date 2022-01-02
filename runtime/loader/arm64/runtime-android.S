@@ -11,7 +11,7 @@ runtime_init:
 	mov	w8, 215
 	svc	0
 	mov	x11, x0
-	movz	x0, 34, lsl #0
+	movz	x0, 35, lsl #0
 	cmp	x11, 0
 	b.ne	sys_exit
 	mov	x9, .Lseccomp_filter_len
@@ -26,7 +26,7 @@ runtime_init:
 	svc	0
 	mov	x11, x0
 	add	x29, x29, 16
-	movz	x0, 35, lsl #0
+	movz	x0, 37, lsl #0
 	cmp	x11, 0
 	b.ne	sys_exit
 
@@ -224,16 +224,16 @@ grow_memory:
 	ldr	x9, [x27, -40]
 	cmp	x13, x9
 	b.gt	.Lout_of_memory
-	mov	x1, x0
-	lsl	x1, x1, 16
 	ldr	x0, [x27, -32]
-	mov	x9, x12
-	lsl	x9, x9, 16
-	add	x0, x0, x9
-	movz	x2, 3, lsl #0
-	mov	w8, 226
+	mov	x1, x12
+	lsl	x1, x1, 16
+	mov	x2, x13
+	lsl	x2, x2, 16
+	mov	x3, 0
+	mov	w8, 216
 	svc	0
-	cmp	x0, 0
+	ldr	x9, [x27, -32]
+	cmp	x0, x9
 	b.ne	.Lgrow_memory_error
 	str	w13, [x11, 4]
 
@@ -242,7 +242,7 @@ grow_memory:
 	b	.Lresume
 
 .Lgrow_memory_error:
-	movz	x0, 7, lsl #0
+	movz	x0, 11, lsl #0
 	b	.Lexit
 
 .Lout_of_memory:
@@ -337,7 +337,7 @@ rt_poll:
 	b.eq	.Lresume_zero
 	cmp	x0, -4
 	b.eq	.Lresume_zero
-	movz	x0, 10, lsl #0
+	movz	x0, 13, lsl #0
 	b	.Lexit
 
 .Lpoll_revents:
@@ -434,7 +434,7 @@ rt_write:
 	b.eq	.Lresume_zero
 	cmp	x0, -4
 	b.eq	.Lresume_zero
-	movz	x0, 5, lsl #0
+	movz	x0, 6, lsl #0
 	b	.Lexit
 
 .Lout_of_bounds:
@@ -463,7 +463,7 @@ rt_time:
 .Lrt_time_not_suspended:
 	ldr	x12, [x29], 8
 	ldr	x13, [x29], 8
-	movz	x0, 9, lsl #0
+	movz	x0, 12, lsl #0
 	mov	x1, -1
 	cmp	x14, 0
 	b.ne	.Lexit_time
@@ -543,7 +543,7 @@ rt_trap:
 .Lrt_trap_not_suspended:
 	ldr	x12, [x29], 8
 	ldr	x13, [x29], 8
-	movz	x0, 9, lsl #0
+	movz	x0, 12, lsl #0
 	mov	x1, -1
 	cmp	x14, 0
 	b.ne	.Lexit_time
@@ -621,7 +621,7 @@ rt_debug:
 	b.eq	.Lresume
 	cmp	x0, -4
 	b.eq	.Ldebug_loop
-	movz	x0, 6, lsl #0
+	movz	x0, 8, lsl #0
 	b	.Lexit
 
 .Ldebugged_some:
@@ -650,7 +650,7 @@ rt_read8:
 	cmp	x12, -4
 	b.eq	.Lread8_retry
 	ldr	x11, [x29], 8
-	movz	x0, 4, lsl #0
+	movz	x0, 5, lsl #0
 	cmp	x12, 8
 	b.ne	.Lexit
 	mov	x0, x11
@@ -674,5 +674,5 @@ rt_write8:
 	b.eq	.Lwrite8_retry
 	cmp	x0, -4
 	b.eq	.Lwrite8_retry
-	movz	x0, 5, lsl #0
+	movz	x0, 7, lsl #0
 	b	.Lexit

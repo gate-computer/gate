@@ -17,7 +17,8 @@ ipfsgateway=https://cloudflare-ipfs.com/ipfs/
 binarydir=internal/container/child/binary
 muslccdir=tmp/muslcc-$muslccversion
 
-. runtime/include/runtime.mk
+GATE_COMPAT_MAJOR=0
+GATE_COMPAT_VERSION=${GATE_COMPAT_MAJOR}.0
 
 per_binary() {
 	arch=$1
@@ -31,9 +32,8 @@ per_binary() {
 		*)       goarch=$arch;;
 	esac
 
-	make="make -C runtime/$name CC=${pre}cc CXX=${pre}c++"
-	$make clean
-	$make
+	rm -f lib/gate/gate-runtime-$name.$version
+	go run make.go $name ARCH=$goarch CXX=${pre}c++
 
 	(
 		set -x
@@ -44,7 +44,7 @@ per_binary() {
 		mv -f tmp/$name.$arch.gz $binarydir/$name.linux-$goarch.gz
 	)
 
-	$make clean
+	rm -f lib/gate/gate-runtime-$name.$version
 }
 
 per_arch() {

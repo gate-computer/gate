@@ -24,7 +24,7 @@
 #include "align.hpp"
 #include "attribute.hpp"
 #include "debug.hpp"
-#include "errors.hpp"
+#include "errors.gen.h"
 #include "runtime.hpp"
 #include "syscall.hpp"
 

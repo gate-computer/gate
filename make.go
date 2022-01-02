@@ -8,225 +8,446 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
-	goruntime "runtime"
 
-	"gate.computer/gate/internal/make/runtime"
+	"gate.computer/gate/internal/container/common"
+	"gate.computer/gate/internal/make/eventtypes"
+	"gate.computer/gate/internal/make/runtimeassembly"
+	"gate.computer/gate/internal/make/runtimeerrors"
 	. "import.name/make"
 )
 
-func main() { Main(targets) }
+func main() { Main(targets, "make.go", "go.mod") }
 
-const (
-	S   = "S"
-	cpp = "cpp"
-	o   = "o"
-)
+func targets() (targets Tasks) {
+	ARCH := Getvar("ARCH", GOARCH)
+	Setenv("GOARCH", ARCH)
 
-const GATE_COMPAT_VERSION = "0.0" // TODO
-const GATE_COMPAT_MAJOR = "0"     // TODO
-
-var arch = map[string]string{
-	"amd64": "x86_64",
-	"arm64": "aarch64",
-}[goruntime.GOARCH]
-
-func targets() (top Targets) {
 	var (
-		GO  = Option("GO", "go")
-		CXX = Option("CXX", "c++")
+		DESTDIR    = Getvar("DESTDIR", "")
+		PREFIX     = Getvar("PREFIX", "/usr/local")
+		BINDIR     = Getvar("BINDIR", Join(PREFIX, "bin"))
+		LIBEXECDIR = Getvar("LIBEXECDIR", Join(PREFIX, "lib/gate"))
 
-		PREFIX     = Option("PREFIX", "/usr/local")
-		LIBEXECDIR = Option("LIBEXECDIR", PREFIX+"/lib/gate")
+		PROTOC = Getvar("PROTOC", "protoc")
+
+		GO         = Getvar("GO", "go")
+		GOFMT      = Getvar("GOFMT", "gofmt")
+		TAGS       = Getvar("TAGS", "gateexecdir")
+		BUILDFLAGS = Flatten(
+			"-ldflags="+Getvar("BUILDLDFLAGS", "-X gate.computer/gate/runtime/container.ExecDir="+LIBEXECDIR),
+			"-tags="+TAGS,
+			Fields(Getvar("BUILDFLAGS", "")),
+		)
+
+		CXX      = Getvar("CXX", "c++")
+		CPPFLAGS = Fields(Getvar("CPPFLAGS", "-DNDEBUG"))
+		CXXFLAGS = Fields(Getvar("CXXFLAGS", "-O2 -Wall -Wextra -Wimplicit-fallthrough -Wno-unused-parameter -Wno-write-strings -fomit-frame-pointer -g -std=c++17"))
+		LDFLAGS  = Fields(Getvar("LDFLAGS", ""))
 	)
 
-	TAGS := Option("TAGS", "gateexecdir")
-
-	BUILDLDFLAGS := "-X gate.computer/gate/runtime/container.ExecDir=" + LIBEXECDIR
-	BUILDFLAGS := []string{
-		"-ldflags=" + BUILDLDFLAGS,
-		"-tags=" + TAGS,
-	}
-
-	TESTLDFLAGS := ""
-	TESTFLAGS := []string{
-		"-count=1",
-		"-ldflags=" + TESTLDFLAGS,
-		"-race",
-		"-tags=" + TAGS,
-	}
-
-	TEST := Option("TEST", "")
-	if TEST != "" {
-		TESTFLAGS = append(TESTFLAGS, "-run="+TEST)
-		TESTFLAGS = append(TESTFLAGS, "-v")
-	}
-
-	executor := top.Target("executor",
-		executorTask(CXX),
+	runtimeErrors := runtimeerrors.Task(GOFMT)
+	executor := targets.Add(Target("executor",
+		runtimeErrors,
+		executorTask(CXX, CPPFLAGS, CXXFLAGS, LDFLAGS)),
 	)
-
-	loader := top.Target("loader",
-		runtime.Task(),
-		loaderTask(CXX),
+	loader := targets.Add(Target("loader",
+		runtimeErrors,
+		runtimeassembly.Task(GO),
+		loaderTask(CXX, ARCH, CPPFLAGS, CXXFLAGS, LDFLAGS)),
 	)
+	lib := targets.Add(TargetDefault("lib",
+		executor,
+		loader,
+	))
 
-	lib := top.TargetDefault("lib", executor, loader)
-
-	bin := top.TargetDefault("bin",
+	goSources := Group(
+		protoTask(PROTOC, GO, ARCH),
+		runtimeerrors.Task(GOFMT),
+		eventtypes.Task(GOFMT),
+	)
+	bin := targets.Add(TargetDefault("bin",
+		goSources,
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate", "./cmd/gate"),
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate-daemon", "./cmd/gate-daemon"),
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate-runtime", "./cmd/gate-runtime"),
 		Command(GO, "build", BUILDFLAGS, "-o", "bin/gate-server", "./cmd/gate-server"),
-	)
+	))
 
-	top.Target("check",
-		lib,
-		Command(GO, "build", "-o", "/dev/null", "./cmd/gate-librarian"),
-		Command(GO, "build", "-o", "/dev/null", "./cmd/gate-resource"),
-		System("make -C runtime/loader/test check"),
-		Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
-		Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
-		Env{"GOOS": "darwin"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
-		Env{"GOOS": "windows"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
-		Command(GO, "vet", "./..."),
-		Command(GO, "build", BUILDFLAGS, "-o", "tmp/bin/test-grpc-service", "./internal/test/grpc-service"),
-		Command(GO, "test", TESTFLAGS, "./..."),
-		bin,
-	)
+	targets.Add(Target("check",
+		targets.Add(Target("check/loader",
+			loader,
+			loaderTestTask(CXX, ARCH, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		)),
+		targets.Add(Target("check/go",
+			goSources,
+			Command(GO, "vet", "./..."),
+			lib,
+			goTestTask(GO, ARCH, TAGS),
+			bin,
+			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
+			Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
+			Env{"GOOS": "darwin"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
+			Env{"GOOS": "windows"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
+			Command(GO, "build", "-o", "/dev/null", "./cmd/gate-resource"),
+		)),
+	))
 
-	top.Target("benchmark",
+	targets.Add(Target("benchmark",
 		lib,
+		goSources,
 		benchmarkTask(GO, TAGS),
-	)
+	))
 
-	top.Target("clean",
-		Func(func() error { return os.RemoveAll("bin") }),
-		Func(func() error { return os.RemoveAll("lib") }),
-		Func(func() error { return os.RemoveAll("tmp") }),
-		Command("make", "-C", "runtime/executor", "clean"),
-		Command("make", "-C", "runtime/loader", "clean"),
-		Command("make", "-C", "runtime/loader/test", "clean"),
-	)
+	targets.Add(Target("install",
+		targets.Add(Target("install/lib",
+			Installation(DESTDIR+LIBEXECDIR+"/", Join("lib/gate", common.ExecutorFilename), true),
+			Installation(DESTDIR+LIBEXECDIR+"/", Join("lib/gate", common.LoaderFilename), true),
+		)),
+
+		If(
+			func() bool {
+				return len(Glob("bin/gate*")) > 0
+			},
+			targets.Add(Target("install/bin",
+				Installation(DESTDIR+BINDIR+"/", "bin/gate", true),
+				Installation(DESTDIR+BINDIR+"/", "bin/gate-daemon", true),
+				Installation(DESTDIR+BINDIR+"/", "bin/gate-runtime", true),
+				Installation(DESTDIR+BINDIR+"/", "bin/gate-server", true),
+			)),
+
+			targets.Add(Target("install/bash",
+				Installation(DESTDIR+"/etc/bash_completion.d/gate", "etc/bash_completion.d/gate.bash", false),
+			)),
+
+			targets.Add(Target("install/systemd",
+				installRewriteTask(DESTDIR, PREFIX, "share/systemd/user/gate.service"),
+				installRewriteTask(DESTDIR, PREFIX, "share/dbus-1/services/computer.gate.Daemon.service"),
+			)),
+		),
+	))
+
+	targets.Add(Target("clean",
+		Removal("bin", "lib", "tmp"),
+	))
 
 	return
 }
 
-func executorTask(CXX string) Task {
-	var (
-		CPPFLAGS = []string{"-Iruntime/include", "-DNDEBUG", `-DGATE_COMPAT_VERSION="` + GATE_COMPAT_VERSION + `"`}
-		CFLAGS   = []string{"-O2", "-fomit-frame-pointer", "-g", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wimplicit-fallthrough"}
-		CXXFLAGS = []string{"-std=c++17", "-fno-exceptions", "-Wno-write-strings"}
-		LDFLAGS  = []string{"-static"}
-
-		source = "runtime/executor/executor.cpp"
-		binary = "lib/gate/gate-runtime-executor." + GATE_COMPAT_MAJOR
+func protoTask(PROTOC, GO, ARCH string) Task {
+	includes := Globber(
+		"server/api/*.proto",
+		"server/detail/*.proto",
 	)
 
-	return If(
-		Outdated(binary, Glob(
-			source,
-			"runtime/include/*.hpp",
-		)...),
-		Func(func() error {
-			return os.MkdirAll(path.Dir(binary), 0777)
-		}),
-		Command(CXX, CPPFLAGS, CFLAGS, CXXFLAGS, LDFLAGS, "-o", binary, source),
+	var tasks Tasks
+
+	addCompiler := func(pkg string) {
+		binary := Join("tmp", ARCH, Base(pkg))
+
+		tasks.Add(If(Outdated(binary, nil),
+			Command(GO, "build", "-o", binary, pkg)),
+		)
+	}
+
+	addCompiler("google.golang.org/protobuf/cmd/protoc-gen-go")
+	addCompiler("google.golang.org/grpc/cmd/protoc-gen-go-grpc")
+
+	env := Env{
+		"PATH": Join("tmp", ARCH) + ":" + Getenv("PATH", ""),
+	}
+
+	addProto := func(proto, plug string) {
+		tasks.Add(If(Outdated(ReplaceSuffix(proto, ".pb.go"), Flattener(proto, includes)),
+			env.Command(PROTOC, plug+"_out=.", plug+"_opt=paths=source_relative", proto),
+		))
+	}
+
+	addProto("internal/manifest/manifest.proto", "--go")
+	addProto("internal/webserverapi/webserverapi.proto", "--go")
+	addProto("server/api/server.proto", "--go")
+	addProto("server/detail/detail.proto", "--go")
+	addProto("server/event/event.proto", "--go")
+	addProto("service/grpc/api/service.proto", "--go")
+	addProto("service/grpc/api/service.proto", "--go-grpc")
+
+	return Group(tasks...)
+}
+
+func executorTask(CXX string, CPPFLAGS, CXXFLAGS, LDFLAGS []string) Task {
+	CPPFLAGS = Flatten(
+		"-Iruntime/include",
+		`-DGATE_COMPAT_VERSION="`+common.CompatVersion+`"`,
+		CPPFLAGS,
+	)
+
+	CXXFLAGS = Flatten(
+		"-fno-exceptions",
+		CXXFLAGS,
+	)
+
+	LDFLAGS = Flatten(
+		"-static",
+		LDFLAGS,
+	)
+
+	includes := Globber(
+		"runtime/include/*.hpp",
+		"runtime/include/*/*.hpp",
+	)
+
+	var (
+		source = "runtime/executor/executor.cpp"
+		binary = Join("lib/gate", common.ExecutorFilename)
+	)
+
+	return If(Outdated(binary, Flattener(source, includes)),
+		DirectoryOf(binary),
+		Command(CXX, CPPFLAGS, CXXFLAGS, LDFLAGS, "-o", binary, source),
 	)
 }
 
-func loaderTask(CXX string) Task {
-	var (
-		CPPFLAGS = []string{"-Iruntime/loader/" + arch, "-Iruntime/include/" + arch, "-Iruntime/include", "-DNDEBUG", "-DPIE", "-DGATE_LOADER_ADDR=0x200000000"}
-		CFLAGS   = []string{"-O2", "-fPIE", "-fomit-frame-pointer", "-fno-stack-protector", "-g", "-Wall", "-Wextra", "-Wno-unused-parameter", "-Wimplicit-fallthrough"}
-		CXXFLAGS = []string{"-std=c++17", "-fno-exceptions"}
-		LDFLAGS  = []string{"-static", "-nostartfiles", "-nostdlib", "-Wl,-z,noexecstack", "-Wl,-Ttext-segment=0x200000000", "-Wl,--build-id=none"}
-
-		start    = "runtime/loader/" + arch + "/start."
-		runtime2 = "runtime/loader/" + arch + "/runtime2."
-		loader   = "runtime/loader/loader."
-		binary   = "lib/gate/gate-runtime-loader." + GATE_COMPAT_VERSION
+func loaderTask(CXX, ARCH string, CPPFLAGS, CXXFLAGS, LDFLAGS []string) Task {
+	CPPFLAGS = Flatten(
+		"-DGATE_LOADER_ADDR=0x200000000",
+		"-DPIE",
+		"-I"+Join("runtime/loader", ARCH),
+		"-I"+Join("runtime/include", ARCH),
+		"-I"+Join("runtime/include"),
+		CPPFLAGS,
 	)
 
-	return Join(
-		If(
-			Outdated(start+o, start+S),
-			Command(CXX, CPPFLAGS, "-c", "-o", start+o, start+S),
+	CXXFLAGS = Flatten(
+		"-fPIE",
+		"-fno-exceptions",
+		"-fno-stack-protector",
+		CXXFLAGS,
+	)
+
+	LDFLAGS = Flatten(
+		"-Wl,--build-id=none",
+		"-Wl,-Ttext-segment=0x200000000",
+		"-Wl,-z,noexecstack",
+		"-nostartfiles",
+		"-nostdlib",
+		"-static",
+		LDFLAGS,
+	)
+
+	includes := Globber(
+		"runtime/include/*.hpp",
+		"runtime/include/*/*.hpp",
+		"runtime/loader/*.S",
+		"runtime/loader/*.hpp",
+		"runtime/loader/*/*.S",
+		"runtime/loader/*/*.hpp",
+	)
+
+	var (
+		start    = Join("runtime/loader", ARCH, "start.S")
+		loader   = Join("runtime/loader/loader.cpp")
+		runtime2 = Join("runtime/loader", ARCH, "runtime2.S")
+		binary   = Join("lib/gate", common.LoaderFilename)
+	)
+
+	var objects []string
+	var tasks Tasks
+
+	addCompilation := func(source string, flags ...interface{}) {
+		object := Join("tmp", ARCH, ReplaceSuffix(source, ".o"))
+		objects = append(objects, object)
+
+		tasks.Add(If(Outdated(object, Flattener(source, includes)),
+			DirectoryOf(object),
+			Command(CXX, flags, "-c", "-o", object, source),
+		))
+	}
+
+	addCompilation(start, CPPFLAGS)
+	addCompilation(loader, CPPFLAGS, CXXFLAGS)
+	addCompilation(runtime2, CPPFLAGS)
+
+	tasks.Add(If(Outdated(binary, Thunk(objects...)),
+		DirectoryOf(binary),
+		Command(CXX, CXXFLAGS, LDFLAGS, "-o", binary, objects),
+	))
+
+	return Group(tasks...)
+}
+
+func loaderTestTask(CXX, ARCH string, CPPFLAGS, CXXFLAGS, LDFLAGS []string) Task {
+	PYTHON := Getvar("PYTHON", "python3")
+
+	CPPFLAGS = Flatten(
+		"-DPIE",
+		"-I"+Join("runtime/include", ARCH),
+		"-I"+Join("runtime/include"),
+		CPPFLAGS,
+	)
+
+	CXXFLAGS = Flatten(
+		"-fPIE",
+		"-fno-exceptions",
+		"-fno-stack-protector",
+		CXXFLAGS,
+	)
+
+	LDFLAGS = Flatten(
+		"-static",
+		LDFLAGS,
+	)
+
+	includes := Globber(
+		"runtime/include/*.hpp",
+		"runtime/include/*/*.hpp",
+	)
+
+	var (
+		start    = Join("tmp", ARCH, "runtime/loader", ARCH, "start.o")
+		runtime2 = Join("tmp", ARCH, "runtime/loader", ARCH, "runtime2.o")
+
+		signal = "runtime/loader/test/signal.cpp"
+		stack  = "runtime/loader/test/stack.cpp"
+	)
+
+	testTask := func(run func(source, binary string) error, source, lib string, flags ...string) Task {
+		object := Join("tmp", ARCH, ReplaceSuffix(source, ".o"))
+		binary := Join("tmp", ARCH, ReplaceSuffix(source, ""))
+		stamp := Join("tmp/stamp", ReplaceSuffix(source, ""))
+
+		return If(Outdated(stamp, Flattener(source, lib, includes)),
+			DirectoryOf(object),
+			Command(CXX, CPPFLAGS, CXXFLAGS, "-c", "-o", object, source),
+			DirectoryOf(binary),
+			Command(CXX, CXXFLAGS, flags, LDFLAGS, "-o", binary, lib, object),
+			Func(func() error {
+				if err := run(source, binary); err != nil {
+					return err
+				}
+				return Touch(stamp)
+			}),
+		)
+	}
+
+	runBinary := func(source, binary string) error {
+		return Run(binary)
+	}
+	runPython := func(source, binary string) error {
+		return Run(PYTHON, ReplaceSuffix(source, ".py"), binary)
+	}
+
+	return Group(
+		testTask(runBinary, signal, runtime2,
+			"-Wl,-Ttext-segment=0x40000000",
+			"-Wl,--section-start=.runtime=0x50000000",
 		),
-		If(
-			Outdated(runtime2+o, Glob(
-				runtime2+S,
-				"runtime/loader/"+arch+"/runtime.S",
-				"runtime/loader/poll.S",
-				"runtime/loader/seccomp.S",
-				"runtime/include/"+arch+"/*.hpp",
-				"runtime/include/*.hpp",
-			)...),
-			Command(CXX, CPPFLAGS, "-c", "-o", runtime2+o, runtime2+S),
+		testTask(runPython, stack, start,
+			"-nostartfiles",
+			"-nostdlib",
 		),
-		If(
-			Outdated(loader+o, Glob(
-				loader+cpp,
-				"runtime/include/loader/"+arch+"/*.hpp",
-				"runtime/include/"+arch+"/*.hpp",
-				"runtime/include/*.hpp",
-			)...),
-			Command(CXX, CPPFLAGS, CFLAGS, CXXFLAGS, LDFLAGS, "-c", "-o", loader+o, loader+cpp),
-		),
-		Func(func() error {
-			return os.MkdirAll(path.Dir(binary), 0777)
-		}),
-		If(
-			Outdated(binary, start+o, loader+o, runtime2+o),
-			Command(CXX, CFLAGS, CXXFLAGS, LDFLAGS, "-o", binary, start+o, loader+o, runtime2+o),
-		),
+	)
+}
+
+func goTestTask(GO, ARCH, TAGS string) Task {
+	TEST := Getvar("TEST", "")
+
+	defaultTestFlags := "-count=1 -race"
+	if TEST != "" {
+		defaultTestFlags += " -v"
+	}
+
+	TESTFLAGS := Flatten(
+		"-ldflags="+Getvar("TESTLDFLAGS", ""),
+		"-run="+TEST,
+		"-tags="+TAGS,
+		Fields(Getvar("TESTFLAGS", defaultTestFlags)),
+	)
+
+	return Group(
+		Command(GO, "build", "-o", Join("tmp", ARCH, "test-grpc-service"), "./internal/test/grpc-service"),
+		Command(GO, "test", TESTFLAGS, "./..."),
 	)
 }
 
 func benchmarkTask(GO, TAGS string) Task {
 	var (
-		PERFLOCK  = Option("PERFLOCK", "perflock")
-		BENCHSTAT = Option("BENCHSTAT", "benchstat")
+		PERFLOCK  = Getvar("PERFLOCK", "perflock")
+		BENCHSTAT = Getvar("BENCHSTAT", "benchstat")
+
+		BENCH      = Getvar("BENCH", ".")
+		BENCHFLAGS = Flatten(
+			"-bench="+BENCH,
+			"-tags="+TAGS,
+		)
+
+		BENCHSTATSNEW = Getvar("BENCHSTATSNEW", "bench-new.txt")
+		BENCHSTATSOLD = Getvar("BENCHSTATSOLD", "bench-old.txt")
 	)
 
-	BENCH := Option("BENCH", ".")
-	BENCHFLAGS := []string{
-		"-bench=" + BENCH,
-		"-tags=" + TAGS,
+	benchcmd := Flatten(GO, "test", "-run=-", BENCHFLAGS, "./...")
+	if PERFLOCK != "" {
+		benchcmd = Flatten(PERFLOCK, benchcmd)
 	}
 
+	statcmd := Flatten(BENCHSTAT, BENCHSTATSOLD, BENCHSTATSNEW)
+
 	return Func(func() error {
-		args := Flatten(GO, "test", "-run=-", BENCHFLAGS, "./...")
-		if PERFLOCK != "" {
-			args = append([]string{PERFLOCK}, args...)
-		}
+		Println("Running", benchcmd)
 
-		Println(args...)
-
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.Command(benchcmd[0], benchcmd[1:]...)
 		cmd.Stderr = os.Stderr
-		output, err := cmd.Output()
-		os.Stdout.Write(output)
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return err
+		}
+		defer stdout.Close()
+
+		result := make(chan error, 1)
+		go func() { result <- cmd.Run() }()
+
+		output, err := ioutil.ReadAll(io.TeeReader(stdout, os.Stdout))
 		if err != nil {
 			return err
 		}
 
-		if err := ioutil.WriteFile("bench-new.txt", output, 0666); err != nil {
+		if err := <-result; err != nil {
 			return err
 		}
 
-		if _, err := os.Stat("bench-old.txt"); err == nil {
-			cmd := exec.Command(BENCHSTAT, "bench-old.txt", "bench-old.txt")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
+		Println("Writing", BENCHSTATSNEW)
+
+		if err := ioutil.WriteFile(BENCHSTATSNEW, output, 0666); err != nil {
+			return err
+		}
+
+		_, err = os.Stat(BENCHSTATSOLD)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err == nil {
+			if err := Run(statcmd...); err != nil {
 				return err
 			}
 		}
 
 		return nil
+	})
+}
+
+func installRewriteTask(DESTDIR, PREFIX, filename string) Task {
+	return Func(func() error {
+		b, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return err
+		}
+
+		b = bytes.ReplaceAll(b, []byte("/usr/local"), []byte(PREFIX))
+
+		return InstallData(DESTDIR+Join(PREFIX, filename), bytes.NewReader(b), false)
 	})
 }

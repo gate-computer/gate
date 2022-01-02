@@ -141,10 +141,11 @@ Run-time dependencies:
 - Programs other than **gate** may need external tools depending on their
   configuration and [capabilities](Capabilities.md).
 
-There are two approaches to building Gate: using Go directly, or via Make.
+There are two approaches to building Gate: the normal Go way, or via the
+make.go build system.
 
 
-### Build using Go
+### Normal build using Go
 
 Build requirements:
 
@@ -160,11 +161,11 @@ Gate runtime needs to execute some separately built binaries.  To make the
 built Go programs self-contained, pre-built binaries are bundled into them by
 default.  The pre-built binary files are under version control, and can be
 rebuilt using `go generate`.  To disable bundling of pre-built binaries,
-specify `-tags=gateexecdir` for the Go build command, and use Make to build and
-install them separately.
+specify `-tags=gateexecdir` for the Go build command, and use make.go to build
+and install them separately.
 
 
-### Build using Make
+### Build everything using make.go
 
 Build requirements:
 
@@ -174,16 +175,16 @@ Build requirements:
   - protobuf-compiler
   - libprotobuf-dev
 
-The components implemented with C++ and assembly can be built using `make`.
-`make bin` builds the Go programs without bundling the non-Go components in
-them.
+The components implemented with C++ and assembly can be built using `go run
+make.go lib`.  `go run make.go bin` builds the Go programs without bundling the
+non-Go components in them.  `go run make.go` builds all of them by default.
 
-Additional requirements for `make check`:
+Additional requirements for `go run make.go check`:
 
   - Python 3
   - uidmap (shadow-utils)
 
-See Makefile for more targets, such as `make install` and its variants.
+See file `make.go` for more targets.
 
 
 ## See also

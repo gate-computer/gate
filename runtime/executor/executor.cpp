@@ -27,7 +27,7 @@
 #include "align.hpp"
 #include "attribute.hpp"
 #include "debug.hpp"
-#include "errors.hpp"
+#include "errors.gen.h"
 #include "runtime.hpp"
 
 #ifndef CLONE_INTO_CGROUP

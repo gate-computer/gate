@@ -14,7 +14,7 @@ runtime_init:
 	mov	eax, 11
 	syscall
 	mov	rbp, rax
-	mov	edi, 34
+	mov	edi, 35
 	test	rbp, rbp
 	jne	sys_exit
 	mov	r9, .Lseccomp_filter_len
@@ -29,7 +29,7 @@ runtime_init:
 	syscall
 	mov	rbp, rax
 	add	rsp, 16
-	mov	edi, 35
+	mov	edi, 37
 	test	rbp, rbp
 	jne	sys_exit
 
@@ -194,16 +194,16 @@ grow_memory:
 	mov	r9, [r15 - 40]
 	cmp	r13, r9
 	jg	.Lout_of_memory
-	mov	rdi, [r15 - 32]
-	mov	rsi, r12
+	mov	rsi, rax
 	shl	rsi, 16
-	mov	rdx, r13
-	shl	rdx, 16
-	xor	r10d, r10d
-	mov	eax, 25
+	mov	rdi, [r15 - 32]
+	mov	r9, r12
+	shl	r9, 16
+	add	rdi, r9
+	mov	edx, 3
+	mov	eax, 10
 	syscall
-	mov	r9, [r15 - 32]
-	cmp	rax, r9
+	test	rax, rax
 	jne	.Lgrow_memory_error
 	mov	[rbp + 4], r13d
 
@@ -212,7 +212,7 @@ grow_memory:
 	jmp	.Lresume
 
 .Lgrow_memory_error:
-	mov	edi, 7
+	mov	edi, 10
 	jmp	.Lexit
 
 .Lout_of_memory:
@@ -301,7 +301,7 @@ rt_poll:
 	je	.Lresume_zero
 	cmp	rax, -4
 	je	.Lresume_zero
-	mov	edi, 10
+	mov	edi, 13
 	jmp	.Lexit
 
 .Lpoll_revents:
@@ -394,7 +394,7 @@ rt_write:
 	je	.Lresume_zero
 	cmp	rax, -4
 	je	.Lresume_zero
-	mov	edi, 5
+	mov	edi, 6
 	jmp	.Lexit
 
 .Lout_of_bounds:
@@ -432,7 +432,7 @@ rt_time:
 .Lrt_time_not_suspended:
 	pop	r12
 	pop	r13
-	mov	edi, 9
+	mov	edi, 12
 	mov	esi, -1
 	test	r14, r14
 	jne	.Lexit_time
@@ -517,7 +517,7 @@ rt_trap:
 .Lrt_trap_not_suspended:
 	pop	r12
 	pop	r13
-	mov	edi, 9
+	mov	edi, 12
 	mov	esi, -1
 	test	r14, r14
 	jne	.Lexit_time
@@ -590,7 +590,7 @@ rt_debug:
 	je	.Lresume
 	cmp	rax, -4
 	je	.Ldebug_loop
-	mov	edi, 6
+	mov	edi, 8
 	jmp	.Lexit
 
 .Ldebugged_some:
@@ -619,7 +619,7 @@ rt_read8:
 	cmp	r12, -4
 	je	.Lread8_retry
 	pop	rbp
-	mov	edi, 4
+	mov	edi, 5
 	cmp	r12, 8
 	jne	.Lexit
 	mov	rax, rbp
@@ -643,5 +643,5 @@ rt_write8:
 	je	.Lwrite8_retry
 	cmp	rax, -4
 	je	.Lwrite8_retry
-	mov	edi, 5
+	mov	edi, 7
 	jmp	.Lexit
