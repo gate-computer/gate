@@ -8,7 +8,6 @@
 package main
 
 import (
-	"bytes"
 	"io"
 	"io/ioutil"
 	"os"
@@ -28,9 +27,7 @@ func targets() (targets Tasks) {
 	Setenv("GOARCH", ARCH)
 
 	var (
-		DESTDIR    = Getvar("DESTDIR", "")
 		PREFIX     = Getvar("PREFIX", "/usr/local")
-		BINDIR     = Getvar("BINDIR", Join(PREFIX, "bin"))
 		LIBEXECDIR = Getvar("LIBEXECDIR", Join(PREFIX, "lib/gate"))
 
 		PROTOC = Getvar("PROTOC", "protoc")
@@ -103,31 +100,11 @@ func targets() (targets Tasks) {
 		benchmarkTask(GO, TAGS),
 	))
 
-	targets.Add(Target("install",
-		targets.Add(Target("install/lib",
-			Installation(DESTDIR+LIBEXECDIR+"/", Join("lib/gate", common.ExecutorFilename), true),
-			Installation(DESTDIR+LIBEXECDIR+"/", Join("lib/gate", common.LoaderFilename), true),
-		)),
-
-		If(
-			func() bool {
-				return len(Glob("bin/gate*")) > 0
-			},
-			targets.Add(Target("install/bin",
-				Installation(DESTDIR+BINDIR+"/", "bin/gate", true),
-				Installation(DESTDIR+BINDIR+"/", "bin/gate-daemon", true),
-				Installation(DESTDIR+BINDIR+"/", "bin/gate-runtime", true),
-				Installation(DESTDIR+BINDIR+"/", "bin/gate-server", true),
-			)),
-
-			targets.Add(Target("install/bash",
-				Installation(DESTDIR+"/etc/bash_completion.d/gate", "etc/bash_completion.d/gate.bash", false),
-			)),
-
-			targets.Add(Target("install/systemd",
-				installRewriteTask(DESTDIR, PREFIX, "share/systemd/user/gate.service"),
-				installRewriteTask(DESTDIR, PREFIX, "share/dbus-1/services/computer.gate.Daemon.service"),
-			)),
+	targets.Add(TargetDefault("installer",
+		Command(GO, "build",
+			"-ldflags=-X main.PREFIX="+PREFIX+" -X main.LIBEXECDIR="+LIBEXECDIR,
+			"-o", "bin/install",
+			"./internal/make/cmd/install",
 		),
 	))
 
@@ -436,18 +413,5 @@ func benchmarkTask(GO, TAGS string) Task {
 		}
 
 		return nil
-	})
-}
-
-func installRewriteTask(DESTDIR, PREFIX, filename string) Task {
-	return Func(func() error {
-		b, err := ioutil.ReadFile(filename)
-		if err != nil {
-			return err
-		}
-
-		b = bytes.ReplaceAll(b, []byte("/usr/local"), []byte(PREFIX))
-
-		return InstallData(DESTDIR+Join(PREFIX, filename), bytes.NewReader(b), false)
 	})
 }

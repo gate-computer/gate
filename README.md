@@ -187,6 +187,12 @@ Additional requirements for `go run make.go check`:
 See file `make.go` for more targets.
 
 
+### Installation
+
+  1. `go run make.go` or `go run make.go installer ...`
+  2. `sudo bin/install`
+
+
 ## See also
 
 - [Gain crate for Rust user programs](https://crates.io/crates/gain)
