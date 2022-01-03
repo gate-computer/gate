@@ -34,8 +34,6 @@
 #define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
 
-#define LOADER_FILENAME "gate-runtime-loader." GATE_COMPAT_VERSION
-
 namespace {
 
 struct CloneArgsV0 {
@@ -81,7 +79,7 @@ NORETURN int execute_child(const int io_fds[2])
 	xdup2(io_fds[0], GATE_INPUT_FD);
 	xdup2(io_fds[1], GATE_OUTPUT_FD);
 
-	char* args[] = {LOADER_FILENAME, nullptr};
+	char* args[] = {GATE_LOADER_FILENAME, nullptr};
 	char* none[] = {nullptr};
 
 	syscall(SYS_execveat, GATE_LOADER_FD, "", args, none, AT_EMPTY_PATH);

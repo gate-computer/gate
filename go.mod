@@ -20,7 +20,7 @@ require (
 	google.golang.org/protobuf v1.25.0
 	import.name/confi v1.6.0
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
-	import.name/make v0.0.0-20220102143733-780aa81b06aa
+	import.name/make v0.0.0-20220104073727-8e6e5ea95bef
 	import.name/pan v0.1.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.49
 	modernc.org/sqlite v1.10.4

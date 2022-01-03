@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	goruntime "runtime"
 	"strconv"
 	"syscall"
 	"testing"
@@ -26,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var binary = path.Join("../../tmp", goruntime.GOARCH, "test-grpc-service")
+var binary = "../../tmp/test-grpc-service"
 
 func TestDial(t *testing.T)                       { testDial(t, false, false, false) }
 func TestDialSuspend(t *testing.T)                { testDial(t, false, false, true) }
