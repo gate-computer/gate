@@ -530,8 +530,8 @@ rt_trap:
 	sub	rax, r9
 	mov	r9, [rbp + 8]
 	add	rax, r9
-	pop	rdi
 	mov	rsi, rax
+	pop	rdi
 
 .Lexit_time:
 	mov	rbp, rbx

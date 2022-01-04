@@ -626,11 +626,13 @@ func funcRtTrap(a *ga.Assembly) {
 	// param0 = status code
 	{
 		a.Push(param0)
+
 		a.MoveImm(param0, unix.CLOCK_MONOTONIC_COARSE)
 		macroTime(a, ".rt_trap")
 		macroTimeFixMonotonic(a)
-		a.Pop(param0)
 		a.MoveReg(param1, result)
+
+		a.Pop(param0)
 
 		a.Label(".exit_time")
 		a.Reset(wagTextBase, wagStackLimit, param0, param1)

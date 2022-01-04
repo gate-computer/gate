@@ -558,8 +558,8 @@ rt_trap:
 	sub	x0, x0, x9
 	ldr	x9, [x11, 8]
 	add	x0, x0, x9
-	ldr	x0, [x29], 8
 	mov	x1, x0
+	ldr	x0, [x29], 8
 
 .Lexit_time:
 	mov	x11, x28
