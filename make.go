@@ -2,10 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build ignore
-// +build ignore
+//go:build generate
+// +build generate
 
 package main
+
+//go:generate go run make.go generate
 
 import (
 	"fmt"
@@ -13,8 +15,10 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 
 	"gate.computer/gate/internal/container/common"
+	"gate.computer/gate/internal/librarian"
 	"gate.computer/gate/internal/make/eventtypes"
 	"gate.computer/gate/internal/make/runtimeassembly"
 	"gate.computer/gate/internal/make/runtimeerrors"
@@ -49,25 +53,31 @@ func targets() (targets Tasks) {
 		CPPFLAGS = Getvar("CPPFLAGS", "-DNDEBUG")
 		CXXFLAGS = Getvar("CXXFLAGS", "-O2 -Wall -Wextra -Wimplicit-fallthrough -fomit-frame-pointer -g -std=c++17")
 		LDFLAGS  = Getvar("LDFLAGS", "")
+
+		WASMCXX = Getvar("WASMCXX", "clang++")
 	)
 
-	targets.Add(Target("library",
-		Command(GO, "run", "./cmd/gate-librarian", "-go=abi", "runtime/abi/library.go", "--", "runtime/abi/library/compile.sh", "-c", "-o", "/dev/stdout")),
-	)
+	testdata := targets.Add(Target("testdata",
+		testdataTask(CCACHE, WASMCXX),
+	))
 
-	sources := Group(
+	library := targets.Add(Target("library",
+		libraryTask(CCACHE, WASMCXX),
+	))
+
+	goSources := targets.Add(Target("go",
 		protoTask(PROTOC, GO),
 		eventtypes.Task(GOFMT),
 		runtimeerrors.Task(GOFMT),
 		runtimeassembly.Task(GO),
-	)
+	))
 
 	executor := targets.Add(Target("executor",
-		sources,
+		goSources,
 		executorTask("lib/gate", CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	loader := targets.Add(Target("loader",
-		sources,
+		goSources,
 		loaderTask("lib/gate", "tmp", GOARCH, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	lib := targets.Add(TargetDefault("lib",
@@ -76,15 +86,11 @@ func targets() (targets Tasks) {
 	))
 
 	bin := targets.Add(TargetDefault("bin",
-		sources,
+		goSources,
 		Command(GO, "build", buildflags, "-o", "bin/gate", "./cmd/gate"),
 		Command(GO, "build", buildflags, "-o", "bin/gate-daemon", "./cmd/gate-daemon"),
 		Command(GO, "build", buildflags, "-o", "bin/gate-runtime", "./cmd/gate-runtime"),
 		Command(GO, "build", buildflags, "-o", "bin/gate-server", "./cmd/gate-server"),
-	))
-
-	targets.Add(Target("testdata",
-		Command("make", "-C", "testdata"),
 	))
 
 	targets.Add(Target("inspect",
@@ -92,14 +98,15 @@ func targets() (targets Tasks) {
 		loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 
-	goTestBin := Group(
+	goTestBinaries := Group(
+		goSources,
 		Command(GO, "build", "-o", "tmp/test-grpc-service", "./internal/test/grpc-service"),
 	)
 	targets.Add(Target("check",
-		sources,
+		goSources,
 		Command(GO, "vet", "./..."),
 		lib,
-		goTestBin,
+		goTestBinaries,
 		goTestTask(GO, TAGS),
 		bin,
 		Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
@@ -114,11 +121,18 @@ func targets() (targets Tasks) {
 		benchmarkTask(GO, TAGS),
 	))
 
+	prebuild := prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
 	targets.Add(Target("prebuild",
-		sources,
-		prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS),
-		goTestBin,
+		prebuild,
+		goTestBinaries,
 		Env{"CGO_ENABLED": "0"}.Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
+	))
+
+	targets.Add(Target("generate",
+		testdata,
+		library,
+		goSources,
+		prebuild,
 	))
 
 	targets.Add(TargetDefault("installer",
@@ -134,6 +148,105 @@ func targets() (targets Tasks) {
 	))
 
 	return
+}
+
+func testdataTask(CCACHE, WASMCXX string) Task {
+	var (
+		WAT2WASM = Getvar("WAT2WASM", "wat2wasm")
+
+		wasimodule  = "testdata/wasi-libc"
+		wasiinclude = Join(wasimodule, "libc-bottom-half/headers/public")
+
+		cxxflags = Flatten(
+			"--target=wasm32",
+			"-I"+wasiinclude,
+			"-Iinclude",
+			"-Os",
+			"-Wall",
+			"-Wextra",
+			"-Wimplicit-fallthrough",
+			"-Wl,--allow-undefined",
+			"-Wl,--no-entry",
+			"-fno-builtin",
+			"-fno-exceptions",
+			"-fno-inline",
+			"-g",
+			"-nostdlib",
+			"-std=c++2a",
+		)
+
+		includes = Globber(
+			"include/gate.h",
+			Join(wasiinclude, "wasi/*.h"),
+		)
+	)
+
+	task := func(source string, flags ...string) Task {
+		target := ReplaceSuffix(source, ".wasm")
+
+		cmd := Wrap(CCACHE, WASMCXX, cxxflags)
+		if strings.HasSuffix(source, ".wat") {
+			cmd = Flatten(WAT2WASM)
+		}
+
+		return If(Outdated(target, Flattener(source, includes)),
+			Command(cmd, flags, "-o", target, source),
+			Command("chmod", "-x", target),
+		)
+	}
+
+	return Group(
+		If(Missing(wasiinclude),
+			Func(func() error {
+				return fmt.Errorf("git submodule %s has not been checked out", wasimodule)
+			}),
+		),
+
+		task("testdata/abi.cpp", "-Wl,--export-all"),
+		task("testdata/hello-debug.cpp", "-Wl,--export=debug"),
+		task("testdata/hello.cpp", "-Wl,--export=greet,--export=twice,--export=multi,--export=repl,--export=fail,--export=test_ext"),
+		task("testdata/nop.wat"),
+		task("testdata/randomseed.cpp", "-Wl,--export=dump,--export=toomuch,--export=toomuch2"),
+		task("testdata/suspend.cpp", "-Wl,--export=loop,--export=loop2"),
+		task("testdata/time.cpp", "-Wl,--export=check"),
+	)
+}
+
+func libraryTask(CCACHE, WASMCXX string) Task {
+	var (
+		WASMLD      = Getvar("WASMLD", "wasm-ld")
+		WASMOBJDUMP = Getvar("WASMOBJDUMP", "wasm-objdump")
+
+		flags = Flatten(
+			"--target=wasm32",
+			"-Iinclude",
+			"-O2",
+			"-Wall",
+			"-Wextra",
+			"-Wimplicit-fallthrough",
+			"-Wno-return-type-c-linkage",
+			"-Wno-unused-parameter",
+			"-Wno-unused-private-field",
+			"-finline-functions",
+			"-fno-exceptions",
+			"-nostdlib",
+			"-std=c++17",
+		)
+
+		include = "include/rt.h"
+		source  = "runtime/abi/library/library.cpp"
+		object  = "tmp/library.wasm"
+		output  = "runtime/abi/library.go"
+	)
+
+	return If(Outdated(output, Flattener(source, include)),
+		DirectoryOf(object),
+		CommandWrap(CCACHE, WASMCXX, flags, "-c", "-o", object, source),
+		Func(func() error {
+			Println("Making", output)
+			return librarian.Link(output, WASMLD, WASMOBJDUMP, "abi", false, object)
+		}),
+	)
 }
 
 func protoTask(PROTOC, GO string) Task {
