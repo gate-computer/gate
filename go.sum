@@ -1,8 +1,6 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
-gate.computer/ga v0.0.0-20211218044256-b13e95063354 h1:igOUeBN2yQidjKvp1ANIeGb1JaibL2ahN4e7e/qlKpA=
-gate.computer/ga v0.0.0-20211218044256-b13e95063354/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
-gate.computer/ga v0.0.0-20220104222001-ec6a4953387b h1:1cbFb4ewtk0HuiY+ywVn++3SJVCuGkp1OnFjs/0Tr5I=
-gate.computer/ga v0.0.0-20220104222001-ec6a4953387b/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
+gate.computer/ga v0.0.0-20220104231707-77c1148a7061 h1:acHG4WdpYhK6FrV+kMbdxkGWUrISUiJI6xnzxXbYHjg=
+gate.computer/ga v0.0.0-20220104231707-77c1148a7061/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
 gate.computer/wag v0.33.1-0.20211229160117-806f98c36584 h1:ftzbS+OEuCWuqHPMQnPES5BT+TXkuhQdL8NMDp7Dkj0=
 gate.computer/wag v0.33.1-0.20211229160117-806f98c36584/go.mod h1:WeDV8RG+/LR9jbYc2tqzobLV1I2b6KxV/N0Yxa0q65c=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=

@@ -175,9 +175,17 @@ func generate(arch ga.Arch, sys *ga.System, variant string) string {
 	return asm
 }
 
+func reset(a *ga.Assembly, regs ...ga.Reg) {
+	common := []ga.Reg{
+		wagTextBase,
+		wagStackLimit,
+	}
+	a.Reset(append(common, regs...)...)
+}
+
 func funcRuntimeInit(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("runtime_init")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 
 	// Unmap loader .text and .rodata sections.
 	{
@@ -244,13 +252,16 @@ func funcRuntimeInit(a *ga.Assembly) {
 }
 
 func funcSignalHandler(a *ga.Assembly) {
+	var (
+		signum   = param0.As("signum")
+		siginfo  = param1.As("siginfo")
+		ucontext = param2.As("ucontext")
+	)
+
 	a.FunctionWithoutPrologue("signal_handler")
-	a.Reset(wagTextBase, wagStackLimit, param0, param1, param2)
-	// param0 = signum
-	// param1 = siginfo
-	// param2 = ucontext
+	reset(a, signum, siginfo, ucontext)
 	{
-		a.JumpIfImm(ga.EQ, param0, int(unix.SIGSEGV), ".signal_segv")
+		a.JumpIfImm(ga.EQ, signum, int(unix.SIGSEGV), ".signal_segv")
 
 		macroStackVars(a, local0, scratch0)
 		a.MoveImm64(local1, uint64(1<<62|1)) // Call and loop suspend bits.
@@ -258,9 +269,9 @@ func funcSignalHandler(a *ga.Assembly) {
 		a.Load4Bytes(local2, local0, 20) // suspend_bits
 		a.JumpIfBitSet(local2, 1, ".do_not_modify_suspend_reg")
 
-		a.Load(scratch0, param2, a.Specify(ucontextStackLimit))
+		a.Load(scratch0, ucontext, a.Specify(ucontextStackLimit))
 		a.OrReg(scratch0, local1)
-		a.Store(param2, a.Specify(ucontextStackLimit), scratch0)
+		a.Store(ucontext, a.Specify(ucontextStackLimit), scratch0)
 
 		a.Label(".do_not_modify_suspend_reg")
 
@@ -271,25 +282,22 @@ func funcSignalHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".signal_segv")
-	a.Reset(param0, param1, param2)
-	// param0 = signum
-	// param1 = siginfo
-	// param2 = ucontext
+	reset(a, signum, siginfo, ucontext)
 	{
-		a.Load(local1, param2, a.Specify(ucontextInsnPtr))
+		a.Load(local1, ucontext, a.Specify(ucontextInsnPtr))
 
 		if a.Arch == ga.ARM64 {
-			a.Store(param2, ucontextLinkARM64, local1)
+			a.Store(ucontext, ucontextLinkARM64, local1)
 		} else {
-			a.Load(scratch0, param2, ucontextStackPtrAMD64)
+			a.Load(scratch0, ucontext, ucontextStackPtrAMD64)
 			a.SubtractImm(scratch0, 8)
-			a.Store(param2, ucontextStackPtrAMD64, scratch0)
+			a.Store(ucontext, ucontextStackPtrAMD64, scratch0)
 
 			a.Store(scratch0, 0, local1)
 		}
 
 		a.Address(scratch0, ".signal_segv_exit")
-		a.Store(param2, a.Specify(ucontextInsnPtr), scratch0)
+		a.Store(ucontext, a.Specify(ucontextInsnPtr), scratch0)
 
 		a.Jump(".signal_return")
 	}
@@ -311,7 +319,7 @@ func funcSignalHandler(a *ga.Assembly) {
 
 func funcSignalRestorer(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("signal_restorer")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.Syscall(linux.SYS_RT_SIGRETURN)
 		a.Unreachable()
@@ -320,9 +328,7 @@ func funcSignalRestorer(a *ga.Assembly) {
 
 func funcTrapHandler(a *ga.Assembly) {
 	a.Function("trap_handler")
-	a.Reset(wagTextBase, wagStackLimit, wagTrap, result)
-	// result = integer result
-	// wagTrap = trap id
+	reset(a, wagTrap, result)
 	{
 		a.JumpIfImm(ga.EQ, wagTrap, int(trap.Exit), ".trap_exit")
 		a.JumpIfImm(ga.EQ, wagTrap, int(trap.CallStackExhausted), ".trap_call_stack_exhausted")
@@ -332,9 +338,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_exit")
-	a.Reset(wagTextBase, wagStackLimit, wagTrap, result)
-	// result = integer result
-	// wagTrap = trap id
+	reset(a, wagTrap, result)
 	{
 		macroStackVars(a, local0, scratch0)
 		a.Store(local0, 32, result)   // result[0]
@@ -348,7 +352,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_call_stack_exhausted")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.JumpIfBitSet(wagStackLimit, 0, ".trap_suspended")
 
@@ -357,7 +361,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_suspended")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.MoveImm(param0, statusTrapSuspended)
 		a.Jump(".exit")
@@ -366,7 +370,7 @@ func funcTrapHandler(a *ga.Assembly) {
 
 func funcCurrentMemory(a *ga.Assembly) {
 	a.Function("current_memory")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		macroCurrentMemoryPages(a, result, local0, scratch0)
 		a.Jump(".resume")
@@ -379,21 +383,21 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 		errorCode = runtimeerrors.ERR_RT_MREMAP
 	}
 
-	a.Function("grow_memory")
-	a.Reset(wagTextBase, wagStackLimit, result)
-	// result = increment in pages
-	{
-		var (
-			stackVars = local0.As("stackVars")
-			oldPages  = local1.As("oldPages")
-			newPages  = local2.As("newPages")
-		)
+	var (
+		incrementPages = result.As("incrementPages")
+		stackVars      = local0.As("stackVars")
+		oldPages       = local1.As("oldPages")
+		newPages       = local2.As("newPages")
+	)
 
+	a.Function("grow_memory")
+	reset(a, incrementPages)
+	{
 		macroCurrentMemoryPages(a, oldPages, stackVars, scratch0)
 
-		a.JumpIfImm(ga.EQ, result, 0, ".grow_memory_done")
+		a.JumpIfImm(ga.EQ, incrementPages, 0, ".grow_memory_done")
 
-		a.AddReg(newPages, oldPages, result)
+		a.AddReg(newPages, oldPages, incrementPages)
 
 		a.Load(scratch0, wagTextBase, -5*8) // memory growth limit in pages
 		a.JumpIfReg(ga.GT, newPages, scratch0, ".out_of_memory")
@@ -413,7 +417,7 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 			a.Load(scratch0, wagTextBase, -4*8) // memory addr
 			a.JumpIfReg(ga.NE, result, scratch0, ".grow_memory_error")
 		} else {
-			a.MoveReg(param1, result)
+			a.MoveReg(param1, incrementPages)
 			a.ShiftImm(ga.Left, param1, 16) // mprotect len
 
 			a.Load(param0, wagTextBase, -4*8) // memory addr
@@ -436,14 +440,14 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	}
 
 	a.Label(".grow_memory_error")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.MoveImm(param0, errorCode)
 		a.Jump(".exit")
 	}
 
 	a.Label(".out_of_memory")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.MoveImm(result, -1)
 		a.Jump(".resume")
@@ -453,12 +457,12 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 func funcRtNop(a *ga.Assembly) {
 	a.Function("rt_nop")
 	a.Label(".resume_zero")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	{
 		a.MoveImm(result, 0)
 
 		a.Label(".resume")
-		a.Reset(wagTextBase, wagStackLimit, result)
+		reset(a, result)
 		{
 			macroClearRegs(a)
 			a.AddImm(scratch0, wagTextBase, abi.TextAddrResume)
@@ -469,8 +473,14 @@ func funcRtNop(a *ga.Assembly) {
 }
 
 func funcRtPoll(a *ga.Assembly) {
+	var (
+		input  = local0.As("input")
+		output = local1.As("output")
+		fds    = local2.As("fds")
+	)
+
 	a.Function("rt_poll")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	// [StackPtr + 32] = input events
 	// [StackPtr + 24] = output events
 	// [StackPtr + 16] = timeout nanoseconds
@@ -491,26 +501,26 @@ func funcRtPoll(a *ga.Assembly) {
 
 		a.Label(".poll")
 
-		a.Load4Bytes(local0, a.StackPtr, 32)
-		a.Load4Bytes(local1, a.StackPtr, 24)
+		a.Load4Bytes(input, a.StackPtr, 32)
+		a.Load4Bytes(output, a.StackPtr, 24)
 		a.MoveImm(scratch0, inputFD)
 		a.MoveImm(scratch1, outputFD)
 
 		fdsSize := sizeofStructPollfd * 2
 		a.SubtractImm(a.StackPtr, fdsSize) // Allocate buffer.
-		a.MoveReg(local2, a.StackPtr)
-		a.Store4Bytes(local2, 0, scratch0) // fds[0].fd
-		a.Store4Bytes(local2, 4, local0)   // fds[0].events
-		a.Store4Bytes(local2, 8, scratch1) // fds[1].fd
-		a.Store4Bytes(local2, 12, local1)  // fds[1].events
+		a.MoveReg(fds, a.StackPtr)
+		a.Store4Bytes(fds, 0, scratch0) // fds[0].fd
+		a.Store4Bytes(fds, 4, input)    // fds[0].events
+		a.Store4Bytes(fds, 8, scratch1) // fds[1].fd
+		a.Store4Bytes(fds, 12, output)  // fds[1].events
 
-		a.MoveReg(param0, local2) // ppoll fds
-		a.MoveImm(param1, 2)      // ppoll nfds
-		a.MoveImm(sysparam3, 0)   // ppoll sigmask
+		a.MoveReg(param0, fds)  // ppoll fds
+		a.MoveImm(param1, 2)    // ppoll nfds
+		a.MoveImm(sysparam3, 0) // ppoll sigmask
 		a.Syscall(linux.SYS_PPOLL)
 
-		a.Load4Bytes(local0, local2, 4)           // fds[0].events | (fds[0].revents << 16)
-		a.Load4Bytes(local1, local2, 12)          // fds[1].events | (fds[1].revents << 16)
+		a.Load4Bytes(input, fds, 4)               // fds[0].events | (fds[0].revents << 16)
+		a.Load4Bytes(output, fds, 12)             // fds[1].events | (fds[1].revents << 16)
 		a.AddImm(a.StackPtr, a.StackPtr, fdsSize) // Release buffer.
 
 		a.JumpIfImm(ga.GE, result, 0, ".poll_revents")
@@ -522,36 +532,36 @@ func funcRtPoll(a *ga.Assembly) {
 	}
 
 	a.Label(".poll_revents")
-	a.Reset(wagTextBase, wagStackLimit, local0, local1)
-	// local0 = fds[0].events | (fds[0].revents << 16)
-	// local1 = fds[1].events | (fds[1].revents << 16)
+	reset(a, input, output)
+	// input  = fds[0].events | (fds[0].revents << 16)
+	// output = fds[1].events | (fds[1].revents << 16)
 	{
-		a.ShiftImm(ga.RightLogical, local0, 16)
-		a.ShiftImm(ga.RightLogical, local1, 16)
-		a.AndImm(local0, 0xffff) // fds[0].revents
-		a.AndImm(local1, 0xffff) // fds[1].revents
+		a.ShiftImm(ga.RightLogical, input, 16)
+		a.ShiftImm(ga.RightLogical, output, 16)
+		a.AndImm(input, 0xffff)  // fds[0].revents
+		a.AndImm(output, 0xffff) // fds[1].revents
 
 		a.MoveImm(scratch0, unix.POLLHUP|unix.POLLRDHUP)
-		a.AndReg(scratch0, local0)
+		a.AndReg(scratch0, input)
 		a.JumpIfImm(ga.NE, scratch0, 0, ".resume_zero") // Being suspended?
 
-		a.MoveReg(scratch0, local0)
+		a.MoveReg(scratch0, input)
 		a.AndImm(scratch0, ^unix.POLLIN)
 		a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
 
-		a.MoveReg(scratch0, local1)
+		a.MoveReg(scratch0, output)
 		a.AndImm(scratch0, ^unix.POLLOUT)
 		a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
 
-		a.MoveReg(result, local0)
-		a.OrReg(result, local1)
+		a.MoveReg(result, input)
+		a.OrReg(result, output)
 		a.Jump(".resume")
 	}
 }
 
 func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, error int) {
 	a.Function(name)
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	// [StackPtr + 16] = buf offset
 	// [StackPtr + 8] = buf size
 	{
@@ -570,21 +580,21 @@ func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, 
 
 func funcRtTime(a *ga.Assembly) {
 	a.Function("rt_time")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	// [StackPtr + 8] = clock id
 	{
 		a.Load4Bytes(param0, a.StackPtr, 8)
-		macroTime(a, ".rt_time")
+		stackVars := macroTime(a, ".rt_time")
 		a.Load4Bytes(scratch0, a.StackPtr, 8)
 		a.JumpIfImm(ga.NE, scratch0, unix.CLOCK_MONOTONIC_COARSE, ".resume")
-		macroTimeFixMonotonic(a)
+		macroTimeFixMonotonic(a, stackVars)
 		a.Jump(".resume")
 	}
 }
 
 func funcRtTimemask(a *ga.Assembly) {
 	a.Function("rt_timemask")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	{
 		a.Load(result, wagTextBase, -9*8) // time_mask
 		a.Jump(".resume")
@@ -592,21 +602,26 @@ func funcRtTimemask(a *ga.Assembly) {
 }
 
 func funcRtRandom(a *ga.Assembly) {
+	var (
+		stackVars = local0.As("stackVars")
+		avail     = local1.As("avail")
+	)
+
 	a.Function("rt_random")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	{
-		macroStackVars(a, local0, scratch0)
-		a.Load4Bytes(local1, local0, 16) // random_avail
-		a.JumpIfImm(ga.EQ, local1, 0, ".no_random")
-		a.SubtractImm(local1, 1)
-		a.Store4Bytes(local0, 16, local1) // random_avail
-		a.AddReg(local1, local1, wagTextBase)
+		macroStackVars(a, stackVars, scratch0)
+		a.Load4Bytes(avail, stackVars, 16)
+		a.JumpIfImm(ga.EQ, avail, 0, ".no_random")
+		a.SubtractImm(avail, 1)
+		a.Store4Bytes(stackVars, 16, avail)
+		a.AddReg(local1, avail, wagTextBase)
 		a.LoadByte(result, local1, -8*8)
 		a.Jump(".resume")
 	}
 
 	a.Label(".no_random")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.MoveImm(result, -1)
 		a.Jump(".resume")
@@ -614,42 +629,49 @@ func funcRtRandom(a *ga.Assembly) {
 }
 
 func funcRtTrap(a *ga.Assembly) {
+	var (
+		status        = param0.As("status")
+		monotonicTime = param1.As("monotonicTime")
+	)
+
 	a.Function("rt_trap")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	// [StackPtr + 8] = status code
 
-	a.Load4Bytes(param0, a.StackPtr, 8)
+	a.Load4Bytes(status, a.StackPtr, 8)
 	a.MoveReg(a.StackPtr, wagRestartSP) // Restart caller on resume.
 
 	a.Label(".exit")
-	a.Reset(wagTextBase, wagStackLimit, param0)
-	// param0 = status code
+	reset(a, status)
 	{
-		a.Push(param0)
+		a.Push(status)
 
 		a.MoveImm(param0, unix.CLOCK_MONOTONIC_COARSE)
-		macroTime(a, ".rt_trap")
-		macroTimeFixMonotonic(a)
-		a.MoveReg(param1, result)
+		{
+			stackVars := macroTime(a, ".rt_trap")
+			macroTimeFixMonotonic(a, stackVars)
+		}
+		a.MoveReg(monotonicTime, result)
 
-		a.Pop(param0)
+		a.Pop(status)
 
 		a.Label(".exit_time")
-		a.Reset(wagTextBase, wagStackLimit, param0, param1)
-		// param0 = status code
-		// param1 = monotonic time
+		reset(a, status, monotonicTime)
 		{
-			macroStackVars(a, local0, scratch0)
+			var (
+				stackVars = local0.As("stackVars")
+			)
+
+			macroStackVars(a, stackVars, scratch0)
 
 			a.MoveReg(local1, a.StackPtr)
-			a.SubtractReg(local1, local0) // StackVars is at start of stack buffer.
+			a.SubtractReg(local1, stackVars)    // StackVars is at start of stack buffer.
+			a.Store4Bytes(stackVars, 0, local1) // stack_unused
 
-			a.Store4Bytes(local0, 0, local1) // stack_unused
-			a.Store(local0, 8, param1)       // monotonic_time_snapshot
+			a.Store(stackVars, 8, monotonicTime) // monotonic_time_snapshot
 
 			a.Label("sys_exit")
-			a.Reset(wagTextBase, wagStackLimit, param0)
-			// param0 = status code
+			reset(a, status)
 			{
 				a.Syscall(linux.SYS_EXIT_GROUP)
 				a.Unreachable()
@@ -659,17 +681,22 @@ func funcRtTrap(a *ga.Assembly) {
 }
 
 func funcRtDebug(a *ga.Assembly) {
+	var (
+		ptr    = local1.As("ptr")
+		remain = local2.As("remain")
+	)
+
 	a.Function("rt_debug")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	// StackPtr + 16 = buf offset
 	// StackPtr + 8 = buf size
 	{
-		macroIOPrologue(a, local2, local1, local0, param1, param0, scratch1, scratch0)
+		macroIOPrologue(a, remain, ptr, local0, param1, param0, scratch1, scratch0)
 
 		a.Label(".debug_loop")
 		a.MoveImm(param0, debugFD)
-		a.MoveReg(param1, local1)
-		a.MoveReg(param2, local2)
+		a.MoveReg(param1, ptr)
+		a.MoveReg(param2, remain)
 		a.Syscall(linux.SYS_WRITE)
 
 		a.JumpIfImm(ga.GT, result, 0, ".debugged_some")
@@ -681,19 +708,19 @@ func funcRtDebug(a *ga.Assembly) {
 	}
 
 	a.Label(".debugged_some")
-	a.Reset(wagTextBase, wagStackLimit, local2, local1, result)
+	reset(a, ptr, remain, result)
 	{
-		a.SubtractReg(local2, result)
-		a.JumpIfImm(ga.EQ, local2, 0, ".resume_zero")
+		a.SubtractReg(remain, result)
+		a.JumpIfImm(ga.EQ, remain, 0, ".resume_zero")
 
-		a.AddReg(local1, local1, result)
+		a.AddReg(ptr, ptr, result)
 		a.Jump(".debug_loop")
 	}
 }
 
 func funcRtRead8(a *ga.Assembly) {
 	a.Function("rt_read8")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	{
 		a.SubtractImm(a.StackPtr, 8) // Allocate buffer.
 
@@ -720,7 +747,7 @@ func funcRtRead8(a *ga.Assembly) {
 
 func funcRtWrite8(a *ga.Assembly) {
 	a.Function("rt_write8")
-	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
+	reset(a, wagRestartSP)
 	// [StackPtr + 8] = data
 	{
 		a.Label(".write8_retry")
@@ -741,7 +768,7 @@ func funcRtWrite8(a *ga.Assembly) {
 
 func routineOutOfBounds(a *ga.Assembly) {
 	a.Label(".out_of_bounds")
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 	{
 		a.MoveImm(param0, statusTrapMemoryAccessOutOfBounds)
 		a.Jump(".exit")
@@ -750,7 +777,7 @@ func routineOutOfBounds(a *ga.Assembly) {
 
 func routineTrampoline(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("trampoline")
-	a.Reset(wagTextBase, wagStackLimit, scratch0)
+	reset(a, scratch0)
 	// scratch0 = target address
 	{
 		a.JumpRegRoutine(scratch0, ".trampoline")
@@ -797,17 +824,25 @@ func macroIOPrologue(a *ga.Assembly, outBufSize, outBufAddr, outBufEnd, outMemAd
 }
 
 // macroTime makes a function call, so it may clobber anything.  Afterwards
-// timestamp will be in result and stack vars in local0.
-func macroTime(a *ga.Assembly, internalNamePrefix string) {
+// timestamp will be in result and stack vars in local0.  The stackVars
+// register is returned.
+func macroTime(a *ga.Assembly, internalNamePrefix string) ga.Reg {
 	// param0 = clock id
+
+	var (
+		stackVars  = local0.As("stackVars")
+		timeSecs   = local1.As("timeSecs")
+		timeNanos  = local2.As("timeNanos")
+		saveResult = local3.As("saveResult")
+	)
 
 	a.SubtractImm(a.StackPtr, sizeofStructTimespec) // Allocate buffer.
 	a.MoveReg(param1, a.StackPtr)                   // clock_gettime tp
 
-	macroStackVars(a, local0, scratch0)
+	macroStackVars(a, stackVars, scratch0)
 
 	if a.Arch == ga.AMD64 {
-		ga.AMD64.OrMem4BytesImm(a, local0.AMD64, 20, 1<<1) // suspend_bits; don't modify suspend reg.
+		ga.AMD64.OrMem4BytesImm(a, stackVars.AMD64, 20, 1<<1) // suspend_bits; don't modify suspend reg.
 
 		a.Push(wagStackLimit)
 		a.Push(wagTextBase)
@@ -816,14 +851,14 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) {
 	a.Load(scratch0, wagTextBase, -11*8) // clock_gettime library function
 	a.Call("trampoline")
 	a.Set(a.LibResult)
-	a.MoveReg(local3, result)
+	a.MoveReg(saveResult, result)
 
 	if a.Arch == ga.AMD64 {
 		a.Pop(wagTextBase)
 		a.Pop(wagStackLimit)
 
 		a.MoveImm(scratch1, 0)
-		ga.AMD64.ExchangeMem4BytesReg(a, local0.AMD64, 20, scratch1.AMD64) // suspend_bits
+		ga.AMD64.ExchangeMem4BytesReg(a, stackVars.AMD64, 20, scratch1.AMD64) // suspend_bits
 		a.JumpIfBitNotSet(scratch1, 0, internalNamePrefix+"_not_suspended")
 
 		a.MoveImm64(scratch0, 0x4000000000000001) // Suspend calls and loops.
@@ -836,30 +871,31 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) {
 	if sizeofStructTimespec != 8+8 {
 		panic("struct timespec size mismatch")
 	}
-	a.Pop(local1) // tv_sec
-	a.Pop(local2) // tv_nsec
+	a.Pop(timeSecs)  // tv_sec
+	a.Pop(timeNanos) // tv_nsec
 
 	a.MoveImm(param0, runtimeerrors.ERR_RT_CLOCK_GETTIME)
 	a.MoveImm(param1, -1) // Outrageous timestamp.
-	a.JumpIfImm(ga.NE, local3, 0, ".exit_time")
+	a.JumpIfImm(ga.NE, saveResult, 0, ".exit_time")
 
 	a.Load(scratch0, wagTextBase, -9*8) // time_mask
-	a.AndReg(local2, scratch0)          // Imprecise tv_nsec.
+	a.AndReg(timeNanos, scratch0)       // Imprecise tv_nsec.
 
 	// Convert tv_sec to nanoseconds in two steps to avoid unnecessary
 	// wrap-around due to signed multiplication.
-	a.MultiplyImm(local3, local1, 500000000, scratch0) // 1000000000/(1<<1)
+	a.MultiplyImm(local3, timeSecs, 500000000, scratch0) // 1000000000/(1<<1)
 	a.ShiftImm(ga.Left, local3, 1)
-	a.AddReg(result, local3, local2) // Total nanoseconds.
+	a.AddReg(result, local3, timeNanos) // Total nanoseconds.
+
+	return stackVars
 }
 
-func macroTimeFixMonotonic(a *ga.Assembly) {
-	// result = timestamp
-	// local0 = stack vars
-
+// macroTimeFixMonotonic expects the timestamp in result register, and
+// stackVars in the specified (local) regiser.
+func macroTimeFixMonotonic(a *ga.Assembly, stackVars ga.Reg) {
 	a.Load(scratch0, wagTextBase, -10*8) // local_monotonic_time_base
 	a.SubtractReg(result, scratch0)
-	a.Load(scratch0, local0, 8) // monotonic_time_snapshot
+	a.Load(scratch0, stackVars, 8) // monotonic_time_snapshot
 	a.AddReg(result, result, scratch0)
 }
 
@@ -900,7 +936,7 @@ func macroClearRegs(a *ga.Assembly) {
 		}
 	}
 
-	a.Reset(wagTextBase, wagStackLimit)
+	reset(a)
 }
 
 // macroClearAllRegs clobbers most things.
