@@ -70,7 +70,7 @@ static void output(uint64_t i)
 static volatile uint64_t scan_addr;
 static volatile uint64_t handbase_addr;
 
-static void segfault_handler(int signum)
+static void segfault_handler(int signum UNUSED)
 {
 	output(scan_addr);
 
@@ -113,7 +113,7 @@ static void scan(uint64_t addr, uint64_t step)
 	}
 }
 
-int main(int argc, char** argv, char** envp)
+int main(int argc UNUSED, char** argv UNUSED, char** envp)
 {
 	uint64_t init_addr = (uintptr_t) envp;
 

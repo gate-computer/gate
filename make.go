@@ -89,7 +89,7 @@ func targets() (targets Tasks) {
 
 	targets.Add(Target("inspect",
 		loader,
-		loaderTestTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 
 	goTestBin := Group(
@@ -280,7 +280,7 @@ func loaderTask(bindir, objdir, arch, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS s
 	return Group(tasks...)
 }
 
-func loaderTestTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
 		PYTHON = Getvar("PYTHON", "python3")
 
@@ -311,8 +311,8 @@ func loaderTestTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 		start    = Join("tmp/runtime/loader", GOARCH, "start.o")
 		runtime2 = Join("tmp/runtime/loader", GOARCH, "runtime2.o")
 
-		signal = "runtime/loader/test/signal.cpp"
-		stack  = "runtime/loader/test/stack.cpp"
+		signal = "runtime/loader/inspect/signal.cpp"
+		stack  = "runtime/loader/inspect/stack.cpp"
 	)
 
 	testTask := func(run func(src, bin string) error, source, lib string, flags ...string) Task {

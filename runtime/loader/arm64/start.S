@@ -47,7 +47,7 @@ _start:
 
 	// Stack iterator is passed to main as envp pointer.
 	// At this point it should be well within the highest stack page
-	// (determined experimentally using runtime/loader/test/stack.cpp).
+	// (determined experimentally using runtime/loader/inspect/stack.cpp).
 
 	bl	main
 
