@@ -247,7 +247,6 @@ func TestMethodNotAllowed(t *testing.T) {
 		api.PathKnownModules:     []string{http.MethodPut},
 	} {
 		for _, method := range methods {
-			t.Log(method, path)
 			req := httptest.NewRequest(method, path, nil)
 			req.Header.Set(api.HeaderOrigin, "null")
 			checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)

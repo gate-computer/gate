@@ -409,11 +409,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	outputMu.Lock()
 	defer outputMu.Unlock()
 
-	s := output.String()
-	if len(s) > 0 {
-		t.Logf("output: %q", s)
-	}
-	return s
+	return output.String()
 }
 
 func TestABI(t *testing.T) {
@@ -447,7 +443,7 @@ func testABI(t *testing.T, name string) {
 		var debug bytes.Buffer
 		runProgram(t, wasmABI, "test_"+name, &debug, trap.Exit)
 		if s := debug.String(); s != "PASS\n" {
-			t.Error(strings.TrimRight(s, "\n"))
+			t.Errorf("output: %q", s)
 		}
 	})
 }
@@ -458,7 +454,7 @@ func testABITrap(t *testing.T, name string) {
 		var debug bytes.Buffer
 		runProgram(t, wasmABI, "testtrap_"+name, &debug, trap.ABIDeficiency)
 		if s := debug.String(); s != "" {
-			t.Error(strings.TrimRight(s, "\n"))
+			t.Errorf("output: %q", s)
 		}
 	})
 }
@@ -470,7 +466,7 @@ func TestRunNop(t *testing.T) {
 func testRunHello(t *testing.T, debug io.Writer) {
 	s := runProgram(t, wasmHello, "greet", debug, trap.Exit)
 	if s != "hello, world\n" {
-		t.Errorf("%q", s)
+		t.Errorf("output: %q", s)
 	}
 }
 
@@ -486,9 +482,8 @@ func TestRunHelloDebug(t *testing.T) {
 	var debug bytes.Buffer
 	runProgram(t, wasmHelloDebug, "debug", &debug, trap.Exit)
 	s := debug.String()
-	t.Logf("debug: %q", s)
 	if s != "hello, world\n" {
-		t.Errorf("%q", s)
+		t.Errorf("debug: %q", s)
 	}
 }
 
@@ -615,7 +610,7 @@ func testRandomDeficiency(t *testing.T, function string) {
 	var debug bytes.Buffer
 	runProgram(t, wasmRandomSeed, function, &debug, trap.ABIDeficiency)
 	if s := debug.String(); s != "ping\n" {
-		t.Error(s)
+		t.Errorf("debug: %q", s)
 	}
 }
 
