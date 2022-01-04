@@ -46,30 +46,30 @@ var (
 )
 
 var (
-	result = ga.Reg{AMD64: ga.RAX, ARM64: ga.X0}
+	result = ga.Reg{AMD64: ga.RAX, ARM64: ga.X0, Use: "result"}
 
 	// Parameter registers for syscalls, library calls and some macros.
-	param0    = ga.Reg{AMD64: ga.RDI, ARM64: ga.X0}
-	param1    = ga.Reg{AMD64: ga.RSI, ARM64: ga.X1}
-	param2    = ga.Reg{AMD64: ga.RDX, ARM64: ga.X2}
-	sysparam3 = ga.Reg{AMD64: ga.R10, ARM64: ga.X3}
+	param0    = ga.Reg{AMD64: ga.RDI, ARM64: ga.X0, Use: "param0"}
+	param1    = ga.Reg{AMD64: ga.RSI, ARM64: ga.X1, Use: "param1"}
+	param2    = ga.Reg{AMD64: ga.RDX, ARM64: ga.X2, Use: "param2"}
+	sysparam3 = ga.Reg{AMD64: ga.R10, ARM64: ga.X3, Use: "sysparam3"}
 
 	// Local registers are preserved across syscalls and library calls,
 	// but may be clobbered by some macros.
-	local0 = ga.Reg{AMD64: ga.RBP, ARM64: ga.X11}
-	local1 = ga.Reg{AMD64: ga.R12, ARM64: ga.X12}
-	local2 = ga.Reg{AMD64: ga.R13, ARM64: ga.X13}
-	local3 = ga.Reg{AMD64: ga.R14, ARM64: ga.X14}
+	local0 = ga.Reg{AMD64: ga.RBP, ARM64: ga.X11, Use: "local0"}
+	local1 = ga.Reg{AMD64: ga.R12, ARM64: ga.X12, Use: "local1"}
+	local2 = ga.Reg{AMD64: ga.R13, ARM64: ga.X13, Use: "local2"}
+	local3 = ga.Reg{AMD64: ga.R14, ARM64: ga.X14, Use: "local3"}
 
 	// Scratch registers may be clobbered by syscalls, library calls and
 	// some macros.
-	scratch0 = ga.Reg{AMD64: ga.R9, ARM64: ga.X9}
-	scratch1 = ga.Reg{AMD64: ga.R8, ARM64: ga.X8}
+	scratch0 = ga.Reg{AMD64: ga.R9, ARM64: ga.X9, Use: "scratch0"}
+	scratch1 = ga.Reg{AMD64: ga.R8, ARM64: ga.X8, Use: "scratch1"}
 
-	wagTrap            = ga.Reg{AMD64: ga.RDX, ARM64: ga.X2}
-	wagRestartSP       = ga.Reg{AMD64: ga.RBP, ARM64: ga.X3}
-	wagTextBase        = ga.Reg{AMD64: ga.R15, ARM64: ga.X27}
-	wagStackLimit      = ga.Reg{AMD64: ga.RBX, ARM64: ga.X28}
+	wagTrap            = ga.Reg{AMD64: ga.RDX, ARM64: ga.X2, Use: "trap"}
+	wagRestartSP       = ga.Reg{AMD64: ga.RBP, ARM64: ga.X3, Use: "restart"}
+	wagTextBase        = ga.Reg{AMD64: ga.R15, ARM64: ga.X27, Use: "text"}
+	wagStackLimit      = ga.Reg{AMD64: ga.RBX, ARM64: ga.X28, Use: "stacklimit"}
 	wagStackLimitShift = ga.Specific{AMD64: 0, ARM64: 4}
 )
 
@@ -177,6 +177,7 @@ func generate(arch ga.Arch, sys *ga.System, variant string) string {
 
 func funcRuntimeInit(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("runtime_init")
+	a.Reset(wagTextBase, wagStackLimit)
 
 	// Unmap loader .text and .rodata sections.
 	{
@@ -244,6 +245,7 @@ func funcRuntimeInit(a *ga.Assembly) {
 
 func funcSignalHandler(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("signal_handler")
+	a.Reset(wagTextBase, wagStackLimit, param0, param1, param2)
 	// param0 = signum
 	// param1 = siginfo
 	// param2 = ucontext
@@ -269,6 +271,7 @@ func funcSignalHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".signal_segv")
+	a.Reset(param0, param1, param2)
 	// param0 = signum
 	// param1 = siginfo
 	// param2 = ucontext
@@ -292,12 +295,14 @@ func funcSignalHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".signal_segv_exit")
+	a.Reset()
 	{
 		a.MoveImm(param0, statusTrapMemoryAccessOutOfBounds)
 		a.Jump(".exit")
 	}
 
 	a.Label(".signal_return")
+	a.Reset()
 	{
 		macroClearAllRegs(a)
 		a.ReturnWithoutEpilogue()
@@ -306,6 +311,7 @@ func funcSignalHandler(a *ga.Assembly) {
 
 func funcSignalRestorer(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("signal_restorer")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.Syscall(linux.SYS_RT_SIGRETURN)
 		a.Unreachable()
@@ -314,6 +320,7 @@ func funcSignalRestorer(a *ga.Assembly) {
 
 func funcTrapHandler(a *ga.Assembly) {
 	a.Function("trap_handler")
+	a.Reset(wagTextBase, wagStackLimit, wagTrap, result)
 	// result = integer result
 	// wagTrap = trap id
 	{
@@ -325,6 +332,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_exit")
+	a.Reset(wagTextBase, wagStackLimit, wagTrap, result)
 	// result = integer result
 	// wagTrap = trap id
 	{
@@ -340,6 +348,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_call_stack_exhausted")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.JumpIfBitSet(wagStackLimit, 0, ".trap_suspended")
 
@@ -348,6 +357,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_suspended")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.MoveImm(param0, statusTrapSuspended)
 		a.Jump(".exit")
@@ -356,6 +366,7 @@ func funcTrapHandler(a *ga.Assembly) {
 
 func funcCurrentMemory(a *ga.Assembly) {
 	a.Function("current_memory")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		macroCurrentMemoryPages(a, result, local0, scratch0)
 		a.Jump(".resume")
@@ -369,12 +380,13 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	}
 
 	a.Function("grow_memory")
+	a.Reset(wagTextBase, wagStackLimit, result)
 	// result = increment in pages
 	{
 		var (
-			stackVars = local0
-			oldPages  = local1
-			newPages  = local2
+			stackVars = local0.As("stackVars")
+			oldPages  = local1.As("oldPages")
+			newPages  = local2.As("newPages")
 		)
 
 		macroCurrentMemoryPages(a, oldPages, stackVars, scratch0)
@@ -424,12 +436,14 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	}
 
 	a.Label(".grow_memory_error")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.MoveImm(param0, errorCode)
 		a.Jump(".exit")
 	}
 
 	a.Label(".out_of_memory")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.MoveImm(result, -1)
 		a.Jump(".resume")
@@ -439,10 +453,12 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 func funcRtNop(a *ga.Assembly) {
 	a.Function("rt_nop")
 	a.Label(".resume_zero")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	{
 		a.MoveImm(result, 0)
 
 		a.Label(".resume")
+		a.Reset(wagTextBase, wagStackLimit, result)
 		{
 			macroClearRegs(a)
 			a.AddImm(scratch0, wagTextBase, abi.TextAddrResume)
@@ -454,6 +470,7 @@ func funcRtNop(a *ga.Assembly) {
 
 func funcRtPoll(a *ga.Assembly) {
 	a.Function("rt_poll")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	// [StackPtr + 32] = input events
 	// [StackPtr + 24] = output events
 	// [StackPtr + 16] = timeout nanoseconds
@@ -505,6 +522,7 @@ func funcRtPoll(a *ga.Assembly) {
 	}
 
 	a.Label(".poll_revents")
+	a.Reset(wagTextBase, wagStackLimit, local0, local1)
 	// local0 = fds[0].events | (fds[0].revents << 16)
 	// local1 = fds[1].events | (fds[1].revents << 16)
 	{
@@ -533,6 +551,7 @@ func funcRtPoll(a *ga.Assembly) {
 
 func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, error int) {
 	a.Function(name)
+	a.Reset(wagTextBase, wagStackLimit)
 	// [StackPtr + 16] = buf offset
 	// [StackPtr + 8] = buf size
 	{
@@ -551,6 +570,7 @@ func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, 
 
 func funcRtTime(a *ga.Assembly) {
 	a.Function("rt_time")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	// [StackPtr + 8] = clock id
 	{
 		a.Load4Bytes(param0, a.StackPtr, 8)
@@ -564,6 +584,7 @@ func funcRtTime(a *ga.Assembly) {
 
 func funcRtTimemask(a *ga.Assembly) {
 	a.Function("rt_timemask")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	{
 		a.Load(result, wagTextBase, -9*8) // time_mask
 		a.Jump(".resume")
@@ -572,6 +593,7 @@ func funcRtTimemask(a *ga.Assembly) {
 
 func funcRtRandom(a *ga.Assembly) {
 	a.Function("rt_random")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	{
 		macroStackVars(a, local0, scratch0)
 		a.Load4Bytes(local1, local0, 16) // random_avail
@@ -584,6 +606,7 @@ func funcRtRandom(a *ga.Assembly) {
 	}
 
 	a.Label(".no_random")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.MoveImm(result, -1)
 		a.Jump(".resume")
@@ -592,12 +615,14 @@ func funcRtRandom(a *ga.Assembly) {
 
 func funcRtTrap(a *ga.Assembly) {
 	a.Function("rt_trap")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	// [StackPtr + 8] = status code
 
 	a.Load4Bytes(param0, a.StackPtr, 8)
 	a.MoveReg(a.StackPtr, wagRestartSP) // Restart caller on resume.
 
 	a.Label(".exit")
+	a.Reset(wagTextBase, wagStackLimit, param0)
 	// param0 = status code
 	{
 		a.Push(param0)
@@ -608,6 +633,7 @@ func funcRtTrap(a *ga.Assembly) {
 		a.MoveReg(param1, result)
 
 		a.Label(".exit_time")
+		a.Reset(wagTextBase, wagStackLimit, param0, param1)
 		// param0 = status code
 		// param1 = monotonic time
 		{
@@ -620,6 +646,7 @@ func funcRtTrap(a *ga.Assembly) {
 			a.Store(local0, 8, param1)       // monotonic_time_snapshot
 
 			a.Label("sys_exit")
+			a.Reset(wagTextBase, wagStackLimit, param0)
 			// param0 = status code
 			{
 				a.Syscall(linux.SYS_EXIT_GROUP)
@@ -631,6 +658,7 @@ func funcRtTrap(a *ga.Assembly) {
 
 func funcRtDebug(a *ga.Assembly) {
 	a.Function("rt_debug")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	// StackPtr + 16 = buf offset
 	// StackPtr + 8 = buf size
 	{
@@ -651,6 +679,7 @@ func funcRtDebug(a *ga.Assembly) {
 	}
 
 	a.Label(".debugged_some")
+	a.Reset(wagTextBase, wagStackLimit, local2, local1, result)
 	{
 		a.SubtractReg(local2, result)
 		a.JumpIfImm(ga.EQ, local2, 0, ".resume_zero")
@@ -662,6 +691,7 @@ func funcRtDebug(a *ga.Assembly) {
 
 func funcRtRead8(a *ga.Assembly) {
 	a.Function("rt_read8")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	{
 		a.SubtractImm(a.StackPtr, 8) // Allocate buffer.
 
@@ -688,6 +718,7 @@ func funcRtRead8(a *ga.Assembly) {
 
 func funcRtWrite8(a *ga.Assembly) {
 	a.Function("rt_write8")
+	a.Reset(wagTextBase, wagStackLimit, wagRestartSP)
 	// [StackPtr + 8] = data
 	{
 		a.Label(".write8_retry")
@@ -708,6 +739,7 @@ func funcRtWrite8(a *ga.Assembly) {
 
 func routineOutOfBounds(a *ga.Assembly) {
 	a.Label(".out_of_bounds")
+	a.Reset(wagTextBase, wagStackLimit)
 	{
 		a.MoveImm(param0, statusTrapMemoryAccessOutOfBounds)
 		a.Jump(".exit")
@@ -716,6 +748,7 @@ func routineOutOfBounds(a *ga.Assembly) {
 
 func routineTrampoline(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("trampoline")
+	a.Reset(wagTextBase, wagStackLimit, scratch0)
 	// scratch0 = target address
 	{
 		a.JumpRegRoutine(scratch0, ".trampoline")
@@ -780,6 +813,7 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) {
 
 	a.Load(scratch0, wagTextBase, -11*8) // clock_gettime library function
 	a.Call("trampoline")
+	a.Set(a.LibResult)
 	a.MoveReg(local3, result)
 
 	if a.Arch == ga.AMD64 {
@@ -863,6 +897,8 @@ func macroClearRegs(a *ga.Assembly) {
 			ga.ARM64.ClearReg(a, r)
 		}
 	}
+
+	a.Reset(wagTextBase, wagStackLimit)
 }
 
 // macroClearAllRegs clobbers most things.
@@ -876,6 +912,8 @@ func macroClearAllRegs(a *ga.Assembly) {
 			ga.ARM64.ClearReg(a, r)
 		}
 	}
+
+	a.Reset()
 }
 
 func maskOut(n uint32) int {
@@ -890,6 +928,14 @@ func main() {
 
 	sys := ga.Linux()
 	sys.StackPtr.ARM64 = ga.X29
+	sys.SysParams[0].Use = "param0"
+	sys.SysParams[1].Use = "param1"
+	sys.SysParams[2].Use = "param2"
+	sys.SysResult.Use = "result"
+	sys.LibParams[0].Use = "param0"
+	sys.LibParams[1].Use = "param1"
+	sys.LibParams[2].Use = "param2"
+	sys.LibResult.Use = "result"
 
 	for _, archname := range archs {
 		arch := ga.Archs[archname]
