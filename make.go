@@ -531,11 +531,7 @@ func benchmarkTask(GO, TAGS string) Task {
 			return err
 		}
 
-		_, err = os.Stat(BENCHSTATSOLD)
-		if err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err == nil {
+		if Exists(BENCHSTATSOLD) {
 			if err := Run(BENCHSTAT, BENCHSTATSOLD, BENCHSTATSNEW); err != nil {
 				return err
 			}
