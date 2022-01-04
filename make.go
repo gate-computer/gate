@@ -51,7 +51,7 @@ func targets() (targets Tasks) {
 		CCACHE   = Getvar("CCACHE", LookPath("ccache"))
 		CXX      = Getvar("CXX", "c++")
 		CPPFLAGS = Getvar("CPPFLAGS", "-DNDEBUG")
-		CXXFLAGS = Getvar("CXXFLAGS", "-O2 -Wall -Wextra -Wimplicit-fallthrough -fomit-frame-pointer -g -std=c++17")
+		CXXFLAGS = Getvar("CXXFLAGS", "-O2 -Wall -Wextra -Wimplicit-fallthrough -g")
 		LDFLAGS  = Getvar("LDFLAGS", "")
 
 		WASMCXX = Getvar("WASMCXX", "clang++")
@@ -303,6 +303,7 @@ func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 
 		cxxflags = Flatten(
 			"-fno-exceptions",
+			"-std=c++17",
 			Fields(CXXFLAGS),
 		)
 
@@ -338,8 +339,10 @@ func loaderTask(bindir, objdir, arch, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS s
 
 		cxxflags = Flatten(
 			"-fPIE",
+			"-fno-builtin",
 			"-fno-exceptions",
 			"-fno-stack-protector",
+			"-std=c++17",
 			Fields(CXXFLAGS),
 		)
 
@@ -347,7 +350,6 @@ func loaderTask(bindir, objdir, arch, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS s
 			"-Wl,--build-id=none",
 			"-Wl,-Ttext-segment=0x200000000",
 			"-Wl,-z,noexecstack",
-			"-nostartfiles",
 			"-nostdlib",
 			"-static",
 			Fields(LDFLAGS),
@@ -408,6 +410,7 @@ func loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 			"-fPIE",
 			"-fno-exceptions",
 			"-fno-stack-protector",
+			"-std=c++2a",
 			Fields(CXXFLAGS),
 		)
 
@@ -460,7 +463,6 @@ func loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 			"-Wl,--section-start=.runtime=0x50000000",
 		),
 		testTask(runPython, stack, start,
-			"-nostartfiles",
 			"-nostdlib",
 		),
 	)
@@ -569,7 +571,7 @@ func prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 			)
 
 			return If(Outdated(packed, Thunk(compiled)),
-				Command(objcopy, "-R", ".comment", "-R", ".eh_frame", compiled, temp),
+				Command(objcopy, "-R", ".comment", "-R", ".eh_frame", "-R", ".note.gnu.property", compiled, temp),
 				Command(strip, temp),
 				Command(GZIP, temp),
 				Installation(packed, temp+".gz", false),

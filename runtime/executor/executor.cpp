@@ -88,13 +88,10 @@ NORETURN int execute_child(const int io_fds[2])
 
 pid_t spawn_child(const int io_fds[2], int cgroup_fd, int* ret_pidfd)
 {
-	CloneArgsV2 args = {
-		.v0 = {
-			.flags = CLONE_PIDFD | CLONE_VFORK,
-			.pidfd = uintptr_t(ret_pidfd),
-			.exit_signal = SIGCHLD,
-		},
-	};
+	CloneArgsV2 args;
+	args.v0.flags = CLONE_PIDFD | CLONE_VFORK;
+	args.v0.pidfd = uintptr_t(ret_pidfd);
+	args.v0.exit_signal = SIGCHLD;
 	auto size = sizeof(CloneArgsV0);
 
 	if (cgroup_fd >= 0) {
@@ -233,11 +230,7 @@ void suspend_process(pid_t pid, int pidfd, long clock_ticks)
 
 	debugf("executor: pid %d fd %d used %ld ticks -> limit %llu secs", pid, pidfd, spent_ticks, secs);
 
-	const rlimit cpu = {
-		.rlim_cur = secs,
-		.rlim_max = secs,
-	};
-
+	const rlimit cpu = {secs, secs};
 	if (prlimit(pid, RLIMIT_CPU, &cpu, nullptr) != 0)
 		die(ERR_EXEC_PRLIMIT_CPU);
 }
@@ -630,11 +623,7 @@ T* xbrk(long pagesize)
 // Set a resource limit or die.
 void xsetrlimit(int resource, rlim_t limit, int exitcode)
 {
-	const rlimit buf = {
-		.rlim_cur = limit,
-		.rlim_max = limit,
-	};
-
+	const rlimit buf = {limit, limit};
 	if (setrlimit(resource, &buf) != 0)
 		die(exitcode);
 }

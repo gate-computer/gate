@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#define __USE_EXTERN_INLINES // For CMSG_NXTHDR.
-
 #include <csignal>
 #include <cstdbool>
 #include <cstddef>
@@ -54,21 +52,20 @@ void* memcpy(void* dest, void const* src, size_t n)
 	return dest;
 }
 
+void* memset(void* dest, int c, size_t n)
+{
+	auto d = reinterpret_cast<uint8_t*>(dest);
+	for (size_t i = 0; i < n; i++)
+		d[i] = c;
+	return dest;
+}
+
 size_t strlen(char const* s)
 {
 	size_t n = 0;
 	while (*s++)
 		n++;
 	return n;
-}
-
-cmsghdr* __cmsg_nxthdr(msghdr* msg, cmsghdr* cmsg)
-{
-	auto ptr = reinterpret_cast<cmsghdr*>(reinterpret_cast<uint8_t*>(cmsg) + CMSG_ALIGN(cmsg->cmsg_len));
-	auto len = reinterpret_cast<uintptr_t>(ptr) + 1 - reinterpret_cast<uintptr_t>(msg->msg_control);
-	if (len > msg->msg_controllen)
-		return nullptr;
-	return ptr;
 }
 
 // Avoiding function prototypes avoids GOT section.
@@ -105,7 +102,7 @@ namespace {
 
 uintptr_t runtime_func_addr(void const* new_base, code* func_ptr)
 {
-	return reinterpret_cast<uintptr_t>(new_base) + reinterpret_cast<uintptr_t>(func_ptr) - reinterpret_cast<uintptr_t>(&runtime_code_begin);
+	return uintptr_t(new_base) + uintptr_t(func_ptr) - uintptr_t(&runtime_code_begin);
 }
 
 int sys_close(int fd)
@@ -120,7 +117,7 @@ int sys_fcntl(int fd, int cmd, int arg)
 
 void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	intptr_t ret = syscall6(SYS_mmap, reinterpret_cast<uintptr_t>(addr), length, prot, flags, fd, offset);
+	intptr_t ret = syscall6(SYS_mmap, uintptr_t(addr), length, prot, flags, fd, offset);
 	if (ret < 0 && ret > -4096)
 		return MAP_FAILED;
 	return reinterpret_cast<void*>(ret);
@@ -128,12 +125,12 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t off
 
 int sys_mprotect(void* addr, size_t len, int prot)
 {
-	return syscall3(SYS_mprotect, reinterpret_cast<uintptr_t>(addr), len, prot);
+	return syscall3(SYS_mprotect, uintptr_t(addr), len, prot);
 }
 
 void* sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags)
 {
-	intptr_t ret = syscall4(SYS_mremap, reinterpret_cast<uintptr_t>(old_addr), old_size, new_size, flags);
+	intptr_t ret = syscall4(SYS_mremap, uintptr_t(old_addr), old_size, new_size, flags);
 	if (ret < 0 && ret > -4096)
 		return MAP_FAILED;
 	return reinterpret_cast<void*>(ret);
@@ -151,22 +148,18 @@ int sys_prctl(int option, unsigned long arg2)
 
 ssize_t sys_read(int fd, void* buf, size_t count)
 {
-	return syscall3(SYS_read, fd, reinterpret_cast<uintptr_t>(buf), count);
+	return syscall3(SYS_read, fd, uintptr_t(buf), count);
 }
 
 ssize_t sys_recvmsg(int sockfd, msghdr* msg, int flags)
 {
-	return syscall3(SYS_recvmsg, sockfd, reinterpret_cast<uintptr_t>(msg), flags);
+	return syscall3(SYS_recvmsg, sockfd, uintptr_t(msg), flags);
 }
 
 int sys_setrlimit(int resource, rlim_t limit)
 {
-	const rlimit buf = {
-		.rlim_cur = limit,
-		.rlim_max = limit,
-	};
-
-	return syscall2(SYS_setrlimit, resource, reinterpret_cast<uintptr_t>(&buf));
+	const rlimit buf = {limit, limit};
+	return syscall2(SYS_setrlimit, resource, uintptr_t(&buf));
 }
 
 // This is like imageInfo in runtime/process.go
@@ -205,10 +198,7 @@ struct StackVars {
 
 int receive_info(ImageInfo* buf, int* text_fd, int* state_fd)
 {
-	iovec iov = {
-		.iov_base = buf,
-		.iov_len = sizeof(ImageInfo),
-	};
+	iovec iov = {buf, sizeof *buf};
 
 	union {
 		char buf[CMSG_SPACE(3 * sizeof(int))];
@@ -267,17 +257,15 @@ int receive_info(ImageInfo* buf, int* text_fd, int* state_fd)
 	return debug_flag;
 }
 
-Elf64_Shdr const* elf_section(Elf64_Ehdr const* elf, unsigned index)
+auto elf_section(Elf64_Ehdr const* elf, unsigned index)
 {
-	auto addr = reinterpret_cast<uintptr_t>(elf);
-	return reinterpret_cast<Elf64_Shdr const*>(addr + elf->e_shoff + elf->e_shentsize * index);
+	return reinterpret_cast<Elf64_Shdr const*>(uintptr_t(elf) + elf->e_shoff + elf->e_shentsize * index);
 }
 
-char const* elf_string(Elf64_Ehdr const* elf, unsigned strtab_index, unsigned str_index)
+auto elf_string(Elf64_Ehdr const* elf, unsigned strtab_index, unsigned str_index)
 {
 	auto strtab = elf_section(elf, strtab_index);
-	auto addr = reinterpret_cast<uintptr_t>(elf);
-	return reinterpret_cast<char const*>(addr + strtab->sh_offset + str_index);
+	return reinterpret_cast<char const*>(uintptr_t(elf) + strtab->sh_offset + str_index);
 }
 
 } // namespace
@@ -299,7 +287,7 @@ int main(int argc UNUSED, char** argv, char** envp)
 			continue;
 
 		for (uint64_t off = 0; off < shdr->sh_size; off += shdr->sh_entsize) {
-			auto vdso_addr = reinterpret_cast<uintptr_t>(vdso);
+			auto vdso_addr = uintptr_t(vdso);
 			auto sym = reinterpret_cast<Elf64_Sym const*>(vdso_addr + shdr->sh_offset + off);
 
 			auto name = elf_string(vdso, shdr->sh_link, sym->st_name);
@@ -369,10 +357,10 @@ clock_gettime_found:
 	if (runtime_ptr == MAP_FAILED)
 		return ERR_LOAD_MMAP_VECTOR;
 
-	auto runtime_size = reinterpret_cast<uintptr_t>(&runtime_code_end) - reinterpret_cast<uintptr_t>(&runtime_code_begin);
+	auto runtime_size = uintptr_t(&runtime_code_end) - uintptr_t(&runtime_code_begin);
 	memcpy(runtime_ptr, &runtime_code_begin, runtime_size);
 
-	auto vector_end = reinterpret_cast<uint64_t*>(reinterpret_cast<uintptr_t>(runtime_ptr) + info.page_size);
+	auto vector_end = reinterpret_cast<uint64_t*>(uintptr_t(runtime_ptr) + info.page_size);
 
 	// Text
 
@@ -382,8 +370,8 @@ clock_gettime_found:
 		if (sys_read(text_fd, text_ptr, info.text_size) != info.text_size)
 			return ERR_LOAD_READ_TEXT;
 	} else {
-		void* p = sys_mmap(text_ptr, info.text_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, text_fd, 0);
-		if (p == MAP_FAILED)
+		auto ret = sys_mmap(text_ptr, info.text_size, PROT_READ | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, text_fd, 0);
+		if (ret == MAP_FAILED)
 			return ERR_LOAD_MMAP_TEXT;
 	}
 
@@ -402,13 +390,13 @@ clock_gettime_found:
 	vars->monotonic_time_snapshot = info.monotonic_time;
 	vars->random_avail = sizeof info.random;
 	vars->suspend_bits = 0;
-	vars->text_addr = reinterpret_cast<uintptr_t>(text_ptr);
+	vars->text_addr = uintptr_t(text_ptr);
 	for (unsigned i = 0; i < sizeof vars->result / sizeof vars->result[0]; i++)
 		vars->result[i] = 0x5adfad0cafe;
 	for (unsigned i = 0; i < sizeof vars->magic / sizeof vars->magic[0]; i++)
 		vars->magic[i] = GATE_STACK_MAGIC;
 
-	auto stack_limit = reinterpret_cast<uintptr_t>(stack_buf) + GATE_STACK_LIMIT_OFFSET;
+	auto stack_limit = uintptr_t(stack_buf) + GATE_STACK_LIMIT_OFFSET;
 	auto stack_ptr = reinterpret_cast<uint64_t*>(stack_buf) + info.stack_unused / 8;
 
 	if (info.stack_unused == info.stack_size) {
@@ -452,7 +440,7 @@ clock_gettime_found:
 		}
 	}
 
-	auto memory_addr = reinterpret_cast<uintptr_t>(heap_ptr) + info.globals_size;
+	auto memory_addr = uintptr_t(heap_ptr) + info.globals_size;
 
 	if (sys_close(state_fd) != 0)
 		return ERR_LOAD_CLOSE_STATE;
@@ -503,7 +491,7 @@ clock_gettime_found:
 	// _start routine smuggles loader stack address as envp pointer.
 
 	auto pagemask = uintptr_t(info.page_size) - 1;
-	auto loader_stack_end = reinterpret_cast<uintptr_t>(envp);
+	auto loader_stack_end = uintptr_t(envp);
 	auto loader_stack_size = align_size(GATE_LOADER_STACK_SIZE, info.page_size);
 	auto loader_stack = ((loader_stack_end + pagemask) & ~pagemask) - loader_stack_size;
 
@@ -514,5 +502,5 @@ clock_gettime_found:
 	      loader_stack_size,
 	      runtime_func_addr(runtime_ptr, &signal_handler),
 	      runtime_func_addr(runtime_ptr, &signal_restorer),
-	      reinterpret_cast<uintptr_t>(text_ptr) + info.init_routine);
+	      uintptr_t(text_ptr) + info.init_routine);
 }
