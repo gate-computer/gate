@@ -282,7 +282,7 @@ char const* elf_string(Elf64_Ehdr const* elf, unsigned strtab_index, unsigned st
 
 } // namespace
 
-int main(int argc, char** argv, char** envp)
+int main(int argc UNUSED, char** argv, char** envp)
 {
 	if (sys_prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
 		return ERR_LOAD_PDEATHSIG;

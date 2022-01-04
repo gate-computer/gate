@@ -47,7 +47,7 @@ func targets() (targets Tasks) {
 		CCACHE   = Getvar("CCACHE", LookPath("ccache"))
 		CXX      = Getvar("CXX", "c++")
 		CPPFLAGS = Getvar("CPPFLAGS", "-DNDEBUG")
-		CXXFLAGS = Getvar("CXXFLAGS", "-O2 -Wall -Wextra -Wimplicit-fallthrough -Wno-unused-parameter -Wno-write-strings -fomit-frame-pointer -g -std=c++17")
+		CXXFLAGS = Getvar("CXXFLAGS", "-O2 -Wall -Wextra -Wimplicit-fallthrough -fomit-frame-pointer -g -std=c++17")
 		LDFLAGS  = Getvar("LDFLAGS", "")
 	)
 
