@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_SYSCALL_HPP
-#define GATE_RUNTIME_SYSCALL_HPP
+#pragma once
 
 #include <cstddef>
 
@@ -105,5 +104,3 @@ static inline intptr_t syscall6(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3
 
 	return retval;
 }
-
-#endif

@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_RUNTIME_HPP
-#define GATE_RUNTIME_RUNTIME_HPP
+#pragma once
 
 #include <limits.h>
 
@@ -55,5 +54,3 @@
 #define GATE_MAGIC_NUMBER_1 0x19328f3a
 #define GATE_MAGIC_NUMBER_2 0x975834d75125276c
 #define GATE_STACK_MAGIC 0x7b53c485c17322fe
-
-#endif

@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_DEBUG_HPP
-#define GATE_RUNTIME_DEBUG_HPP
+#pragma once
 
 #define GATE_RUNTIME_DEBUG 0
 
@@ -15,6 +14,4 @@
 #define debugf(...) \
 	do { \
 	} while (0)
-#endif
-
 #endif

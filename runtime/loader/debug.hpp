@@ -2,8 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef GATE_RUNTIME_LOADER_DEBUG_HPP
-#define GATE_RUNTIME_LOADER_DEBUG_HPP
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -92,5 +91,3 @@ static inline void debugln(First first, Others... others)
 	debug(first);
 	debugln(others...);
 }
-
-#endif
