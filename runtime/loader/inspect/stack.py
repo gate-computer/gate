@@ -34,7 +34,7 @@ min_usage = None
 max_usage = None
 instances = defaultdict(int)
 
-for _ in range(10000):
+for _ in range(100):
     proc = Popen(argv[1:], stdout=PIPE, preexec_fn=preexec, env={})
     output = proc.stdout.read()
     code = proc.wait()
