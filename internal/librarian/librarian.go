@@ -235,7 +235,7 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 func reprFuncType(f wa.FuncType) string {
 	s := "wa.FuncType{"
 
-	if len(f.Params) == 0 && f.Result == wa.Void {
+	if len(f.Params) == 0 && len(f.Results) == 0 {
 		return " " + s + "}"
 	}
 
@@ -254,8 +254,17 @@ func reprFuncType(f wa.FuncType) string {
 		s += "},\n"
 	}
 
-	if f.Result != wa.Void {
-		s += "\t\t\tResult: wa." + strings.ToUpper(f.Result.String()) + ",\n"
+	if len(f.Results) > 0 {
+		s += "\t\t\tResults: []wa.Type{"
+
+		for i, p := range f.Results {
+			if i > 0 {
+				s += ", "
+			}
+			s += "wa." + strings.ToUpper(p.String())
+		}
+
+		s += "},\n"
 	}
 
 	return s + "\t\t}"
