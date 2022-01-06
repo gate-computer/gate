@@ -77,7 +77,7 @@ var (
 	clearAMD64 = []ga.RegAMD64{
 		// RAX contains result.
 		ga.RCX,
-		// RDX is cleared by wag upon resume.
+		ga.RDX,
 		// RBX is StackLimit.
 		// RSP is StackPtr.
 		ga.RBP,
@@ -89,7 +89,7 @@ var (
 		ga.R11,
 		ga.R12,
 		ga.R13,
-		// R14 (MemoryBase) is reset by wag upon resume.
+		ga.R14,
 		// R15 is TextBase.
 	}
 	clearARM64 = []ga.RegARM64{
@@ -119,7 +119,7 @@ var (
 		ga.X23,
 		ga.X24,
 		ga.X25,
-		// X26 (MemoryBase) is reset by wag upon resume.
+		ga.X26,
 		// X27 is TextBase.
 		// X28 is StackLimit.
 		// X29 is FakeSP.
