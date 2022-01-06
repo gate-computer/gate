@@ -408,9 +408,9 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 		tasks.Add(CommandWrap(CCACHE, CXX, flags, "-c", "-o", object, source))
 	}
 
-	addCompilation(Join("runtime/loader", arch, "rt.S"), cppflags)
 	addCompilation(Join("runtime/loader", arch, "start.S"), cppflags)
 	addCompilation(Join("runtime/loader/loader.cpp"), cppflags, cxxflags)
+	addCompilation(Join("runtime/loader", arch, "rt.S"), cppflags) // Link as last.
 
 	tasks.Add(DirectoryOf(binary))
 	tasks.Add(CommandWrap(CCACHE, CXX, cxxflags, ldflags, "-o", binary, objects))

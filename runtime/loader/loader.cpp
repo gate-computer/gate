@@ -41,8 +41,6 @@
 
 extern "C" {
 
-typedef int (*gettime_func_ptr)(clockid_t, timespec*);
-
 void* memcpy(void* dest, void const* src, size_t n)
 {
 	auto d = reinterpret_cast<uint8_t*>(dest);
@@ -268,17 +266,11 @@ auto elf_string(Elf64_Ehdr const* elf, unsigned strtab_index, unsigned str_index
 	return reinterpret_cast<char const*>(uintptr_t(elf) + strtab->sh_offset + str_index);
 }
 
-} // namespace
-
-int main(int argc UNUSED, char** argv, char** envp)
+int main2(Elf64_Ehdr const* vdso, uintptr_t loader_stack_end)
 {
 	if (sys_prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
 		return ERR_LOAD_PDEATHSIG;
 
-	// _start routine smuggles vDSO ELF address as argv pointer.
-	// Use it to lookup clock_gettime function.
-
-	auto vdso = reinterpret_cast<Elf64_Ehdr const*>(argv);
 	uintptr_t clock_gettime_addr = 0;
 
 	for (unsigned i = 0; i < vdso->e_shnum; i++) {
@@ -340,7 +332,7 @@ clock_gettime_found:
 
 	timespec t;
 
-	auto gettime = reinterpret_cast<gettime_func_ptr>(clock_gettime_addr);
+	auto gettime = reinterpret_cast<int (*)(clockid_t, timespec*)>(clock_gettime_addr);
 	if (gettime(CLOCK_MONOTONIC_COARSE, &t) != 0)
 		return ERR_LOAD_CLOCK_GETTIME;
 
@@ -487,10 +479,7 @@ clock_gettime_found:
 
 	auto start = GATE_SANDBOX ? &rt_start : &rt_start_no_sandbox;
 
-	// _start routine smuggles loader stack address as envp pointer.
-
 	auto pagemask = uintptr_t(info.page_size) - 1;
-	auto loader_stack_end = uintptr_t(envp);
 	auto loader_stack_size = align_size(GATE_LOADER_STACK_SIZE, info.page_size);
 	auto loader_stack = ((loader_stack_end + pagemask) & ~pagemask) - loader_stack_size;
 
@@ -502,4 +491,15 @@ clock_gettime_found:
 	      rt_func_addr(rt, &signal_handler),
 	      rt_func_addr(rt, &signal_restorer),
 	      uintptr_t(text_ptr) + info.init_routine);
+
+	__builtin_unreachable();
+}
+
+} // namespace
+
+SECTION(".text")
+int main(int argc UNUSED, char** argv, char** envp)
+{
+	// _start smuggles vDSO ELF address as argv and stack address as envp.
+	return main2(reinterpret_cast<Elf64_Ehdr const*>(argv), uintptr_t(envp));
 }

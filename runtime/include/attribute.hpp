@@ -7,3 +7,5 @@
 #define NORETURN __attribute__((noreturn))
 #define PACKED __attribute__((packed))
 #define UNUSED __attribute__((unused))
+
+#define SECTION(name) __attribute__((section(name)))
