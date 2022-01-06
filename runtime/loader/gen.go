@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 
 	"gate.computer/ga"
 	"gate.computer/ga/linux"
@@ -28,6 +29,8 @@ const (
 )
 
 const (
+	AT_SYSINFO_EHDR = 33
+
 	SECCOMP_SET_MODE_FILTER = 1
 )
 
@@ -163,16 +166,7 @@ func generateRT(arch ga.Arch, sys *ga.System, variant string) string {
 	funcRTRead8(a)
 	funcRTWrite8(a)
 
-	asm := a.String()
-
-	if verbose {
-		fmt.Printf("// %s source:\n%s\n", arch.Machine(), asm)
-	}
-	if assemble {
-		as(arch, asm)
-	}
-
-	return asm
+	return a.String()
 }
 
 func reset(a *ga.Assembly, regs ...ga.Reg) {
@@ -850,7 +844,8 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) ga.Reg {
 
 	a.Load(scratch0, wagTextBase, -11*8) // clock_gettime library function
 	a.Call("trampoline")
-	a.Set(a.LibResult)
+	a.Set(result)
+
 	a.MoveReg(saveResult, result)
 
 	if a.Arch == ga.AMD64 {
@@ -958,12 +953,74 @@ func maskOut(n uint32) int {
 	return int(int32(^n))
 }
 
+func generateStart(arch ga.Arch, sys *ga.System) string {
+	a := ga.NewAssembly(arch, sys)
+
+	var (
+		status = param0.As("status")
+		vdso   = param1.As("vdso")
+		iter   = param2.As("iter")
+	)
+
+	a.FunctionWithoutPrologue("_start")
+	a.Reset()
+	{
+		a.MoveReg(iter, a.StackPtr)
+
+		a.MoveImm(status, runtimeerrors.ERR_LOAD_ARG_ENV)
+
+		a.Load(scratch0, iter, 0) // argc
+		a.JumpIfImm(ga.NE, scratch0, 1, ".exit")
+		a.AddImm(iter, iter, 8+8+8) // Skip argc, argv[0] and null terminator.
+
+		a.Load(scratch0, iter, 0) // envp
+		a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
+		a.AddImm(iter, iter, 8)
+
+		a.MoveImm(status, runtimeerrors.ERR_LOAD_NO_VDSO)
+
+		a.Label(".vdso_loop")
+		a.Load(scratch0, iter, 0) // Type of auxv entry.
+		a.AddImm(iter, iter, 8)
+		a.JumpIfImm(ga.EQ, scratch0, AT_SYSINFO_EHDR, ".vdso_found")
+		a.JumpIfImm(ga.EQ, scratch0, 0, ".exit")
+		a.AddImm(iter, iter, 8) // Skip value.
+		a.Jump(".vdso_loop")
+
+		a.Label(".vdso_found")
+		a.Load(vdso, iter, 0)
+		a.AddImm(iter, iter, 8)
+
+		// iter should be within the highest stack page (determined
+		// experimentally using runtime/loader/inspect/stack.cpp).
+
+		a.MoveImm(param0, 0)    // argc
+		a.MoveReg(param1, vdso) // argv
+		a.MoveReg(param2, iter) // envp
+		a.Call("main")
+		a.Reset(result)
+
+		a.MoveReg(status, result)
+
+		a.Label(".exit")
+		a.Reset(status)
+		{
+			a.Syscall(linux.SYS_EXIT_GROUP)
+			a.Unreachable()
+		}
+	}
+
+	return a.String()
+}
+
 func main() {
 	var (
 		filename = os.Args[1]
 		archname = os.Args[2]
 		variant  = os.Args[3]
 	)
+
+	arch := ga.Archs[archname]
 
 	sys := ga.Linux()
 	sys.StackPtr.ARM64 = ga.X29
@@ -976,11 +1033,25 @@ func main() {
 	sys.LibParams[2].Use = "param2"
 	sys.LibResult.Use = "result"
 
-	fmt.Println("Making", filename)
+	var output string
+	switch path.Base(filename) {
+	case "rt.gen.S":
+		output = generateRT(arch, sys, variant)
+	case "start.gen.S":
+		output = generateStart(arch, sys)
+	default:
+		fmt.Fprintln(os.Stderr, filename)
+		os.Exit(2)
+	}
 
-	asm := generateRT(ga.Archs[archname], sys, variant)
+	if verbose {
+		fmt.Printf("// %s source:\n%s\n", arch.Machine(), output)
+	}
+	if assemble {
+		as(arch, output)
+	}
 
-	if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
+	if err := ioutil.WriteFile(filename, []byte(output), 0666); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

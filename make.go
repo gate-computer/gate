@@ -390,15 +390,21 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 			Fields(LDFLAGS),
 		)
 
-		gen    = Join(objdir, "runtime/loader/rt.gen.S")
 		binary = Join(bindir, common.LoaderFilename)
 	)
 
 	var objects []string
 	var tasks Tasks
 
-	tasks.Add(DirectoryOf(gen))
-	tasks.Add(Command(GO, "run", "runtime/loader/gen.go", gen, arch, OS))
+	addGen := func(filename string) {
+		gen := Join(objdir, "runtime/loader", filename)
+
+		tasks.Add(DirectoryOf(gen))
+		tasks.Add(Command(GO, "run", "runtime/loader/gen.go", gen, arch, OS))
+	}
+
+	addGen("rt.gen.S")
+	addGen("start.gen.S")
 
 	addCompilation := func(source string, flags ...interface{}) {
 		object := Join(objdir, ReplaceSuffix(source, ".o"))
