@@ -8,12 +8,12 @@
 
 .section .text
 
-.globl	runtime_code_begin
-.globl	runtime_code_end
+.globl	rt_text_start
+.globl	rt_text_end
 
 .align	4096
 
-runtime_code_begin:
+rt_text_start:
 	int3
 
 .align	8
@@ -23,4 +23,4 @@ runtime_code_begin:
 
 .align	8
 
-runtime_code_end:
+rt_text_end:

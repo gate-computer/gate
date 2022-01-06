@@ -31,7 +31,7 @@ bool strcmp_clock_gettime(char const* name)
 void enter(
 	void* stack_ptr,
 	uintptr_t stack_limit,
-	uint64_t runtime_init,
+	uint64_t start,
 	uintptr_t loader_stack,
 	size_t loader_stack_size,
 	uint64_t signal_handler,
@@ -49,7 +49,7 @@ void enter(
 	register auto r4 asm("r4") = signal_handler;
 	register auto r5 asm("r5") = SIGACTION_FLAGS;
 	register auto r6 asm("r6") = signal_restorer;
-	register auto r9 asm("r9") = runtime_init;
+	register auto r9 asm("r9") = start;
 	register auto r27 asm("r27") = init_routine;
 	register auto r28 asm("r28") = stack_limit;
 	register auto r29 asm("r29") = stack_ptr;
@@ -100,7 +100,7 @@ void enter(
 		"mov  w0, #" xstr(ERR_LOAD_SIGACTION) "  \n"
 		"b.ne sys_exit                           \n"
 
-		// Execute runtime_init.
+		// Execute rt_start or rt_start_no_sandbox.
 
 		"b    trampoline                         \n"
 		:

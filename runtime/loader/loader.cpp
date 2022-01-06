@@ -80,17 +80,17 @@ extern code rt_debug;
 extern code rt_nop;
 extern code rt_poll;
 extern code rt_random;
-extern code rt_read;
 extern code rt_read8;
+extern code rt_read;
+extern code rt_start;
+extern code rt_start_no_sandbox;
+extern code rt_text_end;
+extern code rt_text_start;
 extern code rt_time;
 extern code rt_timemask;
 extern code rt_trap;
-extern code rt_write;
 extern code rt_write8;
-extern code runtime_code_begin;
-extern code runtime_code_end;
-extern code runtime_init;
-extern code runtime_init_no_sandbox;
+extern code rt_write;
 extern code signal_handler;
 extern code signal_restorer;
 extern code sys_exit;
@@ -100,9 +100,9 @@ extern code trap_handler;
 
 namespace {
 
-uintptr_t runtime_func_addr(void const* new_base, code* func_ptr)
+uintptr_t rt_func_addr(void const* new_base, code* func_ptr)
 {
-	return uintptr_t(new_base) + uintptr_t(func_ptr) - uintptr_t(&runtime_code_begin);
+	return uintptr_t(new_base) + uintptr_t(func_ptr) - uintptr_t(&rt_text_start);
 }
 
 int sys_close(int fd)
@@ -348,19 +348,18 @@ clock_gettime_found:
 	t.tv_nsec &= uint64_t(info.time_mask);
 	auto local_monotonic_time_base = uint64_t(t.tv_sec) * 1000000000ULL + uint64_t(t.tv_nsec);
 
-	// Runtime: code at start, import vector at end (and maybe space for text)
+	// RT: text at start, import vector at end (and maybe space for text)
 
-	auto runtime_addr = info.text_addr - uintptr_t(info.page_size);
-	auto runtime_map_size = info.page_size + (ANDROID ? info.text_size : 0);
+	auto rt_map_size = info.page_size + (ANDROID ? info.text_size : 0);
 
-	auto runtime_ptr = sys_mmap(reinterpret_cast<void*>(runtime_addr), runtime_map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAYBE_MAP_FIXED, -1, 0);
-	if (runtime_ptr == MAP_FAILED)
+	auto rt = sys_mmap(reinterpret_cast<void*>(info.text_addr - uintptr_t(info.page_size)), rt_map_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAYBE_MAP_FIXED, -1, 0);
+	if (rt == MAP_FAILED)
 		return ERR_LOAD_MMAP_VECTOR;
 
-	auto runtime_size = uintptr_t(&runtime_code_end) - uintptr_t(&runtime_code_begin);
-	memcpy(runtime_ptr, &runtime_code_begin, runtime_size);
+	auto rt_size = uintptr_t(&rt_text_end) - uintptr_t(&rt_text_start);
+	memcpy(rt, &rt_text_start, rt_size);
 
-	auto vector_end = reinterpret_cast<uint64_t*>(uintptr_t(runtime_ptr) + info.page_size);
+	auto vector_end = reinterpret_cast<uint64_t*>(uintptr_t(rt) + info.page_size);
 
 	// Text
 
@@ -452,28 +451,28 @@ clock_gettime_found:
 	// These assignments reflect the functions map in runtime/abi/rt/rt.go
 	// and rtFunctions map in runtime/abi/abi.go
 	// TODO: check that runtime and vector contents don't overlap
-	*(vector_end - 20) = runtime_func_addr(runtime_ptr, &rt_timemask);
-	*(vector_end - 19) = runtime_func_addr(runtime_ptr, &rt_write8);
-	*(vector_end - 18) = runtime_func_addr(runtime_ptr, &rt_read8);
-	*(vector_end - 17) = runtime_func_addr(runtime_ptr, &rt_trap);
-	*(vector_end - 16) = runtime_func_addr(runtime_ptr, debug_func);
-	*(vector_end - 15) = runtime_func_addr(runtime_ptr, &rt_write);
-	*(vector_end - 14) = runtime_func_addr(runtime_ptr, &rt_read);
-	*(vector_end - 13) = runtime_func_addr(runtime_ptr, &rt_poll);
-	*(vector_end - 12) = runtime_func_addr(runtime_ptr, &rt_time);
+	*(vector_end - 20) = rt_func_addr(rt, &rt_timemask);
+	*(vector_end - 19) = rt_func_addr(rt, &rt_write8);
+	*(vector_end - 18) = rt_func_addr(rt, &rt_read8);
+	*(vector_end - 17) = rt_func_addr(rt, &rt_trap);
+	*(vector_end - 16) = rt_func_addr(rt, debug_func);
+	*(vector_end - 15) = rt_func_addr(rt, &rt_write);
+	*(vector_end - 14) = rt_func_addr(rt, &rt_read);
+	*(vector_end - 13) = rt_func_addr(rt, &rt_poll);
+	*(vector_end - 12) = rt_func_addr(rt, &rt_time);
 	*(vector_end - 11) = clock_gettime_addr;
 	*(vector_end - 10) = local_monotonic_time_base;
 	*(vector_end - 9) = info.time_mask;
 	*(vector_end - 8) = info.random[0];
 	*(vector_end - 7) = info.random[1];
-	*(vector_end - 6) = runtime_func_addr(runtime_ptr, &rt_random);
+	*(vector_end - 6) = rt_func_addr(rt, &rt_random);
 	*(vector_end - 5) = info.grow_memory_size >> 16;
 	*(vector_end - 4) = memory_addr;
-	*(vector_end - 3) = runtime_func_addr(runtime_ptr, &current_memory);
-	*(vector_end - 2) = runtime_func_addr(runtime_ptr, &grow_memory);
-	*(vector_end - 1) = runtime_func_addr(runtime_ptr, &trap_handler);
+	*(vector_end - 3) = rt_func_addr(rt, &current_memory);
+	*(vector_end - 2) = rt_func_addr(rt, &grow_memory);
+	*(vector_end - 1) = rt_func_addr(rt, &trap_handler);
 
-	if (sys_mprotect(runtime_ptr, runtime_map_size, PROT_READ | PROT_EXEC) != 0)
+	if (sys_mprotect(rt, rt_map_size, PROT_READ | PROT_EXEC) != 0)
 		return ERR_LOAD_MPROTECT_VECTOR;
 
 	// Non-blocking I/O.
@@ -486,7 +485,7 @@ clock_gettime_found:
 
 	// Start runtime.
 
-	auto init_routine = GATE_SANDBOX ? &runtime_init : &runtime_init_no_sandbox;
+	auto start = GATE_SANDBOX ? &rt_start : &rt_start_no_sandbox;
 
 	// _start routine smuggles loader stack address as envp pointer.
 
@@ -497,10 +496,10 @@ clock_gettime_found:
 
 	enter(stack_ptr,
 	      stack_limit,
-	      runtime_func_addr(runtime_ptr, init_routine),
+	      rt_func_addr(rt, start),
 	      loader_stack,
 	      loader_stack_size,
-	      runtime_func_addr(runtime_ptr, &signal_handler),
-	      runtime_func_addr(runtime_ptr, &signal_restorer),
+	      rt_func_addr(rt, &signal_handler),
+	      rt_func_addr(rt, &signal_restorer),
 	      uintptr_t(text_ptr) + info.init_routine);
 }

@@ -140,28 +140,28 @@ const (
 	statusTrapMemoryAccessOutOfBounds = 100 + int(trap.MemoryAccessOutOfBounds)
 )
 
-func generate(arch ga.Arch, sys *ga.System, variant string) string {
+func generateRT(arch ga.Arch, sys *ga.System, variant string) string {
 	a := ga.NewAssembly(arch, sys)
 
-	funcRuntimeInit(a)
+	funcRTStart(a)
 	funcSignalHandler(a)
 	funcSignalRestorer(a)
 	funcTrapHandler(a)
 	funcCurrentMemory(a)
 	funcGrowMemory(a, variant)
-	funcRtNop(a)
+	funcRTNop(a)
 	routineTrampoline(a)
-	funcRtPoll(a)
+	funcRTPoll(a)
 	funcIO(a, "rt_read", linux.SYS_READ, inputFD, ga.GE, runtimeerrors.ERR_RT_READ)
 	funcIO(a, "rt_write", linux.SYS_WRITE, outputFD, ga.GT, runtimeerrors.ERR_RT_WRITE)
 	routineOutOfBounds(a)
-	funcRtTime(a)
-	funcRtTimemask(a)
-	funcRtRandom(a)
-	funcRtTrap(a)
-	funcRtDebug(a)
-	funcRtRead8(a)
-	funcRtWrite8(a)
+	funcRTTime(a)
+	funcRTTimemask(a)
+	funcRTRandom(a)
+	funcRTTrap(a)
+	funcRTDebug(a)
+	funcRTRead8(a)
+	funcRTWrite8(a)
 
 	asm := a.String()
 
@@ -183,8 +183,8 @@ func reset(a *ga.Assembly, regs ...ga.Reg) {
 	a.Reset(append(common, regs...)...)
 }
 
-func funcRuntimeInit(a *ga.Assembly) {
-	a.FunctionWithoutPrologue("runtime_init")
+func funcRTStart(a *ga.Assembly) {
+	a.FunctionWithoutPrologue("rt_start")
 	reset(a)
 
 	// Unmap loader .text and .rodata sections.
@@ -219,7 +219,7 @@ func funcRuntimeInit(a *ga.Assembly) {
 		a.JumpIfImm(ga.NE, local0, 0, "sys_exit")
 	}
 
-	a.Label("runtime_init_no_sandbox")
+	a.Label("rt_start_no_sandbox")
 
 	// Terminate in uninitialized state if already suspended.
 	{
@@ -454,7 +454,7 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	}
 }
 
-func funcRtNop(a *ga.Assembly) {
+func funcRTNop(a *ga.Assembly) {
 	a.Function("rt_nop")
 	a.Label(".resume_zero")
 	reset(a, wagRestartSP)
@@ -472,7 +472,7 @@ func funcRtNop(a *ga.Assembly) {
 	}
 }
 
-func funcRtPoll(a *ga.Assembly) {
+func funcRTPoll(a *ga.Assembly) {
 	var (
 		input  = local0.As("input")
 		output = local1.As("output")
@@ -578,7 +578,7 @@ func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, 
 	}
 }
 
-func funcRtTime(a *ga.Assembly) {
+func funcRTTime(a *ga.Assembly) {
 	a.Function("rt_time")
 	reset(a, wagRestartSP)
 	// [StackPtr + 8] = clock id
@@ -592,7 +592,7 @@ func funcRtTime(a *ga.Assembly) {
 	}
 }
 
-func funcRtTimemask(a *ga.Assembly) {
+func funcRTTimemask(a *ga.Assembly) {
 	a.Function("rt_timemask")
 	reset(a, wagRestartSP)
 	{
@@ -601,7 +601,7 @@ func funcRtTimemask(a *ga.Assembly) {
 	}
 }
 
-func funcRtRandom(a *ga.Assembly) {
+func funcRTRandom(a *ga.Assembly) {
 	var (
 		stackVars = local0.As("stackVars")
 		avail     = local1.As("avail")
@@ -628,7 +628,7 @@ func funcRtRandom(a *ga.Assembly) {
 	}
 }
 
-func funcRtTrap(a *ga.Assembly) {
+func funcRTTrap(a *ga.Assembly) {
 	var (
 		status        = param0.As("status")
 		monotonicTime = param1.As("monotonicTime")
@@ -680,7 +680,7 @@ func funcRtTrap(a *ga.Assembly) {
 	}
 }
 
-func funcRtDebug(a *ga.Assembly) {
+func funcRTDebug(a *ga.Assembly) {
 	var (
 		ptr    = local1.As("ptr")
 		remain = local2.As("remain")
@@ -718,7 +718,7 @@ func funcRtDebug(a *ga.Assembly) {
 	}
 }
 
-func funcRtRead8(a *ga.Assembly) {
+func funcRTRead8(a *ga.Assembly) {
 	a.Function("rt_read8")
 	reset(a, wagRestartSP)
 	{
@@ -745,7 +745,7 @@ func funcRtRead8(a *ga.Assembly) {
 	}
 }
 
-func funcRtWrite8(a *ga.Assembly) {
+func funcRTWrite8(a *ga.Assembly) {
 	a.Function("rt_write8")
 	reset(a, wagRestartSP)
 	// [StackPtr + 8] = data
@@ -978,7 +978,7 @@ func main() {
 
 	fmt.Println("Making", filename)
 
-	asm := generate(ga.Archs[archname], sys, variant)
+	asm := generateRT(ga.Archs[archname], sys, variant)
 
 	if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
 		fmt.Fprintln(os.Stderr, err)

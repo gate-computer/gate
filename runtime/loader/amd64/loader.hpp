@@ -28,7 +28,7 @@ bool strcmp_clock_gettime(char const* name)
 void enter(
 	void* stack_ptr,
 	uintptr_t stack_limit,
-	uint64_t runtime_init,
+	uint64_t start,
 	uintptr_t loader_stack,
 	size_t loader_stack_size,
 	uint64_t signal_handler,
@@ -37,7 +37,7 @@ void enter(
 {
 	register auto rax asm("rax") = stack_ptr;
 	register auto rbx asm("rbx") = stack_limit;
-	register auto rbp asm("rbp") = runtime_init;
+	register auto rbp asm("rbp") = start;
 	register auto rsi asm("rsi") = loader_stack_size; // munmap length
 	register auto rdi asm("rdi") = loader_stack;      // munmap addr
 	register auto r9 asm("r9") = signal_handler;
@@ -90,7 +90,7 @@ void enter(
 		"test %%eax, %%eax                          \n"
 		"jne  sys_exit                              \n"
 
-		// Execute runtime_init.
+		// Execute rt_start or rt_start_no_sandbox.
 
 		"mov  %%rbp, %%r9                           \n"
 		"jmp  trampoline                            \n"

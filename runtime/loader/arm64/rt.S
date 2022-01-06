@@ -6,12 +6,12 @@
 
 .section .text
 
-.globl	runtime_code_begin
-.globl	runtime_code_end
+.globl	rt_text_start
+.globl	rt_text_end
 
 .align	12 // 4096
 
-runtime_code_begin:
+rt_text_start:
 	brk	0
 
 .align	3 // 8
@@ -21,4 +21,4 @@ runtime_code_begin:
 
 .align	3 // 8
 
-runtime_code_end:
+rt_text_end:
