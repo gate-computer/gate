@@ -78,7 +78,7 @@ func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int) (io.Rea
 
 type debugLog struct{}
 
-func newDebugLog() io.WriteCloser            { return debugLog{} }
+func openDebugLog(string) io.WriteCloser     { return debugLog{} }
 func (debugLog) Write(b []byte) (int, error) { return os.Stdout.Write(b) }
 func (debugLog) Close() error                { return nil }
 
@@ -115,6 +115,8 @@ func newServer() (*server.Server, error) {
 	return server.New(context.Background(), &server.Config{
 		ProcessFactory: newExecutor(),
 		AccessPolicy:   server.NewPublicAccess(newServices()),
+		ModuleSources:  map[string]server.Source{"/test": helloSource{}},
+		OpenDebugLog:   openDebugLog,
 	})
 }
 
@@ -131,8 +133,7 @@ func newHandler(t *testing.T) http.Handler {
 		Authority:     "example.invalid",
 		Origins:       []string{"null"},
 		NonceStorage:  nonceChecker,
-		ModuleSources: map[string]server.Source{"/test": helloSource{}},
-		NewDebugLog:   newDebugLog,
+		ModuleSources: server.Sources(s.ModuleSources),
 	}
 
 	h := web.NewHandler("/", config)

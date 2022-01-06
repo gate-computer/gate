@@ -56,8 +56,8 @@ type program struct {
 
 // buildProgram returns an instance if instance policy is defined.  Entry name
 // can be provided only when building an instance.
-func _buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *ModuleUpload, entryName string) (*program, *image.Instance) {
-	content := mod.takeStream()
+func _buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *api.ModuleUpload, entryName string) (*program, *image.Instance) {
+	content := mod.TakeStream()
 	defer func() {
 		if content != nil {
 			content.Close()

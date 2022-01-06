@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"gate.computer/gate/server/api"
 	"gate.computer/wag/wa"
 )
 
@@ -76,22 +77,16 @@ type InstancePolicy struct {
 type Authorizer interface {
 	Authorize(context.Context) (context.Context, error)
 	AuthorizeProgram(context.Context, *ResourcePolicy, *ProgramPolicy) (context.Context, error)
-	AuthorizeProgramSource(context.Context, *ResourcePolicy, *ProgramPolicy, Source) (context.Context, error)
+	AuthorizeProgramSource(context.Context, *ResourcePolicy, *ProgramPolicy, string) (context.Context, error)
 	AuthorizeInstance(context.Context, *ResourcePolicy, *InstancePolicy) (context.Context, error)
 	AuthorizeProgramInstance(context.Context, *ResourcePolicy, *ProgramPolicy, *InstancePolicy) (context.Context, error)
-	AuthorizeProgramInstanceSource(context.Context, *ResourcePolicy, *ProgramPolicy, *InstancePolicy, Source) (context.Context, error)
+	AuthorizeProgramInstanceSource(context.Context, *ResourcePolicy, *ProgramPolicy, *InstancePolicy, string) (context.Context, error)
 
 	authorizer() // Force inheritance.
 }
 
-// Unauthorized access error.  The client is denied access to the server.
-type Unauthorized interface {
-	error
-	Unauthorized()
-}
-
 // AccessUnauthorized error.  The reason will be shown to the client.
-func AccessUnauthorized(publicReason string) Unauthorized {
+func AccessUnauthorized(publicReason string) api.Unauthorized {
 	return accessUnauthorized(publicReason)
 }
 
@@ -101,14 +96,8 @@ func (s accessUnauthorized) Error() string       { return string(s) }
 func (s accessUnauthorized) PublicError() string { return string(s) }
 func (s accessUnauthorized) Unauthorized()       {}
 
-// Forbidden access error.  The client is denied access to a resource.
-type Forbidden interface {
-	error
-	Forbidden()
-}
-
 // AccessForbidden error.  The details are not exposed to the client.
-func AccessForbidden(internalDetails string) Forbidden {
+func AccessForbidden(internalDetails string) api.Forbidden {
 	return accessForbidden(internalDetails)
 }
 
@@ -131,7 +120,7 @@ func (NoAccess) AuthorizeProgram(ctx context.Context, _ *ResourcePolicy, _ *Prog
 	return ctx, errNoAccess
 }
 
-func (NoAccess) AuthorizeProgramSource(ctx context.Context, _ *ResourcePolicy, _ *ProgramPolicy, _ Source) (context.Context, error) {
+func (NoAccess) AuthorizeProgramSource(ctx context.Context, _ *ResourcePolicy, _ *ProgramPolicy, _ string) (context.Context, error) {
 	return ctx, errNoAccess
 }
 
@@ -143,7 +132,7 @@ func (NoAccess) AuthorizeProgramInstance(ctx context.Context, _ *ResourcePolicy,
 	return ctx, errNoAccess
 }
 
-func (NoAccess) AuthorizeProgramInstanceSource(ctx context.Context, _ *ResourcePolicy, _ *ProgramPolicy, _ *InstancePolicy, _ Source) (context.Context, error) {
+func (NoAccess) AuthorizeProgramInstanceSource(ctx context.Context, _ *ResourcePolicy, _ *ProgramPolicy, _ *InstancePolicy, _ string) (context.Context, error) {
 	return ctx, errNoAccess
 }
 
@@ -241,7 +230,7 @@ func (a *PublicAccess) AuthorizeProgram(ctx context.Context, res *ResourcePolicy
 	return ctx, nil
 }
 
-func (a *PublicAccess) AuthorizeProgramSource(ctx context.Context, res *ResourcePolicy, prog *ProgramPolicy, _ Source) (context.Context, error) {
+func (a *PublicAccess) AuthorizeProgramSource(ctx context.Context, res *ResourcePolicy, prog *ProgramPolicy, _ string) (context.Context, error) {
 	a.ConfigureResource(res)
 	a.ConfigureProgram(prog)
 	return ctx, nil
@@ -260,7 +249,7 @@ func (a *PublicAccess) AuthorizeProgramInstance(ctx context.Context, res *Resour
 	return ctx, nil
 }
 
-func (a *PublicAccess) AuthorizeProgramInstanceSource(ctx context.Context, res *ResourcePolicy, prog *ProgramPolicy, inst *InstancePolicy, _ Source) (context.Context, error) {
+func (a *PublicAccess) AuthorizeProgramInstanceSource(ctx context.Context, res *ResourcePolicy, prog *ProgramPolicy, inst *InstancePolicy, _ string) (context.Context, error) {
 	a.ConfigureResource(res)
 	a.ConfigureProgram(prog)
 	a.ConfigureInstance(inst)

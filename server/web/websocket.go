@@ -13,7 +13,7 @@ import (
 
 	"gate.computer/gate/internal/protojson"
 	internalapi "gate.computer/gate/internal/webserverapi"
-	serverapi "gate.computer/gate/server/api"
+	server "gate.computer/gate/server/api"
 	"github.com/gorilla/websocket"
 )
 
@@ -37,7 +37,7 @@ var websocketUpgrader = websocket.Upgrader{
 }
 
 var connectionStatusInputMessage = protojson.MustMarshal(&internalapi.ConnectionStatus{
-	Status: &serverapi.Status{State: serverapi.StateRunning},
+	Status: &server.Status{State: server.StateRunning},
 	Input:  true,
 })
 

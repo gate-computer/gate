@@ -6,17 +6,13 @@ package server
 
 import (
 	"time"
-)
 
-// TooManyRequests error occurs when request rate limit has been exceeded.
-type TooManyRequests interface {
-	error
-	RetryAfter() time.Duration // Zero means unknown.
-}
+	"gate.computer/gate/server/api"
+)
 
 // RetryAfter creates a TooManyRequests error with the earliest time when the
 // request should be retried.
-func RetryAfter(t time.Time) TooManyRequests {
+func RetryAfter(t time.Time) api.TooManyRequests {
 	return rateLimited{t}
 }
 

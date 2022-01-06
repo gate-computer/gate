@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"strings"
 
+	"gate.computer/gate/internal/monitor"
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/internal/protojson"
 	internalapi "gate.computer/gate/internal/webserverapi"
-	"gate.computer/gate/server"
-	serverapi "gate.computer/gate/server/api"
+	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
@@ -36,9 +36,25 @@ type errorWriter interface {
 	WriteError(status int, text string)
 }
 
-type instanceMethod func(s *server.Server, ctx context.Context, instance string) error
-type instanceStatusMethod func(s *server.Server, ctx context.Context, instance string) (*serverapi.Status, error)
-type instanceWaiterMethod func(s *server.Server, ctx context.Context, instance string) (*server.Instance, error)
+type instanceMethod func(ctx context.Context, s server.Server, instance string) error
+type instanceStatusMethod func(ctx context.Context, s server.Server, instance string) (*server.Status, error)
+type instanceWaiterMethod func(ctx context.Context, s server.Server, instance string) (server.Instance, error)
+
+func deleteInstance(ctx context.Context, s server.Server, instance string) error {
+	return s.DeleteInstance(ctx, instance)
+}
+
+func killInstance(ctx context.Context, s server.Server, instance string) (server.Instance, error) {
+	return s.KillInstance(ctx, instance)
+}
+
+func suspendInstance(ctx context.Context, s server.Server, instance string) (server.Instance, error) {
+	return s.SuspendInstance(ctx, instance)
+}
+
+func waitInstance(ctx context.Context, s server.Server, instance string) (*server.Status, error) {
+	return s.WaitInstance(ctx, instance)
+}
 
 type privateConfig struct {
 	Config
@@ -87,6 +103,9 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	if s.NewRequestID == nil {
 		s.NewRequestID = defaultNewRequestID
 	}
+	if s.Monitor == nil {
+		s.Monitor = monitor.Default
+	}
 	if !s.Configured() {
 		panic("incomplete webserver configuration")
 	}
@@ -133,7 +152,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 
 	moduleSources := []string{api.KnownModuleSource}
 
-	for relURI, source := range s.ModuleSources {
+	for _, relURI := range s.ModuleSources {
 		patternSource := patternModule + relURI // host/path/api/module/source
 		patternSourceDir := patternSource + "/" // host/path/api/module/source/
 
@@ -141,7 +160,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		pathSourceDir := pathSource + "/" // /path/api/module/source/
 
 		mux.HandleFunc(patternSource, newRedirectHandler(s, pathSource))
-		mux.HandleFunc(patternSourceDir, newModuleSourceHandler(s, pathModule, pathSourceDir, source))
+		mux.HandleFunc(patternSourceDir, newModuleSourceHandler(s, pathModule, pathSourceDir))
 
 		moduleSources = append(moduleSources, strings.TrimLeft(relURI, "/"))
 	}
@@ -153,7 +172,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		ctx := server.ContextWithRequestAddr(r.Context(), s.NewRequestID(r), r.RemoteAddr)
 		r = r.WithContext(ctx)
 
-		s.Server.Monitor(&event.IfaceAccess{
+		s.Monitor(&event.IfaceAccess{
 			Ctx: server.ContextDetail(ctx),
 		}, nil)
 
@@ -331,7 +350,7 @@ func newKnownModuleHandler(s *webserver) http.HandlerFunc {
 	}
 }
 
-func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, source server.Source) http.HandlerFunc {
+func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string) http.HandlerFunc {
 	var (
 		headers = join(api.HeaderAuthorization)
 		exposed = join(api.HeaderLocation, api.HeaderInstance, api.HeaderStatus)
@@ -365,10 +384,10 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string, sour
 
 			switch r.Method {
 			case "GET", "HEAD":
-				handleGetModuleSource(w, r, s, source, module)
+				handleGetModuleSource(w, r, s, module)
 
 			case "POST":
-				handlePostModuleSource(w, r, s, source, module)
+				handlePostModuleSource(w, r, s, module)
 
 			case "OPTIONS":
 				setOptions(w, methods)
@@ -483,9 +502,9 @@ func handleGetKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			popOptionalLastLogParam(w, r, s, query)
+			log := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCallWebsocket(w, r, s, pin, nil, key, function, modTags, instTags)
+			handleCallWebsocket(w, r, s, pin, "", key, function, modTags, instTags, log)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -526,9 +545,9 @@ func handlePutKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			popOptionalLastLogParam(w, r, s, query)
+			log := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCall(w, r, s, server.OpCallUpload, pin, true, nil, key, function, modTags, instTags)
+			handleCall(w, r, s, server.OpCallUpload, pin, true, "", key, function, modTags, instTags, log)
 
 		case api.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
@@ -567,19 +586,19 @@ func handlePostKnownModule(w http.ResponseWriter, r *http.Request, s *webserver,
 	case api.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instTags := popOptionalParams(query, api.ParamInstanceTag)
-		popOptionalLastLogParam(w, r, s, query)
+		log := popOptionalLastLogParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
-		handleCall(w, r, s, server.OpCallExtant, false, false, nil, key, function, nil, instTags)
+		handleCall(w, r, s, server.OpCallExtant, false, false, "", key, function, nil, instTags, log)
 
 	case api.ActionLaunch:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 		instTags := popOptionalParams(query, api.ParamInstanceTag)
-		popOptionalLastLogParam(w, r, s, query)
+		log := popOptionalLastLogParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContentType(w, r, s)
 		mustNotHaveContent(w, r, s)
-		handleLaunch(w, r, s, server.OpLaunchExtant, false, nil, key, function, instance, nil, instTags, suspend)
+		handleLaunch(w, r, s, server.OpLaunchExtant, false, "", key, function, instance, nil, instTags, suspend, log)
 
 	case api.ActionPin:
 		modTags := popOptionalParams(query, api.ParamModuleTag)
@@ -599,7 +618,7 @@ func handlePostKnownModule(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 }
 
-func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
+func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source string) {
 	query := mustParseQuery(w, r, s)
 	pin := popOptionalActionParam(w, r, s, query, api.ActionPin)
 
@@ -612,16 +631,16 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 	case api.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instTags := popOptionalParams(query, api.ParamInstanceTag)
-		popOptionalLastLogParam(w, r, s, query)
+		log := popOptionalLastLogParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
-		handleCallWebsocket(w, r, s, pin, source, key, function, modTags, instTags)
+		handleCallWebsocket(w, r, s, pin, source, "", function, modTags, instTags, log)
 
 	default:
 		respondUnsupportedAction(w, r, s)
 	}
 }
 
-func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string) {
+func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source string) {
 	query := mustParseQuery(w, r, s)
 	pin := popOptionalActionParam(w, r, s, query, api.ActionPin)
 
@@ -640,19 +659,19 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 			}
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			popOptionalLastLogParam(w, r, s, query)
+			log := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCall(w, r, s, server.OpCallSource, pin, false, source, key, function, modTags, instTags)
+			handleCall(w, r, s, server.OpCallSource, pin, false, source, "", function, modTags, instTags, log)
 
 		case api.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			popOptionalLastLogParam(w, r, s, query)
+			log := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			mustNotHaveContentType(w, r, s)
 			mustNotHaveContent(w, r, s)
-			handleLaunch(w, r, s, server.OpLaunchSource, pin, source, key, function, instance, modTags, instTags, suspend)
+			handleLaunch(w, r, s, server.OpLaunchSource, pin, source, "", function, instance, modTags, instTags, suspend, log)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -662,7 +681,7 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 			mustNotHaveParams(w, r, s, query)
 			mustNotHaveContentType(w, r, s)
 			mustNotHaveContent(w, r, s)
-			handleModuleSource(w, r, s, source, key, modTags)
+			handleModuleSource(w, r, s, source, modTags)
 		} else {
 			respondUnsupportedAction(w, r, s)
 		}
@@ -710,9 +729,9 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 		case api.ActionResume:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			popOptionalLastLogParam(w, r, s, query)
+			log := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleInstanceResume(w, r, s, function, instance)
+			handleInstanceResume(w, r, s, function, instance, log)
 			return
 
 		case api.ActionSnapshot:
@@ -723,7 +742,7 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 		case api.ActionDelete:
 			mustNotHaveParams(w, r, s, query)
-			handleInstance(w, r, s, server.OpInstanceDelete, (*server.Server).DeleteInstance, instance)
+			handleInstance(w, r, s, server.OpInstanceDelete, deleteInstance, instance)
 			return
 
 		case api.ActionUpdate:
@@ -763,15 +782,15 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 	switch {
 	case kill && !suspend:
 		mustNotHaveParams(w, r, s, query)
-		handleInstanceWaiter(w, r, s, server.OpInstanceKill, (*server.Server).KillInstance, instance, wait)
+		handleInstanceWaiter(w, r, s, server.OpInstanceKill, killInstance, instance, wait)
 
 	case suspend && !kill:
 		mustNotHaveParams(w, r, s, query)
-		handleInstanceWaiter(w, r, s, server.OpInstanceSuspend, (*server.Server).SuspendInstance, instance, wait)
+		handleInstanceWaiter(w, r, s, server.OpInstanceSuspend, suspendInstance, instance, wait)
 
 	case wait && !kill && !suspend:
 		mustNotHaveParams(w, r, s, query)
-		handleInstanceStatus(w, r, s, server.OpInstanceWait, (*server.Server).WaitInstance, instance)
+		handleInstanceStatus(w, r, s, server.OpInstanceWait, waitInstance, instance)
 
 	default:
 		respondUnsupportedAction(w, r, s)
@@ -861,14 +880,14 @@ func handleModuleUpload(w http.ResponseWriter, r *http.Request, s *webserver, ke
 	w.WriteHeader(http.StatusCreated)
 }
 
-func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source server.Source, key string, modTags []string) {
+func handleModuleSource(w http.ResponseWriter, r *http.Request, s *webserver, source string, modTags []string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpModuleSource)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	module, err := s.Server.SourceModule(ctx, moduleSource(source, key), modulePin(true, modTags))
+	module, err := s.Server.SourceModule(ctx, source, modulePin(true, modTags))
 	if err != nil {
-		respondServerError(ctx, wr, s, key, "", "", "", err)
+		respondServerError(ctx, wr, s, source, "", "", "", err)
 		return
 	}
 
@@ -902,19 +921,23 @@ func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin, content bool, source server.Source, key, function string, modTags, instTags []string) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin, content bool, source, key, function string, modTags, instTags []string, log string) {
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
-	launch := &serverapi.LaunchOptions{
+	launch := &server.LaunchOptions{
 		Function:  function,
 		Transient: true,
 		Tags:      instTags,
 	}
 
+	invoke := &server.InvokeOptions{
+		DebugLog: log,
+	}
+
 	var (
 		module string
-		inst   *server.Instance
+		inst   server.Instance
 		err    error
 	)
 	switch {
@@ -924,17 +947,17 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		defer upload.Close()
 
 		module = key
-		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, nil)
+		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 
-	case source == nil:
+	case source == "":
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 		module = key
-		inst, err = s.Server.NewInstance(ctx, key, launch, nil)
+		inst, err = s.Server.NewInstance(ctx, key, launch, invoke)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -943,14 +966,14 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	default:
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, pin)
 
-		module, inst, err = s.Server.SourceModuleInstance(ctx, moduleSource(source, key), modulePin(pin, modTags), launch, nil)
+		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch, invoke)
 		if err != nil {
 			// TODO: find out module hash
-			respondServerError(ctx, wr, s, key, "", function, "", err)
+			respondServerError(ctx, wr, s, source, "", function, "", err)
 			return
 		}
 	}
-	defer inst.Kill()
+	defer inst.Kill(ctx) // TODO: error
 
 	trail := acceptsTrailers(r)
 	if trail {
@@ -961,7 +984,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		if pin {
 			w.Header().Set(api.HeaderLocation, s.pathKnownModules+module)
 		}
-		w.Header().Set(api.HeaderInstance, inst.ID)
+		w.Header().Set(api.HeaderInstance, inst.ID())
 	}
 
 	if pin {
@@ -978,7 +1001,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	}
 }
 
-func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, pin bool, source server.Source, key, function string, modTags, instTags []string) {
+func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, pin bool, source, key, function string, modTags, instTags []string, log string) {
 	ctx, cancel := context.WithCancel(request.Context())
 	defer cancel()
 
@@ -1015,7 +1038,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	switch r.ContentType {
 	case api.ContentTypeWebAssembly:
-		if source != nil {
+		if source != "" {
 			conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedContent)
 			reportProtocolError(ctx, s, errUnsupportedWebsocketContent)
 			return
@@ -1025,7 +1048,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		content = true
 
 	case "":
-		if source == nil {
+		if source == "" {
 			ctx = server.ContextWithOp(ctx, server.OpCallExtant) // TODO: detail: websocket
 		} else {
 			ctx = server.ContextWithOp(ctx, server.OpCallSource) // TODO: detail: websocket
@@ -1039,15 +1062,19 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	w := websocketResponseWriter{conn}
 
-	launch := &serverapi.LaunchOptions{
+	launch := &server.LaunchOptions{
 		Function:  function,
 		Transient: true,
 		Tags:      instTags,
 	}
 
+	invoke := &server.InvokeOptions{
+		DebugLog: log,
+	}
+
 	var (
 		module string
-		inst   *server.Instance
+		inst   server.Instance
 	)
 	switch {
 	case content:
@@ -1067,17 +1094,17 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		defer upload.Close()
 
 		module = key
-		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, nil)
+		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
 		}
 
-	case source == nil:
+	case source == "":
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 
 		module = key
-		inst, err = s.Server.NewInstance(ctx, key, launch, nil)
+		inst, err = s.Server.NewInstance(ctx, key, launch, invoke)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -1086,14 +1113,14 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, pin)
 
-		module, inst, err = s.Server.SourceModuleInstance(ctx, moduleSource(source, key), modulePin(pin, modTags), launch, nil)
+		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch, invoke)
 		if err != nil {
 			// TODO: find out module hash
-			respondServerError(ctx, w, s, key, "", function, "", err)
+			respondServerError(ctx, w, s, source, "", function, "", err)
 			return
 		}
 	}
-	defer inst.Kill()
+	defer inst.Kill(ctx) // TODO: error
 
 	var reply api.CallConnection
 
@@ -1101,7 +1128,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		if pin {
 			reply.Location = s.pathKnownModules + module
 		}
-		reply.Instance = inst.ID
+		reply.Instance = inst.ID()
 	}
 
 	err = conn.WriteJSON(&reply)
@@ -1119,39 +1146,43 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 }
 
-func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin bool, source server.Source, key, function, instance string, modTags, instTags []string, suspend bool) {
+func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin bool, source, key, function, instance string, modTags, instTags []string, suspend bool, log string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	launch := &serverapi.LaunchOptions{
+	launch := &server.LaunchOptions{
 		Function: function,
 		Instance: instance,
 		Suspend:  suspend,
 		Tags:     instTags,
 	}
 
+	invoke := &server.InvokeOptions{
+		DebugLog: log,
+	}
+
 	var (
 		module string
-		inst   *server.Instance
+		inst   server.Instance
 		err    error
 	)
-	if source == nil {
+	if source == "" {
 		module = key
-		inst, err = s.Server.NewInstance(ctx, key, launch, nil)
+		inst, err = s.Server.NewInstance(ctx, key, launch, invoke)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 	} else {
-		module, inst, err = s.Server.SourceModuleInstance(ctx, moduleSource(source, key), modulePin(pin, modTags), launch, nil)
+		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch, invoke)
 		if err != nil {
-			respondServerError(ctx, wr, s, key, "", function, "", err)
+			respondServerError(ctx, wr, s, source, "", function, "", err)
 			return
 		}
 	}
 
-	w.Header().Set(api.HeaderInstance, inst.ID)
+	w.Header().Set(api.HeaderInstance, inst.ID())
 
 	if pin {
 		w.Header().Set(api.HeaderLocation, s.pathKnownModules+module)
@@ -1161,30 +1192,24 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	}
 }
 
-func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pin bool, key, function, instance string, modTags, instTags []string, suspend, log bool) {
+func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pin bool, key, function, instance string, modTags, instTags []string, suspend bool, log string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	launch := &serverapi.LaunchOptions{
+	launch := &server.LaunchOptions{
 		Function: function,
 		Instance: instance,
 		Suspend:  suspend,
 		Tags:     instTags,
 	}
 
+	invoke := &server.InvokeOptions{
+		DebugLog: log,
+	}
+
 	upload := moduleUpload(mustDecodeContent(ctx, wr, s), r.ContentLength, key)
 	defer upload.Close()
-
-	invoke := new(server.InvokeOptions)
-	if log && s.NewDebugLog != nil {
-		invoke.DebugLog = s.NewDebugLog()
-		defer func() {
-			if invoke.DebugLog != nil {
-				invoke.DebugLog.Close()
-			}
-		}()
-	}
 
 	inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
 	if err != nil {
@@ -1192,7 +1217,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pi
 		return
 	}
 
-	w.Header().Set(api.HeaderInstance, inst.ID)
+	w.Header().Set(api.HeaderInstance, inst.ID())
 
 	if pin {
 		w.Header().Set(api.HeaderLocation, s.pathKnownModules+key)
@@ -1226,7 +1251,7 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op det
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	if err := method(s.Server, ctx, instance); err != nil {
+	if err := method(ctx, s.Server, instance); err != nil {
 		respondServerError(ctx, wr, s, "", "", "", instance, err)
 		return
 	}
@@ -1257,7 +1282,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	status, err := method(s.Server, ctx, instance)
+	status, err := method(ctx, s.Server, instance)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", "", "", instance, err)
 		return
@@ -1272,7 +1297,7 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	inst, err := method(s.Server, ctx, instance)
+	inst, err := method(ctx, s.Server, instance)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", "", "", instance, err)
 		return
@@ -1286,13 +1311,17 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instance string) {
+func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instance, log string) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceResume)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
-	resume := &serverapi.ResumeOptions{Function: function}
+	resume := &server.ResumeOptions{Function: function}
 
-	if _, err := s.Server.ResumeInstance(ctx, instance, resume, nil); err != nil {
+	invoke := &server.InvokeOptions{
+		DebugLog: log,
+	}
+
+	if _, err := s.Server.ResumeInstance(ctx, instance, resume, invoke); err != nil {
 		respondServerError(ctx, wr, s, "", "", function, instance, err)
 		return
 	}
@@ -1330,7 +1359,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 		return
 	}
 
-	status := inst.Status()
+	status := inst.Status(ctx)
 
 	if trail {
 		w.Header().Set(api.HeaderStatus, string(protojson.MustMarshal(status)))
@@ -1392,7 +1421,7 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 		return
 	}
 
-	status := inst.Status()
+	status := inst.Status(ctx)
 	data := protojson.MustMarshal(&internalapi.ConnectionStatus{Status: status})
 	err = conn.WriteMessage(websocket.TextMessage, data)
 	if err != nil {
@@ -1424,7 +1453,7 @@ func handleInstanceUpdate(w http.ResponseWriter, r *http.Request, s *webserver, 
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	req := new(serverapi.InstanceUpdate)
+	req := new(server.InstanceUpdate)
 	if err := protojson.Decode(r.Body, req); err != nil {
 		respondContentParseError(ctx, wr, s, err)
 		return
@@ -1454,7 +1483,7 @@ func handleInstanceDebug(w http.ResponseWriter, r *http.Request, s *webserver, i
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
-	req := new(serverapi.DebugRequest)
+	req := new(server.DebugRequest)
 	if err := protojson.Decode(r.Body, req); err != nil {
 		respondContentParseError(ctx, wr, s, err)
 		return
@@ -1481,15 +1510,8 @@ func moduleUpload(s io.ReadCloser, length int64, hash string) *server.ModuleUplo
 	}
 }
 
-func moduleSource(s server.Source, uri string) *server.ModuleSource {
-	return &server.ModuleSource{
-		Source: s,
-		URI:    uri,
-	}
-}
-
-func modulePin(pin bool, tags []string) *serverapi.ModuleOptions {
-	return &serverapi.ModuleOptions{
+func modulePin(pin bool, tags []string) *server.ModuleOptions {
+	return &server.ModuleOptions{
 		Pin:  pin,
 		Tags: tags,
 	}

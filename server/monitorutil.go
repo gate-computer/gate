@@ -5,21 +5,8 @@
 package server
 
 import (
-	"log"
-
 	"gate.computer/gate/server/event"
 )
-
-// defaultMonitor prints internal errors to default log.
-func defaultMonitor(ev Event, err error) {
-	if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
-		if err == nil {
-			log.Printf("%v  event:%s", ev, ev.EventName())
-		} else {
-			log.Printf("%v  event:%s  error:%q", ev, ev.EventName(), err.Error())
-		}
-	}
-}
 
 // MultiMonitor combines multiple event monitors.
 func MultiMonitor(monitors ...func(Event, error)) func(Event, error) {

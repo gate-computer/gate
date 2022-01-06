@@ -6,26 +6,28 @@ package web
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"time"
 
-	"gate.computer/gate/server"
+	"gate.computer/gate/internal/monitor"
+	"gate.computer/gate/server/api"
 )
 
 type NonceChecker interface {
 	CheckNonce(ctx context.Context, scope []byte, nonce string, expires time.Time) error
 }
 
+type Event = monitor.Event
+
 // Config for a web server.
 type Config struct {
-	Server        *server.Server
+	Server        api.Server
 	Authority     string   // External domain name with optional port number.
 	Origins       []string // Value "*" causes Origin header to be ignored.
 	NonceStorage  NonceChecker
-	ModuleSources map[string]server.Source
+	ModuleSources []string
 	NewRequestID  func(*http.Request) uint64
-	NewDebugLog   func() io.WriteCloser
+	Monitor       func(Event, error)
 }
 
 func (c *Config) Configured() bool {

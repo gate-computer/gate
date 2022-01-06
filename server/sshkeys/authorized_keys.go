@@ -100,7 +100,7 @@ func (ak *AuthorizedKeys) AuthorizeProgram(ctx context.Context, res *server.Reso
 	return ak.Authorize(ctx)
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, _ server.Source) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeProgramSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, _ string) (context.Context, error) {
 	return ak.AuthorizeProgram(ctx, res, prog)
 }
 
@@ -117,6 +117,6 @@ func (ak *AuthorizedKeys) AuthorizeProgramInstance(ctx context.Context, res *ser
 	return ak.Authorize(ctx)
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramInstanceSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, _ server.Source) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeProgramInstanceSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, _ string) (context.Context, error) {
 	return ak.AuthorizeProgramInstance(ctx, res, prog, inst)
 }

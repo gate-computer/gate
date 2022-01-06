@@ -22,6 +22,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"gate.computer/gate/image"
@@ -92,6 +93,11 @@ type instanceFunc func(*server.Server, context.Context, string) (*server.Instanc
 var userID = strconv.Itoa(os.Getuid())
 
 var terminate = make(chan os.Signal, 1)
+
+var (
+	debugLogMu sync.Mutex
+	debugLogs  = make(map[string]io.WriteCloser)
+)
 
 func Main() {
 	log.SetFlags(0)
@@ -190,6 +196,7 @@ func mainResult() int {
 		ImageStorage:   storage,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
+		OpenDebugLog:   openDebugLog,
 	}
 	if n := c.Runtime.PrepareProcesses; n > 0 {
 		serverConfig.ProcessFactory = gateruntime.PrepareProcesses(ctx, exec, n)
@@ -394,7 +401,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			}
 			ctx = gatescope.Context(ctx, scope)
 			inst := doLaunch(ctx, s(), moduleID, nil, nil, launch, debugFD, debugLogging)
-			instanceID = inst.ID
+			instanceID = inst.ID()
 			return
 		},
 
@@ -419,7 +426,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			}
 			ctx = gatescope.Context(ctx, scope)
 			inst := doLaunch(ctx, s(), "", moduleFile, moduleOpt, launch, debugFD, debugLogging)
-			instanceID = inst.ID
+			instanceID = inst.ID()
 			return
 		},
 
@@ -445,6 +452,12 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			return
 		},
 
+		"KillInstance": func(instanceID string) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			killInstance(ctx, s(), instanceID)
+			return
+		},
+
 		"ResumeInstance": func(instanceID, function string, scope []string, debugFD dbus.UnixFD, debugLogging bool) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			resume := &api.ResumeOptions{
@@ -459,6 +472,12 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			defer func() { err = asBusError(recover()) }()
 			moduleOpt := moduleOptions(true, moduleTags)
 			moduleID = snapshot(ctx, s(), instanceID, moduleOpt)
+			return
+		},
+
+		"SuspendInstance": func(instanceID string) (err *dbus.Error) {
+			defer func() { err = asBusError(recover()) }()
+			suspendInstance(ctx, s(), instanceID)
 			return
 		},
 
@@ -491,18 +510,6 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 			state, cause, result = waitInstance(ctx, s(), instanceID)
 			return
 		},
-	}
-
-	for name, f := range map[string]instanceFunc{
-		"Kill":    (*server.Server).KillInstance,
-		"Suspend": (*server.Server).SuspendInstance,
-	} {
-		f := f // Closure needs a local copy of the iterator's current value.
-		methods[name] = func(instanceID string) (err *dbus.Error) {
-			defer func() { err = asBusError(recover()) }()
-			doInstanceOp(ctx, s(), f, instanceID)
-			return
-		}
 	}
 
 	return methods
@@ -538,7 +545,7 @@ func downloadModule(ctx context.Context, s *server.Server, moduleID string) (io.
 }
 
 func uploadModule(ctx context.Context, s *server.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
-	upload := &server.ModuleUpload{
+	upload := &api.ModuleUpload{
 		Stream: file,
 		Length: length,
 		Hash:   hash,
@@ -589,19 +596,25 @@ func doCall(
 	defer w.Close()
 
 	inst := doLaunch(ctx, s, moduleID, moduleFile, moduleOpt, launch, debugFD, debugLogging)
-	defer inst.Kill()
+	defer func() {
+		if err := inst.Kill(ctx); err != nil {
+			panic(err)
+		}
+	}()
 
 	go func(suspend *os.File) {
 		defer suspend.Close()
 		if n, _ := suspend.Read(make([]byte, 1)); n > 0 {
-			inst.Suspend()
+			if err := inst.Suspend(ctx); err != nil {
+				panic(err)
+			}
 		}
 	}(suspend)
 	suspend = nil
 
 	inst.Connect(ctx, r, w)
 	status := inst.Wait(ctx)
-	return inst.ID, status.State, status.Cause, status.Result
+	return inst.ID(), status.State, status.Cause, status.Result
 }
 
 // doLaunch module id or file.  Module options apply only to module file.
@@ -614,9 +627,9 @@ func doLaunch(
 	launch *api.LaunchOptions,
 	debugFD dbus.UnixFD,
 	debugLogging bool,
-) (inst *server.Instance) {
-	invoke := invokeOptions(debugFD, debugLogging)
-	defer invoke.Close()
+) (inst api.Instance) {
+	invoke, cancel := invokeOptions(debugFD, debugLogging)
+	defer cancel()
 
 	var err error
 	if moduleFile != nil {
@@ -657,11 +670,21 @@ func deleteInstance(ctx context.Context, s *server.Server, instanceID string) {
 	check(s.DeleteInstance(ctx, instanceID))
 }
 
+func suspendInstance(ctx context.Context, s *server.Server, instanceID string) {
+	_, err := s.SuspendInstance(ctx, instanceID)
+	check(err)
+}
+
 func resumeInstance(ctx context.Context, s *server.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
-	invoke := invokeOptions(debugFD, debugLogging)
-	defer invoke.Close()
+	invoke, cancel := invokeOptions(debugFD, debugLogging)
+	defer cancel()
 
 	_, err := s.ResumeInstance(ctx, instance, resume, invoke)
+	check(err)
+}
+
+func killInstance(ctx context.Context, s *server.Server, instanceID string) {
+	_, err := s.KillInstance(ctx, instanceID)
 	check(err)
 }
 
@@ -712,11 +735,6 @@ func debugInstance(ctx context.Context, s *server.Server, instanceID string, req
 	return resBuf
 }
 
-func doInstanceOp(ctx context.Context, s *server.Server, f instanceFunc, instanceID string) {
-	_, err := f(s, ctx, instanceID)
-	check(err)
-}
-
 type access struct {
 	server.PublicAccess
 }
@@ -739,7 +757,7 @@ func (a *access) AuthorizeProgramInstance(ctx context.Context, res *server.Resou
 	return authorizeScope(ctx)
 }
 
-func (a *access) AuthorizeProgramInstanceSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, src server.Source) (context.Context, error) {
+func (a *access) AuthorizeProgramInstanceSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, src string) (context.Context, error) {
 	ctx, err := a.PublicAccess.AuthorizeProgramInstanceSource(ctx, res, prog, inst, src)
 	if err != nil {
 		return ctx, err
@@ -755,9 +773,9 @@ func authorizeScope(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func moduleUpload(f *os.File) *server.ModuleUpload {
+func moduleUpload(f *os.File) *api.ModuleUpload {
 	if info, err := f.Stat(); err == nil && info.Mode().IsRegular() {
-		return &server.ModuleUpload{
+		return &api.ModuleUpload{
 			Stream: f,
 			Length: info.Size(),
 		}
@@ -766,7 +784,7 @@ func moduleUpload(f *os.File) *server.ModuleUpload {
 	data, err := ioutil.ReadAll(f)
 	check(err)
 
-	return &server.ModuleUpload{
+	return &api.ModuleUpload{
 		Stream: ioutil.NopCloser(bytes.NewReader(data)),
 		Length: int64(len(data)),
 	}
@@ -779,13 +797,44 @@ func moduleOptions(pin bool, tags []string) *api.ModuleOptions {
 	}
 }
 
-func invokeOptions(debugFD dbus.UnixFD, debugLogging bool) *server.InvokeOptions {
+func invokeOptions(debugFD dbus.UnixFD, debugLogging bool) (*api.InvokeOptions, func()) {
 	f := os.NewFile(uintptr(debugFD), "debug")
-	if debugLogging {
-		return &server.InvokeOptions{DebugLog: f}
+	if !debugLogging {
+		f.Close()
+		return nil, func() {}
 	}
-	f.Close()
-	return nil
+
+	id := fmt.Sprint(debugFD)
+	opt := &api.InvokeOptions{
+		DebugLog: id,
+	}
+
+	cancel := func() {
+		debugLogMu.Lock()
+		defer debugLogMu.Unlock()
+
+		if _, found := debugLogs[id]; found {
+			delete(debugLogs, id)
+			f.Close()
+		}
+	}
+
+	debugLogMu.Lock()
+	defer debugLogMu.Unlock()
+
+	debugLogs[id] = f
+
+	return opt, cancel
+}
+
+func openDebugLog(id string) io.WriteCloser {
+	debugLogMu.Lock()
+	defer debugLogMu.Unlock()
+
+	f := debugLogs[id]
+	delete(debugLogs, id)
+
+	return f
 }
 
 func asBusError(x interface{}) *dbus.Error {

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package server
+package api
 
 import (
 	"context"
@@ -33,7 +33,8 @@ func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
 	return context.WithValue(ctx, contextKey{}, c)
 }
 
-func detachedContext(ctx context.Context) context.Context {
+// DetachedContext clears request address.
+func DetachedContext(ctx context.Context) context.Context {
 	c := ContextDetail(ctx)
 	c.Addr = ""
 	return context.WithValue(ctx, contextKey{}, c)

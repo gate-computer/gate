@@ -19,7 +19,7 @@ import (
 	"gate.computer/gate/internal/error/notfound"
 	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/error/resourcelimit"
-	"gate.computer/gate/server"
+	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/resourcenotfound"

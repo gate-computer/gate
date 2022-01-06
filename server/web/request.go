@@ -182,13 +182,10 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
-func popOptionalLastLogParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) bool {
+func popOptionalLastLogParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) string {
 	switch value := popOptionalLastParam(w, r, s, query, api.ParamLog); value {
-	case "":
-		return false
-
-	case "*":
-		return true
+	case "", "*":
+		return value
 
 	default:
 		respondUnsupportedLog(w, r, s, value)

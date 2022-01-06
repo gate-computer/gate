@@ -32,7 +32,7 @@ import (
 	_ "gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
-	"gate.computer/gate/server/web/api"
+	webapi "gate.computer/gate/server/web/api"
 	"gate.computer/gate/server/web/router"
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
@@ -204,11 +204,15 @@ func Main() {
 		}
 	}
 	c.Runtime.ErrorLog = errLog
+
+	var monitor func(server.Event, error)
 	if infoLog != nil {
-		c.Server.Monitor = server.ErrorEventLogger(errLog, infoLog)
+		monitor = server.ErrorEventLogger(errLog, infoLog)
 	} else {
-		c.Server.Monitor = server.ErrorLogger(errLog)
+		monitor = server.ErrorLogger(errLog)
 	}
+	c.Server.Monitor = monitor
+	c.HTTP.Monitor = monitor
 
 	mux := http.NewServeMux()
 	ctx := router.Context(context.Background(), mux)
@@ -339,15 +343,16 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		c.HTTP.NonceStorage = db
 	}
 
-	c.HTTP.ModuleSources = make(map[string]server.Source)
+	c.Server.ModuleSources = make(map[string]server.Source)
 	for _, x := range c.Source.HTTP {
 		if x.Name != "" && x.Configured() {
-			c.HTTP.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)
+			c.Server.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)
 		}
 	}
 	if c.Source.IPFS.Configured() {
-		c.HTTP.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
+		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
 	}
+	c.HTTP.ModuleSources = server.Sources(c.Server.ModuleSources)
 
 	var (
 		acmeCache  autocert.Cache
@@ -358,12 +363,13 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
 	}
 
-	c.HTTP.Server, err = server.New(ctx, &c.Server)
+	serverImpl, err := server.New(ctx, &c.Server)
 	if err != nil {
 		return err
 	}
+	c.HTTP.Server = serverImpl
 
-	mux.Handle(api.Path, web.NewHandler("/", &c.HTTP.Config))
+	mux.Handle(webapi.Path, web.NewHandler("/", &c.HTTP.Config))
 	handler := newHTTPSHandler(mux)
 
 	if c.HTTP.AccessLog != "" {
@@ -410,7 +416,7 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 			critLog.Fatalf("shutdown: %v", err)
 		}
 
-		if err := c.HTTP.Server.Shutdown(ctx); err != nil {
+		if err := serverImpl.Shutdown(ctx); err != nil {
 			critLog.Fatalf("shutdown: %v", err)
 		}
 	}()
@@ -483,13 +489,13 @@ func writeResponse(w http.ResponseWriter, r *http.Request, status int, message s
 		return
 	}
 
-	w.Header().Set(api.HeaderContentType, "text/plain")
+	w.Header().Set(webapi.HeaderContentType, "text/plain")
 	w.WriteHeader(status)
 	fmt.Fprintln(w, message)
 }
 
 func acceptsText(r *http.Request) bool {
-	headers := r.Header[api.HeaderAccept]
+	headers := r.Header[webapi.HeaderAccept]
 	if len(headers) == 0 {
 		return true
 	}

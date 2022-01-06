@@ -9,8 +9,9 @@ import (
 	"io"
 
 	"gate.computer/gate/image"
+	"gate.computer/gate/internal/monitor"
 	"gate.computer/gate/runtime"
-	"google.golang.org/protobuf/proto"
+	"gate.computer/gate/server/api"
 )
 
 type InstanceConnector interface {
@@ -36,17 +37,15 @@ func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) Instanc
 	}{c, r}
 }
 
-type Event interface {
-	EventName() string
-	EventType() int32
-	proto.Message
-}
+type Event = monitor.Event
 
 type Config struct {
 	ImageStorage   image.Storage
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
+	ModuleSources  map[string]Source
 	Monitor        func(Event, error)
+	OpenDebugLog   func(string) io.WriteCloser
 }
 
 func (c *Config) Configured() bool {
@@ -55,4 +54,11 @@ func (c *Config) Configured() bool {
 
 func (c *Config) monitor(e Event) {
 	c.Monitor(e, nil)
+}
+
+func (c *Config) openDebugLog(opt *api.InvokeOptions) io.WriteCloser {
+	if c.OpenDebugLog != nil && opt != nil && opt.DebugLog != "" {
+		return c.OpenDebugLog(opt.DebugLog)
+	}
+	return nil
 }

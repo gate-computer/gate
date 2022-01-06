@@ -36,7 +36,7 @@ func New(config *Config) *Client {
 	return c
 }
 
-// OpenURI implements server.Source.OpenURI.
+// OpenURI implements gate/server/api.Source.OpenURI.
 func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	url := c.config.Addr + uri
 	req, err := http.NewRequest(http.MethodGet, url, nil)
