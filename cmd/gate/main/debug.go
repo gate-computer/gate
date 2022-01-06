@@ -33,6 +33,7 @@ import (
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa"
 	dbus "github.com/godbus/dbus/v5"
+	"import.name/pan"
 )
 
 type location struct {
@@ -450,8 +451,7 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		buf = buf[stackOffset:]
 	}
 
-	check(errors.New("ran out of stack before initial call"))
-	panic("unreachable")
+	panic(pan.Wrap(errors.New("ran out of stack before initial call")))
 }
 
 func asUint64(x interface{}) uint64 {

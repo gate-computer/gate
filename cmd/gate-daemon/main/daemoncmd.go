@@ -283,8 +283,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 		if initedServer != nil {
 			return initedServer
 		}
-		check(errors.New("daemon initialization was aborted"))
-		panic("unreachable")
+		panic(pan.Wrap(errors.New("daemon initialization was aborted")))
 	}
 
 	methods := map[string]interface{}{
