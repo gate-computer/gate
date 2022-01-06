@@ -10,42 +10,42 @@ var (
 	library_args_get = libraryFunction{
 		Index: 8,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_args_sizes_get = libraryFunction{
 		Index: 9,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_clock_res_get = libraryFunction{
 		Index: 10,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_clock_time_get = libraryFunction{
 		Index: 11,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I64, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I64, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_environ_get = libraryFunction{
 		Index: 12,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_environ_sizes_get = libraryFunction{
 		Index: 13,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
@@ -58,49 +58,49 @@ var (
 	library_fd_close = libraryFunction{
 		Index: 15,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32},
+			Params:  []wa.Type{wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_fd_fdstat_get = libraryFunction{
 		Index: 16,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_fd_fdstat_set_rights = libraryFunction{
 		Index: 17,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I64, wa.I64},
+			Params:  []wa.Type{wa.I32, wa.I64, wa.I64},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_fd_prestat_dir_name = libraryFunction{
 		Index: 18,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_fd_read = libraryFunction{
 		Index: 19,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_fd_renumber = libraryFunction{
 		Index: 20,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_fd_write = libraryFunction{
 		Index: 21,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
@@ -113,7 +113,7 @@ var (
 	library_poll_oneoff = libraryFunction{
 		Index: 23,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
@@ -126,14 +126,14 @@ var (
 	library_proc_raise = libraryFunction{
 		Index: 25,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32},
+			Params:  []wa.Type{wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_random_get = libraryFunction{
 		Index: 26,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
@@ -146,119 +146,119 @@ var (
 	library_sock_recv = libraryFunction{
 		Index: 28,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_sock_send = libraryFunction{
 		Index: 29,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd = libraryFunction{
 		Index: 30,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32},
+			Params:  []wa.Type{wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32 = libraryFunction{
 		Index: 31,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32 = libraryFunction{
 		Index: 33,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_fd_i32_i32 = libraryFunction{
 		Index: 40,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_i32_fd_i32_i32 = libraryFunction{
 		Index: 42,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_i32_i32 = libraryFunction{
 		Index: 37,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_i32_i32_i32 = libraryFunction{
 		Index: 41,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_i32_i32_i64_i64_i32_i32 = libraryFunction{
 		Index: 44,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I64, wa.I64, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32, wa.I64, wa.I64, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_i32_i64_i64_i32 = libraryFunction{
 		Index: 43,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I64, wa.I64, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I64, wa.I64, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i32_i32_i64_i32 = libraryFunction{
 		Index: 39,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I64, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I64, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i64 = libraryFunction{
 		Index: 32,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I64},
+			Params:  []wa.Type{wa.I32, wa.I64},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i64_i32_i32 = libraryFunction{
 		Index: 35,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I64, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I64, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i64_i64 = libraryFunction{
 		Index: 34,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I64, wa.I64},
+			Params:  []wa.Type{wa.I32, wa.I64, wa.I64},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_fd_i64_i64_i32 = libraryFunction{
 		Index: 36,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I64, wa.I64, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I64, wa.I64, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 
 	library_stub_i32_i32_fd_i32_i32 = libraryFunction{
 		Index: 38,
 		Type: wa.FuncType{
-			Params: []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
+			Params:  []wa.Type{wa.I32, wa.I32, wa.I32, wa.I32, wa.I32},
 			Results: []wa.Type{wa.I32},
 		}}
 )

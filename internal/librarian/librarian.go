@@ -241,8 +241,13 @@ func reprFuncType(f wa.FuncType) string {
 
 	s += "\n"
 
+	indent := " "
+	if len(f.Results) > 0 {
+		indent = "  "
+	}
+
 	if len(f.Params) > 0 {
-		s += "\t\t\tParams: []wa.Type{"
+		s += fmt.Sprintf("\t\t\tParams:%s[]wa.Type{", indent)
 
 		for i, p := range f.Params {
 			if i > 0 {

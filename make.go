@@ -225,6 +225,7 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 
 		deps = Globber(
 			"include/*.h",
+			"internal/librarian/*.go",
 			"runtime/abi/library/*.cpp",
 			"runtime/abi/library/*.hpp",
 		)
