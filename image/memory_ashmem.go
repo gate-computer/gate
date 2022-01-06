@@ -11,7 +11,10 @@ package image
 // See memory_memfd.go for function contract documentation.
 
 import (
+	"fmt"
+	"runtime"
 	"syscall"
+	"unsafe"
 
 	"gate.computer/gate/internal/file"
 	"golang.org/x/sys/unix"
