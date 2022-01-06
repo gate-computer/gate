@@ -236,9 +236,9 @@ void suspend_process(pid_t pid, int pidfd, long clock_ticks)
 }
 
 enum class ExecOp : uint8_t {
-	create,
-	kill,
-	suspend,
+	Create,
+	Kill,
+	Suspend,
 };
 
 // See runtime/executor.go
@@ -392,7 +392,7 @@ more:
 		auto cmsg = CMSG_FIRSTHDR(&m_msgs[i].msg_hdr);
 
 		switch (m_reqs[i].op) {
-		case ExecOp::create:
+		case ExecOp::Create:
 			debugf("executor: creating [%d]", id);
 
 			if (cmsg == nullptr)
@@ -417,7 +417,7 @@ more:
 				die(ERR_EXEC_CMSG_NXTHDR);
 			break;
 
-		case ExecOp::kill:
+		case ExecOp::Kill:
 			debugf("executor: killing [%d]", id);
 
 			if (cmsg)
@@ -431,7 +431,7 @@ more:
 			}
 			break;
 
-		case ExecOp::suspend:
+		case ExecOp::Suspend:
 			debugf("executor: suspending [%d]", id);
 
 			if (cmsg)

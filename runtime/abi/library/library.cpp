@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Update ../library.go by running 'go generate' in parent directory.
-
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,7 +28,7 @@ private: \
 #define RETURN_FAULT_IF(condition) \
 	do { \
 		if (condition) \
-			return Error::fault; \
+			return Error::Fault; \
 	} while (0)
 
 // For some reason noreturn function didn't get inlined.
@@ -39,14 +37,14 @@ private: \
 namespace {
 
 enum class Error : uint16_t {
-	success = 0,
-	again = 6,
-	badf = 8,
-	fault = 21,
-	inval = 28,
-	notsock = 57,
-	perm = 63,
-	notcapable = 76,
+	Success = 0,
+	Again = 6,
+	BadFileNumber = 8,
+	Fault = 21,
+	Invalid = 28,
+	NotSocket = 57,
+	Permission = 63,
+	NotCapable = 76,
 };
 
 class Timestamp {
@@ -76,10 +74,10 @@ const Timestamp Timestamp::max = Timestamp(~0ULL);
 typedef uint64_t Resolution;
 
 enum class FD : uint32_t {
-	stdin = 0,
-	stdout = 1,
-	stderr = 2,
-	gate = 4,
+	Stdin = 0,
+	Stdout = 1,
+	Stderr = 2,
+	Gate = 4,
 };
 
 class PollEvents {
@@ -105,10 +103,10 @@ const Rights Rights::fd_read = Rights(1 << 1);
 const Rights Rights::fd_write = Rights(1 << 6);
 
 enum class ClockID : uint32_t {
-	realtime = 0,
-	monotonic = 1,
-	realtime_coarse = 5,
-	monotonic_coarse = 6,
+	Realtime = 0,
+	Monotonic = 1,
+	RealtimeCoarse = 5,
+	MonotonicCoarse = 6,
 };
 
 class ClockFlags {
@@ -130,13 +128,13 @@ public:
 const FDFlags FDFlags::nonblock = FDFlags(1 << 2);
 
 enum class FileType : uint8_t {
-	unknown = 0,
+	Unknown = 0,
 };
 
 enum class EventType : uint8_t {
-	clock = 0,
-	fd_read = 1,
-	fd_write = 2,
+	Clock = 0,
+	FDRead = 1,
+	FDWrite = 2,
 };
 
 class EventRWFlags {
@@ -215,17 +213,17 @@ inline bool clock_is_supported(ClockID id)
 inline ClockID clock_to_coarse(ClockID id)
 {
 	if (uint32_t(id) < 2)
-		return ClockID(uint32_t(id) + uint32_t(ClockID::realtime_coarse) - uint32_t(ClockID::realtime));
+		return ClockID(uint32_t(id) + uint32_t(ClockID::RealtimeCoarse) - uint32_t(ClockID::Realtime));
 
 	return id;
 }
 
 inline Error fd_error(FD fd, Error err)
 {
-	if (fd == FD::gate || fd == FD::stdin || fd == FD::stdout || fd == FD::stderr)
+	if (fd == FD::Gate || fd == FD::Stdin || fd == FD::Stdout || fd == FD::Stderr)
 		return err;
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 } // namespace
@@ -269,7 +267,7 @@ public:
 		if (r == 0)
 			r = 1;
 
-		if (id == ClockID::realtime) {
+		if (id == ClockID::Realtime) {
 			if (realtime == 0 || realtime > r)
 				realtime = r;
 		} else {
@@ -311,7 +309,7 @@ public:
 
 	Timestamp get(ClockID id) const
 	{
-		if (id == ClockID::realtime)
+		if (id == ClockID::Realtime)
 			return realtime;
 		else
 			return monotonic;
@@ -319,7 +317,7 @@ public:
 
 	void set(ClockID id, Timestamp t)
 	{
-		if (id == ClockID::realtime)
+		if (id == ClockID::Realtime)
 			realtime = t;
 		else
 			monotonic = t;
@@ -337,7 +335,7 @@ extern "C" {
 
 EXPORT Error args_get(char** argv, char* argvbuf)
 {
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error args_sizes_get(int32_t* argc_ptr, uint32_t* argvbufsize_ptr)
@@ -347,7 +345,7 @@ EXPORT Error args_sizes_get(int32_t* argc_ptr, uint32_t* argvbufsize_ptr)
 
 	*argc_ptr = 0;
 	*argvbufsize_ptr = 0;
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error clock_res_get(ClockID id, Resolution* buf)
@@ -355,10 +353,10 @@ EXPORT Error clock_res_get(ClockID id, Resolution* buf)
 	RETURN_FAULT_IF(buf == nullptr);
 
 	if (!clock_is_valid(id))
-		return Error::inval;
+		return Error::Invalid;
 
 	*buf = time_resolution();
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error clock_time_get(ClockID id, Resolution precision, Timestamp* buf)
@@ -366,7 +364,7 @@ EXPORT Error clock_time_get(ClockID id, Resolution precision, Timestamp* buf)
 	RETURN_FAULT_IF(buf == nullptr);
 
 	if (!clock_is_valid(id))
-		return Error::inval;
+		return Error::Invalid;
 
 	if (clock_is_supported(id)) {
 		if (precision < 1000000) { // 1ms
@@ -376,7 +374,7 @@ EXPORT Error clock_time_get(ClockID id, Resolution precision, Timestamp* buf)
 		}
 
 		*buf = time(id, precision);
-		return Error::success;
+		return Error::Success;
 	}
 
 	trap_abi_deficiency();
@@ -403,7 +401,7 @@ EXPORT Error environ_get(void** env, uint64_t* buf)
 	env[1] = &buf[3];
 	env[2] = &buf[5];
 
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error environ_sizes_get(int32_t* envlen_ptr, uint32_t* envbufsize_ptr)
@@ -413,20 +411,20 @@ EXPORT Error environ_sizes_get(int32_t* envlen_ptr, uint32_t* envbufsize_ptr)
 
 	*envlen_ptr = 3;
 	*envbufsize_ptr = 9 * sizeof(uint64_t);
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT FD fd()
 {
-	return FD::gate;
+	return FD::Gate;
 }
 
 EXPORT Error fd_close(FD fd)
 {
-	if (fd == FD::gate || fd == FD::stdin || fd == FD::stdout || fd == FD::stderr)
+	if (fd == FD::Gate || fd == FD::Stdin || fd == FD::Stdout || fd == FD::Stderr)
 		trap_abi_deficiency();
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 EXPORT Error fd_fdstat_get(FD fd, FDStat* buf)
@@ -436,68 +434,68 @@ EXPORT Error fd_fdstat_get(FD fd, FDStat* buf)
 	FDFlags flags;
 	Rights rights;
 
-	if (fd == FD::gate) {
+	if (fd == FD::Gate) {
 		flags = FDFlags::nonblock;
 		rights = Rights::fd_read | Rights::fd_write;
-	} else if (fd == FD::stdout || fd == FD::stderr) {
+	} else if (fd == FD::Stdout || fd == FD::Stderr) {
 		rights = Rights::fd_write;
-	} else if (fd != FD::stdin) {
-		return Error::badf;
+	} else if (fd != FD::Stdin) {
+		return Error::BadFileNumber;
 	}
 
-	buf->fs_filetype = FileType::unknown;
+	buf->fs_filetype = FileType::Unknown;
 	buf->fs_flags = flags;
 	buf->fs_rights_base = rights;
 	buf->fs_rights_inheriting = Rights();
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error fd_fdstat_set_rights(FD fd, Rights base, Rights inheriting)
 {
-	if (fd == FD::gate) {
+	if (fd == FD::Gate) {
 		if (inheriting.contains_any())
-			return Error::notcapable;
+			return Error::NotCapable;
 
 		if (base == (Rights::fd_read | Rights::fd_write))
-			return Error::success;
+			return Error::Success;
 
 		if (base.exclude(Rights::fd_read | Rights::fd_write).contains_any())
-			return Error::notcapable;
+			return Error::NotCapable;
 
 		trap_abi_deficiency();
 	}
 
-	if (fd == FD::stdout || fd == FD::stderr) {
+	if (fd == FD::Stdout || fd == FD::Stderr) {
 		if (inheriting.contains_any())
-			return Error::notcapable;
+			return Error::NotCapable;
 
 		if (base == Rights::fd_write)
-			return Error::success;
+			return Error::Success;
 
 		if (base.contains_any())
-			return Error::notcapable;
+			return Error::NotCapable;
 
 		trap_abi_deficiency();
 	}
 
-	if (fd == FD::stdin) {
+	if (fd == FD::Stdin) {
 		if (inheriting.contains_any())
-			return Error::notcapable;
+			return Error::NotCapable;
 
 		if (base.contains_none())
-			return Error::success;
+			return Error::Success;
 
-		return Error::notcapable;
+		return Error::NotCapable;
 	}
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 EXPORT Error fd_prestat_dir_name(FD fd, char* buf, size_t bufsize)
 {
 	RETURN_FAULT_IF(bufsize > 0 && buf == nullptr);
 
-	return fd_error(fd, Error::inval);
+	return fd_error(fd, Error::Invalid);
 }
 
 EXPORT Error fd_read(FD fd, IOVec const* iov, int iovlen, uint32_t* nread_ptr)
@@ -505,7 +503,7 @@ EXPORT Error fd_read(FD fd, IOVec const* iov, int iovlen, uint32_t* nread_ptr)
 	RETURN_FAULT_IF(iovlen > 0 && iov == nullptr);
 	RETURN_FAULT_IF(nread_ptr == nullptr);
 
-	if (fd == FD::gate) {
+	if (fd == FD::Gate) {
 		size_t total = 0;
 
 		for (int i = 0; i < iovlen; i++) {
@@ -514,33 +512,33 @@ EXPORT Error fd_read(FD fd, IOVec const* iov, int iovlen, uint32_t* nread_ptr)
 			total += n;
 			if (n < len) {
 				if (total == 0)
-					return Error::again;
+					return Error::Again;
 				break;
 			}
 		}
 
 		*nread_ptr = total;
-		return Error::success;
+		return Error::Success;
 	}
 
-	if (fd == FD::stdin || fd == FD::stdout || fd == FD::stderr)
-		return Error::perm;
+	if (fd == FD::Stdin || fd == FD::Stdout || fd == FD::Stderr)
+		return Error::Permission;
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 EXPORT Error fd_renumber(FD from, FD to)
 {
-	if (from == FD::stdin || from == FD::stdout || from == FD::stderr || from == FD::gate) {
-		if (to == FD::stdin || to == FD::stdout || to == FD::stderr || to == FD::gate) {
+	if (from == FD::Stdin || from == FD::Stdout || from == FD::Stderr || from == FD::Gate) {
+		if (to == FD::Stdin || to == FD::Stdout || to == FD::Stderr || to == FD::Gate) {
 			if (from == to)
-				return Error::success;
+				return Error::Success;
 
 			trap_abi_deficiency();
 		}
 	}
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 EXPORT Error fd_write(FD fd, IOVec const* iov, int iovlen, uint32_t* nwritten_ptr)
@@ -550,31 +548,31 @@ EXPORT Error fd_write(FD fd, IOVec const* iov, int iovlen, uint32_t* nwritten_pt
 
 	size_t total = 0;
 
-	if (fd == FD::gate) {
+	if (fd == FD::Gate) {
 		for (int i = 0; i < iovlen; i++) {
 			auto len = iov[i].iov_len;
 			auto n = rt_write(iov[i].iov_base, len);
 			total += n;
 			if (n < len) {
 				if (total == 0)
-					return Error::again;
+					return Error::Again;
 				break;
 			}
 		}
-	} else if (fd == FD::stdout || fd == FD::stderr) {
+	} else if (fd == FD::Stdout || fd == FD::Stderr) {
 		for (int i = 0; i < iovlen; i++) {
 			auto len = iov[i].iov_len;
 			rt_debug(iov[i].iov_base, len);
 			total += len;
 		}
-	} else if (fd == FD::stdin) {
-		return Error::perm;
+	} else if (fd == FD::Stdin) {
+		return Error::Permission;
 	} else {
-		return Error::badf;
+		return Error::BadFileNumber;
 	}
 
 	*nwritten_ptr = total;
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT void io(IOVec const* recv, int recvlen, uint32_t* nrecv_ptr, IOVec const* send, int sendlen, uint32_t* nsent_ptr, int64_t timeout)
@@ -654,7 +652,7 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 	Resolutions res;
 
 	for (int i = 0; i < nsub; i++) {
-		if (sub[i].tag == EventType::clock) {
+		if (sub[i].tag == EventType::Clock) {
 			auto id = sub[i].u.clock.clockid;
 
 			if (clock_is_valid(id)) {
@@ -668,9 +666,9 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 
 	Timestamps begin;
 	if (res.realtime)
-		begin.realtime = time(ClockID::realtime, res.realtime);
+		begin.realtime = time(ClockID::Realtime, res.realtime);
 	if (res.monotonic)
-		begin.monotonic = time(ClockID::monotonic, res.monotonic);
+		begin.monotonic = time(ClockID::Monotonic, res.monotonic);
 
 	PollEvents pollin;
 	PollEvents pollout;
@@ -678,7 +676,7 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 	auto timeout = Timestamp::max;
 
 	for (int i = 0; i < nsub; i++) {
-		if (sub[i].tag == EventType::clock) {
+		if (sub[i].tag == EventType::Clock) {
 			auto id = sub[i].u.clock.clockid;
 
 			if (clock_is_valid(id)) {
@@ -699,13 +697,13 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 				have_timeout = true;
 				continue;
 			}
-		} else if (sub[i].tag == EventType::fd_read) {
-			if (sub[i].u.fd_readwrite.fd == FD::gate) {
+		} else if (sub[i].tag == EventType::FDRead) {
+			if (sub[i].u.fd_readwrite.fd == FD::Gate) {
 				pollin = PollEvents::input;
 				continue;
 			}
-		} else if (sub[i].tag == EventType::fd_write) {
-			if (sub[i].u.fd_readwrite.fd == FD::gate) {
+		} else if (sub[i].tag == EventType::FDWrite) {
+			if (sub[i].u.fd_readwrite.fd == FD::Gate) {
 				pollout = PollEvents::output;
 				continue;
 			}
@@ -726,20 +724,20 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 
 	Timestamps end;
 	if (begin.realtime.is_nonzero())
-		end.realtime = time(ClockID::realtime, res.realtime);
+		end.realtime = time(ClockID::Realtime, res.realtime);
 	if (begin.monotonic.is_nonzero())
-		end.monotonic = time(ClockID::monotonic, res.monotonic);
+		end.monotonic = time(ClockID::Monotonic, res.monotonic);
 
 	int n = 0;
 
 	for (int i = 0; i < nsub; i++) {
 		out[n].userdata = sub[i].userdata;
-		out[n].error = Error::success;
+		out[n].error = Error::Success;
 		out[n].type = sub[i].tag;
 		out[n].u.fd_readwrite.nbytes = 0;
 		out[n].u.fd_readwrite.flags = EventRWFlags();
 
-		if (sub[i].tag == EventType::clock) {
+		if (sub[i].tag == EventType::Clock) {
 			auto id = sub[i].u.clock.clockid;
 
 			if (clock_is_valid(id)) {
@@ -761,10 +759,10 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 					n++;
 				continue;
 			}
-		} else if (sub[i].tag == EventType::fd_read) {
+		} else if (sub[i].tag == EventType::FDRead) {
 			auto fd = sub[i].u.fd_readwrite.fd;
 
-			if (fd == FD::gate) {
+			if (fd == FD::Gate) {
 				if (r.contains_all(PollEvents::input)) {
 					out[n].u.fd_readwrite.nbytes = 65536;
 					n++;
@@ -772,19 +770,19 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 				continue;
 			}
 
-			if (fd == FD::stdin || fd == FD::stdout || fd == FD::stderr) {
-				out[n].error = Error::perm;
+			if (fd == FD::Stdin || fd == FD::Stdout || fd == FD::Stderr) {
+				out[n].error = Error::Permission;
 				n++;
 				continue;
 			}
 
-			out[n].error = Error::badf;
+			out[n].error = Error::BadFileNumber;
 			n++;
 			continue;
-		} else if (sub[i].tag == EventType::fd_write) {
+		} else if (sub[i].tag == EventType::FDWrite) {
 			auto fd = sub[i].u.fd_readwrite.fd;
 
-			if (fd == FD::gate) {
+			if (fd == FD::Gate) {
 				if (r.contains_all(PollEvents::output)) {
 					out[n].u.fd_readwrite.nbytes = 65536;
 					n++;
@@ -792,29 +790,29 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 				continue;
 			}
 
-			if (fd == FD::stdout || fd == FD::stderr) {
+			if (fd == FD::Stdout || fd == FD::Stderr) {
 				out[n].u.fd_readwrite.nbytes = 0x7fffffff;
 				n++;
 				continue;
 			}
 
-			if (fd == FD::stdin) {
-				out[n].error = Error::perm;
+			if (fd == FD::Stdin) {
+				out[n].error = Error::Permission;
 				n++;
 				continue;
 			}
 
-			out[n].error = Error::badf;
+			out[n].error = Error::BadFileNumber;
 			n++;
 			continue;
 		}
 
-		out[n].error = Error::inval;
+		out[n].error = Error::Invalid;
 		n++;
 	}
 
 	*nout_ptr = n;
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT void proc_exit(int status)
@@ -842,109 +840,109 @@ EXPORT Error random_get(uint8_t* buf, size_t len)
 		}
 	}
 
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error sched_yield()
 {
-	return Error::success;
+	return Error::Success;
 }
 
 EXPORT Error sock_recv(FD fd, int a1, int a2, int a3, int a4, int a5)
 {
-	if (fd == FD::gate)
-		return Error::notsock;
+	if (fd == FD::Gate)
+		return Error::NotSocket;
 
-	if (fd == FD::stdin || fd == FD::stdout || fd == FD::stderr)
-		return Error::perm;
+	if (fd == FD::Stdin || fd == FD::Stdout || fd == FD::Stderr)
+		return Error::Permission;
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 EXPORT Error sock_send(FD fd, int a1, int a2, int a3, int a4)
 {
-	if (fd == FD::gate || fd == FD::stdout || fd == FD::stderr)
-		return Error::notsock;
+	if (fd == FD::Gate || fd == FD::Stdout || fd == FD::Stderr)
+		return Error::NotSocket;
 
-	if (fd == FD::stdin)
-		return Error::perm;
+	if (fd == FD::Stdin)
+		return Error::Permission;
 
-	return Error::badf;
+	return Error::BadFileNumber;
 }
 
 EXPORT Error stub_fd(FD fd)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32(FD fd, int a1)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i64(FD fd, int64_t a1)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32_i32(FD fd, int a1, int a2)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i64_i64(FD fd, int64_t a1, int64_t a2)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i64_i32_i32(FD fd, int64_t a1, int a2, int a3)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i64_i64_i32(FD fd, int64_t a1, int64_t a2, int a3)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i32(FD fd, int a1, int a2, int a3, int a4)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_i32_i32_fd_i32_i32(int a0, int a1, FD fd, int a3, int a4)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32_i32_i64_i32(FD fd, int a1, int a2, int64_t a3, int a4)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32_i32_fd_i32_i32(FD fd, int a1, int a2, FD fd3, int a4, int a5)
 {
-	return fd_error(fd, fd_error(fd3, Error::perm));
+	return fd_error(fd, fd_error(fd3, Error::Permission));
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i32_i32(FD fd, int a1, int a2, int a3, int a4, int a5)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32_i32_i32_fd_i32_i32(FD fd, int a1, int a2, int a3, FD fd4, int a5, int a6)
 {
-	return fd_error(fd, fd_error(fd4, Error::perm));
+	return fd_error(fd, fd_error(fd4, Error::Permission));
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i64_i64_i32(FD fd, int a1, int a2, int a3, int64_t a4, int64_t a5, int a6)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 EXPORT Error stub_fd_i32_i32_i32_i32_i64_i64_i32_i32(FD fd, int a1, int a2, int a3, int a4, int64_t a5, int64_t a6, int a7, int a8)
 {
-	return fd_error(fd, Error::perm);
+	return fd_error(fd, Error::Permission);
 }
 
 } // extern "C"
