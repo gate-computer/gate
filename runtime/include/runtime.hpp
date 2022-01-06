@@ -33,12 +33,6 @@
 #define GATE_EXECUTOR_STACK_SIZE 65536LL // Depends on target architecture.
 #define GATE_LOADER_STACK_SIZE 12288LL   // 3 pages
 
-// See wag/Stack.md.
-#define GATE_STACK_VARS_SIZE 64            // Variables at start of stack memory.
-#define GATE_STACK_SIGNAL_SPACE (4832 * 2) // For simultaneous SIGSEGV and SIGXCPU handling.
-#define GATE_STACK_USAGE_OFFSET (GATE_STACK_VARS_SIZE + GATE_STACK_SIGNAL_SPACE + 240)
-#define GATE_STACK_LIMIT_OFFSET (GATE_STACK_USAGE_OFFSET + 8 + 8)
-
 #if defined(__ANDROID__)
 #define GATE_LIMIT_DATA 0xa64000 // Anonymous runtime mapping and something else?
 #elif defined(__aarch64__)

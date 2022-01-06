@@ -15,25 +15,26 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"gate.computer/gate/internal/container/common"
+	"gate.computer/gate/internal/executable"
 	"gate.computer/gate/internal/librarian"
 	"gate.computer/gate/internal/make/eventtypes"
-	"gate.computer/gate/internal/make/runtimeassembly"
 	"gate.computer/gate/internal/make/runtimeerrors"
 	. "import.name/make"
 )
 
 func main() { Main(targets, "make.go", "go.mod") }
 
-const (
-	muslccVersion = "10.2.1"
-	muslccURL     = "https://more.musl.cc/" + muslccVersion + "/x86_64-linux-musl/"
-)
-
 func targets() (targets Tasks) {
 	var (
+		O = Getvar("O", "")
+
+		ARCH = Getvar("ARCH", GOARCH)
+		OS   = Getvar("OS", GOOS)
+
 		PREFIX     = Getvar("PREFIX", "/usr/local")
 		LIBEXECDIR = Getvar("LIBEXECDIR", Join(PREFIX, "lib/gate"))
 
@@ -62,23 +63,22 @@ func targets() (targets Tasks) {
 	))
 
 	library := targets.Add(Target("library",
-		libraryTask(CCACHE, WASMCXX),
+		libraryTask(O, CCACHE, WASMCXX),
 	))
 
-	goSources := targets.Add(Target("go",
-		protoTask(PROTOC, GO),
+	sources := Group(
+		protoTask(O, PROTOC, GO),
 		eventtypes.Task(GOFMT),
 		runtimeerrors.Task(GOFMT),
-		runtimeassembly.Task(GO),
-	))
+	)
 
 	executor := targets.Add(Target("executor",
-		goSources,
-		executorTask("lib/gate", CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		sources,
+		executorTask(Join(O, "lib/gate"), CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	loader := targets.Add(Target("loader",
-		goSources,
-		loaderTask("lib/gate", "tmp", GOARCH, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		sources,
+		loaderTask(Join(O, "lib/gate"), Join(O, "obj"), ARCH, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	lib := targets.Add(TargetDefault("lib",
 		executor,
@@ -86,65 +86,71 @@ func targets() (targets Tasks) {
 	))
 
 	bin := targets.Add(TargetDefault("bin",
-		goSources,
-		Command(GO, "build", buildflags, "-o", "bin/gate", "./cmd/gate"),
-		Command(GO, "build", buildflags, "-o", "bin/gate-daemon", "./cmd/gate-daemon"),
-		Command(GO, "build", buildflags, "-o", "bin/gate-runtime", "./cmd/gate-runtime"),
-		Command(GO, "build", buildflags, "-o", "bin/gate-server", "./cmd/gate-server"),
+		sources,
+		binTask(O, ARCH, OS, GO, buildflags),
 	))
 
-	targets.Add(Target("inspect",
-		loader,
-		loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
-	))
+	if ARCH == GOARCH && OS == GOOS {
+		targets.Add(Target("inspect",
+			loader,
+			loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		))
 
-	goTestBinaries := Group(
-		goSources,
-		Command(GO, "build", "-o", "tmp/test-grpc-service", "./internal/test/grpc-service"),
-	)
-	targets.Add(Target("check",
-		goSources,
-		Command(GO, "vet", "./..."),
-		lib,
-		goTestBinaries,
-		goTestTask(GO, TAGS),
-		bin,
-		Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
-		Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
-		Env{"GOOS": "darwin"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
-		Env{"GOOS": "windows"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
-		Command(GO, "build", "-o", "/dev/null", "./cmd/gate-resource"),
-	))
+		goTestBinaries := Group(
+			sources,
+			Command(GO, "build", "-o", Join(O, "lib/test-grpc-service"), "./internal/test/grpc-service"),
+		)
+		targets.Add(Target("check",
+			sources,
+			Command(GO, "vet", "./..."),
+			lib,
+			goTestBinaries,
+			goTestTask(GO, TAGS),
+			bin,
+			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
+			Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
+			Env{"GOOS": "android"}.Command(GO, "build", "-o", "/dev/null", "./..."),
+			Env{"GOOS": "darwin"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
+			Env{"GOOS": "windows"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
+			Command(GO, "build", "-o", "/dev/null", "./cmd/gate-resource"),
+		))
 
-	targets.Add(Target("benchmark",
-		lib,
-		benchmarkTask(GO, TAGS),
-	))
+		targets.Add(Target("benchmark",
+			lib,
+			benchmarkTask(O, GO, TAGS),
+		))
 
-	prebuild := prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
-	targets.Add(Target("prebuild",
-		prebuild,
-		goTestBinaries,
-		Env{"CGO_ENABLED": "0"}.Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
-	))
+		if ARCH == "amd64" && OS == "linux" {
+			prebuild := prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
+			targets.Add(Target("prebuild",
+				prebuild,
+				goTestBinaries,
+				Env{"CGO_ENABLED": "0"}.Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
+			))
 
-	targets.Add(Target("generate",
-		testdata,
-		library,
-		goSources,
-		prebuild,
-	))
+			targets.Add(Target("generate",
+				testdata,
+				library,
+				sources,
+				prebuild,
+			))
+		}
+	}
 
 	targets.Add(TargetDefault("installer",
 		Command(GO, "build",
 			"-ldflags=-X main.PREFIX="+PREFIX+" -X main.LIBEXECDIR="+LIBEXECDIR,
-			"-o", "bin/install",
+			"-o", Join(O, "bin/install"),
 			"./internal/make/cmd/install",
 		),
 	))
 
 	targets.Add(Target("clean",
-		Removal("bin", "lib", "tmp"),
+		Removal(
+			Join(O, "bin"),
+			Join(O, "lib"),
+			Join(O, "obj"),
+		),
 	))
 
 	return
@@ -156,6 +162,11 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 
 		wasimodule  = "testdata/wasi-libc"
 		wasiinclude = Join(wasimodule, "libc-bottom-half/headers/public")
+		deps        = Globber(
+			"include/*.h",
+			"testdata/*.hpp",
+			Join(wasiinclude, "wasi/*"),
+		)
 
 		cxxflags = Flatten(
 			"--target=wasm32",
@@ -174,24 +185,19 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 			"-nostdlib",
 			"-std=c++2a",
 		)
-
-		includes = Globber(
-			"include/gate.h",
-			Join(wasiinclude, "wasi/*.h"),
-		)
 	)
 
-	task := func(source string, flags ...string) Task {
-		target := ReplaceSuffix(source, ".wasm")
+	program := func(source string, flags ...string) Task {
+		binary := ReplaceSuffix(source, ".wasm")
 
 		cmd := Wrap(CCACHE, WASMCXX, cxxflags)
 		if strings.HasSuffix(source, ".wat") {
 			cmd = Flatten(WAT2WASM)
 		}
 
-		return If(Outdated(target, Flattener(source, includes)),
-			Command(cmd, flags, "-o", target, source),
-			Command("chmod", "-x", target),
+		return If(Outdated(binary, Flattener(source, deps)),
+			Command(cmd, flags, "-o", binary, source),
+			Command("chmod", "-x", binary),
 		)
 	}
 
@@ -202,20 +208,26 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 			}),
 		),
 
-		task("testdata/abi.cpp", "-Wl,--export-all"),
-		task("testdata/hello-debug.cpp", "-Wl,--export=debug"),
-		task("testdata/hello.cpp", "-Wl,--export=greet,--export=twice,--export=multi,--export=repl,--export=fail,--export=test_ext"),
-		task("testdata/nop.wat"),
-		task("testdata/randomseed.cpp", "-Wl,--export=dump,--export=toomuch,--export=toomuch2"),
-		task("testdata/suspend.cpp", "-Wl,--export=loop,--export=loop2"),
-		task("testdata/time.cpp", "-Wl,--export=check"),
+		program("testdata/abi.cpp", "-Wl,--export-all"),
+		program("testdata/hello-debug.cpp", "-Wl,--export=debug"),
+		program("testdata/hello.cpp", "-Wl,--export=greet,--export=twice,--export=multi,--export=repl,--export=fail,--export=test_ext"),
+		program("testdata/nop.wat"),
+		program("testdata/randomseed.cpp", "-Wl,--export=dump,--export=toomuch,--export=toomuch2"),
+		program("testdata/suspend.cpp", "-Wl,--export=loop,--export=loop2"),
+		program("testdata/time.cpp", "-Wl,--export=check"),
 	)
 }
 
-func libraryTask(CCACHE, WASMCXX string) Task {
+func libraryTask(O, CCACHE, WASMCXX string) Task {
 	var (
 		WASMLD      = Getvar("WASMLD", "wasm-ld")
 		WASMOBJDUMP = Getvar("WASMOBJDUMP", "wasm-objdump")
+
+		deps = Globber(
+			"include/*.h",
+			"runtime/abi/library/*.cpp",
+			"runtime/abi/library/*.hpp",
+		)
 
 		flags = Flatten(
 			"--target=wasm32",
@@ -233,47 +245,55 @@ func libraryTask(CCACHE, WASMCXX string) Task {
 			"-std=c++17",
 		)
 
-		include = "include/rt.h"
-		source  = "runtime/abi/library/library.cpp"
-		object  = "tmp/library.wasm"
-		output  = "runtime/abi/library.go"
+		source = "runtime/abi/library/library.cpp"
+		object = Join(O, "obj", ReplaceSuffix(source, ".wasm"))
+		gen    = "runtime/abi/library.gen.go"
 	)
 
-	return If(Outdated(output, Flattener(source, include)),
+	return If(Outdated(gen, deps),
 		DirectoryOf(object),
 		CommandWrap(CCACHE, WASMCXX, flags, "-c", "-o", object, source),
 		Func(func() error {
-			Println("Making", output)
-			return librarian.Link(output, WASMLD, WASMOBJDUMP, "abi", false, object)
+			Println("Making", gen)
+			return librarian.Link(gen, WASMLD, WASMOBJDUMP, "abi", false, object)
 		}),
 	)
 }
 
-func protoTask(PROTOC, GO string) Task {
-	includes := Globber(
-		"server/api/*.proto",
-		"server/detail/*.proto",
+func protoTask(O, PROTOC, GO string) Task {
+	var (
+		deps = Globber(
+			"internal/manifest/*.proto",
+			"internal/webserverapi/*.proto",
+			"server/api/*.proto",
+			"server/detail/*.proto",
+			"server/event/*.proto",
+			"service/grpc/api/*.proto",
+		)
 	)
 
 	var tasks Tasks
 
-	addCompiler := func(pkg string) {
-		binary := Join("tmp", Base(pkg))
+	addPlugin := func(pkg string) {
+		plugin := Join(O, "lib", Base(pkg))
 
-		tasks.Add(If(Outdated(binary, nil),
-			Command(GO, "build", "-o", binary, pkg)),
+		tasks.Add(If(Outdated(plugin, nil),
+			Command(GO, "build", "-o", plugin, pkg)),
 		)
 	}
 
-	addCompiler("google.golang.org/protobuf/cmd/protoc-gen-go")
-	addCompiler("google.golang.org/grpc/cmd/protoc-gen-go-grpc")
+	addPlugin("google.golang.org/protobuf/cmd/protoc-gen-go")
+	addPlugin("google.golang.org/grpc/cmd/protoc-gen-go-grpc")
 
 	addProto := func(proto, supplement, suffix string) {
-		gofile := ReplaceSuffix(proto, suffix+".pb.go")
+		var (
+			plugin = Join(O, "lib/protoc-gen-go"+supplement)
+			gen    = ReplaceSuffix(proto, suffix+".pb.go")
+		)
 
-		tasks.Add(If(Outdated(gofile, Flattener(proto, includes)),
+		tasks.Add(If(Outdated(gen, Flattener(deps, plugin)),
 			Command(PROTOC,
-				"--plugin=tmp/protoc-gen-go"+supplement,
+				"--plugin="+plugin,
 				"--go"+supplement+"_out=.",
 				"--go"+supplement+"_opt=paths=source_relative",
 				proto,
@@ -294,6 +314,12 @@ func protoTask(PROTOC, GO string) Task {
 
 func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
+		deps = Globber(
+			"runtime/executor/*.cpp",
+			"runtime/executor/*.hpp",
+			"runtime/include/*.hpp",
+		)
+
 		cppflags = Flatten(
 			"-Iruntime/include",
 			`-DGATE_COMPAT_VERSION="`+common.CompatVersion+`"`,
@@ -312,26 +338,35 @@ func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 			Fields(LDFLAGS),
 		)
 
-		includes = Globber(
-			"runtime/include/*.hpp",
-		)
-
-		source = "runtime/executor/executor.cpp"
 		binary = Join(bindir, common.ExecutorFilename)
 	)
 
-	return If(Outdated(binary, Flattener(source, includes)),
+	return If(Outdated(binary, deps),
 		DirectoryOf(binary),
-		Command(CXX, cppflags, cxxflags, ldflags, "-o", binary, source),
+		Command(CXX, cppflags, cxxflags, ldflags, "-o", binary, "runtime/executor/executor.cpp"),
 	)
 }
 
-func loaderTask(bindir, objdir, arch, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
+		deps = Globber(
+			"internal/error/runtime/*.go",
+			"runtime/include/*.hpp",
+			"runtime/include/*/*.hpp",
+			"runtime/loader/*.S",
+			"runtime/loader/*.cpp",
+			"runtime/loader/*.go",
+			"runtime/loader/*.hpp",
+			"runtime/loader/*/*.S",
+			"runtime/loader/*/*.hpp",
+		)
+
 		cppflags = Flatten(
-			"-DGATE_LOADER_ADDR=0x200000000",
+			"-DGATE_STACK_LIMIT_OFFSET="+strconv.Itoa(executable.StackLimitOffset),
 			"-DPIE",
+			"-I"+Join(objdir, "runtime/loader"),
 			"-I"+Join("runtime/loader", arch),
+			"-I"+Join("runtime/loader"),
 			"-I"+Join("runtime/include", arch),
 			"-I"+Join("runtime/include"),
 			Fields(CPPFLAGS),
@@ -348,56 +383,51 @@ func loaderTask(bindir, objdir, arch, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS s
 
 		ldflags = Flatten(
 			"-Wl,--build-id=none",
-			"-Wl,-Ttext-segment=0x200000000",
+			"-Wl,-Ttext-segment="+fmt.Sprintf("%#x", executable.LoaderTextAddr),
 			"-Wl,-z,noexecstack",
 			"-nostdlib",
 			"-static",
 			Fields(LDFLAGS),
 		)
 
-		includes = Globber(
-			"runtime/include/*.hpp",
-			"runtime/include/*/*.hpp",
-			"runtime/loader/*.S",
-			"runtime/loader/*.hpp",
-			"runtime/loader/*/*.S",
-			"runtime/loader/*/*.hpp",
-		)
-
-		start    = Join("runtime/loader", arch, "start.S")
-		loader   = Join("runtime/loader/loader.cpp")
-		runtime2 = Join("runtime/loader", arch, "runtime2.S")
-		binary   = Join(bindir, common.LoaderFilename)
+		gen    = Join(objdir, "runtime/loader/rt.gen.S")
+		binary = Join(bindir, common.LoaderFilename)
 	)
 
 	var objects []string
 	var tasks Tasks
 
+	tasks.Add(DirectoryOf(gen))
+	tasks.Add(Command(GO, "run", "runtime/loader/gen.go", gen, arch, OS))
+
 	addCompilation := func(source string, flags ...interface{}) {
 		object := Join(objdir, ReplaceSuffix(source, ".o"))
 		objects = append(objects, object)
 
-		tasks.Add(If(Outdated(object, Flattener(source, includes)),
-			DirectoryOf(object),
-			CommandWrap(CCACHE, CXX, flags, "-c", "-o", object, source),
-		))
+		tasks.Add(DirectoryOf(object))
+		tasks.Add(CommandWrap(CCACHE, CXX, flags, "-c", "-o", object, source))
 	}
 
-	addCompilation(start, cppflags)
-	addCompilation(loader, cppflags, cxxflags)
-	addCompilation(runtime2, cppflags)
+	addCompilation(Join("runtime/loader", arch, "rt.S"), cppflags)
+	addCompilation(Join("runtime/loader", arch, "start.S"), cppflags)
+	addCompilation(Join("runtime/loader/loader.cpp"), cppflags, cxxflags)
 
-	tasks.Add(If(Outdated(binary, Thunk(objects...)),
-		DirectoryOf(binary),
-		CommandWrap(CCACHE, CXX, cxxflags, ldflags, "-o", binary, objects),
-	))
+	tasks.Add(DirectoryOf(binary))
+	tasks.Add(CommandWrap(CCACHE, CXX, cxxflags, ldflags, "-o", binary, objects))
 
-	return Group(tasks...)
+	return If(Outdated(binary, deps), tasks...)
 }
 
-func loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
 		PYTHON = Getvar("PYTHON", "python3")
+
+		deps = Globber(
+			"runtime/include/*.hpp",
+			"runtime/include/*/*.hpp",
+			"runtime/loader/inspect/*.cpp",
+			"runtime/loader/inspect/*.hpp",
+		)
 
 		cppflags = Flatten(
 			"-DPIE",
@@ -419,33 +449,23 @@ func loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 			Fields(LDFLAGS),
 		)
 
-		includes = Globber(
-			"runtime/include/*.hpp",
-			"runtime/include/*/*.hpp",
-		)
-
-		start    = Join("tmp/runtime/loader", GOARCH, "start.o")
-		runtime2 = Join("tmp/runtime/loader", GOARCH, "runtime2.o")
-
-		signal = "runtime/loader/inspect/signal.cpp"
-		stack  = "runtime/loader/inspect/stack.cpp"
+		rt    = Join(O, "obj/runtime/loader", GOARCH, "rt.o")
+		start = Join(O, "obj/runtime/loader", GOARCH, "start.o")
 	)
 
-	testTask := func(run func(src, bin string) error, source, lib string, flags ...string) Task {
-		object := Join("tmp", ReplaceSuffix(source, ".o"))
-		binary := Join("tmp", ReplaceSuffix(source, ""))
-		stamp := Join("tmp", ReplaceSuffix(source, ".stamp"))
+	inspection := func(run func(src, bin string) error, source, lib string, flags ...string) Task {
+		object := Join(O, "obj", ReplaceSuffix(source, ".o"))
+		binary := Join(O, "lib", Base(ReplaceSuffix(source, "")))
 
-		return If(Outdated(stamp, Flattener(source, lib, includes)),
-			DirectoryOf(object),
-			CommandWrap(CCACHE, CXX, cppflags, cxxflags, "-c", "-o", object, source),
-			DirectoryOf(binary),
-			CommandWrap(CCACHE, CXX, cxxflags, flags, ldflags, "-o", binary, lib, object),
+		return Group(
+			If(Outdated(binary, Flattener(lib, deps)),
+				DirectoryOf(object),
+				CommandWrap(CCACHE, CXX, cppflags, cxxflags, "-c", "-o", object, source),
+				DirectoryOf(binary),
+				CommandWrap(CCACHE, CXX, cxxflags, flags, ldflags, "-o", binary, lib, object),
+			),
 			Func(func() error {
-				if err := run(source, binary); err != nil {
-					return err
-				}
-				return Touch(stamp)
+				return run(source, binary)
 			}),
 		)
 	}
@@ -458,13 +478,25 @@ func loaderInspectTask(CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	}
 
 	return Group(
-		testTask(runBinary, signal, runtime2,
-			"-Wl,-Ttext-segment=0x40000000",
-			"-Wl,--section-start=.runtime=0x50000000",
-		),
-		testTask(runPython, stack, start,
-			"-nostdlib",
-		),
+		inspection(runBinary, "runtime/loader/inspect/signal.cpp", rt, "-Wl,-Ttext-segment=0x40000000"),
+		inspection(runPython, "runtime/loader/inspect/stack.cpp", start, "-nostdlib"),
+	)
+}
+
+func binTask(O, ARCH, OS, GO string, flags []string) Task {
+	env := Env{}
+	if ARCH != GOARCH {
+		env["GOARCH"] = ARCH
+	}
+	if OS != GOOS {
+		env["GOOS"] = OS
+	}
+
+	return Group(
+		env.Command(GO, "build", flags, "-o", Join(O, "bin/gate"), "./cmd/gate"),
+		env.Command(GO, "build", flags, "-o", Join(O, "bin/gate-daemon"), "./cmd/gate-daemon"),
+		env.Command(GO, "build", flags, "-o", Join(O, "bin/gate-runtime"), "./cmd/gate-runtime"),
+		env.Command(GO, "build", flags, "-o", Join(O, "bin/gate-server"), "./cmd/gate-server"),
 	)
 }
 
@@ -487,7 +519,7 @@ func goTestTask(GO, TAGS string) Task {
 	return Command(GO, "test", testflags, "./...")
 }
 
-func benchmarkTask(GO, TAGS string) Task {
+func benchmarkTask(O, GO, TAGS string) Task {
 	var (
 		PERFLOCK  = Getvar("PERFLOCK", "perflock")
 		BENCHSTAT = Getvar("BENCHSTAT", "benchstat")
@@ -499,8 +531,8 @@ func benchmarkTask(GO, TAGS string) Task {
 		)
 		benchcmd = Wrap(PERFLOCK, GO, "test", "-run=-", benchflags, "./...")
 
-		BENCHSTATSNEW = Getvar("BENCHSTATSNEW", "bench-new.txt")
-		BENCHSTATSOLD = Getvar("BENCHSTATSOLD", "bench-old.txt")
+		BENCHSTATSNEW = Getvar("BENCHSTATSNEW", Join(O, "bench-new.txt"))
+		BENCHSTATSOLD = Getvar("BENCHSTATSOLD", Join(O, "bench-old.txt"))
 	)
 
 	return Func(func() error {
@@ -543,8 +575,11 @@ func benchmarkTask(GO, TAGS string) Task {
 	})
 }
 
-func prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
+		muslccVersion = "10.2.1"
+		muslccURL     = "https://more.musl.cc/" + muslccVersion + "/x86_64-linux-musl/"
+
 		CURL      = Getvar("CURL", "curl")
 		SHA512SUM = Getvar("SHA512SUM", "sha512sum")
 		TAR       = Getvar("TAR", "tar")
@@ -553,21 +588,21 @@ func prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 
 	archTask := func(arch, triplet string) Task {
 		var (
-			muslccdir = Join("tmp", "muslcc-"+muslccVersion)
+			muslccdir = Join(O, "muslcc", muslccVersion)
 			tarname   = fmt.Sprintf("%s-cross.tgz", triplet)
 			tarpath   = Join(muslccdir, tarname)
 			toolchain = fmt.Sprintf("%s/%s-cross/bin/%s-", muslccdir, triplet, triplet)
 			cxx       = toolchain + "c++"
 			objcopy   = toolchain + "objcopy"
 			strip     = toolchain + "strip"
-			workdir   = Join("tmp/prebuild", arch)
+			objdir    = Join(O, "obj/prebuild", arch)
 		)
 
 		packTask := func(name, fullname string) Task {
 			var (
-				compiled = Join(workdir, fullname)
-				temp     = Join(workdir, name)
-				packed   = Join("internal/container/child/binary", fmt.Sprintf("%s.%s-%s.gz", name, GOOS, arch))
+				compiled = Join(objdir, fullname)
+				temp     = Join(objdir, name)
+				packed   = Join("internal/container/child/binary", fmt.Sprintf("%s.linux-%s.gz", name, arch))
 			)
 
 			return If(Outdated(packed, Thunk(compiled)),
@@ -587,8 +622,8 @@ func prebuildTask(CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 				Command(SHA512SUM, "-c", fmt.Sprintf("muslcc.%s.sha512sum", arch)),
 				Command(TAR, "xf", tarpath, "-C", muslccdir),
 			),
-			executorTask(workdir, CCACHE, cxx, CPPFLAGS, CXXFLAGS, LDFLAGS),
-			loaderTask(workdir, workdir, arch, CCACHE, cxx, CPPFLAGS, CXXFLAGS, LDFLAGS),
+			executorTask(objdir, CCACHE, cxx, CPPFLAGS, CXXFLAGS, LDFLAGS),
+			loaderTask(objdir, objdir, arch, GOOS, GO, CCACHE, cxx, CPPFLAGS, CXXFLAGS, LDFLAGS),
 			packTask("executor", common.ExecutorFilename),
 			packTask("loader", common.LoaderFilename),
 		)

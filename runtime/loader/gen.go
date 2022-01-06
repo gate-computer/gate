@@ -12,11 +12,11 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 
 	"gate.computer/ga"
 	"gate.computer/ga/linux"
 	runtimeerrors "gate.computer/gate/internal/error/runtime"
+	"gate.computer/gate/internal/executable"
 	"gate.computer/gate/trap"
 	"gate.computer/wag/object/abi"
 	"golang.org/x/sys/unix"
@@ -189,8 +189,8 @@ func funcRuntimeInit(a *ga.Assembly) {
 
 	// Unmap loader .text and .rodata sections.
 	{
-		a.MoveDef(param0, "GATE_LOADER_ADDR")
-		a.MoveImm(param1, 65536) // munmap length
+		a.MoveImm(param0, executable.LoaderTextAddr) // munmap addr
+		a.MoveImm(param1, 65536)                     // munmap length
 		a.Syscall(linux.SYS_MUNMAP)
 		a.MoveReg(local0, result)
 
@@ -792,7 +792,7 @@ func macroStackVars(a *ga.Assembly, out, temp ga.Reg) {
 
 	a.ShiftImm(ga.Left, out, a.Specify(wagStackLimitShift))
 
-	a.MoveDef(temp, "GATE_STACK_LIMIT_OFFSET")
+	a.MoveImm(temp, executable.StackLimitOffset)
 	a.SubtractReg(out, temp)
 }
 
@@ -960,8 +960,9 @@ func maskOut(n uint32) int {
 
 func main() {
 	var (
-		archs    = []string{"amd64", "arm64"}
-		variants = [][2]string{{"", "runtime.S"}, {"android", "runtime-android.S"}}
+		filename = os.Args[1]
+		archname = os.Args[2]
+		variant  = os.Args[3]
 	)
 
 	sys := ga.Linux()
@@ -975,26 +976,17 @@ func main() {
 	sys.LibParams[2].Use = "param2"
 	sys.LibResult.Use = "result"
 
-	for _, archname := range archs {
-		arch := ga.Archs[archname]
+	fmt.Println("Making", filename)
 
-		for _, variant := range variants {
-			filename := path.Join("runtime/loader", archname, variant[1])
-			fmt.Println("Making", filename)
-			asm := generate(arch, sys, variant[0])
+	asm := generate(ga.Archs[archname], sys, variant)
 
-			if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
-				fmt.Fprintf(os.Stderr, "%s: %v\n", filename, err)
-				os.Exit(1)
-			}
-		}
+	if err := ioutil.WriteFile(filename, []byte(asm), 0666); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
 
 const boilerplate = `
-.equ GATE_LOADER_ADDR, 0x200000000
-.equ GATE_STACK_LIMIT_OFFSET, 0x2700
-
 .Lseccomp_filter:
 .int 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 .int 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0

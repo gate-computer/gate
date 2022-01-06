@@ -16,13 +16,8 @@ runtime_code_begin:
 
 .align	3 // 8
 
-#include "../seccomp.S"
-
-#ifdef __ANDROID__
-#include "runtime-android.S"
-#else
-#include "runtime.S"
-#endif
+#include "seccomp.S"
+#include "rt.gen.S"
 
 .align	3 // 8
 

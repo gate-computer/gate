@@ -4,11 +4,14 @@
 
 package executable
 
-// Some of these values are also defined in runtime/include/runtime.hpp
-
 // See wag/Stack.md.
 const (
 	StackVarsSize    = 64       // Variables at start of stack memory.
 	stackSignalSpace = 4832 * 2 // For simultaneous SIGSEGV and SIGXCPU handling.
 	StackUsageOffset = StackVarsSize + stackSignalSpace + 240
+	StackLimitOffset = StackUsageOffset + 8 + 8
+)
+
+const (
+	LoaderTextAddr = 0x200000000
 )

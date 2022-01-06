@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var binary = "../../tmp/test-grpc-service"
+var binary = "../../lib/test-grpc-service"
 
 func TestDial(t *testing.T)                       { testDial(t, false, false, false) }
 func TestDialSuspend(t *testing.T)                { testDial(t, false, false, true) }

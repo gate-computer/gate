@@ -6,7 +6,7 @@
 
 #include <asm/auxvec.h>
 
-#include "errors.gen.h"
+#include "errors.gen.hpp"
 
 #define SYS_exit_group 94
 
