@@ -41,34 +41,9 @@
 
 extern "C" {
 
-void* memcpy(void* dest, void const* src, size_t n)
-{
-	auto d = reinterpret_cast<uint8_t*>(dest);
-	auto s = reinterpret_cast<uint8_t const*>(src);
-	for (size_t i = 0; i < n; i++)
-		d[i] = s[i];
-	return dest;
-}
-
-void* memset(void* dest, int c, size_t n)
-{
-	auto d = reinterpret_cast<uint8_t*>(dest);
-	for (size_t i = 0; i < n; i++)
-		d[i] = c;
-	return dest;
-}
-
-size_t strlen(char const* s)
-{
-	size_t n = 0;
-	while (*s++)
-		n++;
-	return n;
-}
-
 // Avoiding function prototypes avoids GOT section.
 typedef const class {
-	char dummy;
+	uint8_t dummy;
 } code;
 
 extern code current_memory;
@@ -495,7 +470,57 @@ clock_gettime_found:
 	__builtin_unreachable();
 }
 
+template <typename T>
+void copy(T* dest, T const* src, size_t n)
+{
+	for (size_t i = 0; i < n; i++)
+		*dest++ = *src++;
+}
+
 } // namespace
+
+extern "C" {
+
+void* memcpy(void* dest, void const* src, size_t n)
+{
+	// This is used to copy rt text, so put medium effort into optimization.
+
+	struct Block64 {
+		uint64_t data[8];
+	} PACKED;
+
+	auto d = reinterpret_cast<Block64*>(dest);
+	auto s = reinterpret_cast<Block64 const*>(src);
+	size_t blocks = n / 64;
+	copy(d, s, blocks);
+
+	size_t tail = n & 63;
+	if (tail) {
+		d += blocks;
+		s += blocks;
+		copy(reinterpret_cast<uint8_t*>(d), reinterpret_cast<uint8_t const*>(s), tail);
+	}
+
+	return dest;
+}
+
+void* memset(void* dest, int c, size_t n)
+{
+	auto d = reinterpret_cast<uint8_t*>(dest);
+	for (size_t i = 0; i < n; i++)
+		d[i] = c;
+	return dest;
+}
+
+size_t strlen(char const* s)
+{
+	size_t n = 0;
+	while (*s++)
+		n++;
+	return n;
+}
+
+} // extern "C"
 
 SECTION(".text")
 int main(int argc UNUSED, char** argv, char** envp)

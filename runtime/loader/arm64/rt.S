@@ -19,6 +19,6 @@ rt_text_start:
 #include "seccomp.S"
 #include "rt.gen.S"
 
-.align	3 // 8
+.align	8 // 64 for memcpy.
 
 rt_text_end:
