@@ -6,8 +6,8 @@ syntax = "proto3";
 
 package gate.server.event;
 
+import "server/api/meta.proto";
 import "server/api/server.proto";
-import "server/detail/detail.proto";
 
 option go_package = "gate.computer/gate/server/event";
 
@@ -44,7 +44,7 @@ enum Type {
 }
 
 message FailInternal {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string source = 2;
 	string module = 3;
 	string function = 4;
@@ -53,11 +53,11 @@ message FailInternal {
 }
 
 message FailNetwork {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 }
 
 message FailProtocol {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 }
 
 message FailRequest {
@@ -89,7 +89,7 @@ message FailRequest {
 		INSTANCE_DEBUGGER = 24;
 	}
 
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	Type failure = 2;
 	string source = 3;
 	string module = 4;
@@ -98,66 +98,66 @@ message FailRequest {
 }
 
 message IfaceAccess {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 }
 
 message ModuleList {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 }
 
 message ModuleInfo {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 }
 
 message ModuleUploadNew {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 }
 
 message ModuleUploadExist {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 	bool compiled = 3;
 }
 
 message ModuleSourceNew {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 	string uri = 3;
 }
 
 message ModuleSourceExist {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 	string uri = 3;
 	bool compiled = 4;
 }
 
 message ModuleDownload {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 	uint64 module_length = 3;
 	uint64 length_read = 4;
 }
 
 message ModulePin {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 	int32 tag_count = 3;
 }
 
 message ModuleUnpin {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string module = 2;
 }
 
 message InstanceList {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 }
 
 message InstanceInfo {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
@@ -170,72 +170,72 @@ message InstanceCreate {
 }
 
 message InstanceCreateKnown {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	InstanceCreate create = 2;
 }
 
 message InstanceCreateStream {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	InstanceCreate create = 2;
 }
 
 message InstanceStop {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 	api.Status status = 3;
 }
 
 message InstanceDelete {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
 message InstanceConnect {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
 message InstanceDisconnect {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
 message InstanceWait {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
 message InstanceKill {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
 message InstanceSuspend {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 }
 
 message InstanceResume {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 	string function = 3;
 }
 
 message InstanceSnapshot {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 	string module = 3;
 }
 
 message InstanceUpdate {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 	bool persist = 3;
 	int32 tag_count = 4;
 }
 
 message InstanceDebug {
-	detail.Context ctx = 1;
+	api.Meta meta = 1;
 	string instance = 2;
 	bool compiled = 3;
 }

@@ -19,7 +19,6 @@ import (
 	"gate.computer/gate/internal/protojson"
 	internalapi "gate.computer/gate/internal/webserverapi"
 	server "gate.computer/gate/server/api"
-	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
 	"github.com/gorilla/websocket"
@@ -169,11 +168,13 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	mux.HandleFunc(patternModules, newStaticHandler(s, pathModules, moduleSources))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := server.ContextWithRequestAddr(r.Context(), s.NewRequestID(r), r.RemoteAddr)
+		ctx := r.Context()
+		ctx = server.ContextWithRequest(ctx, s.NewRequestID(r))
+		ctx = server.ContextWithAddress(ctx, r.RemoteAddr)
 		r = r.WithContext(ctx)
 
 		s.Monitor(&event.IfaceAccess{
-			Ctx: server.ContextDetail(ctx),
+			Meta: server.ContextMeta(ctx),
 		}, nil)
 
 		defer func() {
@@ -921,7 +922,7 @@ func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin, content bool, source, key, function string, modTags, instTags []string, invoke *server.InvokeOptions) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op server.Op, pin, content bool, source, key, function string, modTags, instTags []string, invoke *server.InvokeOptions) {
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
@@ -1140,7 +1141,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 }
 
-func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin bool, source, key, function, instance string, modTags, instTags []string, suspend bool, invoke *server.InvokeOptions) {
+func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op server.Op, pin bool, source, key, function, instance string, modTags, instTags []string, suspend bool, invoke *server.InvokeOptions) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -1234,7 +1235,7 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 	w.Write(content)
 }
 
-func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceMethod, instance string) {
+func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op server.Op, method instanceMethod, instance string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -1265,7 +1266,7 @@ func handleInstanceInfo(w http.ResponseWriter, r *http.Request, s *webserver, in
 	w.Write(content)
 }
 
-func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceStatusMethod, instance string) {
+func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, op server.Op, method instanceStatusMethod, instance string) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
@@ -1280,7 +1281,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, method instanceWaiterMethod, instance string, wait bool) {
+func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, op server.Op, method instanceWaiterMethod, instance string, wait bool) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)

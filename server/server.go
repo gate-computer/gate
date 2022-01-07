@@ -18,7 +18,6 @@ import (
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/scope"
 	"gate.computer/gate/server/api"
-	"gate.computer/gate/server/detail"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal"
 	"gate.computer/gate/server/internal/error/resourcenotfound"
@@ -278,7 +277,7 @@ func (s *Server) _loadKnownModule(ctx context.Context, policy *progPolicy, uploa
 	prog = nil
 
 	s.monitor(&event.ModuleUploadExist{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Module: progID,
 	})
 
@@ -295,13 +294,13 @@ func (s *Server) _loadUnknownModule(ctx context.Context, policy *progPolicy, upl
 
 	if redundant {
 		s.monitor(&event.ModuleUploadExist{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Module:   progID,
 			Compiled: true,
 		})
 	} else {
 		s.monitor(&event.ModuleUploadNew{
-			Ctx:    api.ContextDetail(ctx),
+			Meta:   api.ContextMeta(ctx),
 			Module: progID,
 		})
 	}
@@ -354,7 +353,7 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 	prog = nil
 
 	s.monitor(&event.InstanceCreateKnown{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Create: newInstanceCreateEvent(inst.id, module, launch),
 	})
 
@@ -454,7 +453,7 @@ func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, pol
 	instImage = nil
 
 	s.monitor(&event.ModuleUploadExist{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Module: progID,
 	})
 
@@ -462,7 +461,7 @@ func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, pol
 	prog = nil
 
 	s.monitor(&event.InstanceCreateKnown{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Create: newInstanceCreateEvent(inst.id, progID, launch),
 	})
 
@@ -481,27 +480,27 @@ func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, p
 	if upload.Hash != "" {
 		if redundantProg {
 			s.monitor(&event.ModuleUploadExist{
-				Ctx:      api.ContextDetail(ctx),
+				Meta:     api.ContextMeta(ctx),
 				Module:   progID,
 				Compiled: true,
 			})
 		} else {
 			s.monitor(&event.ModuleUploadNew{
-				Ctx:    api.ContextDetail(ctx),
+				Meta:   api.ContextMeta(ctx),
 				Module: progID,
 			})
 		}
 	} else {
 		if redundantProg {
 			s.monitor(&event.ModuleSourceExist{
-				Ctx:    api.ContextDetail(ctx),
+				Meta:   api.ContextMeta(ctx),
 				Module: progID,
 				// TODO: source URI
 				Compiled: true,
 			})
 		} else {
 			s.monitor(&event.ModuleSourceNew{
-				Ctx:    api.ContextDetail(ctx),
+				Meta:   api.ContextMeta(ctx),
 				Module: progID,
 				// TODO: source URI
 			})
@@ -512,7 +511,7 @@ func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, p
 	prog = nil
 
 	s.monitor(&event.InstanceCreateStream{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Create: newInstanceCreateEvent(inst.id, progID, launch),
 	})
 
@@ -558,7 +557,7 @@ func (s *Server) ModuleInfo(ctx context.Context, module string) (_ *api.ModuleIn
 	}
 
 	s.monitor(&event.ModuleInfo{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Module: prog.id,
 	})
 
@@ -578,7 +577,7 @@ func (s *Server) Modules(ctx context.Context) (_ *api.Modules, err error) {
 	}
 
 	s.monitor(&event.ModuleList{
-		Ctx: api.ContextDetail(ctx),
+		Meta: api.ContextMeta(ctx),
 	})
 
 	s.mu.Lock()
@@ -632,7 +631,7 @@ func (s *Server) ModuleContent(ctx context.Context, module string) (stream io.Re
 
 	length = prog.image.ModuleSize()
 	stream = &moduleContent{
-		ctx:   api.ContextDetail(ctx),
+		meta:  api.ContextMeta(ctx),
 		r:     prog.image.NewModuleReader(),
 		s:     s,
 		prog:  prog,
@@ -642,7 +641,7 @@ func (s *Server) ModuleContent(ctx context.Context, module string) (stream io.Re
 }
 
 type moduleContent struct {
-	ctx   *detail.Context
+	meta  *api.Meta
 	r     io.Reader
 	s     *Server
 	prog  *program
@@ -658,7 +657,7 @@ func (x *moduleContent) Read(b []byte) (int, error) {
 
 func (x *moduleContent) Close() error {
 	x.s.monitor(&event.ModuleDownload{
-		Ctx:          x.ctx,
+		Meta:         x.meta,
 		Module:       x.prog.id,
 		ModuleLength: uint64(x.total),
 		LengthRead:   uint64(x.read),
@@ -716,7 +715,7 @@ func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleO
 
 	if modified {
 		s.monitor(&event.ModulePin{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Module:   module,
 			TagCount: int32(len(know.Tags)),
 		})
@@ -755,7 +754,7 @@ func (s *Server) UnpinModule(ctx context.Context, module string) (err error) {
 	}
 
 	s.monitor(&event.ModuleUnpin{
-		Ctx:    api.ContextDetail(ctx),
+		Meta:   api.ContextMeta(ctx),
 		Module: module,
 	})
 
@@ -777,7 +776,7 @@ func (s *Server) InstanceConnection(ctx context.Context, instance string) (
 	conn := inst.connect(ctx)
 	if conn == nil {
 		s.monitor(&event.FailRequest{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Failure:  event.FailInstanceNoConnect,
 			Instance: inst.id,
 		})
@@ -786,14 +785,14 @@ func (s *Server) InstanceConnection(ctx context.Context, instance string) (
 
 	iofunc := func(ctx context.Context, r io.Reader, w io.Writer) error {
 		s.monitor(&event.InstanceConnect{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Instance: inst.id,
 		})
 
 		err := conn(ctx, r, w)
 
 		s.Monitor(&event.InstanceDisconnect{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Instance: inst.id,
 		}, err)
 
@@ -817,7 +816,7 @@ func (s *Server) InstanceInfo(ctx context.Context, instance string) (_ *api.Inst
 	}
 
 	s.monitor(&event.InstanceInfo{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 	})
 
@@ -835,7 +834,7 @@ func (s *Server) WaitInstance(ctx context.Context, instID string) (_ *api.Status
 	status := inst.Wait(ctx)
 
 	s.monitor(&event.InstanceWait{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 	})
 
@@ -853,7 +852,7 @@ func (s *Server) KillInstance(ctx context.Context, instance string) (_ api.Insta
 	inst.kill()
 
 	s.monitor(&event.InstanceKill{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 	})
 
@@ -875,7 +874,7 @@ func (s *Server) SuspendInstance(ctx context.Context, instance string) (_ api.In
 	inst.suspend_()
 
 	s.monitor(&event.InstanceSuspend{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 	})
 
@@ -908,7 +907,7 @@ func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *ap
 	prog = nil
 
 	s.monitor(&event.InstanceResume{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 		Function: resume.Function,
 	})
@@ -928,7 +927,7 @@ func (s *Server) DeleteInstance(ctx context.Context, instance string) (err error
 	s.deleteNonexistentInstance(inst)
 
 	s.monitor(&event.InstanceDelete{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 	})
 
@@ -991,7 +990,7 @@ func (s *Server) _snapshot(ctx context.Context, instance string, know *api.Modul
 	newProg = nil
 
 	s.monitor(&event.InstanceSnapshot{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 		Module:   progID,
 	})
@@ -1011,7 +1010,7 @@ func (s *Server) UpdateInstance(ctx context.Context, instance string, update *ap
 	progID, inst := s._getInstanceProgramID(ctx, instance)
 	if inst.update(update) {
 		s.monitor(&event.InstanceUpdate{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Instance: inst.id,
 			Persist:  update.Persist,
 			TagCount: int32(len(update.Tags)),
@@ -1061,7 +1060,7 @@ func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.De
 	}
 
 	s.monitor(&event.InstanceDebug{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Instance: inst.id,
 		Compiled: rebuild != nil,
 	})
@@ -1082,7 +1081,7 @@ func (s *Server) Instances(ctx context.Context) (_ *api.Instances, err error) {
 	}
 
 	s.monitor(&event.InstanceList{
-		Ctx: api.ContextDetail(ctx),
+		Meta: api.ContextMeta(ctx),
 	})
 
 	type instProgID struct {
@@ -1175,7 +1174,7 @@ func (s *Server) _registerProgramRef(ctx context.Context, prog *program, know *a
 		if s.ensureAccount(lock, pri).ensureProgramRef(lock, prog, know.Tags) {
 			// TODO: move outside of critical section
 			s.monitor(&event.ModulePin{
-				Ctx:      api.ContextDetail(ctx),
+				Meta:     api.ContextMeta(ctx),
 				Module:   prog.id,
 				TagCount: int32(len(know.Tags)),
 			})
@@ -1222,7 +1221,7 @@ func (s *Server) _runOrDeleteInstance(ctx context.Context, inst *Instance, prog 
 	}
 
 	if drive {
-		go s.driveInstance(api.DetachedContext(ctx), inst, prog, function)
+		go s.driveInstance(api.ContextWithAddress(ctx, ""), inst, prog, function)
 		prog = nil
 	}
 }
@@ -1349,7 +1348,7 @@ func (s *Server) _registerProgramRefInstance(ctx context.Context, acc *account, 
 			if acc.ensureProgramRef(lock, prog, know.Tags) {
 				// TODO: move outside of critical section
 				s.monitor(&event.ModulePin{
-					Ctx:      api.ContextDetail(ctx),
+					Meta:     api.ContextMeta(ctx),
 					Module:   prog.id,
 					TagCount: int32(len(know.Tags)),
 				})

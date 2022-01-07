@@ -267,7 +267,6 @@ func protoTask(O, PROTOC, GO string) Task {
 			"internal/manifest/*.proto",
 			"internal/webserverapi/*.proto",
 			"server/api/*.proto",
-			"server/detail/*.proto",
 			"server/event/*.proto",
 			"service/grpc/api/*.proto",
 		)
@@ -304,8 +303,8 @@ func protoTask(O, PROTOC, GO string) Task {
 
 	addProto("internal/manifest/manifest.proto", "", "")
 	addProto("internal/webserverapi/webserverapi.proto", "", "")
+	addProto("server/api/meta.proto", "", "")
 	addProto("server/api/server.proto", "", "")
-	addProto("server/detail/detail.proto", "", "")
 	addProto("server/event/event.proto", "", "")
 	addProto("service/grpc/api/service.proto", "", "")
 	addProto("service/grpc/api/service.proto", "-grpc", "_grpc")

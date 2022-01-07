@@ -8,65 +8,61 @@ import (
 	"context"
 
 	"gate.computer/gate/internal/principal"
-	"gate.computer/gate/server/detail"
-	"google.golang.org/protobuf/proto"
 )
 
-type contextKey struct{}
+type contextKey int
 
-func ContextWithIface(ctx context.Context, iface detail.Iface) context.Context {
-	c := ContextDetail(ctx)
-	c.Iface = iface
-	return context.WithValue(ctx, contextKey{}, c)
+const (
+	contextKeyIface = contextKey(iota)
+	contextKeyReq
+	contextKeyAddr
+	contextKeyOp
+)
+
+func ContextWithIface(ctx context.Context, iface Iface) context.Context {
+	return context.WithValue(ctx, contextKeyIface, iface)
 }
 
-func ContextWithRequestAddr(ctx context.Context, request uint64, addr string) context.Context {
-	c := ContextDetail(ctx)
-	c.Req = request
-	c.Addr = addr
-	return context.WithValue(ctx, contextKey{}, c)
+func ContextWithRequest(ctx context.Context, req uint64) context.Context {
+	return context.WithValue(ctx, contextKeyReq, req)
 }
 
-func ContextWithOp(ctx context.Context, op detail.Op) context.Context {
-	c := ContextDetail(ctx)
-	c.Op = op
-	return context.WithValue(ctx, contextKey{}, c)
+func ContextWithAddress(ctx context.Context, addr string) context.Context {
+	return context.WithValue(ctx, contextKeyAddr, addr)
 }
 
-// DetachedContext clears request address.
-func DetachedContext(ctx context.Context) context.Context {
-	c := ContextDetail(ctx)
-	c.Addr = ""
-	return context.WithValue(ctx, contextKey{}, c)
-}
-
-func ContextDetail(ctx context.Context) (c *detail.Context) {
-	pri := principal.ContextID(ctx)
-
-	var priString string
-	if pri != nil {
-		priString = pri.String()
-	}
-
-	if x := ctx.Value(contextKey{}); x != nil {
-		c = x.(*detail.Context)
-		if pri != nil && c.Principal != priString {
-			c = proto.Clone(c).(*detail.Context)
-			c.Principal = priString
-		}
-	} else {
-		c = new(detail.Context)
-		if pri != nil {
-			c.Principal = priString
-		}
-	}
-	return
+func ContextWithOp(ctx context.Context, op Op) context.Context {
+	return context.WithValue(ctx, contextKeyOp, op)
 }
 
 // ContextOp returns the server operation type.
-func ContextOp(ctx context.Context) (op detail.Op) {
-	if x := ctx.Value(contextKey{}); x != nil {
-		op = x.(*detail.Context).Op
+func ContextOp(ctx context.Context) (op Op) {
+	if x := ctx.Value(contextKeyOp); x != nil {
+		op = x.(Op)
 	}
 	return
+}
+
+func ContextMeta(ctx context.Context) *Meta {
+	m := new(Meta)
+
+	if x := ctx.Value(contextKeyIface); x != nil {
+		m.Iface = x.(Iface)
+	}
+
+	if x := ctx.Value(contextKeyReq); x != nil {
+		m.Req = x.(uint64)
+	}
+
+	if x := ctx.Value(contextKeyAddr); x != nil {
+		m.Addr = x.(string)
+	}
+
+	m.Op = ContextOp(ctx)
+
+	if pri := principal.ContextID(ctx); pri != nil {
+		m.Principal = pri.String()
+	}
+
+	return m
 }

@@ -4,9 +4,9 @@
 
 syntax = "proto3";
 
-package gate.server.detail;
+package gate.server.api;
 
-option go_package = "gate.computer/gate/server/detail";
+option go_package = "gate.computer/gate/server/api";
 
 enum Iface {
 	DEFAULT = 0;
@@ -40,7 +40,7 @@ enum Op {
 	INSTANCE_DEBUG = 24;
 }
 
-message Context {
+message Meta {
 	Iface iface = 1;
 	uint64 req = 2;
 	string addr = 3;

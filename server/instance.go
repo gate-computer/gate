@@ -431,7 +431,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 		inst.stop(lock)
 
 		monitor(&event.InstanceStop{
-			Ctx:      api.ContextDetail(ctx),
+			Meta:     api.ContextMeta(ctx),
 			Instance: inst.id,
 			Status:   inst.status.Clone(),
 		}, nil)
@@ -441,7 +441,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 			nonexistent = true
 
 			monitor(&event.InstanceDelete{
-				Ctx:      api.ContextDetail(ctx),
+				Meta:     api.ContextMeta(ctx),
 				Instance: inst.id,
 			}, nil)
 		}
@@ -705,7 +705,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.D
 
 func programFailure(ctx context.Context, module, function, instance string) Event {
 	return &event.FailRequest{
-		Ctx:      api.ContextDetail(ctx),
+		Meta:     api.ContextMeta(ctx),
 		Failure:  event.FailProgramError,
 		Module:   module,
 		Function: function,
@@ -719,7 +719,7 @@ func internalFailure(ctx context.Context, module, function, instance, subsys str
 	}
 
 	return &event.FailInternal{
-		Ctx:       api.ContextDetail(ctx),
+		Meta:      api.ContextMeta(ctx),
 		Module:    module,
 		Function:  function,
 		Instance:  instance,
