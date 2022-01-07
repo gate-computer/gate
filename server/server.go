@@ -309,7 +309,7 @@ func (s *Server) _loadUnknownModule(ctx context.Context, policy *progPolicy, upl
 	return progID
 }
 
-func (s *Server) NewInstance(ctx context.Context, module string, launch *api.LaunchOptions, invoke *api.InvokeOptions) (_ api.Instance, err error) {
+func (s *Server) NewInstance(ctx context.Context, module string, launch *api.LaunchOptions) (_ api.Instance, err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
@@ -347,7 +347,7 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 	defer closeInstanceImage(&instImage)
 
 	ref := &api.ModuleOptions{}
-	inst, prog, _ := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, ref, launch, invoke)
+	inst, prog, _ := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, ref, launch)
 	instImage = nil
 
 	s._runOrDeleteInstance(ctx, inst, prog, launch.Function)
@@ -361,7 +361,7 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 	return inst, nil
 }
 
-func (s *Server) UploadModuleInstance(ctx context.Context, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *api.InvokeOptions) (_ api.Instance, err error) {
+func (s *Server) UploadModuleInstance(ctx context.Context, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (_ api.Instance, err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
@@ -373,11 +373,11 @@ func (s *Server) UploadModuleInstance(ctx context.Context, upload *api.ModuleUpl
 	ctx = _context(s.AccessPolicy.AuthorizeProgramInstance(ctx, &policy.res, &policy.prog, &policy.inst))
 
 	acc := s._checkAccountInstanceID(ctx, launch.Instance)
-	_, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch, invoke)
+	_, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch)
 	return inst, nil
 }
 
-func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *api.InvokeOptions) (module string, _ api.Instance, err error) {
+func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api.ModuleOptions, launch *api.LaunchOptions) (module string, _ api.Instance, err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
@@ -406,11 +406,11 @@ func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api
 	}
 	defer upload.Close()
 
-	module, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch, invoke)
+	module, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch)
 	return module, inst, nil
 }
 
-func (s *Server) _loadModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *api.InvokeOptions) (string, *Instance) {
+func (s *Server) _loadModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (string, *Instance) {
 	if upload.Length > int64(policy.prog.MaxModuleSize) {
 		_check(resourcelimit.New("module size limit exceeded"))
 	}
@@ -418,16 +418,16 @@ func (s *Server) _loadModuleInstance(ctx context.Context, acc *account, policy *
 	// TODO: check resource policy
 
 	if upload.Hash != "" {
-		inst := s._loadKnownModuleInstance(ctx, acc, policy, upload, know, launch, invoke)
+		inst := s._loadKnownModuleInstance(ctx, acc, policy, upload, know, launch)
 		if inst != nil {
 			return upload.Hash, inst
 		}
 	}
 
-	return s._loadUnknownModuleInstance(ctx, acc, policy, upload, know, launch, invoke)
+	return s._loadUnknownModuleInstance(ctx, acc, policy, upload, know, launch)
 }
 
-func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *api.InvokeOptions) *Instance {
+func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) *Instance {
 	prog := s._refProgram(upload.Hash, upload.Length)
 	if prog == nil {
 		return nil
@@ -450,7 +450,7 @@ func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, pol
 	_check(err)
 	defer closeInstanceImage(&instImage)
 
-	inst, prog, _ := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch, invoke)
+	inst, prog, _ := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch)
 	instImage = nil
 
 	s.monitor(&event.ModuleUploadExist{
@@ -469,13 +469,13 @@ func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, pol
 	return inst
 }
 
-func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *api.InvokeOptions) (string, *Instance) {
+func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (string, *Instance) {
 	prog, instImage := _buildProgram(s.ImageStorage, &policy.prog, &policy.inst, upload, launch.Function)
 	defer closeInstanceImage(&instImage)
 	defer s.unrefProgram(&prog)
 	progID := prog.id
 
-	inst, prog, redundantProg := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch, invoke)
+	inst, prog, redundantProg := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch)
 	instImage = nil
 
 	if upload.Hash != "" {
@@ -882,7 +882,7 @@ func (s *Server) SuspendInstance(ctx context.Context, instance string) (_ api.In
 	return inst, nil
 }
 
-func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *api.ResumeOptions, invoke *api.InvokeOptions) (_ api.Instance, err error) {
+func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *api.ResumeOptions) (_ api.Instance, err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
@@ -900,7 +900,7 @@ func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *ap
 	proc, services := s._allocateInstanceResources(ctx, &policy.inst)
 	defer closeInstanceResources(&proc, &services)
 
-	inst._doResume(resume.Function, proc, services, policy.inst.TimeResolution, s.openDebugLog(invoke))
+	inst._doResume(resume.Function, proc, services, policy.inst.TimeResolution, s.openDebugLog(resume.Invoke))
 	proc = nil
 	services = nil
 
@@ -953,7 +953,7 @@ func (s *Server) Snapshot(ctx context.Context, instance string, know *api.Module
 		inst.suspend()
 		if inst.Wait(context.Background()).State == api.StateSuspended {
 			defer func() {
-				_, e := s.ResumeInstance(ctx, instance, nil, nil)
+				_, e := s.ResumeInstance(ctx, instance, nil)
 				if module != "" {
 					_check(e)
 				}
@@ -1304,7 +1304,7 @@ func (s *Server) _allocateInstanceResources(ctx context.Context, policy *Instanc
 // registerProgramRefInstance with server, and an account if ref is true.
 // Caller's instance image is stolen (except on error).  Caller's program
 // reference is replaced with a reference to the canonical program object.
-func (s *Server) _registerProgramRefInstance(ctx context.Context, acc *account, prog *program, instImage *image.Instance, policy *InstancePolicy, know *api.ModuleOptions, launch *api.LaunchOptions, invoke *api.InvokeOptions) (inst *Instance, canonicalProg *program, redundantProg bool) {
+func (s *Server) _registerProgramRefInstance(ctx context.Context, acc *account, prog *program, instImage *image.Instance, policy *InstancePolicy, know *api.ModuleOptions, launch *api.LaunchOptions) (inst *Instance, canonicalProg *program, redundantProg bool) {
 	var (
 		proc     *runtime.Process
 		services InstanceServices
@@ -1338,7 +1338,7 @@ func (s *Server) _registerProgramRefInstance(ctx context.Context, acc *account, 
 
 	prog, redundantProg = s._mergeProgramRef(lock, prog)
 
-	inst = newInstance(instance, acc, launch.Transient, instImage, prog.buffers, proc, services, policy.TimeResolution, launch.Tags, s.openDebugLog(invoke))
+	inst = newInstance(instance, acc, launch.Transient, instImage, prog.buffers, proc, services, policy.TimeResolution, launch.Tags, s.openDebugLog(launch.Invoke))
 	proc = nil
 	services = nil
 

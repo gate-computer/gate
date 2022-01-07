@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 
+	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
 )
@@ -182,10 +183,15 @@ func popOptionalLastParam(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 }
 
-func popOptionalLastLogParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) string {
+func popOptionalLastLogParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) *server.InvokeOptions {
 	switch value := popOptionalLastParam(w, r, s, query, api.ParamLog); value {
-	case "", "*":
-		return value
+	case "":
+		return nil
+
+	case "*":
+		return &server.InvokeOptions{
+			DebugLog: value,
+		}
 
 	default:
 		respondUnsupportedLog(w, r, s, value)

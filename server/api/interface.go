@@ -20,17 +20,17 @@ type Server interface {
 	ModuleContent(context.Context, string) (io.ReadCloser, int64, error)
 	ModuleInfo(context.Context, string) (*ModuleInfo, error)
 	Modules(context.Context) (*Modules, error)
-	NewInstance(context.Context, string, *LaunchOptions, *InvokeOptions) (Instance, error)
+	NewInstance(context.Context, string, *LaunchOptions) (Instance, error)
 	PinModule(context.Context, string, *ModuleOptions) error
-	ResumeInstance(context.Context, string, *ResumeOptions, *InvokeOptions) (Instance, error)
+	ResumeInstance(context.Context, string, *ResumeOptions) (Instance, error)
 	Snapshot(context.Context, string, *ModuleOptions) (string, error)
 	SourceModule(context.Context, string, *ModuleOptions) (string, error)
-	SourceModuleInstance(context.Context, string, *ModuleOptions, *LaunchOptions, *InvokeOptions) (string, Instance, error)
+	SourceModuleInstance(context.Context, string, *ModuleOptions, *LaunchOptions) (string, Instance, error)
 	SuspendInstance(context.Context, string) (Instance, error)
 	UnpinModule(context.Context, string) error
 	UpdateInstance(context.Context, string, *InstanceUpdate) (*InstanceInfo, error)
 	UploadModule(context.Context, *ModuleUpload, *ModuleOptions) (string, error)
-	UploadModuleInstance(context.Context, *ModuleUpload, *ModuleOptions, *LaunchOptions, *InvokeOptions) (Instance, error)
+	UploadModuleInstance(context.Context, *ModuleUpload, *ModuleOptions, *LaunchOptions) (Instance, error)
 	WaitInstance(context.Context, string) (*Status, error)
 }
 

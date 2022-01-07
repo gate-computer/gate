@@ -6,7 +6,6 @@ syntax = "proto3";
 
 package gate.server.event;
 
-import "google/protobuf/wrappers.proto";
 import "server/api/server.proto";
 import "server/detail/detail.proto";
 

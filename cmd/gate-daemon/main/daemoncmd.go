@@ -626,20 +626,24 @@ func doLaunch(
 	launch *api.LaunchOptions,
 	debugFD dbus.UnixFD,
 	debugLogging bool,
-) (inst api.Instance) {
+) api.Instance {
 	invoke, cancel := invokeOptions(debugFD, debugLogging)
 	defer cancel()
 
-	var err error
+	launch.Invoke = invoke
+
 	if moduleFile != nil {
 		upload := moduleUpload(moduleFile)
 		defer upload.Close()
-		inst, err = s.UploadModuleInstance(ctx, upload, moduleOpt, launch, invoke)
+
+		inst, err := s.UploadModuleInstance(ctx, upload, moduleOpt, launch)
+		check(err)
+		return inst
 	} else {
-		inst, err = s.NewInstance(ctx, moduleID, launch, invoke)
+		inst, err := s.NewInstance(ctx, moduleID, launch)
+		check(err)
+		return inst
 	}
-	check(err)
-	return
 }
 
 func listInstances(ctx context.Context, s *server.Server) []string {
@@ -678,7 +682,9 @@ func resumeInstance(ctx context.Context, s *server.Server, instance string, resu
 	invoke, cancel := invokeOptions(debugFD, debugLogging)
 	defer cancel()
 
-	_, err := s.ResumeInstance(ctx, instance, resume, invoke)
+	resume.Invoke = invoke
+
+	_, err := s.ResumeInstance(ctx, instance, resume)
 	check(err)
 }
 

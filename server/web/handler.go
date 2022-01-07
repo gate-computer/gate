@@ -502,9 +502,9 @@ func handleGetKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			log := popOptionalLastLogParam(w, r, s, query)
+			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCallWebsocket(w, r, s, pin, "", key, function, modTags, instTags, log)
+			handleCallWebsocket(w, r, s, pin, "", key, function, modTags, instTags, invoke)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -545,17 +545,17 @@ func handlePutKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 		case api.ActionCall:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			log := popOptionalLastLogParam(w, r, s, query)
+			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCall(w, r, s, server.OpCallUpload, pin, true, "", key, function, modTags, instTags, log)
+			handleCall(w, r, s, server.OpCallUpload, pin, true, "", key, function, modTags, instTags, invoke)
 
 		case api.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			log := popOptionalLastLogParam(w, r, s, query)
+			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleLaunchUpload(w, r, s, pin, key, function, instance, modTags, instTags, suspend, log)
+			handleLaunchUpload(w, r, s, pin, key, function, instance, modTags, instTags, suspend, invoke)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -586,19 +586,19 @@ func handlePostKnownModule(w http.ResponseWriter, r *http.Request, s *webserver,
 	case api.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instTags := popOptionalParams(query, api.ParamInstanceTag)
-		log := popOptionalLastLogParam(w, r, s, query)
+		invoke := popOptionalLastLogParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
-		handleCall(w, r, s, server.OpCallExtant, false, false, "", key, function, nil, instTags, log)
+		handleCall(w, r, s, server.OpCallExtant, false, false, "", key, function, nil, instTags, invoke)
 
 	case api.ActionLaunch:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 		instTags := popOptionalParams(query, api.ParamInstanceTag)
-		log := popOptionalLastLogParam(w, r, s, query)
+		invoke := popOptionalLastLogParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
 		mustNotHaveContentType(w, r, s)
 		mustNotHaveContent(w, r, s)
-		handleLaunch(w, r, s, server.OpLaunchExtant, false, "", key, function, instance, nil, instTags, suspend, log)
+		handleLaunch(w, r, s, server.OpLaunchExtant, false, "", key, function, instance, nil, instTags, suspend, invoke)
 
 	case api.ActionPin:
 		modTags := popOptionalParams(query, api.ParamModuleTag)
@@ -631,9 +631,9 @@ func handleGetModuleSource(w http.ResponseWriter, r *http.Request, s *webserver,
 	case api.ActionCall:
 		function := mustPopOptionalLastFunctionParam(w, r, s, query)
 		instTags := popOptionalParams(query, api.ParamInstanceTag)
-		log := popOptionalLastLogParam(w, r, s, query)
+		invoke := popOptionalLastLogParam(w, r, s, query)
 		mustNotHaveParams(w, r, s, query)
-		handleCallWebsocket(w, r, s, pin, source, "", function, modTags, instTags, log)
+		handleCallWebsocket(w, r, s, pin, source, "", function, modTags, instTags, invoke)
 
 	default:
 		respondUnsupportedAction(w, r, s)
@@ -659,19 +659,19 @@ func handlePostModuleSource(w http.ResponseWriter, r *http.Request, s *webserver
 			}
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			log := popOptionalLastLogParam(w, r, s, query)
+			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCall(w, r, s, server.OpCallSource, pin, false, source, "", function, modTags, instTags, log)
+			handleCall(w, r, s, server.OpCallSource, pin, false, source, "", function, modTags, instTags, invoke)
 
 		case api.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
 			instance := popOptionalLastParam(w, r, s, query, api.ParamInstance)
 			instTags := popOptionalParams(query, api.ParamInstanceTag)
-			log := popOptionalLastLogParam(w, r, s, query)
+			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
 			mustNotHaveContentType(w, r, s)
 			mustNotHaveContent(w, r, s)
-			handleLaunch(w, r, s, server.OpLaunchSource, pin, source, "", function, instance, modTags, instTags, suspend, log)
+			handleLaunch(w, r, s, server.OpLaunchSource, pin, source, "", function, instance, modTags, instTags, suspend, invoke)
 
 		default:
 			respondUnsupportedAction(w, r, s)
@@ -729,9 +729,9 @@ func handlePostInstance(w http.ResponseWriter, r *http.Request, s *webserver, in
 
 		case api.ActionResume:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
-			log := popOptionalLastLogParam(w, r, s, query)
+			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleInstanceResume(w, r, s, function, instance, log)
+			handleInstanceResume(w, r, s, function, instance, invoke)
 			return
 
 		case api.ActionSnapshot:
@@ -921,18 +921,15 @@ func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin, content bool, source, key, function string, modTags, instTags []string, log string) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin, content bool, source, key, function string, modTags, instTags []string, invoke *server.InvokeOptions) {
 	ctx := server.ContextWithOp(r.Context(), op) // TODO: detail: post
 	wr := &requestResponseWriter{w, r}
 
 	launch := &server.LaunchOptions{
+		Invoke:    invoke,
 		Function:  function,
 		Transient: true,
 		Tags:      instTags,
-	}
-
-	invoke := &server.InvokeOptions{
-		DebugLog: log,
 	}
 
 	var (
@@ -947,7 +944,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		defer upload.Close()
 
 		module = key
-		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
+		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -957,7 +954,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 		module = key
-		inst, err = s.Server.NewInstance(ctx, key, launch, invoke)
+		inst, err = s.Server.NewInstance(ctx, key, launch)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -966,7 +963,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	default:
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, pin)
 
-		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch, invoke)
+		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, wr, s, source, "", function, "", err)
@@ -1001,7 +998,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op detail.
 	}
 }
 
-func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, pin bool, source, key, function string, modTags, instTags []string, log string) {
+func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s *webserver, pin bool, source, key, function string, modTags, instTags []string, invoke *server.InvokeOptions) {
 	ctx, cancel := context.WithCancel(request.Context())
 	defer cancel()
 
@@ -1063,13 +1060,10 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	w := websocketResponseWriter{conn}
 
 	launch := &server.LaunchOptions{
+		Invoke:    invoke,
 		Function:  function,
 		Transient: true,
 		Tags:      instTags,
-	}
-
-	invoke := &server.InvokeOptions{
-		DebugLog: log,
 	}
 
 	var (
@@ -1094,7 +1088,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		defer upload.Close()
 
 		module = key
-		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
+		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -1104,7 +1098,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, false)
 
 		module = key
-		inst, err = s.Server.NewInstance(ctx, key, launch, invoke)
+		inst, err = s.Server.NewInstance(ctx, key, launch)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -1113,7 +1107,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	default:
 		ctx = mustParseAuthorization(ctx, w, s, r.Authorization, pin)
 
-		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch, invoke)
+		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch)
 		if err != nil {
 			// TODO: find out module hash
 			respondServerError(ctx, w, s, source, "", function, "", err)
@@ -1146,20 +1140,17 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 	}
 }
 
-func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin bool, source, key, function, instance string, modTags, instTags []string, suspend bool, log string) {
+func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detail.Op, pin bool, source, key, function, instance string, modTags, instTags []string, suspend bool, invoke *server.InvokeOptions) {
 	ctx := server.ContextWithOp(r.Context(), op)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 	launch := &server.LaunchOptions{
+		Invoke:   invoke,
 		Function: function,
 		Instance: instance,
 		Suspend:  suspend,
 		Tags:     instTags,
-	}
-
-	invoke := &server.InvokeOptions{
-		DebugLog: log,
 	}
 
 	var (
@@ -1169,13 +1160,13 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	)
 	if source == "" {
 		module = key
-		inst, err = s.Server.NewInstance(ctx, key, launch, invoke)
+		inst, err = s.Server.NewInstance(ctx, key, launch)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
 		}
 	} else {
-		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch, invoke)
+		module, inst, err = s.Server.SourceModuleInstance(ctx, source, modulePin(pin, modTags), launch)
 		if err != nil {
 			respondServerError(ctx, wr, s, source, "", function, "", err)
 			return
@@ -1192,26 +1183,23 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op detai
 	}
 }
 
-func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pin bool, key, function, instance string, modTags, instTags []string, suspend bool, log string) {
+func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pin bool, key, function, instance string, modTags, instTags []string, suspend bool, invoke *server.InvokeOptions) {
 	ctx := server.ContextWithOp(r.Context(), server.OpLaunchUpload)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
 
 	launch := &server.LaunchOptions{
+		Invoke:   invoke,
 		Function: function,
 		Instance: instance,
 		Suspend:  suspend,
 		Tags:     instTags,
 	}
 
-	invoke := &server.InvokeOptions{
-		DebugLog: log,
-	}
-
 	upload := moduleUpload(mustDecodeContent(ctx, wr, s), r.ContentLength, key)
 	defer upload.Close()
 
-	inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch, invoke)
+	inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return
@@ -1311,17 +1299,17 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instance, log string) {
+func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instance string, invoke *server.InvokeOptions) {
 	ctx := server.ContextWithOp(r.Context(), server.OpInstanceResume)
 	wr := &requestResponseWriter{w, r}
 	ctx = mustParseAuthorizationHeader(ctx, wr, s, true)
-	resume := &server.ResumeOptions{Function: function}
 
-	invoke := &server.InvokeOptions{
-		DebugLog: log,
+	resume := &server.ResumeOptions{
+		Invoke:   invoke,
+		Function: function,
 	}
 
-	if _, err := s.Server.ResumeInstance(ctx, instance, resume, invoke); err != nil {
+	if _, err := s.Server.ResumeInstance(ctx, instance, resume); err != nil {
 		respondServerError(ctx, wr, s, "", "", function, instance, err)
 		return
 	}

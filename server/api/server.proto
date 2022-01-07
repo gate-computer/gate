@@ -6,8 +6,6 @@ syntax = "proto3";
 
 package gate.server.api;
 
-import "google/protobuf/wrappers.proto";
-
 option go_package = "gate.computer/gate/server/api";
 
 message Features {
@@ -59,16 +57,22 @@ message Status {
 	string error = 4;
 }
 
+message InvokeOptions {
+	string debug_log = 1;
+}
+
 message LaunchOptions {
-	string function = 1;
-	string instance = 2;
-	bool transient = 3;
-	bool suspend = 4;
-	repeated string tags = 5;
+	InvokeOptions invoke = 1;
+	string function = 2;
+	string instance = 3;
+	bool transient = 4;
+	bool suspend = 5;
+	repeated string tags = 6;
 }
 
 message ResumeOptions {
-	string function = 1;
+	InvokeOptions invoke = 1;
+	string function = 2;
 }
 
 message InstanceInfo {
