@@ -21,7 +21,6 @@ import (
 	"gate.computer/gate/internal/container/common"
 	"gate.computer/gate/internal/executable"
 	"gate.computer/gate/internal/librarian"
-	"gate.computer/gate/internal/make/eventtypes"
 	"gate.computer/gate/internal/make/runtimeerrors"
 	. "import.name/make"
 )
@@ -68,7 +67,7 @@ func targets() (targets Tasks) {
 
 	sources := Group(
 		protoTask(O, PROTOC, GO),
-		eventtypes.Task(GOFMT),
+		eventTypesTask(GO, GOFMT),
 		runtimeerrors.Task(GOFMT),
 	)
 
@@ -310,6 +309,20 @@ func protoTask(O, PROTOC, GO string) Task {
 	addProto("service/grpc/api/service.proto", "-grpc", "_grpc")
 
 	return Group(tasks...)
+}
+
+func eventTypesTask(GO, GOFMT string) Task {
+	var (
+		deps = Globber(
+			"server/event/*.go",
+		)
+
+		output = "server/event/type.gen.go"
+	)
+
+	return If(Outdated(output, deps),
+		Command(GO, "run", "server/event/gen.go", GOFMT, output),
+	)
 }
 
 func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
