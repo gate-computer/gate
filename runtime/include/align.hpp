@@ -6,8 +6,12 @@
 
 #include <cstddef>
 
-static inline size_t align_size(size_t size, size_t alignment)
+namespace runtime {
+
+size_t align_size(size_t size, size_t alignment)
 {
 	size_t mask = alignment - 1;
 	return (size + mask) & ~mask;
 }
+
+} // namespace runtime

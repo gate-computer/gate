@@ -80,17 +80,17 @@ uintptr_t rt_func_addr(void const* new_base, code* func_ptr)
 
 int sys_close(int fd)
 {
-	return syscall1(SYS_close, fd);
+	return syscall(SYS_close, fd);
 }
 
 int sys_fcntl(int fd, int cmd, int arg)
 {
-	return syscall3(SYS_fcntl, fd, cmd, arg);
+	return syscall(SYS_fcntl, fd, cmd, arg);
 }
 
 void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	intptr_t ret = syscall6(SYS_mmap, uintptr_t(addr), length, prot, flags, fd, offset);
+	intptr_t ret = syscall(SYS_mmap, uintptr_t(addr), length, prot, flags, fd, offset);
 	if (ret < 0 && ret > -4096)
 		return MAP_FAILED;
 	return reinterpret_cast<void*>(ret);
@@ -98,12 +98,12 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd, off_t off
 
 int sys_mprotect(void* addr, size_t len, int prot)
 {
-	return syscall3(SYS_mprotect, uintptr_t(addr), len, prot);
+	return syscall(SYS_mprotect, uintptr_t(addr), len, prot);
 }
 
 void* sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags)
 {
-	intptr_t ret = syscall4(SYS_mremap, uintptr_t(old_addr), old_size, new_size, flags);
+	intptr_t ret = syscall(SYS_mremap, uintptr_t(old_addr), old_size, new_size, flags);
 	if (ret < 0 && ret > -4096)
 		return MAP_FAILED;
 	return reinterpret_cast<void*>(ret);
@@ -111,28 +111,28 @@ void* sys_mremap(void* old_addr, size_t old_size, size_t new_size, int flags)
 
 int sys_personality(unsigned long persona)
 {
-	return syscall1(SYS_personality, persona);
+	return syscall(SYS_personality, persona);
 }
 
 int sys_prctl(int option, unsigned long arg2)
 {
-	return syscall2(SYS_prctl, option, arg2);
+	return syscall(SYS_prctl, option, arg2);
 }
 
 ssize_t sys_read(int fd, void* buf, size_t count)
 {
-	return syscall3(SYS_read, fd, uintptr_t(buf), count);
+	return syscall(SYS_read, fd, uintptr_t(buf), count);
 }
 
 ssize_t sys_recvmsg(int sockfd, msghdr* msg, int flags)
 {
-	return syscall3(SYS_recvmsg, sockfd, uintptr_t(msg), flags);
+	return syscall(SYS_recvmsg, sockfd, uintptr_t(msg), flags);
 }
 
 int sys_setrlimit(int resource, rlim_t limit)
 {
 	const rlimit buf = {limit, limit};
-	return syscall2(SYS_setrlimit, resource, uintptr_t(&buf));
+	return syscall(SYS_setrlimit, resource, uintptr_t(&buf));
 }
 
 // This is like imageInfo in runtime/process.go

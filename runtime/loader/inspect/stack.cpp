@@ -28,29 +28,29 @@ const int sa_restorer = 0x04000000;
 
 NORETURN void sys_exit(int status)
 {
-	syscall1(SYS_exit, status);
+	syscall(SYS_exit, status);
 	__builtin_unreachable();
 }
 
 int sys_fork()
 {
-	return syscall6(SYS_clone, SIGCHLD, 0, 0, 0, 0, 0);
+	return syscall(SYS_clone, SIGCHLD, 0, 0, 0, 0, 0);
 }
 
 int sys_sigaction(int signum, const Sigaction* act, Sigaction* oldact)
 {
 	size_t masksize = 8;
-	return syscall4(SYS_rt_sigaction, signum, (uintptr_t) act, (uintptr_t) oldact, masksize);
+	return syscall(SYS_rt_sigaction, signum, uintptr_t(act), uintptr_t(oldact), masksize);
 }
 
 pid_t sys_wait4(pid_t pid, int* wstatus, int options, rusage* rusage)
 {
-	return syscall4(SYS_wait4, pid, (uintptr_t) wstatus, options, (uintptr_t) rusage);
+	return syscall(SYS_wait4, pid, uintptr_t(wstatus), options, uintptr_t(rusage));
 }
 
 ssize_t sys_write(int fd, const void* buf, size_t count)
 {
-	return syscall3(SYS_write, fd, (uintptr_t) buf, count);
+	return syscall(SYS_write, fd, uintptr_t(buf), count);
 }
 
 void output(uint64_t i)

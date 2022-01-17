@@ -15,7 +15,7 @@ namespace runtime::loader {
 
 void debug_data(void const* data, size_t size)
 {
-	syscall3(SYS_write, 2, uintptr_t(data), size);
+	syscall(SYS_write, 2, uintptr_t(data), size);
 }
 
 void debug(uint64_t n)

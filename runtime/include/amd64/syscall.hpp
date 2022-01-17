@@ -6,7 +6,9 @@
 
 #include <cstddef>
 
-static inline intptr_t syscall1(int nr, uintptr_t a1)
+namespace runtime {
+
+intptr_t syscall(int nr, uintptr_t a1)
 {
 	intptr_t retval;
 	register uintptr_t rdi asm("rdi") = a1;
@@ -20,7 +22,7 @@ static inline intptr_t syscall1(int nr, uintptr_t a1)
 	return retval;
 }
 
-static inline intptr_t syscall2(int nr, uintptr_t a1, uintptr_t a2)
+intptr_t syscall(int nr, uintptr_t a1, uintptr_t a2)
 {
 	intptr_t retval;
 	register uintptr_t rdi asm("rdi") = a1;
@@ -35,7 +37,7 @@ static inline intptr_t syscall2(int nr, uintptr_t a1, uintptr_t a2)
 	return retval;
 }
 
-static inline intptr_t syscall3(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3)
+intptr_t syscall(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3)
 {
 	intptr_t retval;
 	register uintptr_t rdi asm("rdi") = a1;
@@ -51,7 +53,7 @@ static inline intptr_t syscall3(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3
 	return retval;
 }
 
-static inline intptr_t syscall4(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4)
+intptr_t syscall(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4)
 {
 	intptr_t retval;
 	register uintptr_t rdi asm("rdi") = a1;
@@ -68,7 +70,7 @@ static inline intptr_t syscall4(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3
 	return retval;
 }
 
-static inline intptr_t syscall5(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5)
+intptr_t syscall(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5)
 {
 	intptr_t retval;
 	register uintptr_t rdi asm("rdi") = a1;
@@ -86,7 +88,7 @@ static inline intptr_t syscall5(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3
 	return retval;
 }
 
-static inline intptr_t syscall6(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6)
+intptr_t syscall(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t a4, uintptr_t a5, uintptr_t a6)
 {
 	intptr_t retval;
 	register uintptr_t rdi asm("rdi") = a1;
@@ -104,3 +106,5 @@ static inline intptr_t syscall6(int nr, uintptr_t a1, uintptr_t a2, uintptr_t a3
 
 	return retval;
 }
+
+} // namespace runtime
