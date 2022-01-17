@@ -34,7 +34,7 @@
 #define CLONE_INTO_CGROUP 0x200000000ULL
 #endif
 
-namespace {
+namespace runtime::executor {
 
 struct CloneArgsV0 {
 	uint64_t flags = 0;       // Flags bit mask
@@ -260,12 +260,12 @@ union ControlBuffer {
 	cmsghdr alignment;
 };
 
-#define ID_PROCS 16384
-#define ID_CONTROL -1
+const auto id_procs = 16384;
+const uint64_t id_control = -1;
 
-#define POLL_BUFLEN 128
-#define RECEIVE_BUFLEN 128
-#define SEND_BUFLEN 128
+const size_t poll_buflen = 128;
+const size_t receive_buflen = 128;
+const size_t send_buflen = 128;
 
 class Executor {
 	Executor(Executor const&) = delete;
@@ -274,7 +274,7 @@ class Executor {
 public:
 	Executor()
 	{
-		for (int i = 0; i < RECEIVE_BUFLEN; i++) {
+		for (size_t i = 0; i < receive_buflen; i++) {
 			m_iovs[i].iov_base = &m_reqs[i];
 			m_iovs[i].iov_len = sizeof m_reqs[i];
 			m_msgs[i].msg_hdr.msg_iov = &m_iovs[i];
@@ -294,9 +294,9 @@ private:
 	void wait_process(int16_t id);
 
 	// Leave one slot unoccupied to distinguish between empty and full.
-	int send_queue_avail() const { return (SEND_BUFLEN - 1) - send_queue_length(); }
+	size_t send_queue_avail() const { return (send_buflen - 1) - send_queue_length(); }
 	bool send_queue_empty() const { return m_send_beg == m_send_end; }
-	int send_queue_length() const { return (m_send_end - m_send_beg) & (SEND_BUFLEN - 1); }
+	int send_queue_length() const { return (m_send_end - m_send_beg) & (send_buflen - 1); }
 
 	long m_clock_ticks = 0;
 	int m_cgroup_fd = -1;
@@ -308,17 +308,17 @@ private:
 	unsigned m_send_beg = 0;
 	unsigned m_send_end = 0;
 
-	epoll_event m_events[POLL_BUFLEN];
+	epoll_event m_events[poll_buflen];
 
-	ExecStatus m_send_buf[SEND_BUFLEN];
+	ExecStatus m_send_buf[send_buflen];
 
 	// Receive buffers.
-	mmsghdr m_msgs[RECEIVE_BUFLEN];
-	iovec m_iovs[RECEIVE_BUFLEN];
-	ExecRequest m_reqs[RECEIVE_BUFLEN];
-	ControlBuffer m_ctls[RECEIVE_BUFLEN];
+	mmsghdr m_msgs[receive_buflen];
+	iovec m_iovs[receive_buflen];
+	ExecRequest m_reqs[receive_buflen];
+	ControlBuffer m_ctls[receive_buflen];
 
-	Process m_id_procs[ID_PROCS];
+	Process m_id_procs[id_procs];
 };
 
 void Executor::init(long clock_ticks, int cgroup_fd)
@@ -332,7 +332,7 @@ void Executor::init(long clock_ticks, int cgroup_fd)
 
 	epoll_event ev;
 	ev.events = EPOLLIN | EPOLLOUT | EPOLLET;
-	ev.data.u64 = ID_CONTROL;
+	ev.data.u64 = id_control;
 	if (epoll_ctl(m_epoll_fd, EPOLL_CTL_ADD, GATE_CONTROL_FD, &ev) < 0)
 		die(ERR_EXEC_EPOLL_ADD);
 }
@@ -346,7 +346,7 @@ void Executor::initiate_shutdown()
 
 	epoll_event ev;
 	ev.events = EPOLLOUT | EPOLLET;
-	ev.data.u64 = ID_CONTROL;
+	ev.data.u64 = id_control;
 	if (epoll_ctl(m_epoll_fd, EPOLL_CTL_MOD, GATE_CONTROL_FD, &ev) < 0)
 		die(ERR_EXEC_EPOLL_MOD);
 }
@@ -357,7 +357,7 @@ more:
 	if (m_recv_block)
 		return;
 
-	auto count = recvmmsg(GATE_CONTROL_FD, m_msgs, RECEIVE_BUFLEN, MSG_CMSG_CLOEXEC | MSG_DONTWAIT, nullptr);
+	auto count = recvmmsg(GATE_CONTROL_FD, m_msgs, receive_buflen, MSG_CMSG_CLOEXEC | MSG_DONTWAIT, nullptr);
 	if (count < 0) {
 		if (errno == EAGAIN || errno == EWOULDBLOCK) {
 			m_recv_block = true;
@@ -385,7 +385,7 @@ more:
 			die(ERR_EXEC_MSG_CTRUNC);
 
 		auto id = m_reqs[i].id;
-		if (id < 0 || id >= ID_PROCS)
+		if (id < 0 || id >= id_procs)
 			die(ERR_EXEC_ID_RANGE);
 
 		auto& p = m_id_procs[id];
@@ -479,7 +479,7 @@ more:
 	if (m_send_beg < m_send_end)
 		num = m_send_end - m_send_beg;
 	else
-		num = SEND_BUFLEN - m_send_beg;
+		num = send_buflen - m_send_beg;
 
 	auto len = send(GATE_CONTROL_FD, &m_send_buf[m_send_beg], num * sizeof m_send_buf[0], flags);
 	if (len < 0) {
@@ -500,7 +500,7 @@ more:
 		die(ERR_EXEC_SEND_ALIGN);
 
 	unsigned count = len / sizeof m_send_buf[0];
-	m_send_beg = (m_send_beg + count) & (SEND_BUFLEN - 1);
+	m_send_beg = (m_send_beg + count) & (send_buflen - 1);
 
 	debugf("executor: sent %u queued statuses (%d remain)", count, send_queue_length(x));
 
@@ -533,7 +533,7 @@ void Executor::wait_process(int16_t id)
 	auto& slot = m_send_buf[m_send_end];
 	slot.id = id;
 	slot.status = status;
-	m_send_end = (m_send_end + 1) & (SEND_BUFLEN - 1);
+	m_send_end = (m_send_end + 1) & (send_buflen - 1);
 
 	debugf("executor: send queue length %d", send_queue_length(x));
 }
@@ -546,8 +546,8 @@ void Executor::execute()
 
 		// Handling an event may allocate a slot in the send queue.
 		auto buflen = send_queue_avail();
-		if (buflen > POLL_BUFLEN)
-			buflen = POLL_BUFLEN;
+		if (buflen > poll_buflen)
+			buflen = poll_buflen;
 
 		auto count = epoll_wait(m_epoll_fd, m_events, buflen, -1);
 		if (count < 0)
@@ -556,9 +556,9 @@ void Executor::execute()
 		for (int i = 0; i < count; i++) {
 			auto& ev = m_events[i];
 
-			if (ev.data.u64 < ID_PROCS) {
+			if (ev.data.u64 < id_procs) {
 				wait_process(ev.data.u64);
-			} else if (ev.data.u64 == uint64_t(ID_CONTROL)) {
+			} else if (ev.data.u64 == id_control) {
 				if (ev.events & EPOLLIN)
 					m_recv_block = false;
 				if (ev.events & EPOLLOUT)
@@ -628,10 +628,8 @@ void xsetrlimit(int resource, rlim_t limit, int exitcode)
 		die(exitcode);
 }
 
-} // namespace
-
 // Stdio, runtime, epoll, exec request, child dups, pidfs.
-#define NOFILE (3 + 4 + 1 + 3 + 2 + ID_PROCS)
+const rlim_t nofile = 3 + 4 + 1 + 3 + 2 + id_procs;
 
 int main(int argc, char** argv)
 {
@@ -689,7 +687,7 @@ int main(int argc, char** argv)
 		xsetrlimit(RLIMIT_STACK, align_size(GATE_LOADER_STACK_SIZE, pagesize), ERR_EXEC_SETRLIMIT_STACK);
 	}
 
-	xsetrlimit(RLIMIT_NOFILE, NOFILE, ERR_EXEC_SETRLIMIT_NOFILE);
+	xsetrlimit(RLIMIT_NOFILE, nofile, ERR_EXEC_SETRLIMIT_NOFILE);
 
 	// ASLR makes stack size and stack pointer position unpredictable, so
 	// it's hard to unmap the initial stack in loader.  Run-time mapping
@@ -699,4 +697,11 @@ int main(int argc, char** argv)
 
 	x->execute();
 	return 0;
+}
+
+} // namespace runtime::executor
+
+int main(int argc, char** argv)
+{
+	return runtime::executor::main(argc, argv);
 }
