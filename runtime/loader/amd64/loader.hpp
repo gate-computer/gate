@@ -6,7 +6,7 @@
 // as variable offset, with a 31-bit constant offset.
 #define MEMORY_ADDRESS_RANGE (0x100000000ULL + 0x80000000ULL)
 
-namespace {
+namespace runtime::loader {
 
 bool strcmp_clock_gettime(char const* name)
 {
@@ -102,4 +102,4 @@ void enter(
 	__builtin_unreachable();
 }
 
-} // namespace
+} // namespace runtime::loader

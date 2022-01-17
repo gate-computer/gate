@@ -11,12 +11,14 @@
 
 #include "syscall.hpp"
 
-static inline void debug_data(void const* data, size_t size)
+namespace runtime::loader {
+
+void debug_data(void const* data, size_t size)
 {
 	syscall3(SYS_write, 2, uintptr_t(data), size);
 }
 
-static inline void debug(uint64_t n)
+void debug(uint64_t n)
 {
 	char buf[20];
 	int i = sizeof buf;
@@ -29,7 +31,7 @@ static inline void debug(uint64_t n)
 	debug_data(buf + i, sizeof buf - i);
 }
 
-static inline void debug(int64_t n)
+void debug(int64_t n)
 {
 	uint64_t u;
 
@@ -45,7 +47,7 @@ static inline void debug(int64_t n)
 	debug(u);
 }
 
-static inline void debug_hex(uint64_t n)
+void debug_hex(uint64_t n)
 {
 	char buf[16];
 	int i = sizeof buf;
@@ -64,13 +66,13 @@ static inline void debug_hex(uint64_t n)
 	debug_data(buf + i, sizeof buf - i);
 }
 
-static inline void debug(void const* ptr)
+void debug(void const* ptr)
 {
 	debug_data("0x", 2);
 	debug_hex(uintptr_t(ptr));
 }
 
-static inline void debug(char const* s)
+void debug(char const* s)
 {
 	size_t size = 0;
 
@@ -80,14 +82,16 @@ static inline void debug(char const* s)
 	debug_data(s, size);
 }
 
-static inline void debugln()
+void debugln()
 {
 	debug("\n");
 }
 
 template <typename First, typename... Others>
-static inline void debugln(First first, Others... others)
+void debugln(First first, Others... others)
 {
 	debug(first);
 	debugln(others...);
 }
+
+} // namespace runtime::loader

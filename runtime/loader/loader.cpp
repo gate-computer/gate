@@ -71,7 +71,7 @@ extern code trap_handler;
 
 } // extern "C"
 
-namespace {
+namespace runtime::loader {
 
 uintptr_t rt_func_addr(void const* new_base, code* func_ptr)
 {
@@ -241,7 +241,7 @@ auto elf_string(Elf64_Ehdr const* elf, unsigned strtab_index, unsigned str_index
 	return reinterpret_cast<char const*>(uintptr_t(elf) + strtab->sh_offset + str_index);
 }
 
-int main2(Elf64_Ehdr const* vdso, uintptr_t loader_stack_end)
+int main(Elf64_Ehdr const* vdso, uintptr_t loader_stack_end)
 {
 	if (sys_prctl(PR_SET_PDEATHSIG, SIGKILL) != 0)
 		return ERR_LOAD_PDEATHSIG;
@@ -477,13 +477,15 @@ void copy(T* dest, T const* src, size_t n)
 		*dest++ = *src++;
 }
 
-} // namespace
+} // namespace runtime::loader
 
 extern "C" {
 
 void* memcpy(void* dest, void const* src, size_t n)
 {
 	// This is used to copy rt text, so put medium effort into optimization.
+
+	using runtime::loader::copy;
 
 	struct Block64 {
 		uint64_t data[8];
@@ -526,5 +528,5 @@ SECTION(".text")
 int main(int argc UNUSED, char** argv, char** envp)
 {
 	// _start smuggles vDSO ELF address as argv and stack address as envp.
-	return main2(reinterpret_cast<Elf64_Ehdr const*>(argv), uintptr_t(envp));
+	return runtime::loader::main(reinterpret_cast<Elf64_Ehdr const*>(argv), uintptr_t(envp));
 }

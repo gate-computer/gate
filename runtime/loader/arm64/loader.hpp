@@ -6,7 +6,7 @@
 // zero-extended register as offset.
 #define MEMORY_ADDRESS_RANGE 0x100000000ULL
 
-namespace {
+namespace runtime::loader {
 
 bool strcmp_clock_gettime(char const* name)
 {
@@ -111,4 +111,4 @@ void enter(
 	__builtin_unreachable();
 }
 
-} // namespace
+} // namespace runtime::loader
