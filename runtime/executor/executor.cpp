@@ -26,9 +26,10 @@
 
 #include "align.hpp"
 #include "attribute.hpp"
-#include "debug.hpp"
 #include "errors.gen.hpp"
 #include "runtime.hpp"
+
+#include "debug.hpp"
 
 #ifndef CLONE_INTO_CGROUP
 #define CLONE_INTO_CGROUP 0x200000000ULL
@@ -226,9 +227,9 @@ void suspend_process(pid_t pid, int pidfd, long clock_ticks)
 		return;
 
 	// Add 1 second, rounding up.
-	rlim_t secs = (spent_ticks + clock_ticks + clock_ticks / 2) / clock_ticks;
+	uint64_t secs = (spent_ticks + clock_ticks + clock_ticks / 2) / clock_ticks;
 
-	debugf("executor: pid %d fd %d used %ld ticks -> limit %llu secs", pid, pidfd, spent_ticks, secs);
+	debugf("executor: pid %d fd %d used %ld ticks -> limit %lu secs", pid, pidfd, spent_ticks, secs);
 
 	const rlimit cpu = {secs, secs};
 	if (prlimit(pid, RLIMIT_CPU, &cpu, nullptr) != 0)
@@ -502,7 +503,7 @@ more:
 	unsigned count = len / sizeof m_send_buf[0];
 	m_send_beg = (m_send_beg + count) & (send_buflen - 1);
 
-	debugf("executor: sent %u queued statuses (%d remain)", count, send_queue_length(x));
+	debugf("executor: sent %u queued statuses (%d remain)", count, send_queue_length());
 
 	goto more;
 }
@@ -535,7 +536,7 @@ void Executor::wait_process(int16_t id)
 	slot.status = status;
 	m_send_end = (m_send_end + 1) & (send_buflen - 1);
 
-	debugf("executor: send queue length %d", send_queue_length(x));
+	debugf("executor: send queue length %d", send_queue_length());
 }
 
 void Executor::execute()

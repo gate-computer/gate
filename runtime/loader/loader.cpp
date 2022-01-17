@@ -21,10 +21,11 @@
 
 #include "align.hpp"
 #include "attribute.hpp"
-#include "debug.hpp"
 #include "errors.gen.hpp"
 #include "runtime.hpp"
 #include "syscall.hpp"
+
+#include "debug.hpp"
 
 #define SYS_SA_RESTORER 0x04000000
 #define SIGACTION_FLAGS (SYS_SA_RESTORER | SA_SIGINFO)
