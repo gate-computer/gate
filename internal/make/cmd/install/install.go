@@ -33,16 +33,12 @@ func targets() (targets Tasks) {
 	))
 
 	bin := Group(
-		Installation(DESTDIR+BINDIR+"/", "bin/gate", true),
-		Installation(DESTDIR+BINDIR+"/", "bin/gate-daemon", true),
-		Installation(DESTDIR+BINDIR+"/", "bin/gate-runtime", true),
-		Installation(DESTDIR+BINDIR+"/", "bin/gate-server", true),
+		targets.Add(installBinTask(DESTDIR, BINDIR, "bin/gate")),
+		targets.Add(installBinTask(DESTDIR, BINDIR, "bin/gate-daemon")),
+		targets.Add(installBinTask(DESTDIR, BINDIR, "bin/gate-runtime")),
+		targets.Add(installBinTask(DESTDIR, BINDIR, "bin/gate-server")),
 	)
-	if len(Glob("bin/gate*")) > 0 {
-		targets.Add(TargetDefault("bin", bin))
-	} else {
-		targets.Add(Target("bin", bin))
-	}
+	targets.Add(Target("bin", bin))
 
 	targets.Add(Target("all",
 		lib,
@@ -62,6 +58,16 @@ func targets() (targets Tasks) {
 	))
 
 	return
+}
+
+func installBinTask(DESTDIR, BINDIR, name string) Task {
+	task := Installation(DESTDIR+BINDIR+"/", name, true)
+
+	if Exists(name) {
+		return TargetDefault(name, task)
+	} else {
+		return Target(name, task)
+	}
 }
 
 func installRewriteTask(DESTDIR, SHAREDIR, BINDIR, filename string) Task {
