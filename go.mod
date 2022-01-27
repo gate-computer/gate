@@ -12,9 +12,9 @@ require (
 	github.com/google/uuid v1.0.0
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.4.1
-	golang.org/x/crypto v0.0.0-20210616213533-5ff15b29337e
-	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
-	golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b
+	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
+	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
+	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	google.golang.org/grpc v1.32.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.0.0
 	google.golang.org/protobuf v1.25.0
@@ -29,5 +29,5 @@ require (
 require (
 	github.com/chzyer/logex v1.1.10 // indirect
 	github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1 // indirect
-	golang.org/x/net v0.0.0-20210614182718-04defd469f4e // indirect
+	golang.org/x/net v0.0.0-20220121210141-e204ce36a2ba // indirect
 )
