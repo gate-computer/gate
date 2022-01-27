@@ -19,6 +19,34 @@ const (
 	contextKeyOp
 )
 
+func ContextWithMeta(ctx context.Context, m *Meta) (context.Context, error) {
+	if m.Iface != 0 {
+		ctx = ContextWithIface(ctx, m.Iface)
+	}
+
+	if m.Req != 0 {
+		ctx = ContextWithRequest(ctx, m.Req)
+	}
+
+	if m.Addr != "" {
+		ctx = ContextWithAddress(ctx, m.Addr)
+	}
+
+	if m.Op != 0 {
+		ctx = ContextWithOp(ctx, m.Op)
+	}
+
+	if m.Principal != "" {
+		id, err := principal.ParseID(m.Principal)
+		if err != nil {
+			return ctx, err
+		}
+		ctx = principal.ContextWithID(ctx, id)
+	}
+
+	return ctx, nil
+}
+
 func ContextWithIface(ctx context.Context, iface Iface) context.Context {
 	return context.WithValue(ctx, contextKeyIface, iface)
 }
