@@ -14,9 +14,9 @@ type Err string
 func (s Err) Error() string       { return string(s) }
 func (s Err) PublicError() string { return string(s) }
 
-// Error returns err.PublicError() if err is an Error.  Otherwise the
-// alternative is returned.
-func Error(err error, alternative string) string {
+// ErrorString returns err.PublicError() if err is a PublicError.  Otherwise
+// the alternative is returned.
+func ErrorString(err error, alternative string) string {
 	if x, ok := err.(werrors.PublicError); ok {
 		return x.PublicError()
 	}

@@ -464,7 +464,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 
 	result, trapID, err := inst.process.Serve(contextWithInstanceID(ctx, inst.id), inst.services, &inst.buffers)
 	if err != nil {
-		res.Error = public.Error(err, res.Error)
+		res.Error = public.ErrorString(err, res.Error)
 		if trapID == trap.ABIViolation {
 			res.Cause = api.CauseABIViolation
 			monitor(programFailure(ctx, prog.id, function, inst.id), err)
@@ -484,7 +484,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 
 	mutErr := inst.image.CheckMutation()
 	if mutErr != nil && trapID != trap.Killed {
-		res.Error = public.Error(mutErr, res.Error)
+		res.Error = public.ErrorString(mutErr, res.Error)
 		monitor(internalFailure(ctx, prog.id, function, inst.id, "image state", mutErr), mutErr)
 		return
 	}
@@ -492,7 +492,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 	if mutErr == nil && !inst.transient {
 		err = inst.store(lock, prog)
 		if err != nil {
-			res.Error = public.Error(err, res.Error)
+			res.Error = public.ErrorString(err, res.Error)
 			monitor(internalFailure(ctx, prog.id, function, inst.id, "image storage", err), err)
 			return
 		}

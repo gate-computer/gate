@@ -143,7 +143,7 @@ func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, heade
 				return pri
 			}
 
-			errorDesc := public.Error(err, "principal key error")
+			errorDesc := public.ErrorString(err, "principal key error")
 			respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
 			panic(responded)
 		}
