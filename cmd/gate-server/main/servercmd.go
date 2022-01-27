@@ -117,6 +117,7 @@ type Config struct {
 		TLS struct {
 			Enabled  bool
 			Domains  []string
+			HTTPNet  string
 			HTTPAddr string
 		}
 	}
@@ -327,6 +328,22 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		return fmt.Errorf("unknown access.policy option: %q", c.Access.Policy)
 	}
 
+	c.Server.ModuleSources = make(map[string]server.Source)
+	for _, x := range c.Source.HTTP {
+		if x.Name != "" && x.Configured() {
+			c.Server.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)
+		}
+	}
+	if c.Source.IPFS.Configured() {
+		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
+	}
+
+	serverImpl, err := server.New(ctx, &c.Server)
+	if err != nil {
+		return err
+	}
+	c.HTTP.Server = serverImpl
+
 	if c.HTTP.Authority == "" {
 		c.HTTP.Authority, _, err = net.SplitHostPort(c.HTTP.Addr)
 		if err != nil {
@@ -343,33 +360,9 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		c.HTTP.NonceStorage = db
 	}
 
-	c.Server.ModuleSources = make(map[string]server.Source)
-	for _, x := range c.Source.HTTP {
-		if x.Name != "" && x.Configured() {
-			c.Server.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)
-		}
-	}
-	if c.Source.IPFS.Configured() {
-		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
-	}
-
-	var (
-		acmeCache  autocert.Cache
-		acmeClient *acme.Client
-	)
-	if c.ACME.AcceptTOS {
-		acmeCache = autocert.DirCache(c.ACME.CacheDir)
-		acmeClient = &acme.Client{DirectoryURL: c.ACME.DirectoryURL}
-	}
-
-	serverImpl, err := server.New(ctx, &c.Server)
-	if err != nil {
-		return err
-	}
-	c.HTTP.Server = serverImpl
-
-	mux.Handle(webapi.Path, web.NewHandler("/", &c.HTTP.Config))
-	handler := newHTTPSHandler(mux)
+	handler := web.NewHandler("/", &c.HTTP.Config)
+	mux.Handle(webapi.Path, handler)
+	handler = newWebHandler(mux)
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
@@ -381,45 +374,18 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		handler = handlers.LoggingHandler(f, handler)
 	}
 
-	l, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
+	webServer := &http.Server{Handler: handler}
+
+	webListener, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
 		return err
 	}
-	defer l.Close()
+	defer webListener.Close()
 
-	httpServer := http.Server{Handler: handler}
-
-	go func() {
-		dead := make(chan struct{}, 1)
-
-		for _, e := range executors {
-			e := e
-			go func() {
-				<-e.Dead()
-				select {
-				case dead <- struct{}{}:
-				default:
-				}
-			}()
-		}
-
-		<-dead
-		critLog.Print("executor died")
-
-		daemon.SdNotify(false, daemon.SdNotifyStopping)
-
-		ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
-		defer cancel()
-
-		if err := httpServer.Shutdown(ctx); err != nil {
-			critLog.Fatalf("shutdown: %v", err)
-		}
-
-		if err := serverImpl.Shutdown(ctx); err != nil {
-			critLog.Fatalf("shutdown: %v", err)
-		}
-	}()
-
+	var (
+		acmeServer   *http.Server
+		acmeListener net.Listener
+	)
 	if c.HTTP.TLS.Enabled {
 		if !c.ACME.AcceptTOS {
 			return errors.New("http.tls requires acme.accepttos")
@@ -427,55 +393,121 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 
 		m := &autocert.Manager{
 			Prompt:      autocert.AcceptTOS,
-			Cache:       acmeCache,
+			Cache:       autocert.DirCache(c.ACME.CacheDir),
 			HostPolicy:  autocert.HostWhitelist(c.HTTP.TLS.Domains...),
 			RenewBefore: c.ACME.RenewBefore,
-			Client:      acmeClient,
+			Client:      &acme.Client{DirectoryURL: c.ACME.DirectoryURL},
 			Email:       c.ACME.Email,
 			ForceRSA:    c.ACME.ForceRSA,
 		}
 
-		httpServer.TLSConfig = &tls.Config{
+		webServer.TLSConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos:     []string{"h2", "http/1.1"},
 		}
-		l = tls.NewListener(l, httpServer.TLSConfig)
+		webListener = tls.NewListener(webListener, webServer.TLSConfig)
 
-		httpAddr := c.HTTP.TLS.HTTPAddr
-		if !strings.Contains(httpAddr, ":") {
-			httpAddr += ":http"
+		acmeServer = &http.Server{Handler: m.HTTPHandler(newACMEHandler())}
+
+		if c.HTTP.TLS.HTTPNet == "" {
+			c.HTTP.TLS.HTTPNet = c.HTTP.Net
 		}
 
-		httpListener, err := net.Listen("tcp", httpAddr)
+		acmeAddr := c.HTTP.TLS.HTTPAddr
+		if !strings.Contains(acmeAddr, ":") {
+			acmeAddr += ":http"
+		}
+
+		acmeListener, err = net.Listen(c.HTTP.TLS.HTTPNet, acmeAddr)
 		if err != nil {
 			return err
 		}
-
-		s := http.Server{Handler: m.HTTPHandler(newHTTPHandler())}
-		go func() {
-			critLog.Fatal(s.Serve(httpListener))
-		}()
+		defer acmeListener.Close()
 	}
 
 	if err := sys.ClearCaps(); err != nil {
-		critLog.Fatal(err)
+		return err
+	}
+
+	var (
+		exit = make(chan error, 1)
+		dead = make(chan struct{}, 1)
+		done = make(chan struct{})
+	)
+
+	go func() {
+		select {
+		case exit <- webServer.Serve(webListener):
+		default:
+		}
+	}()
+
+	if acmeServer != nil {
+		go func() {
+			select {
+			case exit <- acmeServer.Serve(acmeListener):
+			default:
+			}
+		}()
 	}
 
 	if _, err := daemon.SdNotify(false, daemon.SdNotifyReady); err != nil {
-		critLog.Fatal(err)
+		return err
 	}
 
-	return httpServer.Serve(l)
+	go func() {
+		defer close(done)
+		<-dead
+		daemon.SdNotify(false, daemon.SdNotifyStopping)
+
+		ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
+		defer cancel()
+
+		if err := webServer.Shutdown(ctx); err != nil {
+			critLog.Printf("shutdown: %v", err)
+		}
+
+		if acmeServer != nil {
+			if err := acmeServer.Shutdown(ctx); err != nil {
+				critLog.Printf("shutdown: %v", err)
+			}
+		}
+
+		if err := serverImpl.Shutdown(ctx); err != nil {
+			critLog.Printf("shutdown: %v", err)
+		}
+	}()
+
+	for _, e := range executors {
+		e := e
+		go func() {
+			<-e.Dead()
+			critLog.Print("executor died")
+			select {
+			case dead <- struct{}{}:
+			default:
+			}
+		}()
+	}
+
+	err = <-exit
+
+	select {
+	case dead <- struct{}{}:
+	default:
+	}
+
+	return err
 }
 
-func newHTTPSHandler(mux *http.ServeMux) http.Handler {
+func newWebHandler(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", serverHeaderValue)
 		mux.ServeHTTP(w, r)
 	})
 }
 
-func newHTTPHandler() http.Handler {
+func newACMEHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Server", serverHeaderValue)
 		writeResponse(w, r, http.StatusMisdirectedRequest, "http not supported")
