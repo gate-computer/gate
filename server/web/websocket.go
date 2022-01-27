@@ -146,6 +146,10 @@ func (rw *websocketReadWriter) Write(buf []byte) (int, error) {
 	return len(buf), nil
 }
 
+func (rw *websocketReadWriter) Close() error {
+	return nil
+}
+
 type websocketReadWriteCanceler struct {
 	websocketReadWriter
 	cancel func()

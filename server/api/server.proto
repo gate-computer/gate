@@ -10,6 +10,7 @@ option go_package = "gate.computer/gate/server/api";
 
 message Features {
 	repeated string scope = 1;
+	repeated string module_sources = 2;
 }
 
 message ModuleOptions {

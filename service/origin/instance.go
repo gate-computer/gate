@@ -183,7 +183,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	return nil, nil
 }
 
-func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{}) func(context.Context, io.Reader, io.Writer) error {
+func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{}) func(context.Context, io.Reader, io.WriteCloser) error {
 	var (
 		id int32
 		s  *stream
@@ -256,7 +256,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		return nil
 	}
 
-	return func(ctx context.Context, r io.Reader, w io.Writer) error {
+	return func(ctx context.Context, r io.Reader, w io.WriteCloser) error {
 		err := s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
 		if !s.Live() {

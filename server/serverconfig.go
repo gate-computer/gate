@@ -18,7 +18,7 @@ type InstanceConnector interface {
 	// Connect allocates a new I/O stream.  The returned function is to be used
 	// to transfer data between a network connection and the instance.  If it's
 	// non-nil, a connection was established.
-	Connect(context.Context) func(context.Context, io.Reader, io.Writer) error
+	Connect(context.Context) func(context.Context, io.Reader, io.WriteCloser) error
 
 	// Close causes currently blocked and future Connect calls to return nil.
 	// Established connections will not be closed.

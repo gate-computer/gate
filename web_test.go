@@ -129,11 +129,10 @@ func newHandler(t *testing.T) http.Handler {
 	}
 
 	config := &web.Config{
-		Server:        s,
-		Authority:     "example.invalid",
-		Origins:       []string{"null"},
-		NonceStorage:  nonceChecker,
-		ModuleSources: server.Sources(s.ModuleSources),
+		Server:       s,
+		Authority:    "example.invalid",
+		Origins:      []string{"null"},
+		NonceStorage: nonceChecker,
 	}
 
 	h := web.NewHandler("/", config)

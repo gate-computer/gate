@@ -88,7 +88,7 @@ type Config struct {
 
 var c = new(Config)
 
-type instanceFunc func(*server.Server, context.Context, string) (*server.Instance, error)
+type instanceFunc func(api.Server, context.Context, string) (*server.Instance, error)
 
 var userID = strconv.Itoa(os.Getuid())
 
@@ -177,7 +177,7 @@ func mainResult() int {
 
 	ctx = principal.ContextWithLocalID(ctx)
 
-	inited := make(chan *server.Server, 1)
+	inited := make(chan api.Server, 1)
 	defer close(inited)
 	check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
 
@@ -270,9 +270,9 @@ func verifyLoopbackHost(errorDesc, host string) {
 	}
 }
 
-func methods(ctx context.Context, inited <-chan *server.Server) map[string]interface{} {
-	var initedServer *server.Server
-	s := func() *server.Server {
+func methods(ctx context.Context, inited <-chan api.Server) map[string]interface{} {
+	var initedServer api.Server
+	s := func() api.Server {
 		if initedServer != nil {
 			return initedServer
 		}
@@ -379,7 +379,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 
 		"GetScope": func() (scope []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			scope = getScope(ctx, s())
+			scope = s().Features().Scope
 			return
 		},
 
@@ -514,13 +514,7 @@ func methods(ctx context.Context, inited <-chan *server.Server) map[string]inter
 	return methods
 }
 
-func getScope(ctx context.Context, s *server.Server) []string {
-	f, err := s.Features(ctx)
-	check(err)
-	return f.Scope
-}
-
-func listModules(ctx context.Context, s *server.Server) []string {
+func listModules(ctx context.Context, s api.Server) []string {
 	refs, err := s.Modules(ctx)
 	check(err)
 	sort.Sort(refs)
@@ -531,19 +525,19 @@ func listModules(ctx context.Context, s *server.Server) []string {
 	return ids
 }
 
-func getModuleInfo(ctx context.Context, s *server.Server, moduleID string) (tags []string) {
+func getModuleInfo(ctx context.Context, s api.Server, moduleID string) (tags []string) {
 	info, err := s.ModuleInfo(ctx, moduleID)
 	check(err)
 	return info.Tags
 }
 
-func downloadModule(ctx context.Context, s *server.Server, moduleID string) (io.ReadCloser, int64) {
+func downloadModule(ctx context.Context, s api.Server, moduleID string) (io.ReadCloser, int64) {
 	stream, length, err := s.ModuleContent(ctx, moduleID)
 	check(err)
 	return stream, length
 }
 
-func uploadModule(ctx context.Context, s *server.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
+func uploadModule(ctx context.Context, s api.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
 	upload := &api.ModuleUpload{
 		Stream: file,
 		Length: length,
@@ -556,18 +550,18 @@ func uploadModule(ctx context.Context, s *server.Server, file *os.File, length i
 	return id
 }
 
-func pinModule(ctx context.Context, s *server.Server, moduleID string, opt *api.ModuleOptions) {
+func pinModule(ctx context.Context, s api.Server, moduleID string, opt *api.ModuleOptions) {
 	check(s.PinModule(ctx, moduleID, opt))
 }
 
-func unpinModule(ctx context.Context, s *server.Server, moduleID string) {
+func unpinModule(ctx context.Context, s api.Server, moduleID string) {
 	check(s.UnpinModule(ctx, moduleID))
 }
 
 // doCall module id or file.  Module options apply only to module file.
 func doCall(
 	ctx context.Context,
-	s *server.Server,
+	s api.Server,
 	moduleID string,
 	moduleFile *os.File,
 	moduleOpt *api.ModuleOptions,
@@ -590,9 +584,14 @@ func doCall(
 	r := os.NewFile(uintptr(rFD), "r")
 	defer r.Close()
 
+	wrote := false
 	syscall.SetNonblock(int(wFD), true)
 	w := os.NewFile(uintptr(wFD), "w")
-	defer w.Close()
+	defer func() {
+		if !wrote {
+			w.Close()
+		}
+	}()
 
 	inst := doLaunch(ctx, s, moduleID, moduleFile, moduleOpt, launch, debugFD, debugLogging)
 	defer func() {
@@ -611,7 +610,8 @@ func doCall(
 	}(suspend)
 	suspend = nil
 
-	inst.Connect(ctx, r, w)
+	wrote = true
+	check(inst.Connect(ctx, r, w))
 	status := inst.Wait(ctx)
 	return inst.ID(), status.State, status.Cause, status.Result
 }
@@ -619,7 +619,7 @@ func doCall(
 // doLaunch module id or file.  Module options apply only to module file.
 func doLaunch(
 	ctx context.Context,
-	s *server.Server,
+	s api.Server,
 	moduleID string,
 	moduleFile *os.File,
 	moduleOpt *api.ModuleOptions,
@@ -636,7 +636,7 @@ func doLaunch(
 		upload := moduleUpload(moduleFile)
 		defer upload.Close()
 
-		inst, err := s.UploadModuleInstance(ctx, upload, moduleOpt, launch)
+		_, inst, err := s.UploadModuleInstance(ctx, upload, moduleOpt, launch)
 		check(err)
 		return inst
 	} else {
@@ -646,7 +646,7 @@ func doLaunch(
 	}
 }
 
-func listInstances(ctx context.Context, s *server.Server) []string {
+func listInstances(ctx context.Context, s api.Server) []string {
 	instances, err := s.Instances(ctx)
 	check(err)
 	sort.Sort(instances)
@@ -657,28 +657,28 @@ func listInstances(ctx context.Context, s *server.Server) []string {
 	return ids
 }
 
-func getInstanceInfo(ctx context.Context, s *server.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
+func getInstanceInfo(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
 	info, err := s.InstanceInfo(ctx, instanceID)
 	check(err)
 	return info.Status.State, info.Status.Cause, info.Status.Result, info.Tags
 }
 
-func waitInstance(ctx context.Context, s *server.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
+func waitInstance(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
 	status, err := s.WaitInstance(ctx, instanceID)
 	check(err)
 	return status.State, status.Cause, status.Result
 }
 
-func deleteInstance(ctx context.Context, s *server.Server, instanceID string) {
+func deleteInstance(ctx context.Context, s api.Server, instanceID string) {
 	check(s.DeleteInstance(ctx, instanceID))
 }
 
-func suspendInstance(ctx context.Context, s *server.Server, instanceID string) {
+func suspendInstance(ctx context.Context, s api.Server, instanceID string) {
 	_, err := s.SuspendInstance(ctx, instanceID)
 	check(err)
 }
 
-func resumeInstance(ctx context.Context, s *server.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
+func resumeInstance(ctx context.Context, s api.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
 	invoke, cancel := invokeOptions(debugFD, debugLogging)
 	defer cancel()
 
@@ -688,12 +688,12 @@ func resumeInstance(ctx context.Context, s *server.Server, instance string, resu
 	check(err)
 }
 
-func killInstance(ctx context.Context, s *server.Server, instanceID string) {
+func killInstance(ctx context.Context, s api.Server, instanceID string) {
 	_, err := s.KillInstance(ctx, instanceID)
 	check(err)
 }
 
-func connectInstance(ctx context.Context, s *server.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
+func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
 	var err error
 	if err == nil {
 		err = syscall.SetNonblock(int(rFD), true)
@@ -701,10 +701,18 @@ func connectInstance(ctx context.Context, s *server.Server, instanceID string, r
 	if err == nil {
 		err = syscall.SetNonblock(int(wFD), true)
 	}
+
 	r := os.NewFile(uintptr(rFD), "r")
 	defer r.Close()
+
+	wrote := false
 	w := os.NewFile(uintptr(wFD), "w")
-	defer w.Close()
+	defer func() {
+		if !wrote {
+			w.Close()
+		}
+	}()
+
 	check(err) // First SetNonblock error.
 
 	_, connIO, err := s.InstanceConnection(ctx, instanceID)
@@ -713,22 +721,23 @@ func connectInstance(ctx context.Context, s *server.Server, instanceID string, r
 		return false
 	}
 
+	wrote = true
 	check(connIO(ctx, r, w))
 	return true
 }
 
-func snapshot(ctx context.Context, s *server.Server, instanceID string, moduleOpt *api.ModuleOptions) string {
+func snapshot(ctx context.Context, s api.Server, instanceID string, moduleOpt *api.ModuleOptions) string {
 	moduleID, err := s.Snapshot(ctx, instanceID, moduleOpt)
 	check(err)
 	return moduleID
 }
 
-func updateInstance(ctx context.Context, s *server.Server, instanceID string, update *api.InstanceUpdate) {
+func updateInstance(ctx context.Context, s api.Server, instanceID string, update *api.InstanceUpdate) {
 	_, err := s.UpdateInstance(ctx, instanceID, update)
 	check(err)
 }
 
-func debugInstance(ctx context.Context, s *server.Server, instanceID string, reqBuf []byte) []byte {
+func debugInstance(ctx context.Context, s api.Server, instanceID string, reqBuf []byte) []byte {
 	req := new(api.DebugRequest)
 	check(proto.Unmarshal(reqBuf, req))
 

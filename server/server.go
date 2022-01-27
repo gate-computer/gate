@@ -203,8 +203,16 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-func (*Server) Features(ctx context.Context) (*api.Features, error) {
-	return &api.Features{Scope: scope.Names()}, nil
+func (s *Server) Features() *api.Features {
+	sources := make([]string, 0, len(s.ModuleSources))
+	for s := range s.ModuleSources {
+		sources = append(sources, s)
+	}
+
+	return &api.Features{
+		Scope:         scope.Names(),
+		ModuleSources: sources,
+	}
 }
 
 func (s *Server) UploadModule(ctx context.Context, upload *api.ModuleUpload, know *api.ModuleOptions) (module string, err error) {
@@ -360,7 +368,7 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 	return inst, nil
 }
 
-func (s *Server) UploadModuleInstance(ctx context.Context, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (_ api.Instance, err error) {
+func (s *Server) UploadModuleInstance(ctx context.Context, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (_ string, _ api.Instance, err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
@@ -372,8 +380,8 @@ func (s *Server) UploadModuleInstance(ctx context.Context, upload *api.ModuleUpl
 	ctx = _context(s.AccessPolicy.AuthorizeProgramInstance(ctx, &policy.res, &policy.prog, &policy.inst))
 
 	acc := s._checkAccountInstanceID(ctx, launch.Instance)
-	_, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch)
-	return inst, nil
+	module, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch)
+	return module, inst, nil
 }
 
 func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api.ModuleOptions, launch *api.LaunchOptions) (module string, _ api.Instance, err error) {
@@ -763,7 +771,7 @@ func (s *Server) UnpinModule(ctx context.Context, module string) (err error) {
 
 func (s *Server) InstanceConnection(ctx context.Context, instance string) (
 	_ api.Instance,
-	_ func(context.Context, io.Reader, io.Writer) error,
+	_ func(context.Context, io.Reader, io.WriteCloser) error,
 	err error,
 ) {
 	if internal.DontPanic() {
@@ -783,7 +791,7 @@ func (s *Server) InstanceConnection(ctx context.Context, instance string) (
 		return inst, nil, nil
 	}
 
-	iofunc := func(ctx context.Context, r io.Reader, w io.Writer) error {
+	iofunc := func(ctx context.Context, r io.Reader, w io.WriteCloser) error {
 		s.monitor(&event.InstanceConnect{
 			Meta:     api.ContextMeta(ctx),
 			Instance: inst.id,

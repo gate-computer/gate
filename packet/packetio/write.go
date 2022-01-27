@@ -122,7 +122,7 @@ func (s *WriteStream) StopTransfer() {
 // Transfer data from a service's data stream while managing its flow.
 //
 // Write or context error is returned, excluding EOF.
-func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, streamID int32, w io.Writer, send chan<- packet.Thunk) error {
+func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, streamID int32, w io.WriteCloser, send chan<- packet.Thunk) error {
 	var (
 		err  error
 		done = ctx.Done()
@@ -272,11 +272,9 @@ stopped:
 	return err
 }
 
-func closeWrite(w *io.Writer) {
+func closeWrite(w *io.WriteCloser) {
 	if *w != nil {
-		if c, ok := (*w).(interface{ CloseWrite() error }); ok {
-			_ = c.CloseWrite()
-		}
+		_ = (*w).Close()
 		*w = nil
 	}
 }

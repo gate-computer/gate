@@ -87,7 +87,7 @@ func newExecutor() (tester *executor) {
 }
 
 type serviceRegistry struct {
-	origin   io.Writer
+	origin   io.WriteCloser
 	originMu *sync.Mutex
 }
 
@@ -385,7 +385,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	var output bytes.Buffer
 	var outputMu sync.Mutex
 
-	result, trapID, err := proc.Serve(ctx, serviceRegistry{&output, &outputMu}, nil)
+	result, trapID, err := proc.Serve(ctx, serviceRegistry{nopCloser{&output}, &outputMu}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else {

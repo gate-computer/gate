@@ -21,13 +21,12 @@ type Event = monitor.Event
 
 // Config for a web server.
 type Config struct {
-	Server        api.Server
-	Authority     string   // External domain name with optional port number.
-	Origins       []string // Value "*" causes Origin header to be ignored.
-	NonceStorage  NonceChecker
-	ModuleSources []string
-	NewRequestID  func(*http.Request) uint64
-	Monitor       func(Event, error)
+	Server       api.Server
+	Authority    string   // External domain name with optional port number.
+	Origins      []string // Value "*" causes Origin header to be ignored.
+	NonceStorage NonceChecker
+	NewRequestID func(*http.Request) uint64
+	Monitor      func(Event, error)
 }
 
 func (c *Config) Configured() bool {

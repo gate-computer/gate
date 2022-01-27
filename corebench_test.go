@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -27,7 +28,7 @@ const benchPrepareCount = 32
 var (
 	benchExecInit sync.Once
 	benchExecutor *executor
-	benchRegistry = serviceRegistry{origin: new(bytes.Buffer)}
+	benchRegistry = serviceRegistry{origin: nopCloser{new(bytes.Buffer)}}
 )
 
 func getBenchExecutor() *executor {
@@ -260,4 +261,12 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 			b.StopTimer()
 		})
 	}
+}
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (nopCloser) Close() error {
+	return nil
 }

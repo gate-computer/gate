@@ -58,7 +58,7 @@ func New(config *Config) *Connector {
 // Connect allocates a new I/O stream.  The returned function is to be used to
 // transfer data between a connection and the program instance.  If it's
 // non-nil, a connection was established.
-func (cr *Connector) Connect(ctx context.Context) func(context.Context, io.Reader, io.Writer) error {
+func (cr *Connector) Connect(ctx context.Context) func(context.Context, io.Reader, io.WriteCloser) error {
 	return cr.inst.connect(ctx, cr.closed)
 }
 

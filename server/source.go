@@ -29,11 +29,3 @@ type Source interface {
 		err error,
 	)
 }
-
-func Sources(m map[string]Source) []string {
-	names := make([]string, 0, len(m))
-	for name := range m {
-		names = append(names, name)
-	}
-	return names
-}

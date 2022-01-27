@@ -352,7 +352,6 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 	if c.Source.IPFS.Configured() {
 		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
 	}
-	c.HTTP.ModuleSources = server.Sources(c.Server.ModuleSources)
 
 	var (
 		acmeCache  autocert.Cache

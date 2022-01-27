@@ -109,6 +109,8 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		panic("incomplete webserver configuration")
 	}
 
+	features := s.Server.Features()
+
 	configOrigins := s.Origins
 	s.Origins = nil
 	for _, origin := range configOrigins {
@@ -142,7 +144,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	s.identity = scheme + "://" + s.Authority + p + api.Path // https://authority/path/api/
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(patternAPI, newFeatureHandler(s, pathAPI))
+	mux.HandleFunc(patternAPI, newFeatureHandler(s, pathAPI, features))
 	mux.HandleFunc(patternModule, newRedirectHandler(s, pathModule))
 	mux.HandleFunc(patternInstance, newRedirectHandler(s, pathInstance))
 	mux.HandleFunc(patternInstances, newInstanceHandler(s, pathInstances))
@@ -151,7 +153,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 
 	moduleSources := []string{api.KnownModuleSource}
 
-	for _, relURI := range s.ModuleSources {
+	for _, relURI := range features.ModuleSources {
 		patternSource := patternModule + relURI // host/path/api/module/source
 		patternSourceDir := patternSource + "/" // host/path/api/module/source/
 
@@ -259,20 +261,15 @@ func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerF
 	}
 }
 
-func newFeatureHandler(s *webserver, path string) http.HandlerFunc {
-	featureAll, err := s.Server.Features(context.Background())
-	if err != nil {
-		panic(err)
-	}
-
+func newFeatureHandler(s *webserver, path string, featureAll *server.Features) http.HandlerFunc {
 	featureScope := &api.Features{
 		Scope: featureAll.Scope,
 	}
 
 	var answers = [3]staticContent{
 		prepareStaticContent(struct{}{}),
-		prepareStaticContent(featureScope),
-		prepareStaticContent(featureAll),
+		prepareStaticContent(featureScope), // scope
+		prepareStaticContent(featureScope), // all
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -944,8 +941,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op server.
 		upload := moduleUpload(mustDecodeContent(ctx, wr, s), r.ContentLength, key)
 		defer upload.Close()
 
-		module = key
-		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
+		module, inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
 		if err != nil {
 			respondServerError(ctx, wr, s, "", key, function, "", err)
 			return
@@ -991,7 +987,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op server.
 		w.WriteHeader(http.StatusOK)
 	}
 
-	inst.Connect(ctx, r.Body, w)
+	inst.Connect(ctx, r.Body, nopCloser{w})
 	status := inst.Wait(ctx)
 
 	if trail {
@@ -1088,8 +1084,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 		upload := moduleUpload(ioutil.NopCloser(frame), r.ContentLength, key)
 		defer upload.Close()
 
-		module = key
-		inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
+		module, inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
 		if err != nil {
 			respondServerError(ctx, w, s, "", key, function, "", err)
 			return
@@ -1200,7 +1195,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pi
 	upload := moduleUpload(mustDecodeContent(ctx, wr, s), r.ContentLength, key)
 	defer upload.Close()
 
-	inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
+	key, inst, err := s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)
 	if err != nil {
 		respondServerError(ctx, wr, s, "", key, function, "", err)
 		return
@@ -1343,7 +1338,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 
 	w.WriteHeader(http.StatusOK)
 
-	if err := connIO(ctx, content, w); err != nil {
+	if err := connIO(ctx, content, nopCloser{w}); err != nil {
 		// Network error has already been reported by connIO.
 		return
 	}
@@ -1504,4 +1499,12 @@ func modulePin(pin bool, tags []string) *server.ModuleOptions {
 		Pin:  pin,
 		Tags: tags,
 	}
+}
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (nopCloser) Close() error {
+	return nil
 }

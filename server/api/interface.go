@@ -12,8 +12,8 @@ import (
 type Server interface {
 	DebugInstance(context.Context, string, *DebugRequest) (*DebugResponse, error)
 	DeleteInstance(context.Context, string) error
-	Features(context.Context) (*Features, error)
-	InstanceConnection(context.Context, string) (Instance, func(context.Context, io.Reader, io.Writer) error, error)
+	Features() *Features
+	InstanceConnection(context.Context, string) (Instance, func(context.Context, io.Reader, io.WriteCloser) error, error)
 	InstanceInfo(context.Context, string) (*InstanceInfo, error)
 	Instances(context.Context) (*Instances, error)
 	KillInstance(context.Context, string) (Instance, error)
@@ -30,12 +30,12 @@ type Server interface {
 	UnpinModule(context.Context, string) error
 	UpdateInstance(context.Context, string, *InstanceUpdate) (*InstanceInfo, error)
 	UploadModule(context.Context, *ModuleUpload, *ModuleOptions) (string, error)
-	UploadModuleInstance(context.Context, *ModuleUpload, *ModuleOptions, *LaunchOptions) (Instance, error)
+	UploadModuleInstance(context.Context, *ModuleUpload, *ModuleOptions, *LaunchOptions) (string, Instance, error)
 	WaitInstance(context.Context, string) (*Status, error)
 }
 
 type Instance interface {
-	Connect(context.Context, io.Reader, io.Writer) error
+	Connect(context.Context, io.Reader, io.WriteCloser) error
 	ID() string
 	Kill(context.Context) error
 	Status(context.Context) *Status

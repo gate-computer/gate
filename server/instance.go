@@ -353,16 +353,24 @@ func (inst *Instance) _doResume(function string, proc *runtime.Process, services
 
 // Connect to a running instance.  Disconnection happens when context is
 // canceled, the instance stops running, or the program closes the connection.
-func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.Writer) error {
+func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.WriteCloser) error {
+	wrote := false
+	defer func() {
+		if !wrote {
+			w.Close()
+		}
+	}()
+
 	conn := inst.connect(ctx)
 	if conn == nil {
 		return nil
 	}
 
+	wrote = true
 	return conn(ctx, r, w)
 }
 
-func (inst *Instance) connect(ctx context.Context) func(context.Context, io.Reader, io.Writer) error {
+func (inst *Instance) connect(ctx context.Context) func(context.Context, io.Reader, io.WriteCloser) error {
 	var s InstanceServices
 	inst.mu.Guard(func(lock instanceLock) {
 		s = inst.services
