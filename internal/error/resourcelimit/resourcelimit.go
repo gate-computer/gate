@@ -6,6 +6,7 @@ package resourcelimit
 
 import (
 	"fmt"
+	"net/http"
 
 	werrors "gate.computer/wag/errors"
 	"google.golang.org/grpc/codes"
@@ -28,6 +29,7 @@ type simple string
 func (s simple) Error() string       { return string(s) }
 func (s simple) PublicError() string { return string(s) }
 func (s simple) ResourceLimit() bool { return true }
+func (s simple) Status() int         { return http.StatusBadRequest }
 func (s simple) Code() codes.Code    { return codes.ResourceExhausted }
 
 func As(err error) Error {

@@ -6,10 +6,38 @@ package failrequest
 
 import (
 	"fmt"
+	"net/http"
 
 	"gate.computer/gate/server/event"
 	"google.golang.org/grpc/codes"
 )
+
+var typeStatuses = [25]int{
+	event.FailClientDenied:       http.StatusForbidden,
+	event.FailPayloadError:       http.StatusBadRequest,
+	event.FailPrincipalKeyError:  http.StatusBadRequest,
+	event.FailAuthMissing:        http.StatusUnauthorized,
+	event.FailAuthInvalid:        http.StatusBadRequest,
+	event.FailAuthExpired:        http.StatusForbidden,
+	event.FailAuthReused:         http.StatusForbidden,
+	event.FailAuthDenied:         http.StatusForbidden,
+	event.FailScopeTooLarge:      http.StatusBadRequest,
+	event.FailResourceDenied:     http.StatusForbidden,
+	event.FailResourceLimit:      http.StatusBadRequest,
+	event.FailRateLimit:          http.StatusTooManyRequests,
+	event.FailModuleNotFound:     http.StatusNotFound,
+	event.FailModuleHashMismatch: http.StatusBadRequest,
+	event.FailModuleError:        http.StatusBadRequest,
+	event.FailFunctionNotFound:   http.StatusNotFound,
+	event.FailProgramError:       http.StatusBadRequest,
+	event.FailInstanceNotFound:   http.StatusNotFound,
+	event.FailInstanceIDInvalid:  http.StatusBadRequest,
+	event.FailInstanceIDExists:   http.StatusConflict,
+	event.FailInstanceStatus:     http.StatusConflict,
+	event.FailInstanceNoConnect:  http.StatusConflict,
+	event.FailInstanceTransient:  http.StatusConflict,
+	event.FailInstanceDebugger:   http.StatusConflict,
+}
 
 var typeCodes = [25]codes.Code{
 	event.FailClientDenied:       codes.PermissionDenied,
@@ -62,9 +90,17 @@ func (s *simple) Error() string                           { return s.s }
 func (s *simple) PublicError() string                     { return s.s }
 func (s *simple) FailRequestType() event.FailRequest_Type { return s.t }
 
+func (s *simple) Status() int {
+	c := typeStatuses[s.t]
+	if c == 0 {
+		return http.StatusInternalServerError
+	}
+	return c
+}
+
 func (s *simple) Code() codes.Code {
 	c := typeCodes[s.t]
-	if c != 0 {
+	if c == 0 {
 		return codes.Unknown
 	}
 	return c

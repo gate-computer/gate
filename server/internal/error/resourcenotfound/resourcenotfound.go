@@ -5,38 +5,31 @@
 package resourcenotfound
 
 import (
-	"gate.computer/gate/internal/error/notfound"
+	"net/http"
+
 	"google.golang.org/grpc/codes"
 )
 
-type ModuleError interface {
-	notfound.Error
-	ModuleNotFound() bool
-}
-
 // ErrModule is public.
-var ErrModule module
+var ErrModule moduleError
 
-type module struct{}
+type moduleError struct{}
 
-func (f module) Error() string        { return f.PublicError() }
-func (f module) PublicError() string  { return "module not found" }
-func (f module) NotFound() bool       { return true }
-func (f module) ModuleNotFound() bool { return true }
-func (f module) Code() codes.Code     { return codes.NotFound }
-
-type InstanceError interface {
-	notfound.Error
-	InstanceNotFound() bool
-}
+func (f moduleError) Error() string        { return f.PublicError() }
+func (f moduleError) PublicError() string  { return "module not found" }
+func (f moduleError) NotFound() bool       { return true }
+func (f moduleError) ModuleNotFound() bool { return true }
+func (f moduleError) Status() int          { return http.StatusNotFound }
+func (f moduleError) Code() codes.Code     { return codes.NotFound }
 
 // ErrInstance is public.
-var ErrInstance instance
+var ErrInstance instanceError
 
-type instance struct{}
+type instanceError struct{}
 
-func (f instance) Error() string          { return f.PublicError() }
-func (f instance) PublicError() string    { return "instance not found" }
-func (f instance) NotFound() bool         { return true }
-func (f instance) InstanceNotFound() bool { return true }
-func (f instance) Code() codes.Code       { return codes.NotFound }
+func (f instanceError) Error() string          { return f.PublicError() }
+func (f instanceError) PublicError() string    { return "instance not found" }
+func (f instanceError) NotFound() bool         { return true }
+func (f instanceError) InstanceNotFound() bool { return true }
+func (f instanceError) Status() int            { return http.StatusNotFound }
+func (f instanceError) Code() codes.Code       { return codes.NotFound }

@@ -14,6 +14,7 @@ func (s err) Error() string       { return string(s) }
 func (s err) PublicError() string { return string(s) }
 func (s err) BadRequest() bool    { return true }
 func (s err) BadProgram() bool    { return true }
+func (s err) Status() int         { return 400 } // Bad Request
 func (s err) Code() codes.Code    { return codes.InvalidArgument }
 
 const errInvalidCall = err("invalid call packet")

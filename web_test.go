@@ -997,7 +997,7 @@ func TestInstance(t *testing.T) {
 
 	t.Run("DeleteFail", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=delete", nil)
-		checkResponse(t, handler, req, http.StatusBadRequest)
+		checkResponse(t, handler, req, http.StatusConflict)
 	})
 
 	t.Run("IO", func(t *testing.T) {
@@ -1195,7 +1195,7 @@ func TestInstanceSuspend(t *testing.T) {
 
 	t.Run("ResumeFunction", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=resume&function=loop", nil)
-		checkResponse(t, handler, req, http.StatusBadRequest)
+		checkResponse(t, handler, req, http.StatusConflict)
 	})
 
 	t.Run("Resume", func(t *testing.T) {

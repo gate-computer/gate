@@ -5,6 +5,8 @@
 package badmodule
 
 import (
+	"net/http"
+
 	werrors "gate.computer/wag/errors"
 	"google.golang.org/grpc/codes"
 )
@@ -19,6 +21,7 @@ type Dual struct {
 func (x *Dual) Error() string       { return x.Private }
 func (x *Dual) PublicError() string { return x.Public }
 func (x *Dual) ModuleError() bool   { return true }
+func (x *Dual) Status() int         { return http.StatusBadRequest }
 func (x *Dual) Code() codes.Code    { return codes.InvalidArgument }
 
 func As(err error) Error {

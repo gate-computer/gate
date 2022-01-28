@@ -8,9 +8,7 @@ import (
 	"context"
 	"time"
 
-	"gate.computer/gate/server/api"
 	"gate.computer/wag/wa"
-	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -51,8 +49,8 @@ type InstancePolicy struct {
 
 // Authorizer and moderator of server access.
 //
-// The methods should return Unauthorized, Forbidden or TooManyRequests errors
-// to signal successful prevention of access.  Other types of errors are
+// The methods should return Unauthenticated, PermissionDenied or Unavailable
+// errors to signal successful prevention of access.  Other types of errors are
 // interpreted as failures of the authorization mechanism.  Returning a nil
 // error grants access.
 //
@@ -86,34 +84,10 @@ type Authorizer interface {
 	authorizer() // Force inheritance.
 }
 
-// AccessUnauthorized error.  The reason will be shown to the client.
-func AccessUnauthorized(publicReason string) api.Unauthorized {
-	return accessUnauthorized(publicReason)
-}
-
-type accessUnauthorized string
-
-func (s accessUnauthorized) Error() string       { return string(s) }
-func (s accessUnauthorized) PublicError() string { return string(s) }
-func (s accessUnauthorized) Unauthorized() bool  { return true }
-func (s accessUnauthorized) Code() codes.Code    { return codes.Unauthenticated }
-
-// AccessForbidden error.  The details are not exposed to the client.
-func AccessForbidden(internalDetails string) api.Forbidden {
-	return accessForbidden(internalDetails)
-}
-
-type accessForbidden string
-
-func (s accessForbidden) Error() string       { return string(s) }
-func (s accessForbidden) PublicError() string { return "access denied" }
-func (s accessForbidden) Forbidden() bool     { return true }
-func (s accessForbidden) Code() codes.Code    { return codes.PermissionDenied }
-
 // NoAccess permitted to any resource.
 type NoAccess struct{}
 
-var errNoAccess = AccessForbidden("no access policy")
+var errNoAccess = PermissionDenied("no access policy")
 
 func (NoAccess) Authorize(ctx context.Context) (context.Context, error) {
 	return ctx, errNoAccess

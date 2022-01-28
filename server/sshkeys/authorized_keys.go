@@ -17,8 +17,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var errUnauthorized = server.AccessUnauthorized("missing authentication credentials")
-var errForbidden = server.AccessForbidden("key not authorized")
+var errUnauthenticated = server.Unauthenticated("missing authentication credentials")
+var errPermissionDenied = server.PermissionDenied("key not authorized")
 
 // AuthorizedKeys authorizes access for the supported (ssh-ed25519) public keys
 // found in an SSH authorized_keys file.
@@ -80,12 +80,12 @@ func (ak *AuthorizedKeys) Parse(uid string, text []byte) error {
 func (ak *AuthorizedKeys) Authorize(ctx context.Context) (context.Context, error) {
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		return ctx, errUnauthorized
+		return ctx, errUnauthenticated
 	}
 
 	uid, found := ak.publicKeys[principal.Raw(pri)]
 	if !found {
-		return ctx, errForbidden
+		return ctx, errPermissionDenied
 	}
 
 	if scope.ContextContains(ctx, system.Scope) {

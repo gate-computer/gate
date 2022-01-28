@@ -16,13 +16,12 @@ import (
 
 	"gate.computer/gate/internal/error/badmodule"
 	"gate.computer/gate/internal/error/badprogram"
-	"gate.computer/gate/internal/error/notfound"
+	httperror "gate.computer/gate/internal/error/http"
 	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/error/resourcelimit"
 	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
-	"gate.computer/gate/server/internal/error/resourcenotfound"
 	"gate.computer/gate/server/web/api"
 )
 
@@ -238,80 +237,44 @@ func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserve
 }
 
 func respondServerError(ctx context.Context, ew errorWriter, s *webserver, sourceURI, progHash, function, instID string, err error) {
-	var (
-		status   = http.StatusInternalServerError
-		text     = "internal server error"
-		internal = true
-		request  = event.FailUnspecified
-	)
+	status := httperror.Status(err)
+	if status == http.StatusInternalServerError {
+		ew.WriteError(status, public.ErrorString(err, "internal error"))
+		reportInternalError(ctx, s, sourceURI, progHash, function, instID, err)
+		return
+	}
 
-	if e := server.Unauthorized(nil); errors.As(err, &e) && e.Unauthorized() {
-		status = http.StatusUnauthorized
-		text = "unauthorized"
-		internal = false
+	request := event.FailUnspecified
+	if server.AsUnauthenticated(err) != nil {
 		request = event.FailAuthDenied
-
 		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
 	} else if resourcelimit.As(err) != nil {
-		status = http.StatusForbidden
-		text = "resource limit reached"
-		internal = false
 		request = event.FailResourceLimit
-	} else if e := server.Forbidden(nil); errors.As(err, &e) && e.Forbidden() {
-		status = http.StatusForbidden
-		text = "forbidden"
-		internal = false
+	} else if server.AsPermissionDenied(err) != nil {
 		request = event.FailResourceDenied
-	} else if e := server.TooManyRequests(nil); errors.As(err, &e) && e.TooManyRequests() {
-		status = http.StatusTooManyRequests
-		text = "too many requests"
-		internal = false
+	} else if e := server.AsTooManyRequests(err); e != nil {
 		request = event.FailRateLimit
-
 		if d := e.RetryAfter(); d != 0 {
 			s := d / time.Second
-			if s == 0 {
+			if s <= 0 {
 				s = 1
 			}
 			ew.SetHeader("Retry-After", strconv.Itoa(int(s)))
 		}
-	} else if e := notfound.Error(nil); errors.As(err, &e) && e.NotFound() {
-		status = http.StatusNotFound
-		text = "not found"
-		internal = false
-
-		if e := resourcenotfound.ModuleError(nil); errors.As(err, &e) && e.ModuleNotFound() {
-			text = "module not found"
-			request = event.FailModuleNotFound
-		} else if e := notfound.FunctionError(nil); errors.As(err, &e) && e.FunctionNotFound() {
-			text = "function not found"
-			request = event.FailFunctionNotFound
-		} else if e := resourcenotfound.InstanceError(nil); errors.As(err, &e) && e.InstanceNotFound() {
-			text = "instance not found"
-			request = event.FailInstanceNotFound
-		}
+	} else if server.AsModuleNotFound(err) != nil {
+		request = event.FailModuleNotFound
+	} else if server.AsInstanceNotFound(err) != nil {
+		request = event.FailInstanceNotFound
+	} else if server.AsFunctionNotFound(err) != nil {
+		request = event.FailFunctionNotFound
 	} else if e := failrequest.Error(nil); errors.As(err, &e) && e.FailRequestType() != 0 {
-		status = http.StatusBadRequest
-		text = "bad request"
-		internal = false
 		request = e.FailRequestType()
 	} else if e := badprogram.Error(nil); errors.As(err, &e) && e.ProgramError() {
-		status = http.StatusBadRequest
-		text = "bad program"
-		internal = false
 		request = event.FailProgramError
 	} else if badmodule.As(err) != nil {
-		status = http.StatusBadRequest
-		text = "bad module"
-		internal = false
 		request = event.FailModuleError
 	}
 
-	ew.WriteError(status, public.ErrorString(err, text)) // May replace text with error.
-
-	if internal {
-		reportInternalError(ctx, s, sourceURI, progHash, function, instID, err)
-	} else {
-		reportRequestError(ctx, s, request, sourceURI, progHash, function, instID, err)
-	}
+	ew.WriteError(status, public.ErrorString(err, "unknown error"))
+	reportRequestError(ctx, s, request, sourceURI, progHash, function, instID, err)
 }

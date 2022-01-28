@@ -25,11 +25,11 @@ func Code(err error) codes.Code {
 		return codes.Unknown // Defensive measure.
 	}
 
-	if x := werrors.ModuleError(nil); errors.As(err, &x) {
+	if werrors.AsModuleError(err) != nil {
 		return codes.InvalidArgument
 	}
 
-	if x := werrors.ResourceLimit(nil); errors.As(err, &x) {
+	if werrors.AsResourceLimit(err) != nil {
 		return codes.ResourceExhausted
 	}
 

@@ -6,6 +6,7 @@ package badprogram
 
 import (
 	"fmt"
+	"net/http"
 
 	"google.golang.org/grpc/codes"
 )
@@ -26,4 +27,5 @@ type Err string
 func (s Err) Error() string       { return string(s) }
 func (s Err) PublicError() string { return string(s) }
 func (s Err) ProgramError() bool  { return true }
+func (s Err) Status() int         { return http.StatusBadRequest }
 func (s Err) Code() codes.Code    { return codes.InvalidArgument }

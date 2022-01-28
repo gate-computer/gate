@@ -5,19 +5,10 @@
 package notfound
 
 import (
-	werrors "gate.computer/wag/errors"
+	"net/http"
+
 	"google.golang.org/grpc/codes"
 )
-
-type Error interface {
-	werrors.PublicError
-	NotFound() bool
-}
-
-type FunctionError interface {
-	Error
-	FunctionNotFound() bool
-}
 
 // Public function errors.
 var (
@@ -32,4 +23,5 @@ func (f function) Error() string          { return string(f) }
 func (f function) PublicError() string    { return string(f) }
 func (f function) NotFound() bool         { return true }
 func (f function) FunctionNotFound() bool { return true }
+func (f function) Status() int            { return http.StatusNotFound }
 func (f function) Code() codes.Code       { return codes.NotFound }

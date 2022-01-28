@@ -27,7 +27,7 @@ import (
 
 var ErrServerClosed = public.Internal("server closed")
 
-var errAnonymous = AccessUnauthorized("anonymous access not supported")
+var errAnonymous = Unauthenticated("anonymous access not supported")
 
 type progPolicy struct {
 	res  ResourcePolicy
@@ -1062,7 +1062,7 @@ func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.De
 
 		res, ok = rebuild.apply(progImage, config, textMap)
 		if !ok {
-			_check(public.FailedPrecondition("conflict")) // TODO: http response code: conflict
+			_check(public.FailedPrecondition("conflict"))
 		}
 		progImage = nil
 	}
@@ -1290,7 +1290,7 @@ func (s *Server) _getInstanceBorrowProgram(_ serverLock, pri *principal.ID, inst
 
 func (s *Server) _allocateInstanceResources(ctx context.Context, policy *InstancePolicy) (*runtime.Process, InstanceServices) {
 	if policy.Services == nil {
-		_check(AccessForbidden("no service policy"))
+		_check(PermissionDenied("no service policy"))
 	}
 
 	services := policy.Services(ctx)

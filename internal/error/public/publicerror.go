@@ -5,23 +5,43 @@
 package public
 
 import (
+	"net/http"
+
 	werrors "gate.computer/wag/errors"
 	"google.golang.org/grpc/codes"
 )
 
-type coded struct {
-	str  string
-	code codes.Code
+type usageError struct {
+	str    string
+	status int
+	code   codes.Code
 }
 
-func (e *coded) Error() string       { return e.str }
-func (e *coded) PublicError() string { return e.str }
-func (e *coded) Code() codes.Code    { return e.code }
+func (e *usageError) Error() string       { return e.str }
+func (e *usageError) PublicError() string { return e.str }
+func (e *usageError) Status() int         { return e.status }
+func (e *usageError) Code() codes.Code    { return e.code }
 
-func InvalidArgument(s string) error    { return &coded{s, codes.InvalidArgument} }
-func FailedPrecondition(s string) error { return &coded{s, codes.FailedPrecondition} }
-func Unimplemented(s string) error      { return &coded{s, codes.Unimplemented} }
-func Internal(s string) error           { return &coded{s, codes.Internal} }
+func InvalidArgument(s string) error {
+	return &usageError{s, http.StatusBadRequest, codes.InvalidArgument}
+}
+
+func FailedPrecondition(s string) error {
+	return &usageError{s, http.StatusConflict, codes.FailedPrecondition}
+}
+
+func Unimplemented(s string) error {
+	return &usageError{s, http.StatusNotImplemented, codes.Unimplemented}
+}
+
+type internalError string
+
+func (e internalError) Error() string       { return string(e) }
+func (e internalError) PublicError() string { return string(e) }
+
+func Internal(s string) error {
+	return internalError(s)
+}
 
 // ErrorString returns err.PublicError() if err is a PublicError.  Otherwise
 // the alternative is returned.

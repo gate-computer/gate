@@ -7,6 +7,7 @@ package principal
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+	"net/http"
 
 	"google.golang.org/grpc/codes"
 )
@@ -26,24 +27,21 @@ func ParseEd25519Key(encodedKey string) (pri *Key, err error) {
 	return
 }
 
-func parseEd25519Key(dest []byte, encodedKey string) (err error) {
+func parseEd25519Key(dest []byte, encodedKey string) error {
 	if len(encodedKey) != encodedKeyLen {
-		err = principalKeyError("encoded principal key has wrong length")
-		return
+		return principalKeyError("encoded principal key has wrong length")
 	}
 
 	n, err := base64.RawURLEncoding.Decode(dest, []byte(encodedKey))
 	if err != nil {
-		err = principalKeyError("base64url encoding of principal key is invalid")
-		return
+		return principalKeyError("base64url encoding of principal key is invalid")
 	}
 
 	if n != len(dest) {
-		err = principalKeyError("decoded principal key has wrong length")
-		return
+		return principalKeyError("decoded principal key has wrong length")
 	}
 
-	return
+	return nil
 }
 
 func (pri *Key) PrincipalID() *ID {
@@ -56,7 +54,8 @@ func (pri *Key) PublicKey() ed25519.PublicKey {
 
 type principalKeyError string
 
-func (s principalKeyError) Error() string       { return string(s) }
-func (s principalKeyError) PublicError() string { return string(s) }
-func (s principalKeyError) Unauthorized() bool  { return true }
-func (s principalKeyError) Code() codes.Code    { return codes.Unauthenticated }
+func (s principalKeyError) Error() string         { return string(s) }
+func (s principalKeyError) PublicError() string   { return string(s) }
+func (s principalKeyError) Unauthenticated() bool { return true }
+func (s principalKeyError) Status() int           { return http.StatusUnauthorized }
+func (s principalKeyError) Code() codes.Code      { return codes.Unauthenticated }

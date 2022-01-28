@@ -544,7 +544,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		_check(public.Unimplemented("unsupported debug op")) // TODO: http response code: not implemented
+		_check(public.Unimplemented("unsupported debug op"))
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
