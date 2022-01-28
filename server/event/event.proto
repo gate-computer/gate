@@ -61,6 +61,7 @@ message FailProtocol {
 }
 
 message FailRequest {
+	// Add new values also to server/internal/error/failrequest.typeCodes.
 	enum Type {
 		UNSPECIFIED = 0;
 		CLIENT_DENIED = 1;

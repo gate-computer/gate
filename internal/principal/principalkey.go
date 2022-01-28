@@ -7,6 +7,8 @@ package principal
 import (
 	"crypto/ed25519"
 	"encoding/base64"
+
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -57,3 +59,4 @@ type principalKeyError string
 func (s principalKeyError) Error() string       { return string(s) }
 func (s principalKeyError) PublicError() string { return string(s) }
 func (s principalKeyError) Unauthorized() bool  { return true }
+func (s principalKeyError) Code() codes.Code    { return codes.Unauthenticated }

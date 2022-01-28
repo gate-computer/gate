@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gate.computer/gate/server/api"
+	"google.golang.org/grpc/codes"
 )
 
 // RetryAfter creates a TooManyRequests error with the earliest time when the
@@ -23,6 +24,7 @@ type rateLimited struct {
 func (e rateLimited) Error() string         { return e.PublicError() }
 func (e rateLimited) PublicError() string   { return "request rate limit exceeded" }
 func (e rateLimited) TooManyRequests() bool { return true }
+func (e rateLimited) Code() codes.Code      { return codes.Unavailable }
 
 func (e rateLimited) RetryAfter() (d time.Duration) {
 	d = time.Until(e.retryAfter)

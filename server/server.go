@@ -25,7 +25,7 @@ import (
 	"import.name/pan"
 )
 
-const ErrServerClosed = public.Err("server closed")
+var ErrServerClosed = public.Internal("server closed")
 
 var errAnonymous = AccessUnauthorized("anonymous access not supported")
 
@@ -1062,7 +1062,7 @@ func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.De
 
 		res, ok = rebuild.apply(progImage, config, textMap)
 		if !ok {
-			_check(public.Err("conflict")) // TODO: http response code: conflict
+			_check(public.FailedPrecondition("conflict")) // TODO: http response code: conflict
 		}
 		progImage = nil
 	}
@@ -1437,7 +1437,7 @@ func _prepareLaunchOptions(opt *api.LaunchOptions) *api.LaunchOptions {
 		return new(api.LaunchOptions)
 	}
 	if opt.Suspend && opt.Function != "" {
-		_check(public.Err("function cannot be specified for suspended instance"))
+		_check(public.FailedPrecondition("function cannot be specified for suspended instance"))
 	}
 	return opt
 }

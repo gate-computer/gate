@@ -6,6 +6,8 @@ package badprogram
 
 import (
 	"fmt"
+
+	"google.golang.org/grpc/codes"
 )
 
 type Error interface {
@@ -24,3 +26,4 @@ type Err string
 func (s Err) Error() string       { return string(s) }
 func (s Err) PublicError() string { return string(s) }
 func (s Err) ProgramError() bool  { return true }
+func (s Err) Code() codes.Code    { return codes.InvalidArgument }

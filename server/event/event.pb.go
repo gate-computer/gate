@@ -157,6 +157,7 @@ func (Type) EnumDescriptor() ([]byte, []int) {
 	return file_server_event_event_proto_rawDescGZIP(), []int{0}
 }
 
+// Add new values also to server/internal/error/failrequest.typeCodes.
 type FailRequest_Type int32
 
 const (

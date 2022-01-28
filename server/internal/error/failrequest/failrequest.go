@@ -8,7 +8,35 @@ import (
 	"fmt"
 
 	"gate.computer/gate/server/event"
+	"google.golang.org/grpc/codes"
 )
+
+var typeCodes = [25]codes.Code{
+	event.FailClientDenied:       codes.PermissionDenied,
+	event.FailPayloadError:       codes.InvalidArgument,
+	event.FailPrincipalKeyError:  codes.InvalidArgument,
+	event.FailAuthMissing:        codes.Unauthenticated,
+	event.FailAuthInvalid:        codes.InvalidArgument,
+	event.FailAuthExpired:        codes.PermissionDenied,
+	event.FailAuthReused:         codes.PermissionDenied,
+	event.FailAuthDenied:         codes.PermissionDenied,
+	event.FailScopeTooLarge:      codes.InvalidArgument,
+	event.FailResourceDenied:     codes.PermissionDenied,
+	event.FailResourceLimit:      codes.ResourceExhausted,
+	event.FailRateLimit:          codes.Unavailable,
+	event.FailModuleNotFound:     codes.NotFound,
+	event.FailModuleHashMismatch: codes.InvalidArgument,
+	event.FailModuleError:        codes.InvalidArgument,
+	event.FailFunctionNotFound:   codes.NotFound,
+	event.FailProgramError:       codes.InvalidArgument,
+	event.FailInstanceNotFound:   codes.NotFound,
+	event.FailInstanceIDInvalid:  codes.InvalidArgument,
+	event.FailInstanceIDExists:   codes.AlreadyExists,
+	event.FailInstanceStatus:     codes.FailedPrecondition,
+	event.FailInstanceNoConnect:  codes.FailedPrecondition,
+	event.FailInstanceTransient:  codes.FailedPrecondition,
+	event.FailInstanceDebugger:   codes.FailedPrecondition,
+}
 
 type Error interface {
 	error
@@ -33,6 +61,14 @@ type simple struct {
 func (s *simple) Error() string                           { return s.s }
 func (s *simple) PublicError() string                     { return s.s }
 func (s *simple) FailRequestType() event.FailRequest_Type { return s.t }
+
+func (s *simple) Code() codes.Code {
+	c := typeCodes[s.t]
+	if c != 0 {
+		return codes.Unknown
+	}
+	return c
+}
 
 // Wrap an internal error and associate public information with it.
 func Wrap(t event.FailRequest_Type, cause error, public string) error {

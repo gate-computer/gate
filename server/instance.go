@@ -544,7 +544,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		_check(public.Err("unsupported debug op")) // TODO: http response code: not implemented
+		_check(public.Unimplemented("unsupported debug op")) // TODO: http response code: not implemented
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
@@ -562,7 +562,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(config.Breakpoints) > manifest.MaxBreakpoints {
-			_check(public.Err("too many breakpoints"))
+			_check(public.InvalidArgument("too many breakpoints"))
 		}
 
 		info = config.DebugInfo
@@ -579,7 +579,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
-			_check(public.Err("too many breakpoints"))
+			_check(public.InvalidArgument("too many breakpoints"))
 		}
 
 		if config.DebugInfo {

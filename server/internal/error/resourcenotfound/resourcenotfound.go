@@ -6,6 +6,7 @@ package resourcenotfound
 
 import (
 	"gate.computer/gate/internal/error/notfound"
+	"google.golang.org/grpc/codes"
 )
 
 type ModuleError interface {
@@ -22,6 +23,7 @@ func (f module) Error() string        { return f.PublicError() }
 func (f module) PublicError() string  { return "module not found" }
 func (f module) NotFound() bool       { return true }
 func (f module) ModuleNotFound() bool { return true }
+func (f module) Code() codes.Code     { return codes.NotFound }
 
 type InstanceError interface {
 	notfound.Error
@@ -37,3 +39,4 @@ func (f instance) Error() string          { return f.PublicError() }
 func (f instance) PublicError() string    { return "instance not found" }
 func (f instance) NotFound() bool         { return true }
 func (f instance) InstanceNotFound() bool { return true }
+func (f instance) Code() codes.Code       { return codes.NotFound }

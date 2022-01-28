@@ -6,13 +6,22 @@ package public
 
 import (
 	werrors "gate.computer/wag/errors"
+	"google.golang.org/grpc/codes"
 )
 
-// Err is a constant-compatible type.
-type Err string
+type coded struct {
+	str  string
+	code codes.Code
+}
 
-func (s Err) Error() string       { return string(s) }
-func (s Err) PublicError() string { return string(s) }
+func (e *coded) Error() string       { return e.str }
+func (e *coded) PublicError() string { return e.str }
+func (e *coded) Code() codes.Code    { return e.code }
+
+func InvalidArgument(s string) error    { return &coded{s, codes.InvalidArgument} }
+func FailedPrecondition(s string) error { return &coded{s, codes.FailedPrecondition} }
+func Unimplemented(s string) error      { return &coded{s, codes.Unimplemented} }
+func Internal(s string) error           { return &coded{s, codes.Internal} }
 
 // ErrorString returns err.PublicError() if err is a PublicError.  Otherwise
 // the alternative is returned.
