@@ -18,8 +18,8 @@ implement this interface:
 	}
 
 The public error string is intended to be exposed to the client (if the API was
-called via a server endpoint).  If there is no PublicError method, it's an
-internal error with no public explanation.
+called via a server endpoint).  If there is no PublicError method or it returns
+the empty string, it's an internal error with no public explanation.
 
 
 */

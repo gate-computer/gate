@@ -20,8 +20,9 @@ type rateLimited struct {
 	retryAfter time.Time
 }
 
-func (e rateLimited) Error() string       { return e.PublicError() }
-func (e rateLimited) PublicError() string { return "request rate limit exceeded" }
+func (e rateLimited) Error() string         { return e.PublicError() }
+func (e rateLimited) PublicError() string   { return "request rate limit exceeded" }
+func (e rateLimited) TooManyRequests() bool { return true }
 
 func (e rateLimited) RetryAfter() (d time.Duration) {
 	d = time.Until(e.retryAfter)

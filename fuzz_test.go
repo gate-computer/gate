@@ -51,9 +51,8 @@ func FuzzServerUploadModule(f *testing.F) {
 
 		resultHash, err := s.UploadModule(context.Background(), upload, nil)
 
-		if err != nil && err != io.ErrUnexpectedEOF { // TODO: should be public
-			var public werrors.PublicError
-			if !errors.As(err, &public) {
+		if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) { // TODO: should be public
+			if werrors.AsPublicError(err) == nil {
 				t.Fatal(err)
 			}
 		}

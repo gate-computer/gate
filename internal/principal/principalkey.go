@@ -56,4 +56,4 @@ type principalKeyError string
 
 func (s principalKeyError) Error() string       { return string(s) }
 func (s principalKeyError) PublicError() string { return string(s) }
-func (s principalKeyError) Unauthorized()       {}
+func (s principalKeyError) Unauthorized() bool  { return true }

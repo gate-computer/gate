@@ -17,4 +17,8 @@ type Dual struct {
 
 func (x *Dual) Error() string       { return x.Private }
 func (x *Dual) PublicError() string { return x.Public }
-func (x *Dual) ModuleError()        {}
+func (x *Dual) ModuleError() bool   { return true }
+
+func As(err error) Error {
+	return werrors.AsModuleError(err)
+}

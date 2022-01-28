@@ -10,7 +10,7 @@ import (
 
 type Error interface {
 	error
-	ProgramError()
+	ProgramError() bool
 }
 
 // Errorf formats public information.
@@ -23,4 +23,4 @@ type Err string
 
 func (s Err) Error() string       { return string(s) }
 func (s Err) PublicError() string { return string(s) }
-func (s Err) ProgramError()       {}
+func (s Err) ProgramError() bool  { return true }

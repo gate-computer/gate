@@ -26,4 +26,8 @@ type simple string
 
 func (s simple) Error() string       { return string(s) }
 func (s simple) PublicError() string { return string(s) }
-func (s simple) ResourceLimit()      {}
+func (s simple) ResourceLimit() bool { return true }
+
+func As(err error) Error {
+	return werrors.AsResourceLimit(err)
+}

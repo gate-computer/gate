@@ -94,7 +94,7 @@ type accessUnauthorized string
 
 func (s accessUnauthorized) Error() string       { return string(s) }
 func (s accessUnauthorized) PublicError() string { return string(s) }
-func (s accessUnauthorized) Unauthorized()       {}
+func (s accessUnauthorized) Unauthorized() bool  { return true }
 
 // AccessForbidden error.  The details are not exposed to the client.
 func AccessForbidden(internalDetails string) api.Forbidden {
@@ -105,7 +105,7 @@ type accessForbidden string
 
 func (s accessForbidden) Error() string       { return string(s) }
 func (s accessForbidden) PublicError() string { return "access denied" }
-func (s accessForbidden) Forbidden()          {}
+func (s accessForbidden) Forbidden() bool     { return true }
 
 // NoAccess permitted to any resource.
 type NoAccess struct{}

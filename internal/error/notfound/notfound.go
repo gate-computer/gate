@@ -10,12 +10,12 @@ import (
 
 type Error interface {
 	werrors.PublicError
-	NotFound()
+	NotFound() bool
 }
 
 type FunctionError interface {
 	Error
-	FunctionNotFound()
+	FunctionNotFound() bool
 }
 
 // Public function errors.
@@ -27,7 +27,7 @@ var (
 
 type function string
 
-func (f function) Error() string       { return string(f) }
-func (f function) PublicError() string { return string(f) }
-func (f function) NotFound()           {}
-func (f function) FunctionNotFound()   {}
+func (f function) Error() string          { return string(f) }
+func (f function) PublicError() string    { return string(f) }
+func (f function) NotFound() bool         { return true }
+func (f function) FunctionNotFound() bool { return true }

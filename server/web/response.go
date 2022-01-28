@@ -245,73 +245,62 @@ func respondServerError(ctx context.Context, ew errorWriter, s *webserver, sourc
 		request  = event.FailUnspecified
 	)
 
-	switch x := err.(type) {
-	case server.Unauthorized:
+	if e := server.Unauthorized(nil); errors.As(err, &e) && e.Unauthorized() {
 		status = http.StatusUnauthorized
 		text = "unauthorized"
 		internal = false
 		request = event.FailAuthDenied
 
 		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
-
-	case resourcelimit.Error:
+	} else if resourcelimit.As(err) != nil {
 		status = http.StatusForbidden
 		text = "resource limit reached"
 		internal = false
 		request = event.FailResourceLimit
-
-	case server.Forbidden:
+	} else if e := server.Forbidden(nil); errors.As(err, &e) && e.Forbidden() {
 		status = http.StatusForbidden
 		text = "forbidden"
 		internal = false
 		request = event.FailResourceDenied
-
-	case server.TooManyRequests:
+	} else if e := server.TooManyRequests(nil); errors.As(err, &e) && e.TooManyRequests() {
 		status = http.StatusTooManyRequests
 		text = "too many requests"
 		internal = false
 		request = event.FailRateLimit
 
-		if d := x.RetryAfter(); d != 0 {
-			s := x.RetryAfter() / time.Second
+		if d := e.RetryAfter(); d != 0 {
+			s := d / time.Second
 			if s == 0 {
 				s = 1
 			}
 			ew.SetHeader("Retry-After", strconv.Itoa(int(s)))
 		}
-
-	case notfound.Error:
+	} else if e := notfound.Error(nil); errors.As(err, &e) && e.NotFound() {
 		status = http.StatusNotFound
 		text = "not found"
 		internal = false
 
-		switch err.(type) {
-		case resourcenotfound.ModuleError:
+		if e := resourcenotfound.ModuleError(nil); errors.As(err, &e) && e.ModuleNotFound() {
 			text = "module not found"
 			request = event.FailModuleNotFound
-
-		case notfound.FunctionError:
+		} else if e := notfound.FunctionError(nil); errors.As(err, &e) && e.FunctionNotFound() {
 			text = "function not found"
 			request = event.FailFunctionNotFound
-
-		case resourcenotfound.InstanceError:
+		} else if e := resourcenotfound.InstanceError(nil); errors.As(err, &e) && e.InstanceNotFound() {
 			text = "instance not found"
 			request = event.FailInstanceNotFound
 		}
-
-	case failrequest.Error:
+	} else if e := failrequest.Error(nil); errors.As(err, &e) && e.FailRequestType() != 0 {
 		status = http.StatusBadRequest
 		text = "bad request"
 		internal = false
-		request = x.FailRequestType()
-
-	case badprogram.Error:
+		request = e.FailRequestType()
+	} else if e := badprogram.Error(nil); errors.As(err, &e) && e.ProgramError() {
 		status = http.StatusBadRequest
 		text = "bad program"
 		internal = false
 		request = event.FailProgramError
-
-	case badmodule.Error:
+	} else if badmodule.As(err) != nil {
 		status = http.StatusBadRequest
 		text = "bad module"
 		internal = false

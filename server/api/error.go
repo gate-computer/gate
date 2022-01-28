@@ -11,17 +11,18 @@ import (
 // Unauthorized access error.  The client is denied access to the server.
 type Unauthorized interface {
 	error
-	Unauthorized()
+	Unauthorized() bool
 }
 
 // Forbidden access error.  The client is denied access to a resource.
 type Forbidden interface {
 	error
-	Forbidden()
+	Forbidden() bool
 }
 
 // TooManyRequests error occurs when request rate limit has been exceeded.
 type TooManyRequests interface {
 	error
+	TooManyRequests() bool
 	RetryAfter() time.Duration // Zero means unknown.
 }

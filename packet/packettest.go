@@ -8,8 +8,8 @@ type err string
 
 func (s err) Error() string       { return string(s) }
 func (s err) PublicError() string { return string(s) }
-func (s err) BadRequest()         {}
-func (s err) BadProgram()         {}
+func (s err) BadRequest() bool    { return true }
+func (s err) BadProgram() bool    { return true }
 
 const errInvalidCall = err("invalid call packet")
 const errInvalidData = err("invalid data packet")
