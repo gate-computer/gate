@@ -9,41 +9,41 @@ package gate.server.api;
 option go_package = "gate.computer/gate/server/api";
 
 enum Iface {
-	DEFAULT = 0;
+  DEFAULT = 0;
 }
 
 enum Op {
-	UNKNOWN = 0;
-	MODULE_LIST = 1;
-	MODULE_INFO = 2;
-	MODULE_DOWNLOAD = 3;
-	MODULE_UPLOAD = 4;
-	MODULE_SOURCE = 5;
-	MODULE_PIN = 6;
-	MODULE_UNPIN = 7;
-	CALL_EXTANT = 8;
-	CALL_UPLOAD = 9;
-	CALL_SOURCE = 10;
-	LAUNCH_EXTANT = 11;
-	LAUNCH_UPLOAD = 12;
-	LAUNCH_SOURCE = 13;
-	INSTANCE_LIST = 14;
-	INSTANCE_INFO = 15;
-	INSTANCE_CONNECT = 16;
-	INSTANCE_WAIT = 17;
-	INSTANCE_KILL = 18;
-	INSTANCE_SUSPEND = 19;
-	INSTANCE_RESUME = 20;
-	INSTANCE_SNAPSHOT = 21;
-	INSTANCE_DELETE = 22;
-	INSTANCE_UPDATE = 23;
-	INSTANCE_DEBUG = 24;
+  UNKNOWN = 0;
+  MODULE_LIST = 1;
+  MODULE_INFO = 2;
+  MODULE_DOWNLOAD = 3;
+  MODULE_UPLOAD = 4;
+  MODULE_SOURCE = 5;
+  MODULE_PIN = 6;
+  MODULE_UNPIN = 7;
+  CALL_EXTANT = 8;
+  CALL_UPLOAD = 9;
+  CALL_SOURCE = 10;
+  LAUNCH_EXTANT = 11;
+  LAUNCH_UPLOAD = 12;
+  LAUNCH_SOURCE = 13;
+  INSTANCE_LIST = 14;
+  INSTANCE_INFO = 15;
+  INSTANCE_CONNECT = 16;
+  INSTANCE_WAIT = 17;
+  INSTANCE_KILL = 18;
+  INSTANCE_SUSPEND = 19;
+  INSTANCE_RESUME = 20;
+  INSTANCE_SNAPSHOT = 21;
+  INSTANCE_DELETE = 22;
+  INSTANCE_UPDATE = 23;
+  INSTANCE_DEBUG = 24;
 }
 
 message Meta {
-	Iface iface = 1;
-	uint64 req = 2;
-	string addr = 3;
-	Op op = 4;
-	string principal = 5;
+  Iface iface = 1;
+  uint64 req = 2;
+  string addr = 3;
+  Op op = 4;
+  string principal = 5;
 }

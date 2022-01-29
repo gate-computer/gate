@@ -11,10 +11,10 @@ import "server/api/server.proto";
 option go_package = "gate.computer/gate/internal/webserverapi";
 
 message IOConnection {
-	bool connected = 1;
+  bool connected = 1;
 }
 
 message ConnectionStatus {
-	gate.server.api.Status status = 1;
-	bool input = 2;
+  gate.server.api.Status status = 1;
+  bool input = 2;
 }

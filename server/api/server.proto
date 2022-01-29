@@ -9,116 +9,116 @@ package gate.server.api;
 option go_package = "gate.computer/gate/server/api";
 
 message Features {
-	repeated string scope = 1;
-	repeated string module_sources = 2;
+  repeated string scope = 1;
+  repeated string module_sources = 2;
 }
 
 message ModuleOptions {
-	bool pin = 1;
-	repeated string tags = 2;
+  bool pin = 1;
+  repeated string tags = 2;
 }
 
 message ModuleInfo {
-	string id = 1;
-	repeated string tags = 2;
+  string id = 1;
+  repeated string tags = 2;
 }
 
 message Modules {
-	repeated ModuleInfo modules = 1;
+  repeated ModuleInfo modules = 1;
 }
 
 enum State {
-	NONEXISTENT = 0;
-	RUNNING = 1;
-	SUSPENDED = 2;
-	HALTED = 3;
-	TERMINATED = 4;
-	KILLED = 5;
+  NONEXISTENT = 0;
+  RUNNING = 1;
+  SUSPENDED = 2;
+  HALTED = 3;
+  TERMINATED = 4;
+  KILLED = 5;
 }
 
 enum Cause {
-	NORMAL = 0;
-	UNREACHABLE = 3;
-	CALL_STACK_EXHAUSTED = 4;
-	MEMORY_ACCESS_OUT_OF_BOUNDS = 5;
-	INDIRECT_CALL_INDEX_OUT_OF_BOUNDS = 6;
-	INDIRECT_CALL_SIGNATURE_MISMATCH = 7;
-	INTEGER_DIVIDE_BY_ZERO = 8;
-	INTEGER_OVERFLOW = 9;
-	BREAKPOINT = 10;
-	ABI_DEFICIENCY = 27;
-	ABI_VIOLATION = 28;
-	INTERNAL = 29;
+  NORMAL = 0;
+  UNREACHABLE = 3;
+  CALL_STACK_EXHAUSTED = 4;
+  MEMORY_ACCESS_OUT_OF_BOUNDS = 5;
+  INDIRECT_CALL_INDEX_OUT_OF_BOUNDS = 6;
+  INDIRECT_CALL_SIGNATURE_MISMATCH = 7;
+  INTEGER_DIVIDE_BY_ZERO = 8;
+  INTEGER_OVERFLOW = 9;
+  BREAKPOINT = 10;
+  ABI_DEFICIENCY = 27;
+  ABI_VIOLATION = 28;
+  INTERNAL = 29;
 }
 
 message Status {
-	State state = 1;
-	Cause cause = 2;
-	int32 result = 3;
-	string error = 4;
+  State state = 1;
+  Cause cause = 2;
+  int32 result = 3;
+  string error = 4;
 }
 
 message InvokeOptions {
-	string debug_log = 1;
+  string debug_log = 1;
 }
 
 message LaunchOptions {
-	InvokeOptions invoke = 1;
-	string function = 2;
-	string instance = 3;
-	bool transient = 4;
-	bool suspend = 5;
-	repeated string tags = 6;
+  InvokeOptions invoke = 1;
+  string function = 2;
+  string instance = 3;
+  bool transient = 4;
+  bool suspend = 5;
+  repeated string tags = 6;
 }
 
 message ResumeOptions {
-	InvokeOptions invoke = 1;
-	string function = 2;
+  InvokeOptions invoke = 1;
+  string function = 2;
 }
 
 message InstanceInfo {
-	string instance = 1;
-	string module = 2;
-	Status status = 3;
-	bool transient = 4;
-	bool debugging = 5;
-	repeated string tags = 6;
+  string instance = 1;
+  string module = 2;
+  Status status = 3;
+  bool transient = 4;
+  bool debugging = 5;
+  repeated string tags = 6;
 }
 
 message Instances {
-	repeated InstanceInfo instances = 1;
+  repeated InstanceInfo instances = 1;
 }
 
 message InstanceUpdate {
-	bool persist = 1;
-	repeated string tags = 2;
+  bool persist = 1;
+  repeated string tags = 2;
 }
 
 enum DebugOp {
-	CONFIG_GET = 0;
-	CONFIG_SET = 1;
-	CONFIG_UNION = 2;
-	CONFIG_COMPLEMENT = 3;
-	READ_GLOBALS = 4;
-	READ_MEMORY = 5;
-	READ_STACK = 6;
+  CONFIG_GET = 0;
+  CONFIG_SET = 1;
+  CONFIG_UNION = 2;
+  CONFIG_COMPLEMENT = 3;
+  READ_GLOBALS = 4;
+  READ_MEMORY = 5;
+  READ_STACK = 6;
 }
 
 message DebugRequest {
-	DebugOp op = 1;
-	DebugConfig config = 2;
-	uint64 addr = 3;
-	uint64 size = 4;
+  DebugOp op = 1;
+  DebugConfig config = 2;
+  uint64 addr = 3;
+  uint64 size = 4;
 }
 
 message DebugResponse {
-	string module = 1;
-	Status status = 2;
-	DebugConfig config = 3;
-	bytes data = 4;
+  string module = 1;
+  Status status = 2;
+  DebugConfig config = 3;
+  bytes data = 4;
 }
 
 message DebugConfig {
-	bool debug_info = 1; // TODO: specify semantics
-	repeated uint64 breakpoints = 2;
+  bool debug_info = 1; // TODO: specify semantics
+  repeated uint64 breakpoints = 2;
 }
