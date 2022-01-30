@@ -5,6 +5,7 @@
 package notfound
 
 import (
+	"errors"
 	"net/http"
 
 	"google.golang.org/grpc/codes"
@@ -12,9 +13,9 @@ import (
 
 // Public function errors.
 var (
-	ErrFunction  = function("function not exported or it cannot be used as entry function")
-	ErrStart     = function("entry function may not be specified for program with _start function")
-	ErrSuspended = function("entry function may not be specified for suspended program")
+	ErrFunction  error = function("function not exported or it cannot be used as entry function")
+	ErrStart     error = function("entry function may not be specified for program with _start function")
+	ErrSuspended error = function("entry function may not be specified for suspended program")
 )
 
 type function string
@@ -25,3 +26,13 @@ func (f function) NotFound() bool         { return true }
 func (f function) FunctionNotFound() bool { return true }
 func (f function) Status() int            { return http.StatusNotFound }
 func (f function) Code() codes.Code       { return codes.NotFound }
+
+type functionNotFound interface {
+	error
+	FunctionNotFound() bool
+}
+
+func IsFunction(err error) bool {
+	var e functionNotFound
+	return errors.As(err, &e) && e.FunctionNotFound()
+}

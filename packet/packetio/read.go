@@ -14,7 +14,7 @@ import (
 	"gate.computer/gate/packet"
 )
 
-const errNegativeSubscription = badprogram.Err("stream flow increment is negative")
+var errNegativeSubscription = badprogram.Error("stream flow increment is negative")
 
 // ReadStream is a unidirectional stream between a reader and a channel.
 //

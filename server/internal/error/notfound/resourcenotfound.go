@@ -2,11 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package resourcenotfound
+package notfound
 
 import (
 	"net/http"
 
+	"gate.computer/gate/server/event"
 	"google.golang.org/grpc/codes"
 )
 
@@ -21,6 +22,7 @@ func (f moduleError) NotFound() bool       { return true }
 func (f moduleError) ModuleNotFound() bool { return true }
 func (f moduleError) Status() int          { return http.StatusNotFound }
 func (f moduleError) Code() codes.Code     { return codes.NotFound }
+func (f moduleError) Fail() event.FailType { return event.FailModuleNotFound }
 
 // ErrInstance is public.
 var ErrInstance instanceError
@@ -33,3 +35,4 @@ func (f instanceError) NotFound() bool         { return true }
 func (f instanceError) InstanceNotFound() bool { return true }
 func (f instanceError) Status() int            { return http.StatusNotFound }
 func (f instanceError) Code() codes.Code       { return codes.NotFound }
+func (f instanceError) Fail() event.FailType   { return event.FailInstanceNotFound }

@@ -15,7 +15,7 @@ import (
 	"gate.computer/gate/packet"
 )
 
-const errWriteBufferOverflow = badprogram.Err("write stream buffer overflow")
+var errWriteBufferOverflow = badprogram.Error("write stream buffer overflow")
 
 // WriteStream is a unidirectional stream between a channel and a writer.
 //

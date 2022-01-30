@@ -144,7 +144,7 @@ func (b *Build) TextBuffer() interface {
 // FinishText after TextBuffer has been populated.
 func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) error {
 	if stackSize < internal.StackUsageOffset+stackUsage {
-		return resourcelimit.New("call stack size limit exceeded")
+		return resourcelimit.Error("call stack size limit exceeded")
 	}
 
 	b.prog.textSize = b.prog.text.Len()

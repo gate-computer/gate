@@ -4,7 +4,19 @@
 
 package subsystem
 
-type Error interface {
+import (
+	"errors"
+)
+
+type subsystemError interface {
 	error
 	Subsystem() string
+}
+
+func Get(err error) string {
+	var e subsystemError
+	if errors.As(err, &e) {
+		return e.Subsystem()
+	}
+	return ""
 }

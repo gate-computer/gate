@@ -89,7 +89,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int)
 	}
 
 	if instStackUsage > instStackSize-internal.StackUsageOffset {
-		return nil, resourcelimit.New("call stack size limit exceeded")
+		return nil, resourcelimit.Error("call stack size limit exceeded")
 	}
 
 	instFile, err := prog.storage.newInstanceFile()
@@ -518,7 +518,7 @@ func maxInstanceMemory(prog *Program, n int) (adjusted int, err error) {
 		n = int(prog.man.MemorySizeLimit)
 	}
 	if n >= 0 && n < int(prog.man.MemorySize) {
-		return n, resourcelimit.New("out of memory")
+		return n, resourcelimit.Error("out of memory")
 	}
 	return n, nil
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package http
+package api
 
 import (
 	"errors"
@@ -16,12 +16,12 @@ type statusError interface {
 	Status() int
 }
 
-func Status(err error) int {
-	if x := statusError(nil); errors.As(err, &x) {
-		if s := x.Status(); s != 0 {
+// ErrorStatus returns HTTP response status code representing an error.
+func ErrorStatus(err error) int {
+	if e := statusError(nil); errors.As(err, &e) {
+		if s := e.Status(); s != 0 {
 			return s
 		}
-		return http.StatusInternalServerError // Defensive measure.
 	}
 
 	if werrors.AsModuleError(err) != nil {

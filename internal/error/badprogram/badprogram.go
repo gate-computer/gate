@@ -5,27 +5,38 @@
 package badprogram
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"google.golang.org/grpc/codes"
 )
 
-type Error interface {
-	error
-	ProgramError() bool
+// Error is public.
+func Error(s string) error {
+	return errorType(s)
 }
 
 // Errorf formats public information.
 func Errorf(format string, args ...interface{}) error {
-	return Err(fmt.Sprintf(format, args...))
+	return errorType(fmt.Sprintf(format, args...))
 }
 
-// Err is a constant-compatible type.
-type Err string
+type errorType string
 
-func (s Err) Error() string       { return string(s) }
-func (s Err) PublicError() string { return string(s) }
-func (s Err) ProgramError() bool  { return true }
-func (s Err) Status() int         { return http.StatusBadRequest }
-func (s Err) Code() codes.Code    { return codes.InvalidArgument }
+func (s errorType) Error() string       { return string(s) }
+func (s errorType) PublicError() string { return string(s) }
+func (s errorType) ProgramError() bool  { return true }
+func (s errorType) Status() int         { return http.StatusBadRequest }
+func (s errorType) Code() codes.Code    { return codes.InvalidArgument }
+
+type programError interface {
+	error
+	ProgramError() bool
+}
+
+// Is a program error?
+func Is(err error) bool {
+	var e programError
+	return errors.As(err, &e) && e.ProgramError()
+}

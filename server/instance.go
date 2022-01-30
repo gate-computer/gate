@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"gate.computer/gate/image"
-	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/error/subsystem"
 	"gate.computer/gate/internal/manifest"
 	"gate.computer/gate/internal/principal"
@@ -23,7 +22,7 @@ import (
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
-	"gate.computer/gate/server/internal/error/resourcenotfound"
+	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
 	"gate.computer/wag/object/stack"
@@ -41,7 +40,7 @@ func _validateInstanceID(s string) {
 		}
 	}
 
-	_check(failrequest.New(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
+	_check(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
 }
 
 func contextWithInstanceID(ctx context.Context, id string) context.Context {
@@ -307,22 +306,22 @@ func (inst *Instance) _checkResume(function string) {
 
 func (inst *Instance) _resumeCheck(_ instanceLock, function string) {
 	if !inst.exists {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 
 	switch inst.status.State {
 	case api.StateSuspended:
 		if function != "" {
-			_check(failrequest.Errorf(event.FailInstanceStatus, "function specified for suspended instance"))
+			_check(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
 		}
 
 	case api.StateHalted:
 		if function == "" {
-			_check(failrequest.Errorf(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
+			_check(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
 		}
 
 	default:
-		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must be suspended or halted"))
+		_check(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
 	}
 }
 
@@ -387,10 +386,10 @@ func (inst *Instance) _snapshot(prog *program) (*image.Program, snapshot.Buffers
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must not be running"))
+		_check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	buffers := inst.buffers
@@ -406,10 +405,10 @@ func (inst *Instance) _annihilate() {
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must not be running"))
+		_check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	inst.doAnnihilate(lock)
@@ -422,7 +421,7 @@ func (inst *Instance) doAnnihilate(_ instanceLock) {
 	inst.image = nil
 }
 
-func (inst *Instance) drive(ctx context.Context, prog *program, function string, monitor func(Event, error)) (nonexistent bool) {
+func (inst *Instance) drive(ctx context.Context, prog *program, function string, config *Config) (nonexistent bool) {
 	trapID := trap.InternalError
 	res := &api.Status{
 		State: api.StateKilled,
@@ -438,20 +437,18 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 		inst.status = res
 		inst.stop(lock)
 
-		monitor(&event.InstanceStop{
-			Meta:     api.ContextMeta(ctx),
+		config.monitorInstance(ctx, event.TypeInstanceStop, &event.Instance{
 			Instance: inst.id,
 			Status:   inst.status.Clone(),
-		}, nil)
+		})
 
 		if inst.transient {
 			inst.doAnnihilate(lock)
 			nonexistent = true
 
-			monitor(&event.InstanceDelete{
-				Meta:     api.ContextMeta(ctx),
+			config.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
 				Instance: inst.id,
-			}, nil)
+			})
 		}
 	}
 	defer func() {
@@ -464,12 +461,17 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 
 	result, trapID, err := inst.process.Serve(contextWithInstanceID(ctx, inst.id), inst.services, &inst.buffers)
 	if err != nil {
-		res.Error = public.ErrorString(err, res.Error)
+		res.Error = api.PublicErrorString(err, res.Error)
 		if trapID == trap.ABIViolation {
 			res.Cause = api.CauseABIViolation
-			monitor(programFailure(ctx, prog.id, function, inst.id), err)
+			config.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+				Type:     event.FailProgramError,
+				Module:   prog.id,
+				Function: function,
+				Instance: inst.id,
+			}, err)
 		} else {
-			monitor(internalFailure(ctx, prog.id, function, inst.id, "service io", err), err)
+			config.monitorFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "service io", err), err)
 		}
 		return
 	}
@@ -484,16 +486,16 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 
 	mutErr := inst.image.CheckMutation()
 	if mutErr != nil && trapID != trap.Killed {
-		res.Error = public.ErrorString(mutErr, res.Error)
-		monitor(internalFailure(ctx, prog.id, function, inst.id, "image state", mutErr), mutErr)
+		res.Error = api.PublicErrorString(mutErr, res.Error)
+		config.monitorFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image state", mutErr), mutErr)
 		return
 	}
 
 	if mutErr == nil && !inst.transient {
 		err = inst.store(lock, prog)
 		if err != nil {
-			res.Error = public.ErrorString(err, res.Error)
-			monitor(internalFailure(ctx, prog.id, function, inst.id, "image storage", err), err)
+			res.Error = api.PublicErrorString(err, res.Error)
+			config.monitorFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image storage", err), err)
 			return
 		}
 	}
@@ -544,11 +546,11 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		_check(public.Unimplemented("unsupported debug op"))
+		_check(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
-		_check(failrequest.Errorf(event.FailInstanceStatus, "instance must be stopped"))
+		_check(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
 	info := inst.image.DebugInfo()
@@ -562,7 +564,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(config.Breakpoints) > manifest.MaxBreakpoints {
-			_check(public.InvalidArgument("too many breakpoints"))
+			_check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		info = config.DebugInfo
@@ -579,7 +581,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
-			_check(public.InvalidArgument("too many breakpoints"))
+			_check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		if config.DebugInfo {
@@ -711,23 +713,12 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.D
 	return res, ok
 }
 
-func programFailure(ctx context.Context, module, function, instance string) Event {
-	return &event.FailRequest{
-		Meta:     api.ContextMeta(ctx),
-		Failure:  event.FailProgramError,
-		Module:   module,
-		Function: function,
-		Instance: instance,
-	}
-}
-
-func internalFailure(ctx context.Context, module, function, instance, subsys string, err error) Event {
-	if x, ok := err.(subsystem.Error); ok {
-		subsys = x.Subsystem()
+func internalFail(module, function, instance, subsys string, err error) *event.Fail {
+	if s := subsystem.Get(err); s != "" {
+		subsys = s
 	}
 
-	return &event.FailInternal{
-		Meta:      api.ContextMeta(ctx),
+	return &event.Fail{
 		Module:    module,
 		Function:  function,
 		Instance:  instance,

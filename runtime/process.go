@@ -269,7 +269,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, error) {
 	if err := ioLoop(contextWithProcess(ctx, p), services, p, buffers); err != nil {
 		trapID := trap.InternalError
-		if _, ok := err.(badprogram.Error); ok {
+		if badprogram.Is(err) {
 			trapID = trap.ABIViolation
 		}
 		return Result{}, trapID, err

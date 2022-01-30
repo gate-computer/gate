@@ -11,9 +11,9 @@ import (
 	"encoding/json"
 	"strings"
 
-	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/scope"
+	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
 )
@@ -143,7 +143,7 @@ func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, heade
 				return pri
 			}
 
-			errorDesc := public.ErrorString(err, "principal key error")
+			errorDesc := server.PublicErrorString(err, "principal key error")
 			respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", errorDesc, event.FailPrincipalKeyError, err)
 			panic(responded)
 		}

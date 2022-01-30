@@ -6,6 +6,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
 	"net"
@@ -175,7 +176,8 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		ctx = server.ContextWithAddress(ctx, r.RemoteAddr)
 		r = r.WithContext(ctx)
 
-		s.Monitor(&event.IfaceAccess{
+		s.Monitor(&event.Event{
+			Type: event.TypeIfaceAccess,
 			Meta: server.ContextMeta(ctx),
 		}, nil)
 
@@ -1018,11 +1020,11 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 
 	err = conn.ReadJSON(&r)
 	if err != nil {
-		if _, ok := err.(net.Error); ok {
+		if e := net.Error(nil); errors.As(err, &e) {
 			reportNetworkError(ctx, s, err)
-			return
+		} else {
+			reportProtocolError(ctx, s, err)
 		}
-		reportProtocolError(ctx, s, err)
 		return
 	}
 
@@ -1366,11 +1368,11 @@ func handleInstanceConnectWebsocket(response http.ResponseWriter, request *http.
 
 	err = conn.ReadJSON(&r)
 	if err != nil {
-		if _, ok := err.(net.Error); ok {
+		if e := net.Error(nil); errors.As(err, &e) {
 			reportNetworkError(ctx, s, err)
-			return
+		} else {
+			reportProtocolError(ctx, s, err)
 		}
-		reportProtocolError(ctx, s, err)
 		return
 	}
 

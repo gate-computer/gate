@@ -18,11 +18,10 @@ type codeError interface {
 }
 
 func Code(err error) codes.Code {
-	if x := codeError(nil); errors.As(err, &x) {
-		if c := x.Code(); c != codes.OK {
+	if e := codeError(nil); errors.As(err, &e) {
+		if c := e.Code(); c != 0 {
 			return c
 		}
-		return codes.Unknown // Defensive measure.
 	}
 
 	if werrors.AsModuleError(err) != nil {

@@ -19,11 +19,11 @@ func Scan(src []byte) (value int32, tail []byte, err error) {
 
 	x, n := binary.Uvarint(tail)
 	if n <= 0 {
-		err = badprogram.Err("end of data while decoding varint")
+		err = badprogram.Error("end of data while decoding varint")
 		return
 	}
 	if x > math.MaxInt32 {
-		err = badprogram.Err("varint value out of range")
+		err = badprogram.Error("varint value out of range")
 		return
 	}
 

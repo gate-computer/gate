@@ -14,14 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"gate.computer/gate/internal/error/badmodule"
-	"gate.computer/gate/internal/error/badprogram"
-	httperror "gate.computer/gate/internal/error/http"
-	"gate.computer/gate/internal/error/public"
-	"gate.computer/gate/internal/error/resourcelimit"
 	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
-	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/web/api"
 )
 
@@ -215,7 +209,7 @@ func respondUnauthorizedError(ctx context.Context, ew errorWriter, s *webserver,
 	reportRequestFailure(ctx, s, event.FailAuthInvalid)
 }
 
-func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, errorCode, errorDesc string, failType event.FailRequest_Type, err error) {
+func respondUnauthorizedErrorDesc(ctx context.Context, ew errorWriter, s *webserver, errorCode, errorDesc string, failType event.FailType, err error) {
 	ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q error=%q error_description=%q", api.AuthorizationTypeBearer, s.identity, errorCode, errorDesc))
 	ew.WriteError(http.StatusUnauthorized, errorDesc)
 	reportRequestError(ctx, s, failType, "", "", "", "", err)
@@ -237,44 +231,29 @@ func respondUnsupportedEncoding(ctx context.Context, ew errorWriter, s *webserve
 }
 
 func respondServerError(ctx context.Context, ew errorWriter, s *webserver, sourceURI, progHash, function, instID string, err error) {
-	status := httperror.Status(err)
-	if status == http.StatusInternalServerError {
-		ew.WriteError(status, public.ErrorString(err, "internal error"))
+	status := api.ErrorStatus(err)
+
+	switch status {
+	case http.StatusUnauthorized:
+		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
+
+	case http.StatusTooManyRequests:
+		if e := server.AsTooManyRequests(err); e != nil {
+			if d := e.RetryAfter(); d > 0 {
+				s := d / time.Second
+				if s == 0 {
+					s = 1
+				}
+				ew.SetHeader("Retry-After", strconv.Itoa(int(s)))
+			}
+		}
+
+	case http.StatusInternalServerError:
+		ew.WriteError(status, server.PublicErrorString(err, "internal error"))
 		reportInternalError(ctx, s, sourceURI, progHash, function, instID, err)
 		return
 	}
 
-	request := event.FailUnspecified
-	if server.AsUnauthenticated(err) != nil {
-		request = event.FailAuthDenied
-		ew.SetHeader("Www-Authenticate", fmt.Sprintf("%s realm=%q", api.AuthorizationTypeBearer, s.identity))
-	} else if resourcelimit.As(err) != nil {
-		request = event.FailResourceLimit
-	} else if server.AsPermissionDenied(err) != nil {
-		request = event.FailResourceDenied
-	} else if e := server.AsTooManyRequests(err); e != nil {
-		request = event.FailRateLimit
-		if d := e.RetryAfter(); d != 0 {
-			s := d / time.Second
-			if s <= 0 {
-				s = 1
-			}
-			ew.SetHeader("Retry-After", strconv.Itoa(int(s)))
-		}
-	} else if server.AsModuleNotFound(err) != nil {
-		request = event.FailModuleNotFound
-	} else if server.AsInstanceNotFound(err) != nil {
-		request = event.FailInstanceNotFound
-	} else if server.AsFunctionNotFound(err) != nil {
-		request = event.FailFunctionNotFound
-	} else if e := failrequest.Error(nil); errors.As(err, &e) && e.FailRequestType() != 0 {
-		request = e.FailRequestType()
-	} else if e := badprogram.Error(nil); errors.As(err, &e) && e.ProgramError() {
-		request = event.FailProgramError
-	} else if badmodule.As(err) != nil {
-		request = event.FailModuleError
-	}
-
-	ew.WriteError(status, public.ErrorString(err, "unknown error"))
-	reportRequestError(ctx, s, request, sourceURI, progHash, function, instID, err)
+	ew.WriteError(status, server.PublicErrorString(err, "unknown error"))
+	reportRequestError(ctx, s, event.ErrorFailType(err), sourceURI, progHash, function, instID, err)
 }

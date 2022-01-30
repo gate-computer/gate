@@ -8,22 +8,15 @@ import (
 	"log"
 
 	"gate.computer/gate/server/event"
-	"google.golang.org/protobuf/proto"
 )
 
-type Event interface {
-	EventName() string
-	EventType() int32
-	proto.Message
-}
-
 // Default monitor prints internal errors to default log.
-func Default(ev Event, err error) {
-	if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
+func Default(ev *event.Event, err error) {
+	if ev.Type == event.TypeFailInternal {
 		if err == nil {
-			log.Printf("%v  event:%s", ev, ev.EventName())
+			log.Printf("%v", ev)
 		} else {
-			log.Printf("%v  event:%s  error:%q", ev, ev.EventName(), err.Error())
+			log.Printf("%v  error:%q", ev.Type, err.Error())
 		}
 	}
 }

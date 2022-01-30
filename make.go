@@ -266,7 +266,7 @@ func protoTask(O, PROTOC, GO string) Task {
 			"internal/manifest/*.proto",
 			"internal/webserverapi/*.proto",
 			"server/api/*.proto",
-			"server/event/*.proto",
+			"server/event/pb/*.proto",
 			"service/grpc/api/*.proto",
 		)
 	)
@@ -284,9 +284,10 @@ func protoTask(O, PROTOC, GO string) Task {
 	addPlugin("google.golang.org/protobuf/cmd/protoc-gen-go")
 	addPlugin("google.golang.org/grpc/cmd/protoc-gen-go-grpc")
 
-	addProto := func(proto, supplement, suffix string) {
+	addProto := func(proto, supplement string) {
 		var (
 			plugin = Join(O, "lib/protoc-gen-go"+supplement)
+			suffix = strings.Replace(supplement, "-", "_", 1)
 			gen    = ReplaceSuffix(proto, suffix+".pb.go")
 		)
 
@@ -300,13 +301,13 @@ func protoTask(O, PROTOC, GO string) Task {
 		))
 	}
 
-	addProto("internal/manifest/manifest.proto", "", "")
-	addProto("internal/webserverapi/webserverapi.proto", "", "")
-	addProto("server/api/meta.proto", "", "")
-	addProto("server/api/server.proto", "", "")
-	addProto("server/event/event.proto", "", "")
-	addProto("service/grpc/api/service.proto", "", "")
-	addProto("service/grpc/api/service.proto", "-grpc", "_grpc")
+	addProto("internal/manifest/manifest.proto", "")
+	addProto("internal/webserverapi/webserverapi.proto", "")
+	addProto("server/api/meta.proto", "")
+	addProto("server/api/server.proto", "")
+	addProto("server/event/pb/event.proto", "")
+	addProto("service/grpc/api/service.proto", "")
+	addProto("service/grpc/api/service.proto", "-grpc")
 
 	return Group(tasks...)
 }
@@ -315,9 +316,10 @@ func eventTypesTask(GO, GOFMT string) Task {
 	var (
 		deps = Globber(
 			"server/event/*.go",
+			"server/event/pb/*.go",
 		)
 
-		output = "server/event/type.gen.go"
+		output = "server/event/event.gen.go"
 	)
 
 	return If(Outdated(output, deps),

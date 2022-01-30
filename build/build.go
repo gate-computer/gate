@@ -75,12 +75,12 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 
 	b.Loaders[wasm.SectionExport] = func(_ string, r section.Reader, length uint32) (err error) {
 		if b.Snapshot == nil {
-			err = badprogram.Err("gate.export section without gate.snapshot section")
+			err = badprogram.Error("gate.export section without gate.snapshot section")
 			return
 		}
 
 		if length < 2 { // Minimum standard section frame size.
-			err = badprogram.Err("gate.export section is too short")
+			err = badprogram.Error("gate.export section is too short")
 			return
 		}
 
@@ -89,7 +89,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 			return
 		}
 		if id != byte(section.Export) {
-			err = badprogram.Err("gate.export section does not contain a standard export section")
+			err = badprogram.Error("gate.export section does not contain a standard export section")
 			return
 		}
 		err = r.UnreadByte()
@@ -105,11 +105,11 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 	}
 
 	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
-		return badprogram.Err("gate.buffer section appears too early in wasm module")
+		return badprogram.Error("gate.buffer section appears too early in wasm module")
 	}
 
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("gate.stack section appears too early in wasm module")
+		return badprogram.Error("gate.stack section appears too early in wasm module")
 	}
 
 	// Loaders keys should not change after this.
@@ -123,18 +123,17 @@ func (b *Build) ModuleConfig() *compile.ModuleConfig {
 }
 
 // SetMaxMemorySize after initial module sections have been loaded.
-func (b *Build) SetMaxMemorySize(maxMemorySize int) (err error) {
+func (b *Build) SetMaxMemorySize(maxMemorySize int) error {
 	if limit := b.Module.MemorySizeLimit(); limit >= 0 && maxMemorySize > limit {
 		maxMemorySize = limit
 	}
 	b.maxMemorySize = alignMemorySize(maxMemorySize)
 
 	if b.Module.InitialMemorySize() > b.maxMemorySize {
-		err = resourcelimit.New("initial program memory size exceeds instance memory size limit")
-		return
+		return resourcelimit.Error("initial program memory size exceeds instance memory size limit")
 	}
 
-	return
+	return nil
 }
 
 // BindFunctions (imports and entry function) after initial module sections
@@ -207,7 +206,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		b.installDuplicateBufferLoader()
 
 		if b.Snapshot == nil {
-			err = badprogram.Err("gate.buffer section without gate.snapshot section")
+			err = badprogram.Error("gate.buffer section without gate.snapshot section")
 			return
 		}
 
@@ -238,7 +237,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		b.installDuplicateStackLoader()
 
 		if b.Snapshot == nil {
-			err = badprogram.Err("gate.stack section without gate.snapshot section")
+			err = badprogram.Error("gate.stack section without gate.snapshot section")
 			return
 		}
 
@@ -248,7 +247,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 		}
 
 		if length > uint32(b.StackSize)-executable.StackUsageOffset {
-			err = badprogram.Err("gate.stack section is too large")
+			err = badprogram.Error("gate.stack section is too large")
 			return
 		}
 
@@ -269,19 +268,19 @@ func (b *Build) InstallSnapshotDataLoaders() {
 
 func (b *Build) installDuplicateSnapshotLoader() {
 	b.Loaders[wasm.SectionSnapshot] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("multiple gate.snapshot sections in wasm module")
+		return badprogram.Error("multiple gate.snapshot sections in wasm module")
 	}
 }
 
 func (b *Build) installDuplicateBufferLoader() {
 	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("multiple gate.buffer sections in wasm module")
+		return badprogram.Error("multiple gate.buffer sections in wasm module")
 	}
 }
 
 func (b *Build) installDuplicateStackLoader() {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("multiple gate.stack sections in wasm module")
+		return badprogram.Error("multiple gate.stack sections in wasm module")
 	}
 }
 
@@ -306,19 +305,19 @@ func (b *Build) InstallLateSnapshotLoaders() {
 
 func (b *Build) installLateSnapshotLoader() {
 	b.Loaders[wasm.SectionSnapshot] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("gate.snapshot section appears too late in wasm module")
+		return badprogram.Error("gate.snapshot section appears too late in wasm module")
 	}
 }
 
 func (b *Build) installLateBufferLoader() {
 	b.Loaders[wasm.SectionBuffer] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("gate.buffer section appears too late in wasm module")
+		return badprogram.Error("gate.buffer section appears too late in wasm module")
 	}
 }
 
 func (b *Build) installLateStackLoader() {
 	b.Loaders[wasm.SectionStack] = func(string, section.Reader, uint32) error {
-		return badprogram.Err("gate.stack section appears too late in wasm module")
+		return badprogram.Error("gate.stack section appears too late in wasm module")
 	}
 }
 

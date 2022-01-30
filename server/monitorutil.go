@@ -9,8 +9,8 @@ import (
 )
 
 // MultiMonitor combines multiple event monitors.
-func MultiMonitor(monitors ...func(Event, error)) func(Event, error) {
-	return func(ev Event, err error) {
+func MultiMonitor(monitors ...func(*event.Event, error)) func(*event.Event, error) {
+	return func(ev *event.Event, err error) {
 		for _, f := range monitors {
 			f(ev, err)
 		}
@@ -19,9 +19,9 @@ func MultiMonitor(monitors ...func(Event, error)) func(Event, error) {
 
 // ErrorEventLogger creates an event monitor which prints log messages.
 // Internal errors are printed to errorLog and other events to eventLog.
-func ErrorEventLogger(errorLog, eventLog Logger) func(Event, error) {
-	return func(ev Event, err error) {
-		if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
+func ErrorEventLogger(errorLog, eventLog Logger) func(*event.Event, error) {
+	return func(ev *event.Event, err error) {
+		if ev.Type == event.TypeFailInternal {
 			printToLogger(errorLog, ev, err)
 		} else {
 			printToLogger(eventLog, ev, err)
@@ -31,18 +31,18 @@ func ErrorEventLogger(errorLog, eventLog Logger) func(Event, error) {
 
 // ErrorLogger creates an event monitor which prints log messages.  Internal
 // errors are printed to errorLog and other events are ignored.
-func ErrorLogger(errorLog Logger) func(Event, error) {
-	return func(ev Event, err error) {
-		if ev.EventType() <= int32(event.Type_FAIL_INTERNAL) {
+func ErrorLogger(errorLog Logger) func(*event.Event, error) {
+	return func(ev *event.Event, err error) {
+		if ev.Type == event.TypeFailInternal {
 			printToLogger(errorLog, ev, err)
 		}
 	}
 }
 
-func printToLogger(l Logger, ev Event, err error) {
+func printToLogger(l Logger, ev *event.Event, err error) {
 	if err == nil {
-		l.Printf("%v  event:%s", ev, ev.EventName())
+		l.Printf("%v", ev)
 	} else {
-		l.Printf("%v  event:%s  error:%q", ev, ev.EventName(), err.Error())
+		l.Printf("%v  error:%q", ev, err.Error())
 	}
 }

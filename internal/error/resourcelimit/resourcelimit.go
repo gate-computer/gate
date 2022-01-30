@@ -8,30 +8,23 @@ import (
 	"fmt"
 	"net/http"
 
-	werrors "gate.computer/wag/errors"
 	"google.golang.org/grpc/codes"
 )
 
-type Error = werrors.ResourceLimit
-
-// New error with public information.
-func New(s string) error {
-	return simple(s)
+// Error with public information.
+func Error(s string) error {
+	return errorType(s)
 }
 
 // Errorf formats public information.
 func Errorf(format string, args ...interface{}) error {
-	return simple(fmt.Sprintf(format, args...))
+	return errorType(fmt.Sprintf(format, args...))
 }
 
-type simple string
+type errorType string
 
-func (s simple) Error() string       { return string(s) }
-func (s simple) PublicError() string { return string(s) }
-func (s simple) ResourceLimit() bool { return true }
-func (s simple) Status() int         { return http.StatusBadRequest }
-func (s simple) Code() codes.Code    { return codes.ResourceExhausted }
-
-func As(err error) Error {
-	return werrors.AsResourceLimit(err)
-}
+func (s errorType) Error() string       { return string(s) }
+func (s errorType) PublicError() string { return string(s) }
+func (s errorType) ResourceLimit() bool { return true }
+func (s errorType) Status() int         { return http.StatusBadRequest }
+func (s errorType) Code() codes.Code    { return codes.ResourceExhausted }

@@ -38,7 +38,7 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 	readLen += n
 
 	if version < minSnapshotVersion {
-		err = badprogram.Err(fmt.Sprintf("unsupported snapshot version: %d", version))
+		err = badprogram.Error(fmt.Sprintf("unsupported snapshot version: %d", version))
 		return
 	}
 
@@ -127,7 +127,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs snapshot.Buffe
 		readLen++
 
 		if nameLen == 0 || nameLen > maxServiceNameLen {
-			err = badprogram.Err("service name length out of bounds")
+			err = badprogram.Error("service name length out of bounds")
 			return
 		}
 
@@ -151,7 +151,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs snapshot.Buffe
 	}
 
 	if int64(readLen)+dataSize > int64(length) {
-		err = badprogram.Err("invalid buffer section in wasm module")
+		err = badprogram.Error("invalid buffer section in wasm module")
 		return
 	}
 

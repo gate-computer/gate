@@ -6,6 +6,7 @@ package grpc_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/ioutil"
 	"log"
@@ -56,7 +57,8 @@ func testDial(t *testing.T, parallel, restore, suspend bool) {
 			return
 		}
 		if err := cmd.Wait(); err != nil {
-			if exit, ok := err.(*exec.ExitError); !(ok && exit.Success()) {
+			var exit *exec.ExitError
+			if !errors.As(err, &exit) || !exit.Success() {
 				t.Error(err)
 			}
 		}

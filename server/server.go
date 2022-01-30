@@ -6,12 +6,12 @@ package server
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"strings"
 
 	"gate.computer/gate/image"
-	"gate.computer/gate/internal/error/public"
 	"gate.computer/gate/internal/error/resourcelimit"
 	"gate.computer/gate/internal/monitor"
 	"gate.computer/gate/internal/principal"
@@ -20,12 +20,13 @@ import (
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal"
-	"gate.computer/gate/server/internal/error/resourcenotfound"
+	"gate.computer/gate/server/internal/error/failrequest"
+	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/wag/object/stack"
 	"import.name/pan"
 )
 
-var ErrServerClosed = public.Internal("server closed")
+var ErrServerClosed = errors.New("server closed")
 
 var errAnonymous = Unauthenticated("anonymous access not supported")
 
@@ -226,7 +227,7 @@ func (s *Server) UploadModule(ctx context.Context, upload *api.ModuleUpload, kno
 	ctx = _context(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
 
 	if upload.Length > int64(policy.prog.MaxModuleSize) {
-		_check(resourcelimit.New("module size limit exceeded"))
+		_check(resourcelimit.Error("module size limit exceeded"))
 	}
 
 	// TODO: check resource policy
@@ -253,9 +254,9 @@ func (s *Server) SourceModule(ctx context.Context, uri string, know *api.ModuleO
 	_check(err)
 	if stream == nil {
 		if length > 0 {
-			_check(resourcelimit.New("program size limit exceeded"))
+			_check(resourcelimit.Error("program size limit exceeded"))
 		}
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
 	upload := &api.ModuleUpload{
@@ -278,14 +279,13 @@ func (s *Server) _loadKnownModule(ctx context.Context, policy *progPolicy, uploa
 	_validateUpload(upload)
 
 	if prog.image.TextSize() > policy.prog.MaxTextSize {
-		_check(resourcelimit.New("program code size limit exceeded"))
+		_check(resourcelimit.Error("program code size limit exceeded"))
 	}
 
 	s._registerProgramRef(ctx, prog, know)
 	prog = nil
 
-	s.monitor(&event.ModuleUploadExist{
-		Meta:   api.ContextMeta(ctx),
+	s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
 		Module: progID,
 	})
 
@@ -301,14 +301,12 @@ func (s *Server) _loadUnknownModule(ctx context.Context, policy *progPolicy, upl
 	prog = nil
 
 	if redundant {
-		s.monitor(&event.ModuleUploadExist{
-			Meta:     api.ContextMeta(ctx),
+		s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
 			Module:   progID,
 			Compiled: true,
 		})
 	} else {
-		s.monitor(&event.ModuleUploadNew{
-			Meta:   api.ContextMeta(ctx),
+		s.monitorModule(ctx, event.TypeModuleUploadNew, &event.Module{
 			Module: progID,
 		})
 	}
@@ -340,7 +338,7 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 		return acc.refProgram(lock, prog)
 	})
 	if prog == nil {
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 	defer s.unrefProgram(&prog)
 
@@ -360,10 +358,7 @@ func (s *Server) NewInstance(ctx context.Context, module string, launch *api.Lau
 	s._runOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitor(&event.InstanceCreateKnown{
-		Meta:   api.ContextMeta(ctx),
-		Create: newInstanceCreateEvent(inst.id, module, launch),
-	})
+	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, module, launch))
 
 	return inst, nil
 }
@@ -402,9 +397,9 @@ func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api
 	_check(err)
 	if stream == nil {
 		if length > 0 {
-			_check(resourcelimit.New("program size limit exceeded"))
+			_check(resourcelimit.Error("program size limit exceeded"))
 		}
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
 	upload := &api.ModuleUpload{
@@ -419,7 +414,7 @@ func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api
 
 func (s *Server) _loadModuleInstance(ctx context.Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (string, *Instance) {
 	if upload.Length > int64(policy.prog.MaxModuleSize) {
-		_check(resourcelimit.New("module size limit exceeded"))
+		_check(resourcelimit.Error("module size limit exceeded"))
 	}
 
 	// TODO: check resource policy
@@ -445,7 +440,7 @@ func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, pol
 	_validateUpload(upload)
 
 	if prog.image.TextSize() > policy.prog.MaxTextSize {
-		_check(resourcelimit.New("program code size limit exceeded"))
+		_check(resourcelimit.Error("program code size limit exceeded"))
 	}
 
 	// TODO: check resource policy (stack/memory/max-memory size etc.)
@@ -460,18 +455,14 @@ func (s *Server) _loadKnownModuleInstance(ctx context.Context, acc *account, pol
 	inst, prog, _ := s._registerProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch)
 	instImage = nil
 
-	s.monitor(&event.ModuleUploadExist{
-		Meta:   api.ContextMeta(ctx),
+	s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
 		Module: progID,
 	})
 
 	s._runOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitor(&event.InstanceCreateKnown{
-		Meta:   api.ContextMeta(ctx),
-		Create: newInstanceCreateEvent(inst.id, progID, launch),
-	})
+	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, progID, launch))
 
 	return inst
 }
@@ -487,28 +478,24 @@ func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, p
 
 	if upload.Hash != "" {
 		if redundantProg {
-			s.monitor(&event.ModuleUploadExist{
-				Meta:     api.ContextMeta(ctx),
+			s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
 				Module:   progID,
 				Compiled: true,
 			})
 		} else {
-			s.monitor(&event.ModuleUploadNew{
-				Meta:   api.ContextMeta(ctx),
+			s.monitorModule(ctx, event.TypeModuleUploadNew, &event.Module{
 				Module: progID,
 			})
 		}
 	} else {
 		if redundantProg {
-			s.monitor(&event.ModuleSourceExist{
-				Meta:   api.ContextMeta(ctx),
+			s.monitorModule(ctx, event.TypeModuleSourceExist, &event.Module{
 				Module: progID,
 				// TODO: source URI
 				Compiled: true,
 			})
 		} else {
-			s.monitor(&event.ModuleSourceNew{
-				Meta:   api.ContextMeta(ctx),
+			s.monitorModule(ctx, event.TypeModuleSourceNew, &event.Module{
 				Module: progID,
 				// TODO: source URI
 			})
@@ -518,10 +505,7 @@ func (s *Server) _loadUnknownModuleInstance(ctx context.Context, acc *account, p
 	s._runOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitor(&event.InstanceCreateStream{
-		Meta:   api.ContextMeta(ctx),
-		Create: newInstanceCreateEvent(inst.id, progID, launch),
-	})
+	s.monitorInstance(ctx, event.TypeInstanceCreateStream, newInstanceCreateInfo(inst.id, progID, launch))
 
 	return progID, inst
 }
@@ -546,17 +530,17 @@ func (s *Server) ModuleInfo(ctx context.Context, module string) (_ *api.ModuleIn
 	}
 	prog := s.programs[module]
 	if prog == nil {
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
 	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
 	x, found := acc.programs[prog]
 	if !found {
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
 	info := &api.ModuleInfo{
@@ -564,8 +548,7 @@ func (s *Server) ModuleInfo(ctx context.Context, module string) (_ *api.ModuleIn
 		Tags: append([]string(nil), x.tags...),
 	}
 
-	s.monitor(&event.ModuleInfo{
-		Meta:   api.ContextMeta(ctx),
+	s.monitorModule(ctx, event.TypeModuleInfo, &event.Module{
 		Module: prog.id,
 	})
 
@@ -584,9 +567,7 @@ func (s *Server) Modules(ctx context.Context) (_ *api.Modules, err error) {
 		_check(errAnonymous)
 	}
 
-	s.monitor(&event.ModuleList{
-		Meta: api.ContextMeta(ctx),
-	})
+	s.monitor(ctx, event.TypeModuleList)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -634,41 +615,32 @@ func (s *Server) ModuleContent(ctx context.Context, module string) (stream io.Re
 		return acc.refProgram(lock, prog)
 	})
 	if prog == nil {
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
 	length = prog.image.ModuleSize()
 	stream = &moduleContent{
-		meta:  api.ContextMeta(ctx),
-		r:     prog.image.NewModuleReader(),
-		s:     s,
-		prog:  prog,
-		total: length,
+		Reader: prog.image.NewModuleReader(),
+		ctx:    ctx,
+		s:      s,
+		prog:   prog,
+		length: length,
 	}
 	return stream, length, nil
 }
 
 type moduleContent struct {
-	meta  *api.Meta
-	r     io.Reader
-	s     *Server
-	prog  *program
-	total int64
-	read  int64
-}
-
-func (x *moduleContent) Read(b []byte) (int, error) {
-	n, err := x.r.Read(b)
-	x.read += int64(n)
-	return n, err
+	io.Reader
+	ctx    context.Context
+	s      *Server
+	prog   *program
+	length int64
 }
 
 func (x *moduleContent) Close() error {
-	x.s.monitor(&event.ModuleDownload{
-		Meta:         x.meta,
-		Module:       x.prog.id,
-		ModuleLength: uint64(x.total),
-		LengthRead:   uint64(x.read),
+	x.s.monitorModule(x.ctx, event.TypeModuleDownload, &event.Module{
+		Module: x.prog.id,
+		Length: x.length,
 	})
 
 	x.s.unrefProgram(&x.prog)
@@ -699,12 +671,12 @@ func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleO
 		}
 		prog := s.programs[module]
 		if prog == nil {
-			_check(resourcenotfound.ErrModule)
+			_check(notfound.ErrModule)
 		}
 
 		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
-			_check(resourcenotfound.ErrModule)
+			_check(notfound.ErrModule)
 		}
 
 		if _, found := acc.programs[prog]; !found {
@@ -713,7 +685,7 @@ func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleO
 					goto do
 				}
 			}
-			_check(resourcenotfound.ErrModule)
+			_check(notfound.ErrModule)
 		}
 
 	do:
@@ -722,8 +694,7 @@ func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleO
 	})
 
 	if modified {
-		s.monitor(&event.ModulePin{
-			Meta:     api.ContextMeta(ctx),
+		s.monitorModule(ctx, event.TypeModulePin, &event.Module{
 			Module:   module,
 			TagCount: int32(len(know.Tags)),
 		})
@@ -758,11 +729,10 @@ func (s *Server) UnpinModule(ctx context.Context, module string) (err error) {
 		return acc.unrefProgram(lock, prog)
 	})
 	if !found {
-		_check(resourcenotfound.ErrModule)
+		_check(notfound.ErrModule)
 	}
 
-	s.monitor(&event.ModuleUnpin{
-		Meta:   api.ContextMeta(ctx),
+	s.monitorModule(ctx, event.TypeModuleUnpin, &event.Module{
 		Module: module,
 	})
 
@@ -783,26 +753,24 @@ func (s *Server) InstanceConnection(ctx context.Context, instance string) (
 	inst := s._getInstance(ctx, instance)
 	conn := inst.connect(ctx)
 	if conn == nil {
-		s.monitor(&event.FailRequest{
-			Meta:     api.ContextMeta(ctx),
-			Failure:  event.FailInstanceNoConnect,
+		s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+			Type:     event.FailInstanceNoConnect,
 			Instance: inst.id,
-		})
+		}, nil)
 		return inst, nil, nil
 	}
 
 	iofunc := func(ctx context.Context, r io.Reader, w io.WriteCloser) error {
-		s.monitor(&event.InstanceConnect{
-			Meta:     api.ContextMeta(ctx),
+		s.monitorInstance(ctx, event.TypeInstanceConnect, &event.Instance{
 			Instance: inst.id,
 		})
 
 		err := conn(ctx, r, w)
+		// TODO: monitor error
 
-		s.Monitor(&event.InstanceDisconnect{
-			Meta:     api.ContextMeta(ctx),
+		s.monitorInstance(ctx, event.TypeInstanceDisconnect, &event.Instance{
 			Instance: inst.id,
-		}, err)
+		})
 
 		return err
 	}
@@ -820,11 +788,10 @@ func (s *Server) InstanceInfo(ctx context.Context, instance string) (_ *api.Inst
 	progID, inst := s._getInstanceProgramID(ctx, instance)
 	info := inst.info(progID)
 	if info == nil {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 
-	s.monitor(&event.InstanceInfo{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceInfo, &event.Instance{
 		Instance: inst.id,
 	})
 
@@ -841,8 +808,7 @@ func (s *Server) WaitInstance(ctx context.Context, instID string) (_ *api.Status
 	inst := s._getInstance(ctx, instID)
 	status := inst.Wait(ctx)
 
-	s.monitor(&event.InstanceWait{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceWait, &event.Instance{
 		Instance: inst.id,
 	})
 
@@ -859,8 +825,7 @@ func (s *Server) KillInstance(ctx context.Context, instance string) (_ api.Insta
 	inst := s._getInstance(ctx, instance)
 	inst.kill()
 
-	s.monitor(&event.InstanceKill{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceKill, &event.Instance{
 		Instance: inst.id,
 	})
 
@@ -881,8 +846,7 @@ func (s *Server) SuspendInstance(ctx context.Context, instance string) (_ api.In
 	prog._ensureStorage()
 	inst.suspend_()
 
-	s.monitor(&event.InstanceSuspend{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceSuspend, &event.Instance{
 		Instance: inst.id,
 	})
 
@@ -914,8 +878,7 @@ func (s *Server) ResumeInstance(ctx context.Context, instance string, resume *ap
 	s._runOrDeleteInstance(ctx, inst, prog, resume.Function)
 	prog = nil
 
-	s.monitor(&event.InstanceResume{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceResume, &event.Instance{
 		Instance: inst.id,
 		Function: resume.Function,
 	})
@@ -934,8 +897,7 @@ func (s *Server) DeleteInstance(ctx context.Context, instance string) (err error
 	inst._annihilate()
 	s.deleteNonexistentInstance(inst)
 
-	s.monitor(&event.InstanceDelete{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
 		Instance: inst.id,
 	})
 
@@ -997,8 +959,7 @@ func (s *Server) _snapshot(ctx context.Context, instance string, know *api.Modul
 	s._registerProgramRef(ctx, newProg, know)
 	newProg = nil
 
-	s.monitor(&event.InstanceSnapshot{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceSnapshot, &event.Instance{
 		Instance: inst.id,
 		Module:   progID,
 	})
@@ -1017,8 +978,7 @@ func (s *Server) UpdateInstance(ctx context.Context, instance string, update *ap
 
 	progID, inst := s._getInstanceProgramID(ctx, instance)
 	if inst.update(update) {
-		s.monitor(&event.InstanceUpdate{
-			Meta:     api.ContextMeta(ctx),
+		s.monitorInstance(ctx, event.TypeInstanceUpdate, &event.Instance{
 			Instance: inst.id,
 			Persist:  update.Persist,
 			TagCount: int32(len(update.Tags)),
@@ -1027,7 +987,7 @@ func (s *Server) UpdateInstance(ctx context.Context, instance string, update *ap
 
 	info := inst.info(progID)
 	if info == nil {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 
 	return info, nil
@@ -1062,13 +1022,12 @@ func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.De
 
 		res, ok = rebuild.apply(progImage, config, textMap)
 		if !ok {
-			_check(public.FailedPrecondition("conflict"))
+			_check(failrequest.Error(event.FailInstanceDebugState, "conflict"))
 		}
 		progImage = nil
 	}
 
-	s.monitor(&event.InstanceDebug{
-		Meta:     api.ContextMeta(ctx),
+	s.monitorInstance(ctx, event.TypeInstanceDebug, &event.Instance{
 		Instance: inst.id,
 		Compiled: rebuild != nil,
 	})
@@ -1088,9 +1047,7 @@ func (s *Server) Instances(ctx context.Context) (_ *api.Instances, err error) {
 		_check(errAnonymous)
 	}
 
-	s.monitor(&event.InstanceList{
-		Meta: api.ContextMeta(ctx),
-	})
+	s.monitor(ctx, event.TypeInstanceList)
 
 	type instProgID struct {
 		inst   *Instance
@@ -1181,8 +1138,7 @@ func (s *Server) _registerProgramRef(ctx context.Context, prog *program, know *a
 		// to call.
 		if s.ensureAccount(lock, pri).ensureProgramRef(lock, prog, know.Tags) {
 			// TODO: move outside of critical section
-			s.monitor(&event.ModulePin{
-				Meta:     api.ContextMeta(ctx),
+			s.monitorModule(ctx, event.TypeModulePin, &event.Module{
 				Module:   prog.id,
 				TagCount: int32(len(know.Tags)),
 			})
@@ -1238,7 +1194,7 @@ func (s *Server) _runOrDeleteInstance(ctx context.Context, inst *Instance, prog 
 func (s *Server) driveInstance(ctx context.Context, inst *Instance, prog *program, function string) {
 	defer s.unrefProgram(&prog)
 
-	if nonexistent := inst.drive(ctx, prog, function, s.Monitor); nonexistent {
+	if nonexistent := inst.drive(ctx, prog, function, &s.Config); nonexistent {
 		s.deleteNonexistentInstance(inst)
 	}
 }
@@ -1277,12 +1233,12 @@ func (s *Server) _getInstanceRefProgram(ctx context.Context, instance string) (*
 func (s *Server) _getInstanceBorrowProgram(_ serverLock, pri *principal.ID, instance string) (*Instance, *program) {
 	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 
 	x, found := acc.instances[instance]
 	if !found {
-		_check(resourcenotfound.ErrInstance)
+		_check(notfound.ErrInstance)
 	}
 
 	return x.inst, x.prog
@@ -1355,8 +1311,7 @@ func (s *Server) _registerProgramRefInstance(ctx context.Context, acc *account, 
 			// safe to call.
 			if acc.ensureProgramRef(lock, prog, know.Tags) {
 				// TODO: move outside of critical section
-				s.monitor(&event.ModulePin{
-					Meta:     api.ContextMeta(ctx),
+				s.monitorModule(ctx, event.TypeModulePin, &event.Module{
 					Module:   prog.id,
 					TagCount: int32(len(know.Tags)),
 				})
@@ -1422,7 +1377,7 @@ func (s *Server) _getSource(uri string) (Source, string) {
 		}
 	}
 
-	panic(pan.Wrap(resourcenotfound.ErrModule))
+	panic(pan.Wrap(notfound.ErrModule))
 }
 
 func _prepareModuleOptions(opt *api.ModuleOptions) *api.ModuleOptions {
@@ -1437,7 +1392,7 @@ func _prepareLaunchOptions(opt *api.LaunchOptions) *api.LaunchOptions {
 		return new(api.LaunchOptions)
 	}
 	if opt.Suspend && opt.Function != "" {
-		_check(public.FailedPrecondition("function cannot be specified for suspended instance"))
+		_check(failrequest.Error(event.FailInstanceStatus, "function cannot be specified for suspended instance"))
 	}
 	return opt
 }
@@ -1481,8 +1436,8 @@ func closeInstanceResources(proc **runtime.Process, services *InstanceServices) 
 	}
 }
 
-func newInstanceCreateEvent(instance, module string, launch *api.LaunchOptions) *event.InstanceCreate {
-	return &event.InstanceCreate{
+func newInstanceCreateInfo(instance, module string, launch *api.LaunchOptions) *event.Instance {
+	return &event.Instance{
 		Instance:  instance,
 		Module:    module,
 		Transient: launch.Transient,

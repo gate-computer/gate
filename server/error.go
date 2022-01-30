@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"gate.computer/gate/server/event"
 	"google.golang.org/grpc/codes"
 )
 
@@ -18,11 +19,12 @@ func Unauthenticated(publicReason string) error {
 
 type authenticationError string
 
-func (s authenticationError) Error() string         { return string(s) }
-func (s authenticationError) PublicError() string   { return string(s) }
-func (s authenticationError) Unauthenticated() bool { return true }
-func (s authenticationError) Status() int           { return http.StatusUnauthorized }
-func (s authenticationError) Code() codes.Code      { return codes.Unauthenticated }
+func (s authenticationError) Error() string            { return string(s) }
+func (s authenticationError) PublicError() string      { return string(s) }
+func (s authenticationError) Unauthenticated() bool    { return true }
+func (s authenticationError) Status() int              { return http.StatusUnauthorized }
+func (s authenticationError) Code() codes.Code         { return codes.Unauthenticated }
+func (s authenticationError) FailType() event.FailType { return event.FailAuthDenied }
 
 // PermissionDenied error.  The details are not exposed to the client.
 func PermissionDenied(internalDetails string) error {
@@ -31,11 +33,12 @@ func PermissionDenied(internalDetails string) error {
 
 type permissionError string
 
-func (s permissionError) Error() string          { return string(s) }
-func (s permissionError) PublicError() string    { return "permission denied" }
-func (s permissionError) PermissionDenied() bool { return true }
-func (s permissionError) Status() int            { return http.StatusForbidden }
-func (s permissionError) Code() codes.Code       { return codes.PermissionDenied }
+func (s permissionError) Error() string            { return string(s) }
+func (s permissionError) PublicError() string      { return "permission denied" }
+func (s permissionError) PermissionDenied() bool   { return true }
+func (s permissionError) Status() int              { return http.StatusForbidden }
+func (s permissionError) Code() codes.Code         { return codes.PermissionDenied }
+func (s permissionError) FailType() event.FailType { return event.FailResourceDenied }
 
 // Unavailable service error.  The details are not exposed to the client.
 func Unavailable(internal error) error {
@@ -63,12 +66,13 @@ type rateError struct {
 	retryAfter time.Time
 }
 
-func (e rateError) Error() string         { return e.PublicError() }
-func (e rateError) PublicError() string   { return "request rate limit exceeded" }
-func (e rateError) Unavailable() bool     { return true }
-func (e rateError) TooManyRequests() bool { return true }
-func (e rateError) Status() int           { return http.StatusTooManyRequests }
-func (e rateError) Code() codes.Code      { return codes.Unavailable }
+func (e rateError) Error() string            { return e.PublicError() }
+func (e rateError) PublicError() string      { return "request rate limit exceeded" }
+func (e rateError) Unavailable() bool        { return true }
+func (e rateError) TooManyRequests() bool    { return true }
+func (e rateError) Status() int              { return http.StatusTooManyRequests }
+func (e rateError) Code() codes.Code         { return codes.Unavailable }
+func (e rateError) FailType() event.FailType { return event.FailRateLimit }
 
 func (e rateError) RetryAfter() time.Duration {
 	d := time.Until(e.retryAfter)

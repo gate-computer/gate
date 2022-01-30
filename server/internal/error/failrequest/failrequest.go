@@ -5,6 +5,7 @@
 package failrequest
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -12,102 +13,90 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var typeStatuses = [25]int{
-	event.FailClientDenied:       http.StatusForbidden,
-	event.FailPayloadError:       http.StatusBadRequest,
-	event.FailPrincipalKeyError:  http.StatusBadRequest,
-	event.FailAuthMissing:        http.StatusUnauthorized,
-	event.FailAuthInvalid:        http.StatusBadRequest,
-	event.FailAuthExpired:        http.StatusForbidden,
-	event.FailAuthReused:         http.StatusForbidden,
-	event.FailAuthDenied:         http.StatusForbidden,
-	event.FailScopeTooLarge:      http.StatusBadRequest,
-	event.FailResourceDenied:     http.StatusForbidden,
-	event.FailResourceLimit:      http.StatusBadRequest,
-	event.FailRateLimit:          http.StatusTooManyRequests,
-	event.FailModuleNotFound:     http.StatusNotFound,
-	event.FailModuleHashMismatch: http.StatusBadRequest,
-	event.FailModuleError:        http.StatusBadRequest,
-	event.FailFunctionNotFound:   http.StatusNotFound,
-	event.FailProgramError:       http.StatusBadRequest,
-	event.FailInstanceNotFound:   http.StatusNotFound,
-	event.FailInstanceIDInvalid:  http.StatusBadRequest,
-	event.FailInstanceIDExists:   http.StatusConflict,
-	event.FailInstanceStatus:     http.StatusConflict,
-	event.FailInstanceNoConnect:  http.StatusConflict,
-	event.FailInstanceTransient:  http.StatusConflict,
-	event.FailInstanceDebugger:   http.StatusConflict,
+var metadata = [...]struct {
+	status int
+	code   codes.Code
+}{
+	event.FailUnsupported:        {http.StatusNotImplemented, codes.Unimplemented},
+	event.FailClientDenied:       {http.StatusForbidden, codes.PermissionDenied},
+	event.FailPayloadError:       {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailPrincipalKeyError:  {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailAuthMissing:        {http.StatusUnauthorized, codes.Unauthenticated},
+	event.FailAuthInvalid:        {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailAuthExpired:        {http.StatusForbidden, codes.PermissionDenied},
+	event.FailAuthReused:         {http.StatusForbidden, codes.PermissionDenied},
+	event.FailAuthDenied:         {http.StatusForbidden, codes.PermissionDenied},
+	event.FailScopeTooLarge:      {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailResourceDenied:     {http.StatusForbidden, codes.PermissionDenied},
+	event.FailResourceLimit:      {http.StatusBadRequest, codes.ResourceExhausted},
+	event.FailRateLimit:          {http.StatusTooManyRequests, codes.Unavailable},
+	event.FailModuleNotFound:     {http.StatusNotFound, codes.NotFound},
+	event.FailModuleHashMismatch: {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailModuleError:        {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailFunctionNotFound:   {http.StatusNotFound, codes.NotFound},
+	event.FailProgramError:       {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailInstanceNotFound:   {http.StatusNotFound, codes.NotFound},
+	event.FailInstanceIDInvalid:  {http.StatusBadRequest, codes.InvalidArgument},
+	event.FailInstanceIDExists:   {http.StatusConflict, codes.AlreadyExists},
+	event.FailInstanceStatus:     {http.StatusConflict, codes.FailedPrecondition},
+	event.FailInstanceNoConnect:  {http.StatusConflict, codes.FailedPrecondition},
+	event.FailInstanceDebugState: {http.StatusConflict, codes.FailedPrecondition},
 }
 
-var typeCodes = [25]codes.Code{
-	event.FailClientDenied:       codes.PermissionDenied,
-	event.FailPayloadError:       codes.InvalidArgument,
-	event.FailPrincipalKeyError:  codes.InvalidArgument,
-	event.FailAuthMissing:        codes.Unauthenticated,
-	event.FailAuthInvalid:        codes.InvalidArgument,
-	event.FailAuthExpired:        codes.PermissionDenied,
-	event.FailAuthReused:         codes.PermissionDenied,
-	event.FailAuthDenied:         codes.PermissionDenied,
-	event.FailScopeTooLarge:      codes.InvalidArgument,
-	event.FailResourceDenied:     codes.PermissionDenied,
-	event.FailResourceLimit:      codes.ResourceExhausted,
-	event.FailRateLimit:          codes.Unavailable,
-	event.FailModuleNotFound:     codes.NotFound,
-	event.FailModuleHashMismatch: codes.InvalidArgument,
-	event.FailModuleError:        codes.InvalidArgument,
-	event.FailFunctionNotFound:   codes.NotFound,
-	event.FailProgramError:       codes.InvalidArgument,
-	event.FailInstanceNotFound:   codes.NotFound,
-	event.FailInstanceIDInvalid:  codes.InvalidArgument,
-	event.FailInstanceIDExists:   codes.AlreadyExists,
-	event.FailInstanceStatus:     codes.FailedPrecondition,
-	event.FailInstanceNoConnect:  codes.FailedPrecondition,
-	event.FailInstanceTransient:  codes.FailedPrecondition,
-	event.FailInstanceDebugger:   codes.FailedPrecondition,
-}
-
-type Error interface {
+type FailError interface {
 	error
-	FailRequestType() event.FailRequest_Type
+	FailType() event.FailType
 }
 
-// New public information.
-func New(t event.FailRequest_Type, s string) error {
+func AsError(err error) FailError {
+	var e FailError
+	if errors.As(err, &e) && e.FailType() != 0 {
+		return e
+	}
+	return nil
+}
+
+// Error with public information.
+func Error(t event.FailType, s string) error {
 	return &simple{t, s}
 }
 
 // Errorf formats public information.
-func Errorf(t event.FailRequest_Type, format string, args ...interface{}) error {
+func Errorf(t event.FailType, format string, args ...interface{}) error {
 	return &simple{t, fmt.Sprintf(format, args...)}
 }
 
 type simple struct {
-	t event.FailRequest_Type
+	t event.FailType
 	s string
 }
 
-func (s *simple) Error() string                           { return s.s }
-func (s *simple) PublicError() string                     { return s.s }
-func (s *simple) FailRequestType() event.FailRequest_Type { return s.t }
+func (s *simple) Error() string            { return s.s }
+func (s *simple) PublicError() string      { return s.s }
+func (s *simple) FailType() event.FailType { return s.t }
 
-func (s *simple) Status() int {
-	c := typeStatuses[s.t]
-	if c == 0 {
-		return http.StatusInternalServerError
+func (s *simple) Status() (status int) {
+	if i := int(s.t); i < len(metadata) {
+		status = metadata[i].status
 	}
-	return c
+	if status == 0 {
+		status = http.StatusInternalServerError
+	}
+	return
 }
 
-func (s *simple) Code() codes.Code {
-	c := typeCodes[s.t]
-	if c == 0 {
-		return codes.Unknown
+func (s *simple) Code() (code codes.Code) {
+	if i := int(s.t); i < len(metadata) {
+		code = metadata[i].code
 	}
-	return c
+	if code == 0 {
+		code = codes.Unknown
+	}
+	return
 }
 
-// Wrap an internal error and associate public information with it.
-func Wrap(t event.FailRequest_Type, cause error, public string) error {
+// WrapError and associate public information with it.
+func WrapError(t event.FailType, public string, cause error) error {
 	return &wrapped{simple{t, public}, cause}
 }
 

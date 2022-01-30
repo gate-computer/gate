@@ -11,9 +11,9 @@ import (
 	"gate.computer/gate/internal/varint"
 )
 
-const (
-	errStateTooShort   = badprogram.Err("unexpected end of serialized state")
-	errBufferStateSize = badprogram.Err("serialized buffer state size limit exceeded")
+var (
+	errStateTooShort   = badprogram.Error("unexpected end of serialized state")
+	errBufferStateSize = badprogram.Error("serialized buffer state size limit exceeded")
 )
 
 // State flags.

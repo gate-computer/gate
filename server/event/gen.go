@@ -13,9 +13,10 @@ import (
 	"io/ioutil"
 	"os"
 	"sort"
+	"strings"
 	"unicode"
 
-	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/event/pb"
 	m "import.name/make"
 )
 
@@ -31,45 +32,62 @@ func main() {
 	fmt.Fprintln(b)
 	fmt.Fprintln(b, "package event")
 	fmt.Fprintln(b)
+	fmt.Fprintln(b, `import "gate.computer/gate/server/event/pb"`)
+	fmt.Fprintln(b)
 
-	var names []string
-	for _, name := range event.Type_name {
+	names := []string{}
+	for _, name := range pb.Type_name {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 
+	fmt.Fprintln(b, "const (")
 	for _, name := range names {
-		fmt.Fprintf(b, "func (x *%s) EventName() string {", snake2title(name))
-		fmt.Fprintf(b, " return \"%s\" }\n", name)
+		fmt.Fprintf(b, "Type%s = pb.Type_%s\n", snake2title(name), name)
 	}
-
+	fmt.Fprintln(b, ")")
 	fmt.Fprintln(b)
 
-	for _, name := range names {
-		fmt.Fprintf(b, "func (*%s) EventType() int32 {", snake2title(name))
-		fmt.Fprintf(b, " return int32(Type_%s) }\n", name)
+	names = []string{}
+	for _, name := range pb.Fail_Type_name {
+		names = append(names, name)
 	}
+	sort.Strings(names)
+
+	fmt.Fprintln(b, "const (")
+	for _, name := range names {
+		fmt.Fprintf(b, "Fail%s = pb.Fail_%s\n", snake2title(name), name)
+	}
+	fmt.Fprintln(b, ")")
+	fmt.Fprintln(b)
 
 	data, err := m.RunIO(b, gofmt)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	check(err)
 
-	if err := ioutil.WriteFile(output, data, 0666); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	check(ioutil.WriteFile(output, data, 0666))
 }
 
 func snake2title(snake string) string {
 	var (
 		title string
+		skip  int
 		up    = true
 	)
 
-	for _, code := range snake {
+	for i, code := range snake {
+		if skip > 0 {
+			skip--
+			continue
+		}
+
 		if code == '_' {
+			switch tail := snake[i:]; {
+			case tail == "_ID":
+				return title + "ID"
+			case strings.HasPrefix(tail, "_ID_"):
+				title += "ID"
+				skip = 3
+			}
 			up = true
 		} else {
 			r := rune(code)
@@ -84,4 +102,11 @@ func snake2title(snake string) string {
 	}
 
 	return title
+}
+
+func check(err error) {
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

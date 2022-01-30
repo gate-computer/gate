@@ -30,6 +30,7 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
 	_ "gate.computer/gate/server/database/sql"
+	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
 	webapi "gate.computer/gate/server/web/api"
@@ -206,7 +207,7 @@ func Main() {
 	}
 	c.Runtime.ErrorLog = errLog
 
-	var monitor func(server.Event, error)
+	var monitor func(*event.Event, error)
 	if infoLog != nil {
 		monitor = server.ErrorEventLogger(errLog, infoLog)
 	} else {

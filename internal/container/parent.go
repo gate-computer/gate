@@ -132,7 +132,8 @@ func init() {
 func Wait(cmd *exec.Cmd, done <-chan struct{}) error {
 	err := cmd.Wait()
 
-	if status, ok := err.(*exec.ExitError); ok && status.Exited() {
+	var status *exec.ExitError
+	if errors.As(err, &status) && status.Exited() {
 		switch code := status.Sys().(syscall.WaitStatus).ExitStatus(); code {
 		case 0:
 			err = nil

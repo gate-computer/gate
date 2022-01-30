@@ -8,42 +8,30 @@ import (
 	"context"
 
 	"gate.computer/gate/internal/error/subsystem"
-	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 )
 
 func reportInternalError(ctx context.Context, s *webserver, sourceURI, progHash, function, instID string, err error) {
-	var subsys string
-	if x, ok := err.(subsystem.Error); ok {
-		subsys = x.Subsystem()
-	}
-
-	s.Monitor(&event.FailInternal{
-		Meta:      server.ContextMeta(ctx),
+	s.monitorFail(ctx, event.TypeFailInternal, &event.Fail{
 		Source:    sourceURI,
 		Module:    progHash,
 		Function:  function,
 		Instance:  instID,
-		Subsystem: subsys,
+		Subsystem: subsystem.Get(err),
 	}, err)
 }
 
 func reportNetworkError(ctx context.Context, s *webserver, err error) {
-	s.Monitor(&event.FailNetwork{
-		Meta: server.ContextMeta(ctx),
-	}, err)
+	s.monitorError(ctx, event.TypeFailNetwork, err)
 }
 
 func reportProtocolError(ctx context.Context, s *webserver, err error) {
-	s.Monitor(&event.FailProtocol{
-		Meta: server.ContextMeta(ctx),
-	}, err)
+	s.monitorError(ctx, event.TypeFailProtocol, err)
 }
 
-func reportRequestError(ctx context.Context, s *webserver, failType event.FailRequest_Type, sourceURI, progHash, function, instID string, err error) {
-	s.Monitor(&event.FailRequest{
-		Meta:     server.ContextMeta(ctx),
-		Failure:  failType,
+func reportRequestError(ctx context.Context, s *webserver, failType event.FailType, sourceURI, progHash, function, instID string, err error) {
+	s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+		Type:     failType,
 		Source:   sourceURI,
 		Module:   progHash,
 		Function: function,
@@ -51,16 +39,14 @@ func reportRequestError(ctx context.Context, s *webserver, failType event.FailRe
 	}, err)
 }
 
-func reportRequestFailure(ctx context.Context, s *webserver, failType event.FailRequest_Type) {
-	s.Monitor(&event.FailRequest{
-		Meta:    server.ContextMeta(ctx),
-		Failure: failType,
+func reportRequestFailure(ctx context.Context, s *webserver, failType event.FailType) {
+	s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+		Type: failType,
 	}, nil)
 }
 
 func reportPayloadError(ctx context.Context, s *webserver, err error) {
-	s.Monitor(&event.FailRequest{
-		Meta:    server.ContextMeta(ctx),
-		Failure: event.FailPayloadError,
+	s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+		Type: event.FailPayloadError,
 	}, err)
 }

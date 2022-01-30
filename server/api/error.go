@@ -25,6 +25,15 @@ func AsPublicError(err error) PublicError {
 	return nil
 }
 
+// PublicErrorString returns err.PublicError() if err is public.  Otherwise the
+// alternative is returned.
+func PublicErrorString(err error, alternative string) string {
+	if e := AsPublicError(err); e != nil {
+		return e.PublicError()
+	}
+	return alternative
+}
+
 // Unauthenticated error.  The client doesn't have authentication credentials
 // or they are invalid.
 type Unauthenticated interface {

@@ -9,15 +9,13 @@ import (
 	"net/http"
 	"time"
 
-	"gate.computer/gate/internal/monitor"
 	"gate.computer/gate/server/api"
+	"gate.computer/gate/server/event"
 )
 
 type NonceChecker interface {
 	CheckNonce(ctx context.Context, scope []byte, nonce string, expires time.Time) error
 }
-
-type Event = monitor.Event
 
 // Config for a web server.
 type Config struct {
@@ -26,9 +24,24 @@ type Config struct {
 	Origins      []string // Value "*" causes Origin header to be ignored.
 	NonceStorage NonceChecker
 	NewRequestID func(*http.Request) uint64
-	Monitor      func(Event, error)
+	Monitor      func(*event.Event, error)
 }
 
 func (c *Config) Configured() bool {
 	return c.Server != nil && c.Authority != "" && len(c.Origins) != 0
+}
+
+func (c *Config) monitorError(ctx context.Context, t event.Type, err error) {
+	c.Monitor(&event.Event{
+		Type: t,
+		Meta: api.ContextMeta(ctx),
+	}, err)
+}
+
+func (c *Config) monitorFail(ctx context.Context, t event.Type, info *event.Fail, err error) {
+	c.Monitor(&event.Event{
+		Type: t,
+		Meta: api.ContextMeta(ctx),
+		Info: &event.EventFail{Fail: info},
+	}, err)
 }
