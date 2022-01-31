@@ -17,7 +17,7 @@ const maxServices = 256
 
 const serviceStateAvail uint8 = 0x1
 
-var ErrDuplicateService error = badprogram.Errorf("duplicate service")
+var ErrDuplicateService error = badprogram.Error("duplicate service")
 
 // ServiceState is used to respond to a service discovery request.
 type ServiceState struct {
@@ -86,17 +86,17 @@ func (discoverer *serviceDiscoverer) handlePacket(ctx context.Context, req packe
 
 	for i := range names {
 		if len(nameBuf) < 1 {
-			err = badprogram.Errorf("name data is truncated in service discovery packet")
+			err = badprogram.Error("name data is truncated in service discovery packet")
 			return
 		}
 		nameLen := nameBuf[0]
 		nameBuf = nameBuf[1:]
 		if nameLen == 0 || nameLen > 127 {
-			err = badprogram.Errorf("service name length in discovery packet is out of bounds")
+			err = badprogram.Error("service name length in discovery packet is out of bounds")
 			return
 		}
 		if len(nameBuf) < int(nameLen) {
-			err = badprogram.Errorf("name data is truncated in service discovery packet")
+			err = badprogram.Error("name data is truncated in service discovery packet")
 			return
 		}
 		names[i] = string(nameBuf[:nameLen])

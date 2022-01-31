@@ -194,7 +194,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 			return fmt.Errorf("invalid stack offset %d", call.StackOffset)
 		}
 		if int(call.StackOffset-8) < minVars*8 {
-			return fmt.Errorf("inconsistent call stack")
+			return errors.New("inconsistent call stack")
 		}
 
 		buf = buf[call.StackOffset-8:]
@@ -210,7 +210,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 	}
 
 	if minVars > 0 {
-		return fmt.Errorf("inconsistent call stack")
+		return errors.New("inconsistent call stack")
 	}
 
 	switch call.StackOffset {
