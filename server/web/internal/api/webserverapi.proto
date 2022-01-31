@@ -8,7 +8,7 @@ package gate.server.web;
 
 import "server/api/pb/server.proto";
 
-option go_package = "gate.computer/gate/internal/webserverapi";
+option go_package = "gate.computer/gate/server/web/internal/api";
 
 message IOConnection {
   bool connected = 1;

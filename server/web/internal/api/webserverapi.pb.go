@@ -6,9 +6,9 @@
 // versions:
 // 	protoc-gen-go v1.25.0
 // 	protoc        v3.6.1
-// source: internal/webserverapi/webserverapi.proto
+// source: server/web/internal/api/webserverapi.proto
 
-package webserverapi
+package api
 
 import (
 	pb "gate.computer/gate/server/api/pb"
@@ -41,7 +41,7 @@ type IOConnection struct {
 func (x *IOConnection) Reset() {
 	*x = IOConnection{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_webserverapi_webserverapi_proto_msgTypes[0]
+		mi := &file_server_web_internal_api_webserverapi_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -54,7 +54,7 @@ func (x *IOConnection) String() string {
 func (*IOConnection) ProtoMessage() {}
 
 func (x *IOConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_webserverapi_webserverapi_proto_msgTypes[0]
+	mi := &file_server_web_internal_api_webserverapi_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -67,7 +67,7 @@ func (x *IOConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IOConnection.ProtoReflect.Descriptor instead.
 func (*IOConnection) Descriptor() ([]byte, []int) {
-	return file_internal_webserverapi_webserverapi_proto_rawDescGZIP(), []int{0}
+	return file_server_web_internal_api_webserverapi_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *IOConnection) GetConnected() bool {
@@ -89,7 +89,7 @@ type ConnectionStatus struct {
 func (x *ConnectionStatus) Reset() {
 	*x = ConnectionStatus{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_webserverapi_webserverapi_proto_msgTypes[1]
+		mi := &file_server_web_internal_api_webserverapi_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -102,7 +102,7 @@ func (x *ConnectionStatus) String() string {
 func (*ConnectionStatus) ProtoMessage() {}
 
 func (x *ConnectionStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_webserverapi_webserverapi_proto_msgTypes[1]
+	mi := &file_server_web_internal_api_webserverapi_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -115,7 +115,7 @@ func (x *ConnectionStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectionStatus.ProtoReflect.Descriptor instead.
 func (*ConnectionStatus) Descriptor() ([]byte, []int) {
-	return file_internal_webserverapi_webserverapi_proto_rawDescGZIP(), []int{1}
+	return file_server_web_internal_api_webserverapi_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ConnectionStatus) GetStatus() *pb.Status {
@@ -132,47 +132,48 @@ func (x *ConnectionStatus) GetInput() bool {
 	return false
 }
 
-var File_internal_webserverapi_webserverapi_proto protoreflect.FileDescriptor
+var File_server_web_internal_api_webserverapi_proto protoreflect.FileDescriptor
 
-var file_internal_webserverapi_webserverapi_proto_rawDesc = []byte{
-	0x0a, 0x28, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x77, 0x65, 0x62, 0x73, 0x65,
-	0x72, 0x76, 0x65, 0x72, 0x61, 0x70, 0x69, 0x2f, 0x77, 0x65, 0x62, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x61, 0x70, 0x69, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0f, 0x67, 0x61, 0x74, 0x65,
-	0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x77, 0x65, 0x62, 0x1a, 0x1a, 0x73, 0x65, 0x72,
-	0x76, 0x65, 0x72, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x70, 0x62, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x65,
-	0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x2c, 0x0a, 0x0c, 0x49, 0x4f, 0x43, 0x6f, 0x6e,
-	0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x1c, 0x0a, 0x09, 0x63, 0x6f, 0x6e, 0x6e, 0x65,
-	0x63, 0x74, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x63, 0x6f, 0x6e, 0x6e,
-	0x65, 0x63, 0x74, 0x65, 0x64, 0x22, 0x55, 0x0a, 0x10, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74,
-	0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x2b, 0x0a, 0x06, 0x73, 0x74, 0x61,
-	0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x67, 0x61, 0x74, 0x65,
-	0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06,
-	0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x18,
-	0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x42, 0x2a, 0x5a, 0x28,
-	0x67, 0x61, 0x74, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x72, 0x2f, 0x67, 0x61,
-	0x74, 0x65, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x77, 0x65, 0x62, 0x73,
-	0x65, 0x72, 0x76, 0x65, 0x72, 0x61, 0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+var file_server_web_internal_api_webserverapi_proto_rawDesc = []byte{
+	0x0a, 0x2a, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x77, 0x65, 0x62, 0x2f, 0x69, 0x6e, 0x74,
+	0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x77, 0x65, 0x62, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x61, 0x70, 0x69, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0f, 0x67, 0x61,
+	0x74, 0x65, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x77, 0x65, 0x62, 0x1a, 0x1a, 0x73,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x70, 0x62, 0x2f, 0x73, 0x65, 0x72,
+	0x76, 0x65, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x2c, 0x0a, 0x0c, 0x49, 0x4f, 0x43,
+	0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x1c, 0x0a, 0x09, 0x63, 0x6f, 0x6e,
+	0x6e, 0x65, 0x63, 0x74, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x63, 0x6f,
+	0x6e, 0x6e, 0x65, 0x63, 0x74, 0x65, 0x64, 0x22, 0x55, 0x0a, 0x10, 0x43, 0x6f, 0x6e, 0x6e, 0x65,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x2b, 0x0a, 0x06, 0x73,
+	0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x13, 0x2e, 0x67, 0x61,
+	0x74, 0x65, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2e, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x69, 0x6e, 0x70, 0x75,
+	0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x69, 0x6e, 0x70, 0x75, 0x74, 0x42, 0x2c,
+	0x5a, 0x2a, 0x67, 0x61, 0x74, 0x65, 0x2e, 0x63, 0x6f, 0x6d, 0x70, 0x75, 0x74, 0x65, 0x72, 0x2f,
+	0x67, 0x61, 0x74, 0x65, 0x2f, 0x73, 0x65, 0x72, 0x76, 0x65, 0x72, 0x2f, 0x77, 0x65, 0x62, 0x2f,
+	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x61, 0x70, 0x69, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
-	file_internal_webserverapi_webserverapi_proto_rawDescOnce sync.Once
-	file_internal_webserverapi_webserverapi_proto_rawDescData = file_internal_webserverapi_webserverapi_proto_rawDesc
+	file_server_web_internal_api_webserverapi_proto_rawDescOnce sync.Once
+	file_server_web_internal_api_webserverapi_proto_rawDescData = file_server_web_internal_api_webserverapi_proto_rawDesc
 )
 
-func file_internal_webserverapi_webserverapi_proto_rawDescGZIP() []byte {
-	file_internal_webserverapi_webserverapi_proto_rawDescOnce.Do(func() {
-		file_internal_webserverapi_webserverapi_proto_rawDescData = protoimpl.X.CompressGZIP(file_internal_webserverapi_webserverapi_proto_rawDescData)
+func file_server_web_internal_api_webserverapi_proto_rawDescGZIP() []byte {
+	file_server_web_internal_api_webserverapi_proto_rawDescOnce.Do(func() {
+		file_server_web_internal_api_webserverapi_proto_rawDescData = protoimpl.X.CompressGZIP(file_server_web_internal_api_webserverapi_proto_rawDescData)
 	})
-	return file_internal_webserverapi_webserverapi_proto_rawDescData
+	return file_server_web_internal_api_webserverapi_proto_rawDescData
 }
 
-var file_internal_webserverapi_webserverapi_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_internal_webserverapi_webserverapi_proto_goTypes = []interface{}{
+var file_server_web_internal_api_webserverapi_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_server_web_internal_api_webserverapi_proto_goTypes = []interface{}{
 	(*IOConnection)(nil),     // 0: gate.server.web.IOConnection
 	(*ConnectionStatus)(nil), // 1: gate.server.web.ConnectionStatus
 	(*pb.Status)(nil),        // 2: gate.server.Status
 }
-var file_internal_webserverapi_webserverapi_proto_depIdxs = []int32{
+var file_server_web_internal_api_webserverapi_proto_depIdxs = []int32{
 	2, // 0: gate.server.web.ConnectionStatus.status:type_name -> gate.server.Status
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
@@ -181,13 +182,13 @@ var file_internal_webserverapi_webserverapi_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_internal_webserverapi_webserverapi_proto_init() }
-func file_internal_webserverapi_webserverapi_proto_init() {
-	if File_internal_webserverapi_webserverapi_proto != nil {
+func init() { file_server_web_internal_api_webserverapi_proto_init() }
+func file_server_web_internal_api_webserverapi_proto_init() {
+	if File_server_web_internal_api_webserverapi_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_internal_webserverapi_webserverapi_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_server_web_internal_api_webserverapi_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*IOConnection); i {
 			case 0:
 				return &v.state
@@ -199,7 +200,7 @@ func file_internal_webserverapi_webserverapi_proto_init() {
 				return nil
 			}
 		}
-		file_internal_webserverapi_webserverapi_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file_server_web_internal_api_webserverapi_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ConnectionStatus); i {
 			case 0:
 				return &v.state
@@ -216,18 +217,18 @@ func file_internal_webserverapi_webserverapi_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_internal_webserverapi_webserverapi_proto_rawDesc,
+			RawDescriptor: file_server_web_internal_api_webserverapi_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_internal_webserverapi_webserverapi_proto_goTypes,
-		DependencyIndexes: file_internal_webserverapi_webserverapi_proto_depIdxs,
-		MessageInfos:      file_internal_webserverapi_webserverapi_proto_msgTypes,
+		GoTypes:           file_server_web_internal_api_webserverapi_proto_goTypes,
+		DependencyIndexes: file_server_web_internal_api_webserverapi_proto_depIdxs,
+		MessageInfos:      file_server_web_internal_api_webserverapi_proto_msgTypes,
 	}.Build()
-	File_internal_webserverapi_webserverapi_proto = out.File
-	file_internal_webserverapi_webserverapi_proto_rawDesc = nil
-	file_internal_webserverapi_webserverapi_proto_goTypes = nil
-	file_internal_webserverapi_webserverapi_proto_depIdxs = nil
+	File_server_web_internal_api_webserverapi_proto = out.File
+	file_server_web_internal_api_webserverapi_proto_rawDesc = nil
+	file_server_web_internal_api_webserverapi_proto_goTypes = nil
+	file_server_web_internal_api_webserverapi_proto_depIdxs = nil
 }

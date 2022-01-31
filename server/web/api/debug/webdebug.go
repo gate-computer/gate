@@ -11,8 +11,8 @@ package debug
 import (
 	"io"
 
-	"gate.computer/gate/internal/protojson"
 	server "gate.computer/gate/server/api"
+	"gate.computer/gate/server/web/internal/protojson"
 )
 
 // Request content for api.ActionDebug.  It can be serialized using

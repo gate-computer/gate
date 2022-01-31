@@ -15,13 +15,13 @@ import (
 	"strconv"
 	"strings"
 
-	"gate.computer/gate/internal/monitor"
 	"gate.computer/gate/internal/principal"
-	"gate.computer/gate/internal/protojson"
-	internalapi "gate.computer/gate/internal/webserverapi"
 	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/internal/monitor"
 	"gate.computer/gate/server/web/api"
+	internalapi "gate.computer/gate/server/web/internal/api"
+	"gate.computer/gate/server/web/internal/protojson"
 	"github.com/gorilla/websocket"
 )
 

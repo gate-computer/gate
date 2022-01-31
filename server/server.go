@@ -13,7 +13,6 @@ import (
 
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/error/resourcelimit"
-	"gate.computer/gate/internal/monitor"
 	"gate.computer/gate/internal/principal"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/scope"
@@ -22,6 +21,7 @@ import (
 	"gate.computer/gate/server/internal"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/notfound"
+	"gate.computer/gate/server/internal/monitor"
 	"gate.computer/wag/object/stack"
 	"import.name/pan"
 )

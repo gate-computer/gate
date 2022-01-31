@@ -11,9 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gate.computer/gate/internal/protojson"
-	internalapi "gate.computer/gate/internal/webserverapi"
 	server "gate.computer/gate/server/api"
+	internalapi "gate.computer/gate/server/web/internal/api"
+	"gate.computer/gate/server/web/internal/protojson"
 	"github.com/gorilla/websocket"
 )
 
