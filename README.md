@@ -96,7 +96,7 @@ of continually running programs.
 ## Work in progress
 
   - [x] Linux x86-64 host support
-  - [x] Android host support
+  - [x] Android host support ([#33](https://github.com/gate-computer/gate/issues/33))
   - [x] Support for WebAssembly version 1
   - [x] Planned security measures have been implemented
   - [x] HTTP server for running programs
@@ -108,14 +108,15 @@ of continually running programs.
   - [x] Snapshot
   - [x] Restore
   - [x] Mechanism for implementing external services in language agnostic way (gRPC)
-  - [ ] Programs can discover and communicate with their peers on a server
-  - [ ] Full ARM64 host support
-  - [ ] [milestone/1](https://github.com/gate-computer/gate/milestone/1)
-  - [ ] Clone programs locally or remotely (with or without snapshotting)
-  - [ ] [milestone/2](https://github.com/gate-computer/gate/milestone/2)
+  - [x] Full ARM64 host support
+  - [ ] Programs can discover and communicate with their peers on a server ([#23](https://github.com/gate-computer/gate/issues/23))
+  - [ ] [Milestone 1](https://github.com/gate-computer/gate/milestone/1)
+  - [ ] Clone programs locally or remotely, with or without snapshotting ([#9](https://github.com/gate-computer/gate/issues/9))
+  - [ ] More services ([#11](https://github.com/gate-computer/gate/issues/11))
+  - [ ] [Milestone 2](https://github.com/gate-computer/gate/milestone/2)
   - [ ] Useful resource control policies need more thought (cgroup configuration etc.)
   - [ ] Stable APIs
-  - [ ] Additional security measures (such as a SELinux profile)
+  - [ ] Additional security measures ([#24](https://github.com/gate-computer/gate/issues/24), [#25](https://github.com/gate-computer/gate/issues/25))
   - [ ] Non-Linux host support
 
 User program support:
