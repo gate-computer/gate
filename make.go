@@ -265,7 +265,7 @@ func protoTask(O, PROTOC, GO string) Task {
 		deps = Globber(
 			"internal/manifest/*.proto",
 			"internal/webserverapi/*.proto",
-			"server/api/*.proto",
+			"server/api/pb/*.proto",
 			"server/event/pb/*.proto",
 			"service/grpc/api/*.proto",
 		)
@@ -303,8 +303,8 @@ func protoTask(O, PROTOC, GO string) Task {
 
 	addProto("internal/manifest/manifest.proto", "")
 	addProto("internal/webserverapi/webserverapi.proto", "")
-	addProto("server/api/meta.proto", "")
-	addProto("server/api/server.proto", "")
+	addProto("server/api/pb/meta.proto", "")
+	addProto("server/api/pb/server.proto", "")
 	addProto("server/event/pb/event.proto", "")
 	addProto("service/grpc/api/service.proto", "")
 	addProto("service/grpc/api/service.proto", "-grpc")

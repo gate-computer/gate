@@ -7,7 +7,15 @@ package api
 import (
 	"crypto"
 	"encoding/hex"
+
+	"gate.computer/gate/server/api/pb"
 )
+
+type Sortable interface {
+	Len() int
+	Swap(i, j int)
+	Less(i, j int) bool
+}
 
 const (
 	KnownModuleSource = "sha256"
@@ -18,34 +26,49 @@ func EncodeKnownModule(hashSum []byte) string {
 	return hex.EncodeToString(hashSum)
 }
 
-func (x *Modules) Len() int           { return len(x.Modules) }
-func (x *Modules) Swap(i, j int)      { x.Modules[i], x.Modules[j] = x.Modules[j], x.Modules[i] }
-func (x *Modules) Less(i, j int) bool { return x.Modules[i].Id < x.Modules[j].Id }
+type ModuleInfo = pb.ModuleInfo
+type Modules = pb.Modules
+
+func SortableModules(x *Modules) Sortable {
+	return sortableModules{x.Modules}
+}
+
+type sortableModules struct {
+	a []*ModuleInfo
+}
+
+func (x sortableModules) Len() int           { return len(x.a) }
+func (x sortableModules) Swap(i, j int)      { x.a[i], x.a[j] = x.a[j], x.a[i] }
+func (x sortableModules) Less(i, j int) bool { return x.a[i].Id < x.a[j].Id }
 
 const (
-	StateRunning    = State_RUNNING
-	StateSuspended  = State_SUSPENDED
-	StateHalted     = State_HALTED
-	StateTerminated = State_TERMINATED
-	StateKilled     = State_KILLED
+	StateRunning    = pb.State_RUNNING
+	StateSuspended  = pb.State_SUSPENDED
+	StateHalted     = pb.State_HALTED
+	StateTerminated = pb.State_TERMINATED
+	StateKilled     = pb.State_KILLED
 )
 
 const (
-	CauseNormal                        = Cause_NORMAL
-	CauseUnreachable                   = Cause_UNREACHABLE
-	CauseCallStackExhausted            = Cause_CALL_STACK_EXHAUSTED
-	CauseMemoryAccessOutOfBounds       = Cause_MEMORY_ACCESS_OUT_OF_BOUNDS
-	CauseIndirectCallIndexOutOfBounds  = Cause_INDIRECT_CALL_INDEX_OUT_OF_BOUNDS
-	CauseIndirectCallSignatureMismatch = Cause_INDIRECT_CALL_SIGNATURE_MISMATCH
-	CauseIntegerDivideByZero           = Cause_INTEGER_DIVIDE_BY_ZERO
-	CauseIntegerOverflow               = Cause_INTEGER_OVERFLOW
-	CauseBreakpoint                    = Cause_BREAKPOINT
-	CauseABIDeficiency                 = Cause_ABI_DEFICIENCY
-	CauseABIViolation                  = Cause_ABI_VIOLATION
-	CauseInternal                      = Cause_INTERNAL
+	CauseNormal                        = pb.Cause_NORMAL
+	CauseUnreachable                   = pb.Cause_UNREACHABLE
+	CauseCallStackExhausted            = pb.Cause_CALL_STACK_EXHAUSTED
+	CauseMemoryAccessOutOfBounds       = pb.Cause_MEMORY_ACCESS_OUT_OF_BOUNDS
+	CauseIndirectCallIndexOutOfBounds  = pb.Cause_INDIRECT_CALL_INDEX_OUT_OF_BOUNDS
+	CauseIndirectCallSignatureMismatch = pb.Cause_INDIRECT_CALL_SIGNATURE_MISMATCH
+	CauseIntegerDivideByZero           = pb.Cause_INTEGER_DIVIDE_BY_ZERO
+	CauseIntegerOverflow               = pb.Cause_INTEGER_OVERFLOW
+	CauseBreakpoint                    = pb.Cause_BREAKPOINT
+	CauseABIDeficiency                 = pb.Cause_ABI_DEFICIENCY
+	CauseABIViolation                  = pb.Cause_ABI_VIOLATION
+	CauseInternal                      = pb.Cause_INTERNAL
 )
 
-func (s *Status) Clone() *Status {
+type State = pb.State
+type Cause = pb.Cause
+type Status = pb.Status
+
+func CloneStatus(s *Status) *Status {
 	if s == nil {
 		return nil
 	}
@@ -57,16 +80,27 @@ func (s *Status) Clone() *Status {
 	}
 }
 
-func (x *Instances) Len() int           { return len(x.Instances) }
-func (x *Instances) Swap(i, j int)      { x.Instances[i], x.Instances[j] = x.Instances[j], x.Instances[i] }
-func (x *Instances) Less(i, j int) bool { return x.Instances[i].Instance < x.Instances[j].Instance }
+type InstanceInfo = pb.InstanceInfo
+type Instances = pb.Instances
+
+func SortableInstances(x *Instances) Sortable {
+	return sortableInstances{x.Instances}
+}
+
+type sortableInstances struct {
+	a []*InstanceInfo
+}
+
+func (x sortableInstances) Len() int           { return len(x.a) }
+func (x sortableInstances) Swap(i, j int)      { x.a[i], x.a[j] = x.a[j], x.a[i] }
+func (x sortableInstances) Less(i, j int) bool { return x.a[i].Instance < x.a[j].Instance }
 
 const (
-	DebugOpConfigGet        = DebugOp_CONFIG_GET
-	DebugOpConfigSet        = DebugOp_CONFIG_SET
-	DebugOpConfigUnion      = DebugOp_CONFIG_UNION
-	DebugOpConfigComplement = DebugOp_CONFIG_COMPLEMENT
-	DebugOpReadGlobals      = DebugOp_READ_GLOBALS
-	DebugOpReadMemory       = DebugOp_READ_MEMORY
-	DebugOpReadStack        = DebugOp_READ_STACK
+	DebugOpConfigGet        = pb.DebugOp_CONFIG_GET
+	DebugOpConfigSet        = pb.DebugOp_CONFIG_SET
+	DebugOpConfigUnion      = pb.DebugOp_CONFIG_UNION
+	DebugOpConfigComplement = pb.DebugOp_CONFIG_COMPLEMENT
+	DebugOpReadGlobals      = pb.DebugOp_READ_GLOBALS
+	DebugOpReadMemory       = pb.DebugOp_READ_MEMORY
+	DebugOpReadStack        = pb.DebugOp_READ_STACK
 )

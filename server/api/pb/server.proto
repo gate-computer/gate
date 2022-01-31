@@ -4,9 +4,9 @@
 
 syntax = "proto3";
 
-package gate.server.api;
+package gate.server;
 
-option go_package = "gate.computer/gate/server/api";
+option go_package = "gate.computer/gate/server/api/pb";
 
 message Features {
   repeated string scope = 1;

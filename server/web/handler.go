@@ -818,7 +818,7 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 		return
 	}
 
-	sort.Sort(infos)
+	sort.Sort(server.SortableModules(infos))
 	content := protojson.MustMarshal(infos)
 	w.Header().Set(api.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(api.HeaderContentType, contentTypeJSON)
@@ -1224,7 +1224,7 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 		return
 	}
 
-	sort.Sort(instances)
+	sort.Sort(server.SortableInstances(instances))
 	content := protojson.MustMarshal(instances)
 	w.Header().Set(api.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(api.HeaderContentType, contentTypeJSON)

@@ -517,7 +517,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 func listModules(ctx context.Context, s api.Server) []string {
 	refs, err := s.Modules(ctx)
 	check(err)
-	sort.Sort(refs)
+	sort.Sort(api.SortableModules(refs))
 	ids := make([]string, 0, len(refs.Modules))
 	for _, ref := range refs.Modules {
 		ids = append(ids, ref.Id)
@@ -649,7 +649,7 @@ func doLaunch(
 func listInstances(ctx context.Context, s api.Server) []string {
 	instances, err := s.Instances(ctx)
 	check(err)
-	sort.Sort(instances)
+	sort.Sort(api.SortableInstances(instances))
 	ids := make([]string, 0, len(instances.Instances))
 	for _, i := range instances.Instances {
 		ids = append(ids, i.Instance)

@@ -32,7 +32,7 @@ func NewRootClient(cc grpc.ClientConnInterface) RootClient {
 
 func (c *rootClient) Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error) {
 	out := new(InitResponse)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Root/Init", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gate.service.Root/Init", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func _Root_Init_Handler(srv interface{}, ctx context.Context, dec func(interface
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Root/Init",
+		FullMethod: "/gate.service.Root/Init",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RootServer).Init(ctx, req.(*InitRequest))
@@ -86,7 +86,7 @@ func _Root_Init_Handler(srv interface{}, ctx context.Context, dec func(interface
 }
 
 var _Root_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "gate.service.grpc.api.Root",
+	ServiceName: "gate.service.Root",
 	HandlerType: (*RootServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -120,7 +120,7 @@ func NewInstanceClient(cc grpc.ClientConnInterface) InstanceClient {
 
 func (c *instanceClient) Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error) {
 	out := new(CreateResponse)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Instance/Create", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gate.service.Instance/Create", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (c *instanceClient) Create(ctx context.Context, in *CreateRequest, opts ...
 }
 
 func (c *instanceClient) Receive(ctx context.Context, in *ReceiveRequest, opts ...grpc.CallOption) (Instance_ReceiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_Instance_serviceDesc.Streams[0], "/gate.service.grpc.api.Instance/Receive", opts...)
+	stream, err := c.cc.NewStream(ctx, &_Instance_serviceDesc.Streams[0], "/gate.service.Instance/Receive", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (x *instanceReceiveClient) Recv() (*wrappers.BytesValue, error) {
 
 func (c *instanceClient) Handle(ctx context.Context, in *HandleRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Instance/Handle", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gate.service.Instance/Handle", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (c *instanceClient) Handle(ctx context.Context, in *HandleRequest, opts ...
 
 func (c *instanceClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Instance/Shutdown", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gate.service.Instance/Shutdown", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (c *instanceClient) Shutdown(ctx context.Context, in *ShutdownRequest, opts
 
 func (c *instanceClient) Suspend(ctx context.Context, in *SuspendRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
 	out := new(empty.Empty)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Instance/Suspend", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gate.service.Instance/Suspend", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func (c *instanceClient) Suspend(ctx context.Context, in *SuspendRequest, opts .
 
 func (c *instanceClient) Snapshot(ctx context.Context, in *SnapshotRequest, opts ...grpc.CallOption) (*wrappers.BytesValue, error) {
 	out := new(wrappers.BytesValue)
-	err := c.cc.Invoke(ctx, "/gate.service.grpc.api.Instance/Snapshot", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/gate.service.Instance/Snapshot", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +253,7 @@ func _Instance_Create_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Instance/Create",
+		FullMethod: "/gate.service.Instance/Create",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstanceServer).Create(ctx, req.(*CreateRequest))
@@ -292,7 +292,7 @@ func _Instance_Handle_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Instance/Handle",
+		FullMethod: "/gate.service.Instance/Handle",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstanceServer).Handle(ctx, req.(*HandleRequest))
@@ -310,7 +310,7 @@ func _Instance_Shutdown_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Instance/Shutdown",
+		FullMethod: "/gate.service.Instance/Shutdown",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstanceServer).Shutdown(ctx, req.(*ShutdownRequest))
@@ -328,7 +328,7 @@ func _Instance_Suspend_Handler(srv interface{}, ctx context.Context, dec func(in
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Instance/Suspend",
+		FullMethod: "/gate.service.Instance/Suspend",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstanceServer).Suspend(ctx, req.(*SuspendRequest))
@@ -346,7 +346,7 @@ func _Instance_Snapshot_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/gate.service.grpc.api.Instance/Snapshot",
+		FullMethod: "/gate.service.Instance/Snapshot",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(InstanceServer).Snapshot(ctx, req.(*SnapshotRequest))
@@ -355,7 +355,7 @@ func _Instance_Snapshot_Handler(srv interface{}, ctx context.Context, dec func(i
 }
 
 var _Instance_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "gate.service.grpc.api.Instance",
+	ServiceName: "gate.service.Instance",
 	HandlerType: (*InstanceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"gate.computer/gate/internal/principal"
+	"gate.computer/gate/server/api/pb"
 )
 
 type contextKey int
@@ -18,6 +19,10 @@ const (
 	contextKeyAddr
 	contextKeyOp
 )
+
+type Iface = pb.Iface
+type Op = pb.Op
+type Meta = pb.Meta
 
 func ContextWithMeta(ctx context.Context, m *Meta) (context.Context, error) {
 	if m.Iface != 0 {

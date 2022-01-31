@@ -4,30 +4,34 @@
 
 package api
 
+import (
+	"gate.computer/gate/server/api/pb"
+)
+
 // Server operation types.  Returned by ContextOp(context.Context) function.
 const (
-	OpModuleList       = Op_MODULE_LIST
-	OpModuleInfo       = Op_MODULE_INFO
-	OpModuleDownload   = Op_MODULE_DOWNLOAD
-	OpModuleUpload     = Op_MODULE_UPLOAD
-	OpModuleSource     = Op_MODULE_SOURCE
-	OpModulePin        = Op_MODULE_PIN
-	OpModuleUnpin      = Op_MODULE_UNPIN
-	OpCallExtant       = Op_CALL_EXTANT
-	OpCallUpload       = Op_CALL_UPLOAD
-	OpCallSource       = Op_CALL_SOURCE
-	OpLaunchExtant     = Op_LAUNCH_EXTANT
-	OpLaunchUpload     = Op_LAUNCH_UPLOAD
-	OpLaunchSource     = Op_LAUNCH_SOURCE
-	OpInstanceList     = Op_INSTANCE_LIST
-	OpInstanceInfo     = Op_INSTANCE_INFO
-	OpInstanceConnect  = Op_INSTANCE_CONNECT
-	OpInstanceWait     = Op_INSTANCE_WAIT
-	OpInstanceKill     = Op_INSTANCE_KILL
-	OpInstanceSuspend  = Op_INSTANCE_SUSPEND
-	OpInstanceResume   = Op_INSTANCE_RESUME
-	OpInstanceSnapshot = Op_INSTANCE_SNAPSHOT
-	OpInstanceDelete   = Op_INSTANCE_DELETE
-	OpInstanceUpdate   = Op_INSTANCE_UPDATE
-	OpInstanceDebug    = Op_INSTANCE_DEBUG
+	OpModuleList       = pb.Op_MODULE_LIST
+	OpModuleInfo       = pb.Op_MODULE_INFO
+	OpModuleDownload   = pb.Op_MODULE_DOWNLOAD
+	OpModuleUpload     = pb.Op_MODULE_UPLOAD
+	OpModuleSource     = pb.Op_MODULE_SOURCE
+	OpModulePin        = pb.Op_MODULE_PIN
+	OpModuleUnpin      = pb.Op_MODULE_UNPIN
+	OpCallExtant       = pb.Op_CALL_EXTANT
+	OpCallUpload       = pb.Op_CALL_UPLOAD
+	OpCallSource       = pb.Op_CALL_SOURCE
+	OpLaunchExtant     = pb.Op_LAUNCH_EXTANT
+	OpLaunchUpload     = pb.Op_LAUNCH_UPLOAD
+	OpLaunchSource     = pb.Op_LAUNCH_SOURCE
+	OpInstanceList     = pb.Op_INSTANCE_LIST
+	OpInstanceInfo     = pb.Op_INSTANCE_INFO
+	OpInstanceConnect  = pb.Op_INSTANCE_CONNECT
+	OpInstanceWait     = pb.Op_INSTANCE_WAIT
+	OpInstanceKill     = pb.Op_INSTANCE_KILL
+	OpInstanceSuspend  = pb.Op_INSTANCE_SUSPEND
+	OpInstanceResume   = pb.Op_INSTANCE_RESUME
+	OpInstanceSnapshot = pb.Op_INSTANCE_SNAPSHOT
+	OpInstanceDelete   = pb.Op_INSTANCE_DELETE
+	OpInstanceUpdate   = pb.Op_INSTANCE_UPDATE
+	OpInstanceDebug    = pb.Op_INSTANCE_DEBUG
 )

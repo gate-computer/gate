@@ -205,7 +205,7 @@ func (inst *Instance) Status(ctx context.Context) *api.Status {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	return inst.status.Clone()
+	return api.CloneStatus(inst.status)
 }
 
 // info may return nil.
@@ -220,7 +220,7 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 	return &api.InstanceInfo{
 		Instance:  inst.id,
 		Module:    module,
-		Status:    inst.status.Clone(),
+		Status:    api.CloneStatus(inst.status),
 		Transient: inst.transient,
 		Debugging: inst.image.DebugInfo() || len(inst.image.Breakpoints()) > 0,
 		Tags:      inst.tags,
@@ -230,7 +230,7 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 func (inst *Instance) Wait(ctx context.Context) (status *api.Status) {
 	var stopped <-chan struct{}
 	inst.mu.Guard(func(lock instanceLock) {
-		status = inst.status.Clone()
+		status = api.CloneStatus(inst.status)
 		stopped = inst.stopped
 	})
 
@@ -439,7 +439,7 @@ func (inst *Instance) drive(ctx context.Context, prog *program, function string,
 
 		config.monitorInstance(ctx, event.TypeInstanceStop, &event.Instance{
 			Instance: inst.id,
-			Status:   inst.status.Clone(),
+			Status:   api.CloneStatus(inst.status),
 		})
 
 		if inst.transient {
@@ -666,7 +666,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 
 	res := &api.DebugResponse{
 		Module: path.Join(api.KnownModuleSource, prog.id),
-		Status: inst.status.Clone(),
+		Status: api.CloneStatus(inst.status),
 		Config: &api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),
 			Breakpoints: inst.image.Breakpoints(),
@@ -704,7 +704,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.D
 
 	res = &api.DebugResponse{
 		Module: path.Join(api.KnownModuleSource, rebuild.origProgID),
-		Status: inst.status.Clone(),
+		Status: api.CloneStatus(inst.status),
 		Config: &api.DebugConfig{
 			DebugInfo:   inst.image.DebugInfo(),
 			Breakpoints: inst.image.Breakpoints(),

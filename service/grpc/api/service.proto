@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package gate.service.grpc.api;
+package gate.service;
 
 import "google/protobuf/empty.proto";
 import "google/protobuf/wrappers.proto";

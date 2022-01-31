@@ -7,7 +7,19 @@ package api
 import (
 	"context"
 	"io"
+
+	"gate.computer/gate/server/api/pb"
 )
+
+type DebugConfig = pb.DebugConfig
+type DebugRequest = pb.DebugRequest
+type DebugResponse = pb.DebugResponse
+type Features = pb.Features
+type InstanceUpdate = pb.InstanceUpdate
+type InvokeOptions = pb.InvokeOptions
+type LaunchOptions = pb.LaunchOptions
+type ModuleOptions = pb.ModuleOptions
+type ResumeOptions = pb.ResumeOptions
 
 type Server interface {
 	DebugInstance(context.Context, string, *DebugRequest) (*DebugResponse, error)
