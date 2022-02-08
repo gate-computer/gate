@@ -75,7 +75,7 @@ const (
 
 // Thunk may be called once to acquire a packet.  It returns an empty buffer if
 // no packet was available after all.
-type Thunk func() Buf
+type Thunk func() (Buf, error)
 
 // Align packet length up to a multiple of packet alignment.
 func Align(length int) int {
@@ -195,7 +195,7 @@ func (b Buf) Cut(headerSize, prefixLen int) (prefix, unused Buf) {
 
 // Thunk returns a function which returns the packet.
 func (b Buf) Thunk() Thunk {
-	return func() Buf { return b }
+	return func() (Buf, error) { return b, nil }
 }
 
 // FlowBuf holds a flow packet of at least FlowHeaderSize bytes.

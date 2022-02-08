@@ -31,7 +31,9 @@ func TestWriteStreamEnd(t *testing.T) {
 
 	for {
 		thunk := <-send
-		if p := thunk(); len(p) > 0 {
+		if p, err := thunk(); err != nil {
+			t.Fatal(err)
+		} else if len(p) > 0 {
 			p := packet.MustBeFlow(p)
 			if p.Code() != testService.Code {
 				t.Fatal(p)

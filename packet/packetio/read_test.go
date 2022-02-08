@@ -31,7 +31,9 @@ func TestReadStreamEnd(t *testing.T) {
 	}
 
 	thunk := <-send
-	if p := thunk(); len(p) > 0 {
+	if p, err := thunk(); err != nil {
+		t.Error(err)
+	} else if len(p) > 0 {
 		p := packet.MustBeData(p)
 		if p.Code() != testService.Code || p.ID() != testStreamID {
 			t.Error(p)

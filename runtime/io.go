@@ -162,8 +162,12 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 
 		select {
 		case thunk := <-doMessageInput:
-			if p := thunk(); len(p) > 0 {
+			p, err := thunk()
+			if len(p) > 0 {
 				pendingEvs = append(pendingEvs, initMessagePacket(p))
+			}
+			if err != nil {
+				return err
 			}
 
 		case read, ok := <-doSubjectInput:

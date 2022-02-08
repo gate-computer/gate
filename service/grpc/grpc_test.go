@@ -175,7 +175,9 @@ func testService(ctx context.Context, t *testing.T, s *grpcservice.Service, rest
 		defer close(done)
 		for i := 0; i < count; {
 			thunk := <-recv
-			if p := thunk(); len(p) > 0 {
+			if p, err := thunk(); err != nil {
+				t.Error(err)
+			} else if len(p) > 0 {
 				if x := p.Domain(); x != packet.DomainCall {
 					t.Error(x)
 				}
