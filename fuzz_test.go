@@ -17,7 +17,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
 	werrors "gate.computer/wag/errors"
 )
@@ -43,7 +42,7 @@ func FuzzServerUploadModule(f *testing.F) {
 	f.Fuzz(func(t *testing.T, wasm []byte) {
 		wasmHash := hex.EncodeToString(api.KnownModuleHash.New().Sum(wasm))
 
-		upload := &server.ModuleUpload{
+		upload := &api.ModuleUpload{
 			Stream: ioutil.NopCloser(bytes.NewReader(wasm)),
 			Length: int64(len(wasm)),
 			Hash:   wasmHash,
