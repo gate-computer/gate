@@ -112,9 +112,9 @@ of continually running programs.
   - [ ] Programs can discover and communicate with their peers on a server ([#23](https://github.com/gate-computer/gate/issues/23))
   - [ ] [Milestone 1](https://github.com/gate-computer/gate/milestone/1)
   - [ ] Clone programs locally or remotely, with or without snapshotting ([#9](https://github.com/gate-computer/gate/issues/9))
-  - [ ] More services ([#11](https://github.com/gate-computer/gate/issues/11))
   - [ ] [Milestone 2](https://github.com/gate-computer/gate/milestone/2)
   - [ ] Useful resource control policies need more thought (cgroup configuration etc.)
+  - [ ] More services
   - [ ] Stable APIs
   - [ ] Additional security measures ([#24](https://github.com/gate-computer/gate/issues/24), [#25](https://github.com/gate-computer/gate/issues/25))
   - [ ] Non-Linux host support

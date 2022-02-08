@@ -41,6 +41,7 @@ import (
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
+	"gate.computer/gate/service/random"
 	"gate.computer/wag/compile"
 	"github.com/coreos/go-systemd/v22/daemon"
 	dbus "github.com/godbus/dbus/v5"
@@ -137,6 +138,9 @@ func mainResult() int {
 	originConfig.BufSize = origin.DefaultBufSize
 	c.Service["origin"] = &originConfig
 
+	randomConfig := random.DefaultConfig
+	c.Service["random"] = &randomConfig
+
 	c.HTTP.Static = nil
 
 	flag.Usage = func() {
@@ -147,7 +151,7 @@ func mainResult() int {
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
 	var err error
-	c.Principal.Services, err = services.Init(context.Background(), &originConfig, defaultlog.StandardLogger{})
+	c.Principal.Services, err = services.Init(context.Background(), &originConfig, &randomConfig, defaultlog.StandardLogger{})
 	check(err)
 
 	exec, err := gateruntime.NewExecutor(&c.Runtime.Config)

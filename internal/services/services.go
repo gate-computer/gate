@@ -13,11 +13,12 @@ import (
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/identity"
 	"gate.computer/gate/service/origin"
+	"gate.computer/gate/service/random"
 )
 
 type Logger = grpc.Logger
 
-func Init(ctx context.Context, originConfig *origin.Config, stderr Logger) (
+func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random.Config, stderr Logger) (
 	func(context.Context) server.InstanceServices,
 	error,
 ) {
@@ -36,6 +37,7 @@ func Init(ctx context.Context, originConfig *origin.Config, stderr Logger) (
 
 		r := registry.Clone()
 		r.MustRegister(o)
+		r.MustRegister(random.New(randomConfig))
 		r.MustRegister(catalog.New(r))
 		r.MustRegister(identity.Service)
 

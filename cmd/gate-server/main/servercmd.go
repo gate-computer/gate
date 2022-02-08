@@ -38,6 +38,7 @@ import (
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
+	"gate.computer/gate/service/random"
 	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -167,6 +168,9 @@ func Main() {
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig
 
+	randomConfig := random.DefaultConfig
+	c.Service["random"] = &randomConfig
+
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
@@ -220,7 +224,7 @@ func Main() {
 	ctx := router.Context(context.Background(), mux)
 
 	var err error
-	c.Principal.Services, err = services.Init(ctx, &originConfig, errLog)
+	c.Principal.Services, err = services.Init(ctx, &originConfig, &randomConfig, errLog)
 	if err != nil {
 		critLog.Fatal(err)
 	}
