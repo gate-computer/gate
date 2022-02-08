@@ -110,7 +110,9 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 				// Shutdown in progress.  Wait goroutine has already exited.
 				// Stash the item back for Shutdown method.
 				inst.waiting <- sentAt
-				return nil, nil
+
+				// Match extraneous call.  It will be buffered by runtime.
+				return packet.MakeCall(inst.code, 0), nil
 			}
 
 			// Refresh state.
