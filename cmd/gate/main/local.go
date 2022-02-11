@@ -98,6 +98,25 @@ var localCommands = map[string]command{
 				fmt.Fprintln(terminalOr(os.Stderr), statusString(status))
 			}
 
+			if detainInstance {
+				switch status.State {
+				case api.StateHalted, api.StateTerminated:
+				default:
+					reqBuf, err := proto.Marshal(&api.DebugRequest{Op: api.DebugOpReadStack})
+					check(err)
+
+					call := daemonCall("DebugInstance", instanceID, reqBuf)
+					var resBuf []byte
+					check(call.Store(&resBuf))
+
+					res := new(api.DebugResponse)
+					check(proto.Unmarshal(resBuf, res))
+
+					fmt.Fprintln(terminalOr(os.Stderr), "Call stack:")
+					debugBacktrace(res)
+				}
+			}
+
 			code := 1
 			switch status.State {
 			case api.StateSuspended:
