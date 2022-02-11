@@ -70,7 +70,6 @@ func debug(call debugCallFunc) {
 			if req.Config == nil {
 				req.Config = new(api.DebugConfig)
 			}
-			req.Config.DebugInfo = true
 
 		case "delete":
 			req.Op = api.DebugOpConfigComplement
@@ -118,7 +117,6 @@ func debug(call debugCallFunc) {
 		}
 		fmt.Printf("Module:         %s\n", modkey)
 		fmt.Printf("Status:         %s\n", statusString(res.Status))
-		fmt.Printf("Debug info:     %v\n", res.Config.DebugInfo)
 		fmt.Printf("Breakpoints:")
 		sep := "    "
 		for _, offset := range res.Config.Breakpoints {

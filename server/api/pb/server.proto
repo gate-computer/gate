@@ -119,6 +119,5 @@ message DebugResponse {
 }
 
 message DebugConfig {
-  bool debug_info = 1; // TODO: specify semantics
-  repeated uint64 breakpoints = 2;
+  repeated uint64 breakpoints = 1;
 }

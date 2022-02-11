@@ -1,8 +1,8 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 gate.computer/ga v0.0.0-20220211160221-c07eec41cf23 h1:CfIbFLe0uplwnjzOXpypHZ0evelICYXqtHp9fb3h2zM=
 gate.computer/ga v0.0.0-20220211160221-c07eec41cf23/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
-gate.computer/wag v0.34.1-0.20220128053659-447e2abe34ef h1:BEfnynZuWbiYULHRUkBhMx4llmypjnX+7BfGvwplt9I=
-gate.computer/wag v0.34.1-0.20220128053659-447e2abe34ef/go.mod h1:4bffai0D26h7u/5+sxk8freBJiggSrzjnEe8gm/Ml9M=
+gate.computer/wag v0.34.1-0.20220211030210-0b6d8607ea21 h1:hzrZsvHTrGVcDsDGRZnv71vzispwn1OBUs9M8zao3Lg=
+gate.computer/wag v0.34.1-0.20220211030210-0b6d8607ea21/go.mod h1:KYW+5Dtn+iIsNM+wkqA4yndyafUJFt98qbdTPnwfdv8=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chzyer/logex v1.1.10 h1:Swpa1K6QvQznwJRcfTfQJmTE72DqScAa40E+fbHEXEE=
@@ -49,6 +49,8 @@ github.com/gorilla/handlers v1.2.1 h1:IW0s9JrxTVsutEp77dGDlBv+PZnW6HKse4TrzJ0b+8
 github.com/gorilla/handlers v1.2.1/go.mod h1:Qkdc/uu4tH4g6mTK6auzZ766c4CA0Ng8+o/OAirnOIQ=
 github.com/gorilla/websocket v1.4.1 h1:q7AeDBpnBk8AogcD4DSag/Ukw/KV+YhzLj2bP5HvKCM=
 github.com/gorilla/websocket v1.4.1/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/ianlancetaylor/demangle v0.0.0-20220203202831-b7f99f1dbc96 h1:OOB/uHFWWV4Ek3aRFgRaVwSw5IuQw4csg4mKF6fCbN4=
+github.com/ianlancetaylor/demangle v0.0.0-20220203202831-b7f99f1dbc96/go.mod h1:aYm2/VgdVmcIU8iMfdMvDMsRAQjcfZSKFby6HOFvi/w=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51/go.mod h1:CzGEWj7cYgsdH8dAjBGEr58BoE7ScuLd+fwFZ44+/x8=
 github.com/knightsc/gapstone v0.0.0-20180903222833-a85919f1441b h1:xwe9zfTv52lPIpJ8vaH8UblQZcMbb5zVv3yo2ZIMM+U=

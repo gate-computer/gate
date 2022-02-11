@@ -222,7 +222,6 @@ func (inst *Instance) StartAddr() uint32     { return inst.man.StartFunc.GetAddr
 func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryFunc.GetAddr() }
 func (inst *Instance) Flags() snapshot.Flags { return snapshot.Flags(inst.man.Snapshot.GetFlags()) }
 func (inst *Instance) Final() bool           { return inst.Flags().Final() }
-func (inst *Instance) DebugInfo() bool       { return inst.Flags().DebugInfo() }
 func (inst *Instance) Trap() trap.ID         { return trap.ID(inst.man.Snapshot.GetTrap()) }
 func (inst *Instance) Result() int32         { return inst.man.Snapshot.GetResult() }
 func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.GetMonotonicTime() }
@@ -234,20 +233,6 @@ func (inst *Instance) Breakpoints() []uint64 {
 
 func (inst *Instance) SetFinal() {
 	flags := uint64(inst.Flags() | snapshot.FlagFinal)
-	if inst.man.Snapshot.GetFlags() == flags {
-		return
-	}
-	manifest.InflateSnapshot(&inst.man.Snapshot).Flags = flags
-	inst.manDirty = true
-}
-
-func (inst *Instance) SetDebugInfo(enabled bool) {
-	var flags uint64
-	if enabled {
-		flags = uint64(inst.Flags() | snapshot.FlagDebugInfo)
-	} else {
-		flags = uint64(inst.Flags() &^ snapshot.FlagDebugInfo)
-	}
 	if inst.man.Snapshot.GetFlags() == flags {
 		return
 	}

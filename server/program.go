@@ -24,8 +24,6 @@ import (
 	"gate.computer/gate/snapshot"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
-	"gate.computer/wag/object/debug"
-	"gate.computer/wag/object/stack"
 )
 
 var errModuleSizeMismatch = &badmodule.Dual{
@@ -190,23 +188,8 @@ func (prog *program) _ensureStorage() {
 	prog.stored = true
 }
 
-func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, debugInfo bool, breakpoints []uint64) (*image.Program, stack.TextMap) {
-	var (
-		mapper  compile.ObjectMapper
-		callMap *object.CallMap
-		textMap stack.TextMap
-	)
-	if debugInfo {
-		m := new(debug.TrapMap)
-		mapper = m
-		callMap = &m.CallMap
-		textMap = m
-	} else {
-		m := new(object.CallMap)
-		mapper = m
-		callMap = m
-		textMap = m
-	}
+func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, breakpoints []uint64) (*image.Program, *object.CallMap) {
+	callMap := new(object.CallMap)
 
 	b, err := build.New(storage, 0, progPolicy.MaxTextSize, callMap, false)
 	_check(err)
@@ -228,7 +211,7 @@ func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, cont
 	}
 	b.Snapshot.Breakpoints = append([]uint64(nil), breakpoints...)
 
-	_check(compile.LoadCodeSection(b.CodeConfig(mapper), reader, b.Module, abi.Library()))
+	_check(compile.LoadCodeSection(b.CodeConfig(callMap), reader, b.Module, abi.Library()))
 
 	_check(b.VerifyBreakpoints())
 
@@ -245,5 +228,5 @@ func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, cont
 	progImage, err := b.FinishProgramImage()
 	_check(err)
 
-	return progImage, textMap
+	return progImage, callMap
 }

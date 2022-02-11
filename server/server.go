@@ -22,7 +22,7 @@ import (
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/server/internal/monitor"
-	"gate.computer/wag/object/stack"
+	"gate.computer/wag/object"
 	"import.name/pan"
 )
 
@@ -1009,18 +1009,18 @@ func (s *Server) DebugInstance(ctx context.Context, instance string, req *api.De
 	if rebuild != nil {
 		var (
 			progImage *image.Program
-			textMap   stack.TextMap
+			callMap   *object.CallMap
 			ok        bool
 		)
 
-		progImage, textMap = _rebuildProgramImage(s.ImageStorage, &policy.prog, defaultProg.image.NewModuleReader(), config.DebugInfo, config.Breakpoints)
+		progImage, callMap = _rebuildProgramImage(s.ImageStorage, &policy.prog, defaultProg.image.NewModuleReader(), config.Breakpoints)
 		defer func() {
 			if progImage != nil {
 				progImage.Close()
 			}
 		}()
 
-		res, ok = rebuild.apply(progImage, config, textMap)
+		res, ok = rebuild.apply(progImage, config, callMap)
 		if !ok {
 			_check(failrequest.Error(event.FailInstanceDebugState, "conflict"))
 		}

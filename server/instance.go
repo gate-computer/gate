@@ -25,7 +25,7 @@ import (
 	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
-	"gate.computer/wag/object/stack"
+	"gate.computer/wag/object"
 	"github.com/google/uuid"
 )
 
@@ -91,7 +91,7 @@ type Instance struct {
 	transient    bool
 	status       *api.Status
 	altProgImage *image.Program
-	altTextMap   stack.TextMap
+	altCallMap   *object.CallMap
 	image        *image.Instance
 	buffers      snapshot.Buffers
 	process      *runtime.Process
@@ -222,7 +222,7 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 		Module:    module,
 		Status:    api.CloneStatus(inst.status),
 		Transient: inst.transient,
-		Debugging: inst.image.DebugInfo() || len(inst.image.Breakpoints()) > 0,
+		Debugging: len(inst.image.Breakpoints()) > 0,
 		Tags:      inst.tags,
 	}
 }
@@ -553,7 +553,6 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		_check(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
-	info := inst.image.DebugInfo()
 	breaks := inst.image.Breakpoints()
 	modified := false
 	var data []byte
@@ -565,11 +564,6 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 
 		if len(config.Breakpoints) > manifest.MaxBreakpoints {
 			_check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
-		}
-
-		info = config.DebugInfo
-		if info != inst.image.DebugInfo() {
-			modified = true
 		}
 
 		breaks = manifest.SortDedupUint64(config.Breakpoints)
@@ -584,13 +578,6 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 			_check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
-		if config.DebugInfo {
-			if !info {
-				modified = true
-			}
-			info = true
-		}
-
 		breaks = append([]uint64{}, breaks...)
 		for _, x := range config.Breakpoints {
 			if i := searchUint64(breaks, x); i == len(breaks) || breaks[i] != x {
@@ -601,13 +588,6 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 
 	case api.DebugOpConfigComplement:
 		config := req.GetConfig()
-
-		if config.DebugInfo {
-			if info {
-				modified = true
-			}
-			info = false
-		}
 
 		breaks = append([]uint64{}, breaks...)
 		for _, x := range config.Breakpoints {
@@ -624,12 +604,12 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		panic("TODO")
 
 	case api.DebugOpReadStack:
-		textMap := inst.altTextMap
+		callMap := inst.altCallMap
 		if inst.altProgImage == nil {
-			textMap = &prog.image.Map
+			callMap = &prog.image.Map
 		}
 
-		data, err = inst.image.ExportStack(textMap)
+		data, err = inst.image.ExportStack(callMap)
 		_check(err)
 	}
 
@@ -639,26 +619,23 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 	)
 
 	if modified {
-		if info == prog.image.DebugInfo() && reflect.DeepEqual(breaks, prog.image.Breakpoints()) {
+		if reflect.DeepEqual(breaks, prog.image.Breakpoints()) {
 			if inst.altProgImage != nil {
 				inst.altProgImage.Close()
 				inst.altProgImage = nil
-				inst.altTextMap = nil
+				inst.altCallMap = nil
 			}
 
-			inst.image.SetDebugInfo(info)
 			inst.image.SetBreakpoints(prog.image.Breakpoints())
 		} else {
 			rebuild = &instanceRebuild{
 				inst:       inst,
 				origProgID: prog.id,
 				oldConfig: &api.DebugConfig{
-					DebugInfo:   inst.image.DebugInfo(),
 					Breakpoints: inst.image.Breakpoints(),
 				},
 			}
 			newConfig = &api.DebugConfig{
-				DebugInfo:   info,
 				Breakpoints: breaks,
 			}
 		}
@@ -668,7 +645,6 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		Module: path.Join(api.KnownModuleSource, prog.id),
 		Status: api.CloneStatus(inst.status),
 		Config: &api.DebugConfig{
-			DebugInfo:   inst.image.DebugInfo(),
 			Breakpoints: inst.image.Breakpoints(),
 		},
 		Data: data,
@@ -683,21 +659,20 @@ type instanceRebuild struct {
 	oldConfig  *api.DebugConfig
 }
 
-func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.DebugConfig, textMap stack.TextMap) (res *api.DebugResponse, ok bool) {
+func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.DebugConfig, callMap *object.CallMap) (res *api.DebugResponse, ok bool) {
 	inst := rebuild.inst
 	oldConfig := rebuild.oldConfig
 
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	if inst.image.DebugInfo() == oldConfig.DebugInfo && reflect.DeepEqual(inst.image.Breakpoints(), oldConfig.Breakpoints) {
+	if reflect.DeepEqual(inst.image.Breakpoints(), oldConfig.Breakpoints) {
 		if inst.altProgImage != nil {
 			inst.altProgImage.Close()
 		}
 		inst.altProgImage = progImage
-		inst.altTextMap = textMap
+		inst.altCallMap = callMap
 
-		inst.image.SetDebugInfo(newConfig.DebugInfo)
 		inst.image.SetBreakpoints(newConfig.Breakpoints)
 		ok = true
 	}
@@ -706,7 +681,6 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.D
 		Module: path.Join(api.KnownModuleSource, rebuild.origProgID),
 		Status: api.CloneStatus(inst.status),
 		Config: &api.DebugConfig{
-			DebugInfo:   inst.image.DebugInfo(),
 			Breakpoints: inst.image.Breakpoints(),
 		},
 	}
