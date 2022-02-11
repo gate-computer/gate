@@ -453,22 +453,22 @@ clock_gettime_found:
 
 	// Start runtime.
 
-	auto start = GATE_SANDBOX ? &rt_start : &rt_start_no_sandbox;
-
 	auto pagemask = uintptr_t(info.page_size) - 1;
 	auto loader_stack_size = align_size(GATE_LOADER_STACK_SIZE, info.page_size);
 	auto loader_stack = ((loader_stack_end + pagemask) & ~pagemask) - loader_stack_size;
 
-	enter(stack_ptr,
-	      stack_limit,
-	      rt_func_addr(rt, start),
-	      loader_stack,
-	      loader_stack_size,
-	      rt_func_addr(rt, &signal_handler),
-	      rt_func_addr(rt, &signal_restorer),
-	      uintptr_t(text_ptr) + info.init_routine);
+	stack_ptr -= 9;
+	stack_ptr[0] = stack_limit;
+	stack_ptr[1] = loader_stack;
+	stack_ptr[2] = loader_stack_size;
+	stack_ptr[3] = rt_func_addr(rt, &signal_handler);
+	stack_ptr[4] = SIGACTION_FLAGS;
+	stack_ptr[5] = rt_func_addr(rt, &signal_restorer);
+	stack_ptr[6] = 0; // Signal mask.
+	stack_ptr[7] = uintptr_t(text_ptr) + info.init_routine;
+	stack_ptr[8] = rt_func_addr(rt, GATE_SANDBOX ? &rt_start : &rt_start_no_sandbox);
 
-	__builtin_unreachable();
+	enter_rt(stack_ptr, stack_limit);
 }
 
 template <typename T>

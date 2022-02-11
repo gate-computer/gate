@@ -143,7 +143,156 @@ const (
 	statusTrapMemoryAccessOutOfBounds = 100 + int(trap.MemoryAccessOutOfBounds)
 )
 
-func generateRT(arch ga.Arch, sys *ga.System, variant string) string {
+func generateStarts(arch ga.Arch) string {
+	a := ga.NewAssembly(arch, ga.Linux())
+
+	generateStart(a)
+	generateStartRT(a)
+
+	return a.String()
+}
+
+func generateStart(a *ga.Assembly) {
+	var (
+		status = param0.As("status")
+		vdso   = param1.As("vdso")
+		iter   = param2.As("iter")
+	)
+
+	a.FunctionWithoutPrologue("_start")
+	a.Reset()
+	{
+		a.MoveReg(iter, a.StackPtr)
+
+		a.MoveImm(status, runtimeerrors.ERR_LOAD_ARG_ENV)
+
+		a.Load(scratch0, iter, 0) // argc
+		a.JumpIfImm(ga.NE, scratch0, 1, ".exit")
+		a.AddImm(iter, iter, 8+8+8) // Skip argc, argv[0] and null terminator.
+
+		a.Load(scratch0, iter, 0) // envp
+		a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
+		a.AddImm(iter, iter, 8)
+
+		a.MoveImm(status, runtimeerrors.ERR_LOAD_NO_VDSO)
+
+		a.Label(".vdso_loop")
+		a.Load(scratch0, iter, 0) // Type of auxv entry.
+		a.AddImm(iter, iter, 8)
+		a.JumpIfImm(ga.EQ, scratch0, AT_SYSINFO_EHDR, ".vdso_found")
+		a.JumpIfImm(ga.EQ, scratch0, 0, ".exit")
+		a.AddImm(iter, iter, 8) // Skip value.
+		a.Jump(".vdso_loop")
+
+		a.Label(".vdso_found")
+		a.Load(vdso, iter, 0)
+		a.AddImm(iter, iter, 8)
+
+		// iter should be within the highest stack page (determined
+		// experimentally using runtime/loader/inspect/stack.cpp).
+
+		a.MoveImm(param0, 0)    // argc
+		a.MoveReg(param1, vdso) // argv
+		a.MoveReg(param2, iter) // envp
+		a.Call("main")
+		a.Reset(result)
+
+		a.MoveReg(status, result)
+
+		a.Label(".exit")
+		a.Reset(status)
+		{
+			a.Syscall(linux.SYS_EXIT_GROUP)
+			a.Unreachable()
+		}
+	}
+}
+
+func configureRTRegs(sys *ga.System) {
+	sys.StackPtr.ARM64 = ga.X29
+	sys.SysParams[0].Use = "param0"
+	sys.SysParams[1].Use = "param1"
+	sys.SysParams[2].Use = "param2"
+	sys.SysResult.Use = "result"
+	sys.LibParams[0].Use = "param0"
+	sys.LibParams[1].Use = "param1"
+	sys.LibParams[2].Use = "param2"
+	sys.LibResult.Use = "result"
+}
+
+func resetRT(a *ga.Assembly, regs ...ga.Reg) {
+	common := []ga.Reg{
+		wagTextBase,
+		wagStackLimit,
+	}
+	a.Reset(append(common, regs...)...)
+}
+
+func generateStartRT(a *ga.Assembly) {
+	configureRTRegs(a.System)
+
+	a.FunctionWithoutPrologue("start_rt")
+	resetRT(a)
+	// [StackPtr + 0] = stack limit
+	// [StackPtr + 8] = loader stack
+	// [StackPtr + 16] = loader stack size
+	// [StackPtr + 24] = sigaction sa_handler
+	// [StackPtr + 32] = sigaction sa_flags
+	// [StackPtr + 40] = sigaction sa_restorer
+	// [StackPtr + 48] = sigaction sa_mask
+	// [StackPtr + 56] = init routine
+	// [StackPtr + 64] = start routine
+	{
+		// Set up stack limit.
+		a.Pop(wagStackLimit)
+		a.ShiftImm(ga.RightLogical, wagStackLimit, a.Specify(wagStackLimitShift))
+
+		// Unmap old stack (ASLR breaks this).
+		a.Pop(param0) // addr
+		a.Pop(param1) // length
+		a.Syscall(linux.SYS_MUNMAP)
+		a.MoveReg(scratch0, result)
+
+		a.MoveImm(param0, runtimeerrors.ERR_LOAD_MUNMAP_STACK)
+		a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
+
+		// Set signal handlers.
+		for _, sig := range []unix.Signal{unix.SIGSEGV, unix.SIGXCPU} {
+			a.MoveImm(param0, int(sig))   // signum
+			a.MoveReg(param1, a.StackPtr) // act
+			a.MoveImm(param2, 0)          // oldact
+			a.MoveImm(sysparam3, 8)       // mask size
+			a.Syscall(linux.SYS_RT_SIGACTION)
+			a.MoveReg(scratch0, result)
+
+			a.MoveImm(param0, runtimeerrors.ERR_LOAD_SIGACTION)
+			a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
+		}
+		a.AddImm(a.StackPtr, a.StackPtr, 8*4) // Skip struct sigaction.
+
+		// Pass init routine in text base register (it will be adjusted when
+		// init routine is called).
+		a.Pop(wagTextBase)
+
+		// Execute rt_start or rt_start_no_sandbox.
+		a.Pop(scratch0)
+		if a.Arch == ga.ARM64 {
+			a.MoveReg(scratch1, wagTextBase)
+			a.AndImm(scratch1, 0xff) // Relative init routine address.
+
+			a.MoveImm(ga.Reg{ARM64: ga.XLR}, 0) // No link when not resuming.
+			a.JumpIfImm(ga.NE, scratch1, abi.TextAddrResume, ".no_resume")
+			a.Pop(ga.Reg{ARM64: ga.XLR}) // Resume location.
+			a.Label(".no_resume")
+		}
+		a.JumpRegRoutine(scratch0, ".trampoline")
+	}
+}
+
+func generateRT(arch ga.Arch, variant string) string {
+	sys := ga.Linux()
+	configureRTRegs(sys)
+
 	a := ga.NewAssembly(arch, sys)
 
 	funcRTStart(a)
@@ -169,17 +318,9 @@ func generateRT(arch ga.Arch, sys *ga.System, variant string) string {
 	return a.String()
 }
 
-func reset(a *ga.Assembly, regs ...ga.Reg) {
-	common := []ga.Reg{
-		wagTextBase,
-		wagStackLimit,
-	}
-	a.Reset(append(common, regs...)...)
-}
-
 func funcRTStart(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("rt_start")
-	reset(a)
+	resetRT(a)
 
 	// Unmap loader .text and .rodata sections.
 	{
@@ -241,7 +382,7 @@ func funcRTStart(a *ga.Assembly) {
 	{
 		a.MoveReg(scratch0, wagTextBase)     // Init routine address.
 		a.AndImm(wagTextBase, maskOut(0xff)) // Actual text base.
-		a.Jump("trampoline")
+		a.Jump(".trampoline")
 	}
 }
 
@@ -253,7 +394,7 @@ func funcSignalHandler(a *ga.Assembly) {
 	)
 
 	a.FunctionWithoutPrologue("signal_handler")
-	reset(a, signum, siginfo, ucontext)
+	resetRT(a, signum, siginfo, ucontext)
 	{
 		a.JumpIfImm(ga.EQ, signum, int(unix.SIGSEGV), ".signal_segv")
 
@@ -276,7 +417,7 @@ func funcSignalHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".signal_segv")
-	reset(a, signum, siginfo, ucontext)
+	resetRT(a, signum, siginfo, ucontext)
 	{
 		a.Load(local1, ucontext, a.Specify(ucontextInsnPtr))
 
@@ -313,7 +454,7 @@ func funcSignalHandler(a *ga.Assembly) {
 
 func funcSignalRestorer(a *ga.Assembly) {
 	a.FunctionWithoutPrologue("signal_restorer")
-	reset(a)
+	resetRT(a)
 	{
 		a.Syscall(linux.SYS_RT_SIGRETURN)
 		a.Unreachable()
@@ -322,7 +463,7 @@ func funcSignalRestorer(a *ga.Assembly) {
 
 func funcTrapHandler(a *ga.Assembly) {
 	a.Function("trap_handler")
-	reset(a, wagTrap, result)
+	resetRT(a, wagTrap, result)
 	{
 		a.JumpIfImm(ga.EQ, wagTrap, int(trap.Exit), ".trap_exit")
 		a.JumpIfImm(ga.EQ, wagTrap, int(trap.CallStackExhausted), ".trap_call_stack_exhausted")
@@ -332,7 +473,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_exit")
-	reset(a, wagTrap, result)
+	resetRT(a, wagTrap, result)
 	{
 		macroStackVars(a, local0, scratch0)
 		a.Store(local0, 32, result)   // result[0]
@@ -346,7 +487,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_call_stack_exhausted")
-	reset(a)
+	resetRT(a)
 	{
 		a.JumpIfBitSet(wagStackLimit, 0, ".trap_suspended")
 
@@ -355,7 +496,7 @@ func funcTrapHandler(a *ga.Assembly) {
 	}
 
 	a.Label(".trap_suspended")
-	reset(a)
+	resetRT(a)
 	{
 		a.MoveImm(param0, statusTrapSuspended)
 		a.Jump(".exit")
@@ -364,7 +505,7 @@ func funcTrapHandler(a *ga.Assembly) {
 
 func funcCurrentMemory(a *ga.Assembly) {
 	a.Function("current_memory")
-	reset(a)
+	resetRT(a)
 	{
 		macroCurrentMemoryPages(a, result, local0, scratch0)
 		a.Jump(".resume")
@@ -385,7 +526,7 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	)
 
 	a.Function("grow_memory")
-	reset(a, incrementPages)
+	resetRT(a, incrementPages)
 	{
 		macroCurrentMemoryPages(a, oldPages, stackVars, scratch0)
 
@@ -434,14 +575,14 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 	}
 
 	a.Label(".grow_memory_error")
-	reset(a)
+	resetRT(a)
 	{
 		a.MoveImm(param0, errorCode)
 		a.Jump(".exit")
 	}
 
 	a.Label(".out_of_memory")
-	reset(a)
+	resetRT(a)
 	{
 		a.MoveImm(result, -1)
 		a.Jump(".resume")
@@ -451,17 +592,17 @@ func funcGrowMemory(a *ga.Assembly, variant string) {
 func funcRTNop(a *ga.Assembly) {
 	a.Function("rt_nop")
 	a.Label(".resume_zero")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	{
 		a.MoveImm(result, 0)
 
 		a.Label(".resume")
-		reset(a, result)
+		resetRT(a, result)
 		{
 			macroClearRegs(a)
 			a.AddImm(scratch0, wagTextBase, abi.TextAddrResume)
 			a.FunctionEpilogue()
-			a.Jump("trampoline")
+			a.Jump(".trampoline")
 		}
 	}
 }
@@ -474,7 +615,7 @@ func funcRTPoll(a *ga.Assembly) {
 	)
 
 	a.Function("rt_poll")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	// [StackPtr + 32] = input events
 	// [StackPtr + 24] = output events
 	// [StackPtr + 16] = timeout nanoseconds
@@ -526,7 +667,7 @@ func funcRTPoll(a *ga.Assembly) {
 	}
 
 	a.Label(".poll_revents")
-	reset(a, input, output)
+	resetRT(a, input, output)
 	// input  = fds[0].events | (fds[0].revents << 16)
 	// output = fds[1].events | (fds[1].revents << 16)
 	{
@@ -555,7 +696,7 @@ func funcRTPoll(a *ga.Assembly) {
 
 func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, error int) {
 	a.Function(name)
-	reset(a)
+	resetRT(a)
 	// [StackPtr + 16] = buf offset
 	// [StackPtr + 8] = buf size
 	{
@@ -574,7 +715,7 @@ func funcIO(a *ga.Assembly, name string, nr ga.Syscall, fd int, expect ga.Cond, 
 
 func funcRTTime(a *ga.Assembly) {
 	a.Function("rt_time")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	// [StackPtr + 8] = clock id
 	{
 		a.Load4Bytes(param0, a.StackPtr, 8)
@@ -588,7 +729,7 @@ func funcRTTime(a *ga.Assembly) {
 
 func funcRTTimemask(a *ga.Assembly) {
 	a.Function("rt_timemask")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	{
 		a.Load(result, wagTextBase, -9*8) // time_mask
 		a.Jump(".resume")
@@ -602,7 +743,7 @@ func funcRTRandom(a *ga.Assembly) {
 	)
 
 	a.Function("rt_random")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	{
 		macroStackVars(a, stackVars, scratch0)
 		a.Load4Bytes(avail, stackVars, 16)
@@ -615,7 +756,7 @@ func funcRTRandom(a *ga.Assembly) {
 	}
 
 	a.Label(".no_random")
-	reset(a)
+	resetRT(a)
 	{
 		a.MoveImm(result, -1)
 		a.Jump(".resume")
@@ -629,14 +770,14 @@ func funcRTTrap(a *ga.Assembly) {
 	)
 
 	a.Function("rt_trap")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	// [StackPtr + 8] = status code
 
 	a.Load4Bytes(status, a.StackPtr, 8)
 	a.MoveReg(a.StackPtr, wagRestartSP) // Restart caller on resume.
 
 	a.Label(".exit")
-	reset(a, status)
+	resetRT(a, status)
 	{
 		a.Push(status)
 
@@ -650,7 +791,7 @@ func funcRTTrap(a *ga.Assembly) {
 		a.Pop(status)
 
 		a.Label(".exit_time")
-		reset(a, status, monotonicTime)
+		resetRT(a, status, monotonicTime)
 		{
 			var (
 				stackVars = local0.As("stackVars")
@@ -665,7 +806,7 @@ func funcRTTrap(a *ga.Assembly) {
 			a.Store(stackVars, 8, monotonicTime) // monotonic_time_snapshot
 
 			a.Label("sys_exit")
-			reset(a, status)
+			resetRT(a, status)
 			{
 				a.Syscall(linux.SYS_EXIT_GROUP)
 				a.Unreachable()
@@ -681,7 +822,7 @@ func funcRTDebug(a *ga.Assembly) {
 	)
 
 	a.Function("rt_debug")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	// StackPtr + 16 = buf offset
 	// StackPtr + 8 = buf size
 	{
@@ -702,7 +843,7 @@ func funcRTDebug(a *ga.Assembly) {
 	}
 
 	a.Label(".debugged_some")
-	reset(a, ptr, remain, result)
+	resetRT(a, ptr, remain, result)
 	{
 		a.SubtractReg(remain, result)
 		a.JumpIfImm(ga.EQ, remain, 0, ".resume_zero")
@@ -714,7 +855,7 @@ func funcRTDebug(a *ga.Assembly) {
 
 func funcRTRead8(a *ga.Assembly) {
 	a.Function("rt_read8")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	{
 		a.SubtractImm(a.StackPtr, 8) // Allocate buffer.
 
@@ -741,7 +882,7 @@ func funcRTRead8(a *ga.Assembly) {
 
 func funcRTWrite8(a *ga.Assembly) {
 	a.Function("rt_write8")
-	reset(a, wagRestartSP)
+	resetRT(a, wagRestartSP)
 	// [StackPtr + 8] = data
 	{
 		a.Label(".write8_retry")
@@ -762,7 +903,7 @@ func funcRTWrite8(a *ga.Assembly) {
 
 func routineOutOfBounds(a *ga.Assembly) {
 	a.Label(".out_of_bounds")
-	reset(a)
+	resetRT(a)
 	{
 		a.MoveImm(param0, statusTrapMemoryAccessOutOfBounds)
 		a.Jump(".exit")
@@ -770,8 +911,8 @@ func routineOutOfBounds(a *ga.Assembly) {
 }
 
 func routineTrampoline(a *ga.Assembly) {
-	a.FunctionWithoutPrologue("trampoline")
-	reset(a, scratch0)
+	a.FunctionWithoutPrologue(".trampoline")
+	resetRT(a, scratch0)
 	// scratch0 = target address
 	{
 		a.JumpRegRoutine(scratch0, ".trampoline")
@@ -843,7 +984,7 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) ga.Reg {
 	}
 
 	a.Load(scratch0, wagTextBase, -11*8) // clock_gettime library function
-	a.Call("trampoline")
+	a.Call(".trampoline")
 	a.Set(result)
 
 	a.MoveReg(saveResult, result)
@@ -931,7 +1072,7 @@ func macroClearRegs(a *ga.Assembly) {
 		}
 	}
 
-	reset(a)
+	resetRT(a)
 }
 
 // macroClearAllRegs clobbers most things.
@@ -953,66 +1094,6 @@ func maskOut(n uint32) int {
 	return int(int32(^n))
 }
 
-func generateStart(arch ga.Arch, sys *ga.System) string {
-	a := ga.NewAssembly(arch, sys)
-
-	var (
-		status = param0.As("status")
-		vdso   = param1.As("vdso")
-		iter   = param2.As("iter")
-	)
-
-	a.FunctionWithoutPrologue("_start")
-	a.Reset()
-	{
-		a.MoveReg(iter, a.StackPtr)
-
-		a.MoveImm(status, runtimeerrors.ERR_LOAD_ARG_ENV)
-
-		a.Load(scratch0, iter, 0) // argc
-		a.JumpIfImm(ga.NE, scratch0, 1, ".exit")
-		a.AddImm(iter, iter, 8+8+8) // Skip argc, argv[0] and null terminator.
-
-		a.Load(scratch0, iter, 0) // envp
-		a.JumpIfImm(ga.NE, scratch0, 0, ".exit")
-		a.AddImm(iter, iter, 8)
-
-		a.MoveImm(status, runtimeerrors.ERR_LOAD_NO_VDSO)
-
-		a.Label(".vdso_loop")
-		a.Load(scratch0, iter, 0) // Type of auxv entry.
-		a.AddImm(iter, iter, 8)
-		a.JumpIfImm(ga.EQ, scratch0, AT_SYSINFO_EHDR, ".vdso_found")
-		a.JumpIfImm(ga.EQ, scratch0, 0, ".exit")
-		a.AddImm(iter, iter, 8) // Skip value.
-		a.Jump(".vdso_loop")
-
-		a.Label(".vdso_found")
-		a.Load(vdso, iter, 0)
-		a.AddImm(iter, iter, 8)
-
-		// iter should be within the highest stack page (determined
-		// experimentally using runtime/loader/inspect/stack.cpp).
-
-		a.MoveImm(param0, 0)    // argc
-		a.MoveReg(param1, vdso) // argv
-		a.MoveReg(param2, iter) // envp
-		a.Call("main")
-		a.Reset(result)
-
-		a.MoveReg(status, result)
-
-		a.Label(".exit")
-		a.Reset(status)
-		{
-			a.Syscall(linux.SYS_EXIT_GROUP)
-			a.Unreachable()
-		}
-	}
-
-	return a.String()
-}
-
 func main() {
 	var (
 		filename = os.Args[1]
@@ -1022,23 +1103,12 @@ func main() {
 
 	arch := ga.Archs[archname]
 
-	sys := ga.Linux()
-	sys.StackPtr.ARM64 = ga.X29
-	sys.SysParams[0].Use = "param0"
-	sys.SysParams[1].Use = "param1"
-	sys.SysParams[2].Use = "param2"
-	sys.SysResult.Use = "result"
-	sys.LibParams[0].Use = "param0"
-	sys.LibParams[1].Use = "param1"
-	sys.LibParams[2].Use = "param2"
-	sys.LibResult.Use = "result"
-
 	var output string
 	switch path.Base(filename) {
 	case "rt.gen.S":
-		output = generateRT(arch, sys, variant)
+		output = generateRT(arch, variant)
 	case "start.gen.S":
-		output = generateStart(arch, sys)
+		output = generateStarts(arch)
 	default:
 		fmt.Fprintln(os.Stderr, filename)
 		os.Exit(2)

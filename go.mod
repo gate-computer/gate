@@ -3,7 +3,7 @@ module gate.computer/gate
 go 1.16
 
 require (
-	gate.computer/ga v0.0.0-20220104231707-77c1148a7061
+	gate.computer/ga v0.0.0-20220211160221-c07eec41cf23
 	gate.computer/wag v0.34.1-0.20220128053659-447e2abe34ef
 	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/coreos/go-systemd/v22 v22.3.0

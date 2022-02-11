@@ -28,86 +28,12 @@ bool strcmp_clock_gettime(char const* name)
 	return true;
 }
 
-void enter(
-	void* stack_ptr,
-	uintptr_t stack_limit,
-	uint64_t start,
-	uintptr_t loader_stack,
-	size_t loader_stack_size,
-	uint64_t signal_handler,
-	uint64_t signal_restorer,
-	uintptr_t init_routine)
+NORETURN void enter_rt(void* stack_ptr, uintptr_t stack_limit)
 {
-	uintptr_t link_ptr = 0;
-	if ((uintptr_t(init_routine) & 0xff) == 0x20) { // Resume routine
-		link_ptr = *reinterpret_cast<uintptr_t*>(stack_ptr);
-		stack_ptr = reinterpret_cast<uintptr_t*>(stack_ptr) + 1;
-	}
-
-	register auto r0 asm("r0") = loader_stack;      // munmap addr
-	register auto r1 asm("r1") = loader_stack_size; // munmap length
-	register auto r4 asm("r4") = signal_handler;
-	register auto r5 asm("r5") = SIGACTION_FLAGS;
-	register auto r6 asm("r6") = signal_restorer;
-	register auto r9 asm("r9") = start;
-	register auto r27 asm("r27") = init_routine;
-	register auto r28 asm("r28") = stack_limit;
 	register auto r29 asm("r29") = stack_ptr;
-	register auto r30 asm("r30") = link_ptr;
+	register auto sp asm("sp") = stack_limit - 256; // Signal stack pointer.
 
-	// clang-format off
-
-	asm volatile(
-		// Replace stack.
-
-		"sub  sp, x28, #256                      \n" // Signal stack pointer
-		"lsr  x28, x28, #4                       \n" // Stack limit >> 4
-
-		// Unmap old stack (ASLR breaks this).
-
-		"mov  w8, " xstr(SYS_munmap) "           \n"
-		"svc  #0                                 \n"
-		"cmp  w0, #0                             \n"
-		"mov  w0, #" xstr(ERR_LOAD_MUNMAP_STACK) "\n"
-		"b.ne sys_exit                           \n"
-
-		// Build sigaction structure on rt function stack.
-
-		"mov  x1, sp                             \n" // sigaction act
-		"str  x4, [x1, #0]                       \n" // sa_handler
-		"str  x5, [x1, #8]                       \n" // sa_flags
-		"str  x6, [x1, #16]                      \n" // sa_restorer
-		"str  xzr, [x1, #24]                     \n" // sa_mask
-
-		"mov  x2, #0                             \n" // sigaction oldact
-		"mov  x3, #8                             \n" // sigaction mask size
-
-		// Segmentation fault signal handler.
-
-		"mov  w0, #" xstr(SIGSEGV) "             \n" // sigaction signum
-		"mov  w8, #" xstr(SYS_rt_sigaction) "    \n"
-		"svc  #0                                 \n"
-		"cmp  w0, #0                             \n"
-		"mov  w0, #" xstr(ERR_LOAD_SIGACTION) "  \n"
-		"b.ne sys_exit                           \n"
-
-		// Suspend signal handler.
-
-		"mov  w0, #" xstr(SIGXCPU) "             \n" // sigaction signum
-		"mov  w8, #" xstr(SYS_rt_sigaction) "    \n"
-		"svc  #0                                 \n"
-		"cmp  w0, #0                             \n"
-		"mov  w0, #" xstr(ERR_LOAD_SIGACTION) "  \n"
-		"b.ne sys_exit                           \n"
-
-		// Execute rt_start or rt_start_no_sandbox.
-
-		"b    trampoline                         \n"
-		:
-		: "r"(r0), "r"(r1), "r"(r4), "r"(r5), "r"(r6), "r"(r9), "r"(r27), "r"(r28), "r"(r29), "r"(r30));
-
-	// clang-format on
-
+	asm volatile("b start_rt" :: "r"(r29), "r"(sp));
 	__builtin_unreachable();
 }
 

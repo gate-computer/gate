@@ -25,80 +25,11 @@ bool strcmp_clock_gettime(char const* name)
 	return true;
 }
 
-void enter(
-	void* stack_ptr,
-	uintptr_t stack_limit,
-	uint64_t start,
-	uintptr_t loader_stack,
-	size_t loader_stack_size,
-	uint64_t signal_handler,
-	uint64_t signal_restorer,
-	uintptr_t init_routine)
+NORETURN void enter_rt(void* stack_ptr, uintptr_t stack_limit UNUSED)
 {
-	register auto rax asm("rax") = stack_ptr;
-	register auto rbx asm("rbx") = stack_limit;
-	register auto rbp asm("rbp") = start;
-	register auto rsi asm("rsi") = loader_stack_size; // munmap length
-	register auto rdi asm("rdi") = loader_stack;      // munmap addr
-	register auto r9 asm("r9") = signal_handler;
-	register auto r10 asm("r10") = signal_restorer;
-	register auto r13 asm("r13") = SIGACTION_FLAGS;
-	register auto r15 asm("r15") = init_routine;
+	register auto rsp asm("rsp") = stack_ptr;
 
-	// clang-format off
-
-	asm volatile(
-		// Replace stack.
-
-		"mov  %%rax, %%rsp                          \n"
-
-		// Unmap old stack (ASLR breaks this).
-
-		"mov  $" xstr(SYS_munmap) ", %%eax          \n"
-		"syscall                                    \n"
-		"mov  $" xstr(ERR_LOAD_MUNMAP_STACK) ", %%edi \n"
-		"test %%eax, %%eax                          \n"
-		"jne  sys_exit                              \n"
-
-		// Build sigaction structure on rt function stack.
-
-		"mov  %%rsp, %%rsi                          \n"
-		"sub  $32, %%rsi                            \n" // sigaction act
-		"mov  %%r9, 0(%%rsi)                        \n" // sa_handler
-		"mov  %%r13, 8(%%rsi)                       \n" // sa_flags
-		"mov  %%r10, 16(%%rsi)                      \n" // sa_restorer
-		"movq $0, 24(%%rsi)                         \n" // sa_mask
-
-		"xor  %%edx, %%edx                          \n" // sigaction oldact
-		"mov  $8, %%r10d                            \n" // sigaction mask size
-
-		// Segmentation fault signal handler.
-
-		"mov  $" xstr(SIGSEGV) ", %%edi             \n"
-		"mov  $" xstr(SYS_rt_sigaction) ", %%eax    \n"
-		"syscall                                    \n"
-		"mov  $" xstr(ERR_LOAD_SIGACTION) ", %%edi  \n"
-		"test %%eax, %%eax                          \n"
-		"jne  sys_exit                              \n"
-
-		// Suspend signal handler.
-
-		"mov  $" xstr(SIGXCPU) ", %%edi             \n"
-		"mov  $" xstr(SYS_rt_sigaction) ", %%eax    \n"
-		"syscall                                    \n"
-		"mov  $" xstr(ERR_LOAD_SIGACTION) ", %%edi  \n"
-		"test %%eax, %%eax                          \n"
-		"jne  sys_exit                              \n"
-
-		// Execute rt_start or rt_start_no_sandbox.
-
-		"mov  %%rbp, %%r9                           \n"
-		"jmp  trampoline                            \n"
-		:
-		: "r"(rax), "r"(rbx), "r"(rbp), "r"(rsi), "r"(rdi), "r"(r9), "r"(r10), "r"(r13), "r"(r15));
-
-	// clang-format on
-
+	asm volatile("jmp start_rt" :: "r"(rsp));
 	__builtin_unreachable();
 }
 
