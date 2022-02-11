@@ -38,16 +38,23 @@ func daemonCall(method string, args ...interface{}) *dbus.Call {
 	return daemon.Call(bus.DaemonIface+"."+method, 0, args...)
 }
 
-var detainInstance bool
+var (
+	persistInstance bool
+	debugMore       bool
+)
 
 func parseLocalCallFlags() {
 	registerRunFlags()
 	debug := flag.Bool("d", c.DebugLog == ShortcutDebugLog, "write debug log to stderr")
-	detain := flag.Bool("D", detainInstance, "detain instance after it stops")
+	flag.BoolVar(&persistInstance, "p", persistInstance, "keep instance after it stops")
+	flag.BoolVar(&debugMore, "D", debugMore, "write debug log, keep instance and dump stack")
 	flag.Parse()
-	if *debug {
+
+	if *debug || debugMore {
 		c.DebugLog = ShortcutDebugLog
-		detainInstance = *detain
+	}
+	if debugMore {
+		persistInstance = true
 	}
 }
 
@@ -78,11 +85,11 @@ var localCommands = map[string]command{
 				call       *dbus.Call
 			)
 			if !(strings.Contains(module, "/") || strings.Contains(module, ".")) {
-				call = daemonCall("Call", module, c.Function, c.InstanceTags, c.Scope, !detainInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
+				call = daemonCall("Call", module, c.Function, c.InstanceTags, c.Scope, !persistInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			} else {
 				moduleFile = openFile(module)
 				moduleFD := dbus.UnixFD(moduleFile.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.InstanceTags, c.Scope, !detainInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
+				call = daemonCall("CallFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.InstanceTags, c.Scope, !persistInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			}
 			closeFiles(suspend, r, w, debug, moduleFile)
 
@@ -92,13 +99,13 @@ var localCommands = map[string]command{
 			)
 			check(call.Store(&instanceID, &status.State, &status.Cause, &status.Result))
 
-			if detainInstance {
+			if persistInstance {
 				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
 			} else {
 				fmt.Fprintln(terminalOr(os.Stderr), statusString(status))
 			}
 
-			if detainInstance {
+			if debugMore {
 				switch status.State {
 				case api.StateHalted, api.StateTerminated:
 				default:
