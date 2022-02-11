@@ -7,7 +7,6 @@ package random
 import (
 	"context"
 	"crypto/rand"
-	"io"
 	"math"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 const (
 	serviceName     = "random"
 	serviceRevision = "0"
-	wordSize        = 8 // bytes
 )
 
 const DefaultBitsPerMinute = 16 * 8 * 60 // 16 bytes per second.
@@ -65,22 +63,26 @@ func (s *Service) CreateInstance(ctx context.Context, config service.InstanceCon
 type instance struct {
 	service.InstanceBase
 
-	code      packet.Code
-	interval  time.Duration
-	sendAfter time.Time // Stale if waiting is non-nil.
-	waiting   chan time.Time
+	code         packet.Code
+	byteInterval time.Duration
+	lastSent     time.Time // Unknown if waiting is non-nil.
+	waiting      chan time.Time
 }
 
 func newInstance(s Config, i service.InstanceConfig) *instance {
 	if s.BitsPerMinute > math.MaxInt32 {
 		s.BitsPerMinute = math.MaxInt32
 	}
-	durationPerWord := wordSize * 8 * float64(time.Minute) / float64(s.BitsPerMinute)
+
+	var (
+		durationPerByte = 8 * float64(time.Minute) / float64(s.BitsPerMinute)
+		byteInterval    = time.Duration(math.Ceil(durationPerByte))
+	)
 
 	return &instance{
-		code:      i.Code,
-		interval:  time.Duration(math.Ceil(durationPerWord)),
-		sendAfter: time.Now(),
+		code:         i.Code,
+		byteInterval: byteInterval,
+		lastSent:     time.Now(),
 	}
 }
 
@@ -92,7 +94,7 @@ func (inst *instance) restore(snapshot []byte) {
 
 func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
 	if inst.waiting != nil {
-		go inst.wait(ctx, inst.waiting, send, 0)
+		go inst.wait(ctx, inst.waiting, send, 0, 1)
 	}
 
 	return nil
@@ -115,8 +117,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 				return packet.MakeCall(inst.code, 0), nil
 			}
 
-			// Refresh state.
-			inst.sendAfter = sentAt.Add(inst.interval)
+			inst.lastSent = sentAt
 			inst.waiting = nil
 
 		default:
@@ -125,19 +126,31 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 		}
 	}
 
-	now := time.Now()
+	var count int
+	if c := p.Content(); len(c) > 0 {
+		count = int(c[0])
+	}
+	if count == 0 {
+		return packet.MakeCall(inst.code, 0), nil
+	}
 
-	if delay := inst.sendAfter.Sub(now); delay > 0 {
+	var (
+		interval = inst.byteInterval * time.Duration(count)
+		sendAt   = inst.lastSent.Add(interval)
+		now      = time.Now()
+	)
+
+	if delay := sendAt.Sub(now); delay > 0 {
 		inst.waiting = make(chan time.Time, 1)
-		go inst.wait(ctx, inst.waiting, send, delay)
+		go inst.wait(ctx, inst.waiting, send, delay, count)
 		return nil, nil
 	}
 
-	reply, err := inst.makeReply()
+	reply, err := inst.makeReply(count)
 	if err != nil {
 		return nil, err
 	}
-	inst.sendAfter = now.Add(inst.interval)
+	inst.lastSent = now
 	return reply, nil
 }
 
@@ -150,7 +163,7 @@ func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error
 	return nil, nil
 }
 
-func (inst *instance) wait(ctx context.Context, waited chan<- time.Time, send chan<- packet.Thunk, delay time.Duration) {
+func (inst *instance) wait(ctx context.Context, waited chan<- time.Time, send chan<- packet.Thunk, delay time.Duration, count int) {
 	var sentAt time.Time
 	defer func() {
 		waited <- sentAt
@@ -166,16 +179,20 @@ func (inst *instance) wait(ctx context.Context, waited chan<- time.Time, send ch
 		}
 	}
 
+	makeReply := func() (packet.Buf, error) {
+		return inst.makeReply(count)
+	}
+
 	select {
-	case send <- inst.makeReply:
+	case send <- makeReply:
 		sentAt = time.Now()
 	case <-ctx.Done():
 	}
 }
 
-func (inst *instance) makeReply() (packet.Buf, error) {
-	p := packet.MakeCall(inst.code, wordSize)
-	if _, err := io.ReadFull(rand.Reader, p.Content()); err != nil {
+func (inst *instance) makeReply(count int) (packet.Buf, error) {
+	p := packet.MakeCall(inst.code, count)
+	if _, err := rand.Read(p.Content()); err != nil {
 		return nil, err
 	}
 	return p, nil
