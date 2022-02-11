@@ -38,12 +38,16 @@ func daemonCall(method string, args ...interface{}) *dbus.Call {
 	return daemon.Call(bus.DaemonIface+"."+method, 0, args...)
 }
 
+var detainInstance bool
+
 func parseLocalCallFlags() {
 	registerRunFlags()
 	debug := flag.Bool("d", c.DebugLog == ShortcutDebugLog, "write debug log to stderr")
+	detain := flag.Bool("D", detainInstance, "detain instance after it stops")
 	flag.Parse()
 	if *debug {
 		c.DebugLog = ShortcutDebugLog
+		detainInstance = *detain
 	}
 }
 
@@ -74,11 +78,11 @@ var localCommands = map[string]command{
 				call       *dbus.Call
 			)
 			if !(strings.Contains(module, "/") || strings.Contains(module, ".")) {
-				call = daemonCall("Call", module, c.Function, c.InstanceTags, c.Scope, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
+				call = daemonCall("Call", module, c.Function, c.InstanceTags, c.Scope, !detainInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			} else {
 				moduleFile = openFile(module)
 				moduleFD := dbus.UnixFD(moduleFile.Fd())
-				call = daemonCall("CallFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.InstanceTags, c.Scope, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
+				call = daemonCall("CallFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.InstanceTags, c.Scope, !detainInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			}
 			closeFiles(suspend, r, w, debug, moduleFile)
 
@@ -88,23 +92,20 @@ var localCommands = map[string]command{
 			)
 			check(call.Store(&instanceID, &status.State, &status.Cause, &status.Result))
 
+			if detainInstance {
+				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
+			} else {
+				fmt.Fprintln(terminalOr(os.Stderr), statusString(status))
+			}
+
+			code := 1
 			switch status.State {
 			case api.StateSuspended:
-				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
-
-			case api.StateHalted:
-				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
-				os.Exit(int(status.Result))
-
-			case api.StateTerminated:
-				os.Exit(int(status.Result))
-
-			case api.StateKilled:
-				fatal(statusString(status))
-
-			default:
-				fatal(instanceID, statusString(status))
+				code = 0
+			case api.StateHalted, api.StateTerminated:
+				code = int(status.Result)
 			}
+			os.Exit(code)
 		},
 	},
 

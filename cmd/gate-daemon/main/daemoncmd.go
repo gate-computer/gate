@@ -296,6 +296,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 			function string,
 			instanceTags []string,
 			scope []string,
+			transient bool,
 			suspendFD dbus.UnixFD,
 			rFD dbus.UnixFD,
 			wFD dbus.UnixFD,
@@ -305,7 +306,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 			defer func() { err = asBusError(recover()) }()
 			launch := &api.LaunchOptions{
 				Function:  function,
-				Transient: true,
+				Transient: transient,
 				Tags:      instanceTags,
 			}
 			ctx = gatescope.Context(ctx, scope)
@@ -320,6 +321,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 			function string,
 			instanceTags []string,
 			scope []string,
+			transient bool,
 			suspendFD dbus.UnixFD,
 			rFD dbus.UnixFD,
 			wFD dbus.UnixFD,
@@ -331,7 +333,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 			moduleOpt := moduleOptions(modulePin, moduleTags)
 			launch := &api.LaunchOptions{
 				Function:  function,
-				Transient: true,
+				Transient: transient,
 				Tags:      instanceTags,
 			}
 			ctx = gatescope.Context(ctx, scope)
