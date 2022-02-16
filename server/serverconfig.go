@@ -38,6 +38,8 @@ func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) Instanc
 }
 
 type Inventory interface {
+	GetSourceModule(ctx context.Context, source string) (module string, err error)
+	AddModuleSource(ctx context.Context, module, source string) error
 }
 
 type Config struct {

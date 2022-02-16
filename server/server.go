@@ -253,6 +253,11 @@ func (s *Server) SourceModule(ctx context.Context, uri string, know *api.ModuleO
 	uri, err = source.CanonicalURI(uri)
 	_check(err)
 
+	if m, err := s.Inventory.GetSourceModule(ctx, uri); err == nil {
+		log.Printf("server: source %s module is known: %s", uri, m)
+		// TODO
+	}
+
 	stream, length, err := source.OpenURI(ctx, uri, policy.prog.MaxModuleSize)
 	_check(err)
 	if stream == nil {
@@ -268,7 +273,13 @@ func (s *Server) SourceModule(ctx context.Context, uri string, know *api.ModuleO
 	}
 	defer upload.Close()
 
-	return s._loadUnknownModule(ctx, policy, upload, know), nil
+	module = s._loadUnknownModule(ctx, policy, upload, know)
+
+	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
+		log.Println("server: inventory: error:", err) // TODO: error event
+	}
+
+	return
 }
 
 func (s *Server) _loadKnownModule(ctx context.Context, policy *progPolicy, upload *api.ModuleUpload, know *api.ModuleOptions) bool {
@@ -399,6 +410,11 @@ func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api
 	uri, err = source.CanonicalURI(uri)
 	_check(err)
 
+	if m, err := s.Inventory.GetSourceModule(ctx, uri); err == nil {
+		log.Printf("server: source %s module is known: %s", uri, m)
+		// TODO
+	}
+
 	stream, length, err := source.OpenURI(ctx, uri, policy.prog.MaxModuleSize)
 	_check(err)
 	if stream == nil {
@@ -415,6 +431,11 @@ func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api
 	defer upload.Close()
 
 	module, inst := s._loadModuleInstance(ctx, acc, policy, upload, know, launch)
+
+	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
+		log.Println("server: inventory: error:", err) // TODO: error event
+	}
+
 	return module, inst, nil
 }
 

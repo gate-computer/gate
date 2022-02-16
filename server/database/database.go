@@ -13,6 +13,8 @@ import (
 )
 
 type Inventory interface {
+	GetSourceModule(ctx context.Context, source string) (module string, err error)
+	AddModuleSource(ctx context.Context, module, source string) error
 }
 
 var ErrNonceReused = errors.New("nonce reused")
