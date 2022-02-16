@@ -44,7 +44,7 @@ func Library() compile.Library {
 }
 
 var library = func() compile.Library {
-	r := bytes.NewReader(libraryWASM[:])
+	r := compile.NewLoader(bytes.NewReader(libraryWASM[:]))
 
 	mod, err := compile.LoadInitialSections(nil, r)
 	if err != nil {

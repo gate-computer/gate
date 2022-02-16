@@ -217,8 +217,8 @@ func init() {
 	}
 }
 
-func prepareBuild(exec *executor, storage image.Storage, config compile.Config, wasm []byte, moduleSize int, codeMap *object.CallMap) (*bytes.Reader, compile.Module, *image.Build) {
-	r := bytes.NewReader(wasm)
+func prepareBuild(exec *executor, storage image.Storage, config compile.Config, wasm []byte, moduleSize int, codeMap *object.CallMap) (compile.Loader, compile.Module, *image.Build) {
+	r := compile.NewLoader(bytes.NewReader(wasm))
 
 	mod, err := compile.LoadInitialSections(&compile.ModuleConfig{MaxExports: 100, Config: config}, r)
 	if err != nil {

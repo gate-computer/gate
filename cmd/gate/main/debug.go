@@ -326,7 +326,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 	var moduleLen int64
 	check(call.Store(&moduleLen))
 
-	var reader = bufio.NewReader(r)
+	var reader = compile.NewLoader(bufio.NewReader(r))
 	var custom section.CustomSections
 	var config = compile.Config{
 		CustomSectionLoader: section.CustomLoader(map[string]section.CustomContentLoader{

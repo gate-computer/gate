@@ -69,11 +69,11 @@ func _buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy 
 	defer b.Close()
 
 	hasher := api.KnownModuleHash.New()
-	reader := bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher))
+	r := compile.NewLoader(bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher)))
 
 	b.InstallEarlySnapshotLoaders()
 
-	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
+	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), r)
 	_check(err)
 
 	b.StackSize = progPolicy.MaxStackSize
@@ -86,20 +86,20 @@ func _buildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy 
 
 	_check(b.BindFunctions(entryName))
 
-	_check(compile.LoadCodeSection(b.CodeConfig(&codeMap), reader, b.Module, abi.Library()))
+	_check(compile.LoadCodeSection(b.CodeConfig(&codeMap), r, b.Module, abi.Library()))
 
 	_check(b.VerifyBreakpoints())
 
 	b.InstallSnapshotDataLoaders()
 
-	_check(compile.LoadCustomSections(&b.Config, reader))
+	_check(compile.LoadCustomSections(&b.Config, r))
 
 	_check(b.FinishImageText())
 
 	b.InstallLateSnapshotLoaders()
 
-	_check(compile.LoadDataSection(b.DataConfig(), reader, b.Module))
-	_check(compile.LoadCustomSections(&b.Config, reader))
+	_check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
+	_check(compile.LoadCustomSections(&b.Config, r))
 
 	err = content.Close()
 	content = nil
@@ -195,11 +195,11 @@ func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, cont
 	_check(err)
 	defer b.Close()
 
-	reader := bufio.NewReader(content)
+	r := compile.NewLoader(bufio.NewReader(content))
 
 	b.InstallEarlySnapshotLoaders()
 
-	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
+	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), r)
 	_check(err)
 
 	b.StackSize = progPolicy.MaxStackSize
@@ -211,19 +211,19 @@ func _rebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, cont
 	}
 	b.Snapshot.Breakpoints = append([]uint64(nil), breakpoints...)
 
-	_check(compile.LoadCodeSection(b.CodeConfig(callMap), reader, b.Module, abi.Library()))
+	_check(compile.LoadCodeSection(b.CodeConfig(callMap), r, b.Module, abi.Library()))
 
 	_check(b.VerifyBreakpoints())
 
 	b.InstallSnapshotDataLoaders()
 
-	_check(compile.LoadCustomSections(&b.Config, reader))
+	_check(compile.LoadCustomSections(&b.Config, r))
 
 	_check(b.FinishImageText())
 
 	b.InstallLateSnapshotLoaders()
 
-	_check(compile.LoadDataSection(b.DataConfig(), reader, b.Module))
+	_check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
 
 	progImage, err := b.FinishProgramImage()
 	_check(err)

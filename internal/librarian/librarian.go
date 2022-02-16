@@ -142,13 +142,13 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 			ModuleMapper: sections,
 		},
 	}
-	module, err := compile.LoadInitialSections(&config, bytes.NewReader(data))
+	module, err := compile.LoadInitialSections(&config, compile.NewLoader(bytes.NewReader(data)))
 	if err != nil {
 		return err
 	}
 
 	b := new(bytes.Buffer)
-	r := bytes.NewReader(data)
+	r := compile.NewLoader(bytes.NewReader(data))
 
 	if _, err := io.CopyN(b, r, sections.Sections[section.Type].Start); err != nil {
 		return err

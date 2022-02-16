@@ -1312,7 +1312,7 @@ func TestInstanceTerminated(t *testing.T) {
 		}
 
 		c := compile.Config{CustomSectionLoader: section.CustomLoader(loaders)}
-		r := bytes.NewReader(snapshot)
+		r := compile.NewLoader(bytes.NewReader(snapshot))
 
 		m, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: c}, r)
 		if err != nil {

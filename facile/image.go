@@ -53,11 +53,11 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 	}
 	defer b.Close()
 
-	reader := bytes.NewReader(wasm)
+	r := compile.NewLoader(bytes.NewReader(wasm))
 
 	b.InstallEarlySnapshotLoaders()
 
-	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), reader)
+	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), r)
 	if err != nil {
 		return
 	}
@@ -70,7 +70,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 		return
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(&objectMap), reader, b.Module, abi.Library())
+	err = compile.LoadCodeSection(b.CodeConfig(&objectMap), r, b.Module, abi.Library())
 	if err != nil {
 		return
 	}
@@ -82,7 +82,7 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 
 	b.InstallSnapshotDataLoaders()
 
-	err = compile.LoadCustomSections(&b.Config, reader)
+	err = compile.LoadCustomSections(&b.Config, r)
 	if err != nil {
 		return
 	}
@@ -94,12 +94,12 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 
 	b.InstallLateSnapshotLoaders()
 
-	err = compile.LoadDataSection(b.DataConfig(), reader, b.Module)
+	err = compile.LoadDataSection(b.DataConfig(), r, b.Module)
 	if err != nil {
 		return
 	}
 
-	err = compile.LoadCustomSections(&b.Config, reader)
+	err = compile.LoadCustomSections(&b.Config, r)
 	if err != nil {
 		return
 	}
