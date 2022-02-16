@@ -581,7 +581,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	auth := makeAuthorization()
 	if auth != "" {
 		if req.Header == nil {
-			req.Header = make(http.Header)
+			req.Header = make(http.Header, 1)
 		}
 		req.Header.Set(webapi.HeaderAuthorization, auth)
 	}

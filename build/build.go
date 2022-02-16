@@ -162,7 +162,7 @@ func (b *Build) BindFunctions(entryName string) (err error) {
 
 func (b *Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
 	if b.Snapshot != nil {
-		b.breakpoints = make(map[uint32]compile.Breakpoint)
+		b.breakpoints = make(map[uint32]compile.Breakpoint, len(b.Snapshot.Breakpoints))
 		for _, offset := range b.Snapshot.Breakpoints {
 			if offset <= math.MaxUint32 {
 				b.breakpoints[uint32(offset)] = compile.Breakpoint{}

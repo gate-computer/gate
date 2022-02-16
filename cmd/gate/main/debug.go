@@ -350,7 +350,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 	var codeConfig = &compile.CodeConfig{
 		Mapper:      &codeMap,
-		Breakpoints: make(map[uint32]compile.Breakpoint),
+		Breakpoints: make(map[uint32]compile.Breakpoint, len(res.Config.Breakpoints)),
 		Config:      config,
 	}
 

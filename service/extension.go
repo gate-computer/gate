@@ -44,7 +44,7 @@ func Extend(
 // Config for global services (including Extensions).  If there are multiple
 // entries with the same identifier and non-empty config, they are excluded.
 func Config() map[string]interface{} {
-	m := make(map[string]interface{})
+	m := make(map[string]interface{}, len(Extensions))
 	var dupes []string
 
 	for _, e := range Extensions {

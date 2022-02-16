@@ -333,7 +333,7 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		return fmt.Errorf("unknown access.policy option: %q", c.Access.Policy)
 	}
 
-	c.Server.ModuleSources = make(map[string]server.Source)
+	c.Server.ModuleSources = make(map[string]server.Source, len(c.Source.HTTP))
 	for _, x := range c.Source.HTTP {
 		if x.Name != "" && x.Configured() {
 			c.Server.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)
