@@ -29,7 +29,6 @@ import (
 	"gate.computer/gate/runtime/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
-	_ "gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
@@ -50,14 +49,16 @@ import (
 
 const serverHeaderValue = "gate"
 
+const shutdownTimeout = 15 * time.Second
+
 const (
-	DefaultExecutorCount   = 1
-	DefaultProgramStorage  = "memory"
-	DefaultInstanceStorage = "memory"
-	DefaultImageVarDir     = "/var/lib/gate/image"
-	DefaultNet             = "tcp"
-	DefaultHTTPAddr        = "localhost:8080"
-	DefaultACMECacheDir    = "/var/cache/gate/acme"
+	DefaultExecutorCount  = 1
+	DefaultImageStorage   = "filesystem"
+	DefaultImageVarDir    = "/var/lib/gate/image"
+	DefaultDatabaseDriver = "sqlite"
+	DefaultNet            = "tcp"
+	DefaultHTTPAddr       = "localhost:8080"
+	DefaultACMECacheDir   = "/var/cache/gate/acme"
 )
 
 var Defaults = []string{
@@ -81,8 +82,6 @@ type Config struct {
 	}
 
 	Service map[string]interface{}
-
-	DB map[string]interface{}
 
 	Server server.Config
 
@@ -113,7 +112,7 @@ type Config struct {
 		Net  string
 		Addr string
 		web.Config
-		AccessDB  string
+		AccessDB  map[string]database.Config
 		AccessLog string
 
 		TLS struct {
@@ -141,21 +140,19 @@ type Config struct {
 
 var c = new(Config)
 
-const shutdownTimeout = 15 * time.Second
-
 func Main() {
 	log.SetFlags(0)
 
 	c.Runtime.Config = runtime.DefaultConfig
 	c.Runtime.ExecutorCount = DefaultExecutorCount
-	c.Image.ProgramStorage = DefaultProgramStorage
-	c.Image.InstanceStorage = DefaultInstanceStorage
+	c.Image.ProgramStorage = DefaultImageStorage
+	c.Image.InstanceStorage = DefaultImageStorage
 	c.Image.VarDir = DefaultImageVarDir
 	c.Service = service.Config()
-	c.DB = database.DefaultConfig
 	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = DefaultNet
 	c.HTTP.Addr = DefaultHTTPAddr
+	c.HTTP.AccessDB = database.NewNonceCheckerConfigs()
 	c.ACME.CacheDir = DefaultACMECacheDir
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 
@@ -261,7 +258,7 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 	c.Server.ProcessFactory = runtime.DistributeProcesses(preparators...)
 
 	var fs *image.Filesystem
-	if c.Image.VarDir != "" {
+	if c.Image.ProgramStorage == "filesystem" || c.Image.InstanceStorage == "filesystem" {
 		fs, err = image.NewFilesystem(c.Image.VarDir)
 		if err != nil {
 			return fmt.Errorf("filesystem: %w", err)
@@ -270,26 +267,21 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 	}
 
 	var progStorage image.ProgramStorage
-	var instStorage image.InstanceStorage
-
 	switch s := c.Image.ProgramStorage; s {
-	case "memory":
-		progStorage = image.Memory
-
 	case "filesystem":
 		progStorage = fs
-
+	case "memory":
+		progStorage = image.Memory
 	default:
 		return fmt.Errorf("unknown server.programstorage option: %q", s)
 	}
 
+	var instStorage image.InstanceStorage
 	switch s := c.Image.InstanceStorage; s {
-	case "memory":
-		instStorage = image.Memory
-
 	case "filesystem":
 		instStorage = fs
-
+	case "memory":
+		instStorage = image.Memory
 	default:
 		return fmt.Errorf("unknown server.instancestorage option: %q", s)
 	}
@@ -356,13 +348,16 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		}
 	}
 
-	if c.HTTP.AccessDB != "none" {
-		db, err := database.OpenNonceChecker(ctx, c.HTTP.AccessDB, c.DB[c.HTTP.AccessDB])
+	accessDB, err := database.Resolve(c.HTTP.AccessDB)
+	if err != nil && err != database.ErrNoConfig {
+		return err
+	}
+	if accessDB != nil {
+		defer accessDB.Close()
+		c.HTTP.NonceStorage, err = accessDB.InitNonceChecker(ctx)
 		if err != nil {
 			return err
 		}
-		defer db.Close()
-		c.HTTP.NonceStorage = db
 	}
 
 	handler := web.NewHandler("/", &c.HTTP.Config)

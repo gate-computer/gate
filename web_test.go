@@ -24,7 +24,6 @@ import (
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
-	"gate.computer/gate/server/database"
 	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/server/web/api"
@@ -86,18 +85,20 @@ func openDebugLog(string) io.WriteCloser     { return debugLog{} }
 func (debugLog) Write(b []byte) (int, error) { return os.Stdout.Write(b) }
 func (debugLog) Close() error                { return nil }
 
-var nonceChecker database.NonceChecker
+var db *sql.Endpoint
 
 func init() {
-	db, err := sql.OpenNonceChecker(context.Background(), &sql.Config{
+	var err error
+	db, err = sql.Open(sql.Config{
 		Driver: "sqlite",
 		DSN:    "file::memory:?cache=shared",
 	})
 	if err != nil {
 		panic(err)
 	}
-
-	nonceChecker = db
+	if err := db.InitNonceChecker(context.Background()); err != nil {
+		panic(err)
+	}
 }
 
 func newServices() func(context.Context) server.InstanceServices {
@@ -136,7 +137,7 @@ func newHandler(t *testing.T) http.Handler {
 		Server:       s,
 		Authority:    "example.invalid",
 		Origins:      []string{"null"},
-		NonceStorage: nonceChecker,
+		NonceStorage: db,
 	}
 
 	h := web.NewHandler("/", config)

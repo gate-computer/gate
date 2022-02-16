@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package sql implements a NonceChecker backed by an SQL database.
+// Package sql implements NonceChecker backed by SQL database.
 //
 // Supports at least PostgreSQL 9.5+ (github.com/lib/pq) and
 // SQLite 3.24+ (modernc.org/sqlite, github.com/mattn/go-sqlite3).
@@ -11,106 +11,75 @@ package sql
 import (
 	"context"
 	"database/sql"
-	"database/sql/driver"
-	"time"
 
 	"gate.computer/gate/server/database"
 )
 
-func init() {
-	database.Register("sql", database.Adapter{
-		NewConfig: func() interface{} {
-			return new(Config)
-		},
-
-		OpenNonceChecker: func(ctx context.Context, config interface{}) (database.NonceChecker, error) {
-			nr, err := OpenNonceChecker(ctx, config.(*Config))
-			if err != nil {
-				return nil, err
-			}
-
-			return nr, err
-		},
-	})
-}
-
-const NonceSchema = `
-CREATE TABLE IF NOT EXISTS nonce (
-	scope BYTEA NOT NULL,
-	nonce TEXT NOT NULL,
-	expire BIGINT NOT NULL,
-
-	PRIMARY KEY (scope, nonce)
-);
-
-CREATE INDEX IF NOT EXISTS nonce_expire ON nonce (expire);
-`
-
 type Config struct {
-	Driver string // Ignored if Connector is defined.
-	DSN    string //
-
-	Connector driver.Connector // Overrides Driver and DSN.
+	Driver string
+	DSN    string
 }
 
-type NonceChecker struct {
+func (c *Config) Enabled() bool {
+	return c.Driver != "" && c.DSN != ""
+}
+
+func (c *Config) Equal(other Config) bool {
+	return c.Driver == other.Driver && c.DSN == other.DSN
+}
+
+func (c *Config) Clone() Config {
+	return *c
+}
+
+type adaptedConfig struct {
+	Config
+}
+
+func (c *adaptedConfig) Equal(other database.Config) bool {
+	return c.Config.Equal(other.(*adaptedConfig).Config)
+}
+
+type Endpoint struct {
 	db *sql.DB
 }
 
-func OpenNonceChecker(ctx context.Context, config *Config) (*NonceChecker, error) {
-	var err error
-	var nr = new(NonceChecker)
-
-	if config.Connector != nil {
-		nr.db = sql.OpenDB(config.Connector)
-	} else {
-		nr.db, err = sql.Open(config.Driver, config.DSN)
-		if err != nil {
-			return nil, err
-		}
-	}
-	defer func() {
-		if err != nil {
-			nr.db.Close()
-		}
-	}()
-
-	_, err = nr.db.ExecContext(ctx, NonceSchema)
+func Open(config Config) (*Endpoint, error) {
+	db, err := sql.Open(config.Driver, config.DSN)
 	if err != nil {
 		return nil, err
 	}
-
-	return nr, nil
+	return &Endpoint{db}, nil
 }
 
-func (nr *NonceChecker) Close() error {
-	return nr.db.Close()
+func (x *Endpoint) Close() error {
+	return x.db.Close()
 }
 
-func (nr *NonceChecker) CheckNonce(ctx context.Context, scope []byte, nonce string, expire time.Time) error {
-	conn, err := nr.db.Conn(ctx)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+var DefaultConfig Config
 
-	_, err = conn.ExecContext(ctx, "DELETE FROM nonce WHERE expire < $1", time.Now().Unix())
-	if err != nil {
-		return err
-	}
+var Adapter = database.Register(&database.Adapter{
+	Name: "sql",
 
-	result, err := conn.ExecContext(ctx, "INSERT INTO nonce (scope, nonce, expire) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", scope, nonce, expire.Unix())
-	if err != nil {
-		return err
-	}
+	NewConfig: func() database.Config {
+		return &adaptedConfig{
+			Config: DefaultConfig.Clone(),
+		}
+	},
 
-	n, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return database.ErrNonceReused
-	}
+	Open: func(config database.Config) (database.Endpoint, error) {
+		x, err := Open(config.(*adaptedConfig).Config)
+		if err != nil {
+			return nil, err
+		}
+		return x, err
+	},
 
-	return nil
-}
+	InitNonceChecker: func(ctx context.Context, endpoint database.Endpoint) (database.NonceChecker, error) {
+		x := endpoint.(*Endpoint)
+		if err := x.InitNonceChecker(ctx); err != nil {
+			return nil, err
+		}
+		return x, nil
+	},
+})
