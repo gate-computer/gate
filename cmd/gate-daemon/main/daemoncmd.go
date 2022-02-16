@@ -7,6 +7,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	stdsql "database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -37,6 +38,8 @@ import (
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/api"
+	"gate.computer/gate/server/database"
+	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/service"
 	grpc "gate.computer/gate/service/grpc/config"
@@ -51,9 +54,11 @@ import (
 )
 
 const (
-	DefaultNewuidmap   = "newuidmap"
-	DefaultNewgidmap   = "newgidmap"
-	DefaultImageVarDir = ".gate/image" // Relative to home directory.
+	DefaultNewuidmap       = "newuidmap"
+	DefaultNewgidmap       = "newgidmap"
+	DefaultImageVarDir     = ".gate/image" // Relative to home directory.
+	DefaultInventoryDriver = "sqlite"
+	DefaultInventoryFile   = ".gate/inventory.sqlite" // Relative to home directory.
 )
 
 // Defaults are relative to home directory.
@@ -71,6 +76,8 @@ type Config struct {
 	Image struct {
 		VarDir string
 	}
+
+	Inventory map[string]database.Config
 
 	Service map[string]interface{}
 
@@ -111,10 +118,19 @@ func Main() {
 }
 
 func mainResult() int {
+	drivers := stdsql.Drivers()
+	defaultDB := len(drivers) == 1 && drivers[0] == DefaultInventoryDriver && sql.DefaultConfig == (sql.Config{})
+	if defaultDB {
+		sql.DefaultConfig = sql.Config{
+			Driver: DefaultInventoryDriver,
+		}
+	}
+
 	c.Runtime.Config = gateruntime.DefaultConfig
 	c.Runtime.Container.Namespace.Newuidmap = DefaultNewuidmap
 	c.Runtime.Container.Namespace.Newgidmap = DefaultNewgidmap
 	c.Image.VarDir = cmdconf.JoinHomeFallback(DefaultImageVarDir, "")
+	c.Inventory = database.NewInventoryConfigs()
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
 	c.Principal.MaxModules = 1e9
@@ -130,6 +146,24 @@ func mainResult() int {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
+
+	if defaultDB && len(c.Inventory) == 1 {
+		driver, err := confi.Get(c, "inventory.sql.driver")
+		if err != nil {
+			panic(err)
+		}
+		if driver == DefaultInventoryDriver {
+			dsn, err := confi.Get(c, "inventory.sql.dsn")
+			if err != nil {
+				panic(err)
+			}
+			if dsn == "" {
+				if f, err := cmdconf.JoinHome(DefaultInventoryFile); err == nil {
+					confi.MustSet(c, "inventory.sql.dsn", "file:"+f+"?cache=shared")
+				}
+			}
+		}
+	}
 
 	c.Service["grpc"] = grpc.Config
 
@@ -179,6 +213,12 @@ func mainResult() int {
 	signal.Ignore(syscall.SIGHUP)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
+	inventoryDB, err := database.Resolve(c.Inventory)
+	check(err)
+	defer inventoryDB.Close()
+	inventory, err := inventoryDB.InitInventory(ctx)
+	check(err)
+
 	ctx = principal.ContextWithLocalID(ctx)
 
 	inited := make(chan api.Server, 1)
@@ -198,6 +238,7 @@ func mainResult() int {
 
 	serverConfig := &server.Config{
 		ImageStorage:   storage,
+		Inventory:      inventory,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
 		OpenDebugLog:   openDebugLog,

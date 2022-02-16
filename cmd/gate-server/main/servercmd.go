@@ -7,6 +7,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	stdsql "database/sql"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	"gate.computer/gate/runtime/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
+	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
@@ -56,6 +58,7 @@ const (
 	DefaultImageStorage   = "filesystem"
 	DefaultImageVarDir    = "/var/lib/gate/image"
 	DefaultDatabaseDriver = "sqlite"
+	DefaultInventoryDSN   = "file:/var/lib/gate/inventory.sqlite?cache=shared"
 	DefaultNet            = "tcp"
 	DefaultHTTPAddr       = "localhost:8080"
 	DefaultACMECacheDir   = "/var/cache/gate/acme"
@@ -80,6 +83,8 @@ type Config struct {
 		PrepareInstances int
 		VarDir           string
 	}
+
+	Inventory map[string]database.Config
 
 	Service map[string]interface{}
 
@@ -143,11 +148,20 @@ var c = new(Config)
 func Main() {
 	log.SetFlags(0)
 
+	drivers := stdsql.Drivers()
+	defaultDB := len(drivers) == 1 && drivers[0] == DefaultDatabaseDriver && sql.DefaultConfig == (sql.Config{})
+	if defaultDB {
+		sql.DefaultConfig = sql.Config{
+			Driver: DefaultDatabaseDriver,
+		}
+	}
+
 	c.Runtime.Config = runtime.DefaultConfig
 	c.Runtime.ExecutorCount = DefaultExecutorCount
 	c.Image.ProgramStorage = DefaultImageStorage
 	c.Image.InstanceStorage = DefaultImageStorage
 	c.Image.VarDir = DefaultImageVarDir
+	c.Inventory = database.NewInventoryConfigs()
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
 	c.HTTP.Net = DefaultNet
@@ -159,6 +173,22 @@ func Main() {
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(ioutil.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
+
+	if defaultDB && len(c.Inventory) == 1 {
+		driver, err := confi.Get(c, "inventory.sql.driver")
+		if err != nil {
+			panic(err)
+		}
+		if driver == DefaultDatabaseDriver {
+			dsn, err := confi.Get(c, "inventory.sql.dsn")
+			if err != nil {
+				panic(err)
+			}
+			if dsn == "" {
+				confi.MustSet(c, "inventory.sql.dsn", DefaultInventoryDSN)
+			}
+		}
+	}
 
 	c.Service["grpc"] = grpc.Config
 
@@ -294,6 +324,16 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 	}
 
 	c.Server.ImageStorage = image.CombinedStorage(progStorage, instStorage)
+
+	inventoryDB, err := database.Resolve(c.Inventory)
+	if err != nil {
+		return err
+	}
+	defer inventoryDB.Close()
+	c.Server.Inventory, err = inventoryDB.InitInventory(ctx)
+	if err != nil {
+		return err
+	}
 
 	switch c.Access.Policy {
 	case "public":

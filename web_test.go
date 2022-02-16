@@ -96,6 +96,9 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	if err := db.InitInventory(context.Background()); err != nil {
+		panic(err)
+	}
 	if err := db.InitNonceChecker(context.Background()); err != nil {
 		panic(err)
 	}
@@ -121,6 +124,7 @@ func newServer() (*server.Server, error) {
 		ProcessFactory: newExecutor(),
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 		ModuleSources:  map[string]server.Source{"/test": helloSource{}},
+		Inventory:      db,
 		OpenDebugLog:   openDebugLog,
 	})
 }

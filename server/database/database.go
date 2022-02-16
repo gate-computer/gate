@@ -12,6 +12,9 @@ import (
 	"time"
 )
 
+type Inventory interface {
+}
+
 var ErrNonceReused = errors.New("nonce reused")
 
 type NonceChecker interface {
@@ -31,6 +34,7 @@ type Adapter struct {
 	Name             string
 	NewConfig        func() Config
 	Open             func(Config) (Endpoint, error)
+	InitInventory    func(context.Context, Endpoint) (Inventory, error)
 	InitNonceChecker func(context.Context, Endpoint) (NonceChecker, error)
 }
 
@@ -58,6 +62,16 @@ func getAdapter(name string) (*Adapter, error) {
 		return nil, fmt.Errorf("database adapter not registered: %s", name)
 	}
 	return a, nil
+}
+
+func NewInventoryConfigs() map[string]Config {
+	c := make(map[string]Config, len(adapters))
+	for _, a := range adapters {
+		if a.InitInventory != nil {
+			c[a.Name] = a.NewConfig()
+		}
+	}
+	return c
 }
 
 func NewNonceCheckerConfigs() map[string]Config {
@@ -156,6 +170,15 @@ func (db *DB) Close() error {
 	}
 	db.endpoint = nil
 	return x.Close()
+}
+
+func (db *DB) InitInventory(ctx context.Context) (Inventory, error) {
+	x, err := db.get()
+	if err != nil {
+		return nil, err
+	}
+
+	return db.Adapter.InitInventory(ctx, x)
 }
 
 func (db *DB) InitNonceChecker(ctx context.Context) (NonceChecker, error) {

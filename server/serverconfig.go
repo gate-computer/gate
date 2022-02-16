@@ -37,8 +37,12 @@ func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) Instanc
 	}{c, r}
 }
 
+type Inventory interface {
+}
+
 type Config struct {
 	ImageStorage   image.Storage
+	Inventory      Inventory
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
 	ModuleSources  map[string]Source

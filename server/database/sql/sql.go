@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package sql implements NonceChecker backed by SQL database.
+// Package sql implements Inventory and NonceChecker backed by SQL database.
 //
 // Supports at least PostgreSQL 9.5+ (github.com/lib/pq) and
 // SQLite 3.24+ (modernc.org/sqlite, github.com/mattn/go-sqlite3).
@@ -73,6 +73,14 @@ var Adapter = database.Register(&database.Adapter{
 			return nil, err
 		}
 		return x, err
+	},
+
+	InitInventory: func(ctx context.Context, endpoint database.Endpoint) (database.Inventory, error) {
+		x := endpoint.(*Endpoint)
+		if err := x.InitInventory(ctx); err != nil {
+			return nil, err
+		}
+		return x, nil
 	},
 
 	InitNonceChecker: func(ctx context.Context, endpoint database.Endpoint) (database.NonceChecker, error) {
