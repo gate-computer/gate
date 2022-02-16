@@ -214,15 +214,36 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 	}
 
 	switch call.StackOffset {
+	case 16:
+		// Stack was synthesized by putInitStack.
+		var startAddr uint32
+
+		if funcIndex := binary.LittleEndian.Uint64(buf); funcIndex != math.MaxUint64 {
+			if funcIndex >= uint64(len(codeMap.FuncAddrs)) {
+				return fmt.Errorf("start function index %d is unknown", funcIndex)
+			}
+			startAddr = codeMap.FuncAddrs[funcIndex]
+
+			sigIndex := funcTypeIndexes[funcIndex]
+			sig := types[sigIndex]
+			if !sig.Equal(wa.FuncType{}) {
+				return fmt.Errorf("start function %d has invalid signature: %s", funcIndex, sig)
+			}
+		}
+
+		binary.LittleEndian.PutUint64(buf, uint64(startAddr))
+		buf = buf[8:]
+		fallthrough
+
 	case 8:
 		// See the comment in exportStack.
-		var funcAddr uint32
+		var entryAddr uint32
 
-		if funcIndex := binary.LittleEndian.Uint32(buf); funcIndex != math.MaxUint32 {
-			if funcIndex >= uint32(len(codeMap.FuncAddrs)) {
+		if funcIndex := binary.LittleEndian.Uint64(buf); funcIndex != math.MaxUint64 {
+			if funcIndex >= uint64(len(codeMap.FuncAddrs)) {
 				return fmt.Errorf("entry function index %d is unknown", funcIndex)
 			}
-			funcAddr = codeMap.FuncAddrs[funcIndex]
+			entryAddr = codeMap.FuncAddrs[funcIndex]
 
 			sigIndex := funcTypeIndexes[funcIndex]
 			sig := types[sigIndex]
@@ -231,7 +252,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 			}
 		}
 
-		binary.LittleEndian.PutUint64(buf, uint64(funcAddr))
+		binary.LittleEndian.PutUint64(buf, uint64(entryAddr))
 		buf = buf[8:]
 
 	case 0:
