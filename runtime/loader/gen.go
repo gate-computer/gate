@@ -278,7 +278,7 @@ func generateStartRT(a *ga.Assembly) {
 		a.Pop(scratch0)
 		if a.Arch == ga.ARM64 {
 			a.MoveReg(scratch1, wagTextBase)
-			a.AndImm(scratch1, 0xff) // Relative init routine address.
+			a.AndImm(scratch1, abi.TextAddrMask) // Relative init routine address.
 
 			a.MoveImm(ga.Reg{ARM64: ga.XLR}, 0) // No link when not resuming.
 			a.JumpIfImm(ga.NE, scratch1, abi.TextAddrResume, ".no_resume")
