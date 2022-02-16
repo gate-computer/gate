@@ -938,7 +938,7 @@ func (s *Server) Snapshot(ctx context.Context, instance string, know *api.Module
 
 	know = _prepareModuleOptions(know)
 	if !know.GetPin() {
-		panic("Server.SnapshotInstance called without ModuleOptions.Pin")
+		panic("Server.Snapshot called without ModuleOptions.Pin")
 	}
 
 	inst := s._getInstance(ctx, instance)
