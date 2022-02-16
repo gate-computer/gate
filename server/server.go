@@ -250,6 +250,9 @@ func (s *Server) SourceModule(ctx context.Context, uri string, know *api.ModuleO
 	policy := new(progPolicy)
 	ctx = _context(s.AccessPolicy.AuthorizeProgramSource(ctx, &policy.res, &policy.prog, prefix))
 
+	uri, err = source.CanonicalURI(uri)
+	_check(err)
+
 	stream, length, err := source.OpenURI(ctx, uri, policy.prog.MaxModuleSize)
 	_check(err)
 	if stream == nil {
@@ -392,6 +395,9 @@ func (s *Server) SourceModuleInstance(ctx context.Context, uri string, know *api
 	ctx = _context(s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, &policy.res, &policy.prog, &policy.inst, prefix))
 
 	acc := s._checkAccountInstanceID(ctx, launch.Instance)
+
+	uri, err = source.CanonicalURI(uri)
+	_check(err)
 
 	stream, length, err := source.OpenURI(ctx, uri, policy.prog.MaxModuleSize)
 	_check(err)

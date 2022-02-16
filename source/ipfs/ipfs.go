@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 const Source = "/ipfs"
@@ -39,7 +40,30 @@ func New(config *Config) *Client {
 	return c
 }
 
-// OpenURI implements gate/server/api.Source.OpenURI.
+// CanonicalURI implements gate/server.Source.CanonicalURI.
+func (c *Client) CanonicalURI(uri string) (string, error) {
+	const prefix = Source + "/"
+
+	if strings.HasPrefix(uri, prefix) {
+		hash := uri[len(prefix):]
+		if hash == "" {
+			goto invalid
+		}
+
+		for _, c := range []byte(hash) {
+			if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+				goto invalid
+			}
+		}
+
+		return uri, nil
+	}
+
+invalid:
+	return "", fmt.Errorf("invalid IPFS source URI: %q", uri)
+}
+
+// OpenURI implements gate/server.Source.OpenURI.
 func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	query := url.Values{
 		"arg":    []string{uri},

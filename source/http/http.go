@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type Config struct {
@@ -36,7 +37,30 @@ func New(config *Config) *Client {
 	return c
 }
 
-// OpenURI implements gate/server/api.Source.OpenURI.
+// CanonicalURI implements gate/server.Source.CanonicalURI.
+func (c *Client) CanonicalURI(uri string) (string, error) {
+	s := uri[1:] // Skip over first slash.
+	if i := strings.IndexByte(s, '/'); i > 0 {
+		s = s[i+1:] // Skip over second slash.
+		if s == "" {
+			goto invalid
+		}
+
+		// Accept only printable ASCII.
+		for _, c := range []byte(s) {
+			if c < ' ' || c > '~' {
+				goto invalid
+			}
+		}
+
+		return uri, nil
+	}
+
+invalid:
+	return "", fmt.Errorf("invalid HTTP source URI: %q", uri)
+}
+
+// OpenURI implements gate/server.Source.OpenURI.
 func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	url := c.config.Addr + uri
 	req, err := http.NewRequest(http.MethodGet, url, nil)

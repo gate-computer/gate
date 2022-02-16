@@ -66,6 +66,10 @@ func (pri principalKey) authorization(claims *api.Claims) (s string) {
 
 type helloSource struct{}
 
+func (helloSource) CanonicalURI(uri string) (string, error) {
+	return uri, nil
+}
+
 func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	switch uri {
 	case "/test/hello":
