@@ -9,7 +9,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.3.0
 	github.com/godbus/dbus/v5 v5.0.3
 	github.com/golang/protobuf v1.4.2
-	github.com/google/uuid v1.0.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.2.1
 	github.com/gorilla/websocket v1.4.1
 	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
@@ -23,7 +23,7 @@ require (
 	import.name/make v0.0.0-20220104073727-8e6e5ea95bef
 	import.name/pan v0.1.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.49
-	modernc.org/sqlite v1.10.4
+	modernc.org/sqlite v1.14.6
 )
 
 require (

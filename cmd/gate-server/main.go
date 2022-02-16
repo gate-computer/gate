@@ -4,6 +4,9 @@
 
 package main
 
-import m "gate.computer/gate/cmd/gate-server/main"
+import (
+	m "gate.computer/gate/cmd/gate-server/main"
+	_ "modernc.org/sqlite"
+)
 
 func main() { m.Main() }
