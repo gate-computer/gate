@@ -82,7 +82,10 @@ func TestRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	for len(p) == 0 {
-		p = (<-c)()
+		p, err = (<-c)()
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if !packet.IsValidCall(p, testCode) {
