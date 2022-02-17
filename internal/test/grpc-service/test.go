@@ -76,6 +76,7 @@ func main() {
 type listener struct {
 	mu     sync.Mutex
 	conn   *listenConn
+	addr   net.Addr
 	closed <-chan struct{}
 }
 
@@ -86,39 +87,41 @@ func listenerFor(conn net.Conn) *listener {
 			Conn:   conn,
 			closed: closed,
 		},
+		addr:   conn.LocalAddr(),
 		closed: closed,
 	}
 }
 
 func (l *listener) Accept() (net.Conn, error) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	var c *listenConn
+	lock.Guard(&l.mu, func() {
+		c = l.conn
+		l.conn = nil
+	})
 
-	c := l.conn
-	l.conn = nil
-	if c == nil {
-		<-l.closed
-		return nil, io.EOF
+	if c != nil {
+		return c, nil
 	}
-	return c, nil
+
+	<-l.closed
+	return nil, io.EOF
 }
 
 func (l *listener) Addr() net.Addr {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	return l.conn.LocalAddr()
+	return l.addr
 }
 
 func (l *listener) Close() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	var c *listenConn
+	lock.Guard(&l.mu, func() {
+		c = l.conn
+		l.conn = nil
+	})
 
-	c := l.conn
-	l.conn = nil
 	if c == nil {
 		return nil
 	}
+
 	return c.Close()
 }
 
@@ -130,14 +133,17 @@ type listenConn struct {
 }
 
 func (c *listenConn) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	var ch chan<- struct{}
+	lock.Guard(&c.mu, func() {
+		ch = c.closed
+		c.closed = nil
+	})
 
-	if c.closed == nil {
+	if ch == nil {
 		return nil
 	}
-	defer close(c.closed)
-	c.closed = nil
+
+	defer close(ch)
 	return c.Conn.Close()
 }
 
