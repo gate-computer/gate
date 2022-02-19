@@ -29,6 +29,11 @@ const (
 )
 
 const (
+	flagRunning uint8 = 1 << iota
+	flagFlowing
+)
+
+const (
 	maxDataSize = 8192 - packet.DataHeaderSize
 	minDataSize = 100
 )
@@ -38,7 +43,7 @@ type instance struct {
 
 	code    packet.Code
 	running chan struct{}
-	flow    threshold.Uint32
+	flow    *threshold.Uint32
 }
 
 func newInstance(config service.InstanceConfig) *instance {
@@ -48,14 +53,22 @@ func newInstance(config service.InstanceConfig) *instance {
 }
 
 func (inst *instance) restore(snapshot []byte) {
-	if len(snapshot) > 0 && snapshot[0] > 0 {
+	if len(snapshot) == 0 {
+		return
+	}
+
+	flags := snapshot[0]
+	if flags&flagRunning != 0 {
 		inst.running = make(chan struct{}, 1)
+	}
+	if flags&flagFlowing != 0 {
+		inst.flow = threshold.NewUint32(0) // Value is irrelevant.
 	}
 }
 
 func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
 	if inst.running != nil {
-		go inst.io(ctx, nil, nil, send)
+		go inst.io(ctx, nil, nil, send, inst.flow)
 	}
 	return nil
 }
@@ -83,10 +96,10 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk, 
 	errno := errorQuota
 	streamID := int32(-1)
 
-	if inst.running == nil {
+	if inst.running == nil && inst.flow == nil {
 		var err error
 
-		argv := []string{"/bin/sh", "-c", string(p.Content())}
+		argv := []string{"/bin/sh", "-l", "-c", string(p.Content())}
 
 		errno, err = inst.startProcess(ctx, send, argv)
 		if err != nil {
@@ -106,8 +119,7 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk, 
 func (inst *instance) handleFlow(ctx context.Context, p packet.FlowBuf) error {
 	for i := 0; i < p.Num(); i++ {
 		id, increment := p.Get(i)
-
-		if inst.running == nil || id != 0 {
+		if inst.flow == nil || id != 0 {
 			return errors.New("shell: received flow packet with nonexistent stream id")
 		}
 
@@ -116,7 +128,8 @@ func (inst *instance) handleFlow(ctx context.Context, p packet.FlowBuf) error {
 			inst.flow.Increment(uint32(increment))
 
 		case increment == 0:
-			// TODO
+			inst.flow.Finish()
+			inst.flow = nil
 		}
 	}
 
@@ -124,13 +137,20 @@ func (inst *instance) handleFlow(ctx context.Context, p packet.FlowBuf) error {
 }
 
 func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
-	if inst.running == nil {
-		return nil, nil
+	var flags uint8
+	if inst.running != nil {
+		if _, exited := <-inst.running; !exited {
+			flags |= flagRunning
+		}
 	}
-	if _, exited := <-inst.running; exited {
-		return nil, nil
+	if inst.flow != nil {
+		flags |= flagFlowing
 	}
-	return []byte{1}, nil
+
+	if flags != 0 {
+		return []byte{flags}, nil
+	}
+	return nil, nil
 }
 
 func (inst *instance) refreshRunning() (ok bool) {
@@ -179,14 +199,14 @@ func (inst *instance) startProcess(ctx context.Context, send chan<- packet.Thunk
 	}
 
 	inst.running = make(chan struct{}, 1)
-	inst.flow = threshold.MakeUint32(0)
-	go inst.io(ctx, cmd, stdout, send)
+	inst.flow = threshold.NewUint32(0)
+	go inst.io(ctx, cmd, stdout, send, inst.flow)
 
 	ok = true
 	return 0, nil
 }
 
-func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk) {
+func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *threshold.Uint32) {
 	var exited bool
 	defer func() {
 		if exited {
@@ -199,7 +219,7 @@ func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadClose
 	var result int32 = -1
 
 	if cmd != nil {
-		cmderr, ok := inst.ioCopy(ctx, cmd, stdout, send)
+		cmderr, ok := inst.ioCopy(ctx, cmd, stdout, send, flow)
 		if !ok {
 			return
 		}
@@ -227,7 +247,7 @@ func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadClose
 	}
 }
 
-func (inst *instance) ioCopy(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk) (cmderr error, ok bool) {
+func (inst *instance) ioCopy(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *threshold.Uint32) (cmderr error, ok bool) {
 	defer func() {
 		cmderr = cmd.Wait()
 	}()
@@ -243,20 +263,30 @@ func (inst *instance) ioCopy(ctx context.Context, cmd *exec.Cmd, stdout io.ReadC
 	)
 
 	for {
-		for {
-			subscribed = inst.flow.Value()
+		for flow != nil {
+			subscribed = flow.Value()
 			if subscribed != acquired {
 				break
 			}
 
 			select {
-			case <-inst.flow.Chan():
+			case _, ok := <-flow.Chan():
+				if !ok {
+					flow = nil
+				}
+
 			case <-ctx.Done():
 				return
 			}
 		}
 
 		read := int64(subscribed - acquired)
+		if read == 0 {
+			cmd.Process.Kill()
+			ok = true
+			return
+		}
+
 		if read > int64(buf.DataLen()) {
 			if buf.DataLen() < minDataSize {
 				buf = packet.MakeData(inst.code, streamID, maxDataSize)
