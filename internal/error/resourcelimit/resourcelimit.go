@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"google.golang.org/grpc/codes"
+	"gate.computer/gate/internal/error/grpc"
 )
 
 // Error with public information.
@@ -27,4 +27,4 @@ func (s errorType) Error() string       { return string(s) }
 func (s errorType) PublicError() string { return string(s) }
 func (s errorType) ResourceLimit() bool { return true }
 func (s errorType) Status() int         { return http.StatusBadRequest }
-func (s errorType) Code() codes.Code    { return codes.ResourceExhausted }
+func (s errorType) GRPCCode() int       { return grpc.ResourceExhausted }

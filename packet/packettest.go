@@ -5,7 +5,7 @@
 package packet
 
 import (
-	"google.golang.org/grpc/codes"
+	"gate.computer/gate/internal/error/grpc"
 )
 
 type err string
@@ -15,7 +15,7 @@ func (s err) PublicError() string { return string(s) }
 func (s err) BadRequest() bool    { return true }
 func (s err) BadProgram() bool    { return true }
 func (s err) Status() int         { return 400 } // Bad Request
-func (s err) Code() codes.Code    { return codes.InvalidArgument }
+func (s err) GRPCCode() int       { return grpc.InvalidArgument }
 
 const errInvalidCall = err("invalid call packet")
 const errInvalidData = err("invalid data packet")

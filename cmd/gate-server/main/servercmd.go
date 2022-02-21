@@ -37,7 +37,6 @@ import (
 	webapi "gate.computer/gate/server/web/api"
 	"gate.computer/gate/server/web/router"
 	"gate.computer/gate/service"
-	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
 	httpsource "gate.computer/gate/source/http"
@@ -190,8 +189,6 @@ func Main() {
 		}
 	}
 
-	c.Service["grpc"] = grpc.Config
-
 	originConfig := origin.DefaultConfig
 	c.Service["origin"] = &originConfig
 
@@ -251,7 +248,7 @@ func Main() {
 	ctx := router.Context(context.Background(), mux)
 
 	var err error
-	c.Principal.Services, err = services.Init(ctx, &originConfig, &randomConfig, errLog)
+	c.Principal.Services, err = services.Init(ctx, &originConfig, &randomConfig)
 	if err != nil {
 		critLog.Fatal(err)
 	}

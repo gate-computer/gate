@@ -9,38 +9,38 @@ import (
 	"fmt"
 	"net/http"
 
+	"gate.computer/gate/internal/error/grpc"
 	"gate.computer/gate/server/event"
-	"google.golang.org/grpc/codes"
 )
 
 var metadata = [...]struct {
 	status int
-	code   codes.Code
+	code   int
 }{
-	event.FailUnsupported:        {http.StatusNotImplemented, codes.Unimplemented},
-	event.FailClientDenied:       {http.StatusForbidden, codes.PermissionDenied},
-	event.FailPayloadError:       {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailPrincipalKeyError:  {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailAuthMissing:        {http.StatusUnauthorized, codes.Unauthenticated},
-	event.FailAuthInvalid:        {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailAuthExpired:        {http.StatusForbidden, codes.PermissionDenied},
-	event.FailAuthReused:         {http.StatusForbidden, codes.PermissionDenied},
-	event.FailAuthDenied:         {http.StatusForbidden, codes.PermissionDenied},
-	event.FailScopeTooLarge:      {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailResourceDenied:     {http.StatusForbidden, codes.PermissionDenied},
-	event.FailResourceLimit:      {http.StatusBadRequest, codes.ResourceExhausted},
-	event.FailRateLimit:          {http.StatusTooManyRequests, codes.Unavailable},
-	event.FailModuleNotFound:     {http.StatusNotFound, codes.NotFound},
-	event.FailModuleHashMismatch: {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailModuleError:        {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailFunctionNotFound:   {http.StatusNotFound, codes.NotFound},
-	event.FailProgramError:       {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailInstanceNotFound:   {http.StatusNotFound, codes.NotFound},
-	event.FailInstanceIDInvalid:  {http.StatusBadRequest, codes.InvalidArgument},
-	event.FailInstanceIDExists:   {http.StatusConflict, codes.AlreadyExists},
-	event.FailInstanceStatus:     {http.StatusConflict, codes.FailedPrecondition},
-	event.FailInstanceNoConnect:  {http.StatusConflict, codes.FailedPrecondition},
-	event.FailInstanceDebugState: {http.StatusConflict, codes.FailedPrecondition},
+	event.FailUnsupported:        {http.StatusNotImplemented, grpc.Unimplemented},
+	event.FailClientDenied:       {http.StatusForbidden, grpc.PermissionDenied},
+	event.FailPayloadError:       {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailPrincipalKeyError:  {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailAuthMissing:        {http.StatusUnauthorized, grpc.Unauthenticated},
+	event.FailAuthInvalid:        {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailAuthExpired:        {http.StatusForbidden, grpc.PermissionDenied},
+	event.FailAuthReused:         {http.StatusForbidden, grpc.PermissionDenied},
+	event.FailAuthDenied:         {http.StatusForbidden, grpc.PermissionDenied},
+	event.FailScopeTooLarge:      {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailResourceDenied:     {http.StatusForbidden, grpc.PermissionDenied},
+	event.FailResourceLimit:      {http.StatusBadRequest, grpc.ResourceExhausted},
+	event.FailRateLimit:          {http.StatusTooManyRequests, grpc.Unavailable},
+	event.FailModuleNotFound:     {http.StatusNotFound, grpc.NotFound},
+	event.FailModuleHashMismatch: {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailModuleError:        {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailFunctionNotFound:   {http.StatusNotFound, grpc.NotFound},
+	event.FailProgramError:       {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailInstanceNotFound:   {http.StatusNotFound, grpc.NotFound},
+	event.FailInstanceIDInvalid:  {http.StatusBadRequest, grpc.InvalidArgument},
+	event.FailInstanceIDExists:   {http.StatusConflict, grpc.AlreadyExists},
+	event.FailInstanceStatus:     {http.StatusConflict, grpc.FailedPrecondition},
+	event.FailInstanceNoConnect:  {http.StatusConflict, grpc.FailedPrecondition},
+	event.FailInstanceDebugState: {http.StatusConflict, grpc.FailedPrecondition},
 }
 
 type FailError interface {
@@ -85,12 +85,12 @@ func (s *simple) Status() (status int) {
 	return
 }
 
-func (s *simple) Code() (code codes.Code) {
+func (s *simple) Code() (code int) {
 	if i := int(s.t); i < len(metadata) {
 		code = metadata[i].code
 	}
 	if code == 0 {
-		code = codes.Unknown
+		code = grpc.Unknown
 	}
 	return
 }

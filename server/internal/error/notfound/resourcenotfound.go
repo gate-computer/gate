@@ -7,8 +7,8 @@ package notfound
 import (
 	"net/http"
 
+	"gate.computer/gate/internal/error/grpc"
 	"gate.computer/gate/server/event"
-	"google.golang.org/grpc/codes"
 )
 
 // ErrModule is public.
@@ -21,7 +21,7 @@ func (f moduleError) PublicError() string  { return "module not found" }
 func (f moduleError) NotFound() bool       { return true }
 func (f moduleError) ModuleNotFound() bool { return true }
 func (f moduleError) Status() int          { return http.StatusNotFound }
-func (f moduleError) Code() codes.Code     { return codes.NotFound }
+func (f moduleError) GRPCCode() int        { return grpc.NotFound }
 func (f moduleError) Fail() event.FailType { return event.FailModuleNotFound }
 
 // ErrInstance is public.
@@ -34,5 +34,5 @@ func (f instanceError) PublicError() string    { return "instance not found" }
 func (f instanceError) NotFound() bool         { return true }
 func (f instanceError) InstanceNotFound() bool { return true }
 func (f instanceError) Status() int            { return http.StatusNotFound }
-func (f instanceError) Code() codes.Code       { return codes.NotFound }
+func (f instanceError) GRPCCode() int          { return grpc.NotFound }
 func (f instanceError) Fail() event.FailType   { return event.FailInstanceNotFound }

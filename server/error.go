@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"gate.computer/gate/internal/error/grpc"
 	"gate.computer/gate/server/event"
-	"google.golang.org/grpc/codes"
 )
 
 // Unauthenticated error.  The reason will be shown to the client.
@@ -23,7 +23,7 @@ func (s authenticationError) Error() string            { return string(s) }
 func (s authenticationError) PublicError() string      { return string(s) }
 func (s authenticationError) Unauthenticated() bool    { return true }
 func (s authenticationError) Status() int              { return http.StatusUnauthorized }
-func (s authenticationError) Code() codes.Code         { return codes.Unauthenticated }
+func (s authenticationError) GRPCCode() int            { return grpc.Unauthenticated }
 func (s authenticationError) FailType() event.FailType { return event.FailAuthDenied }
 
 // PermissionDenied error.  The details are not exposed to the client.
@@ -37,7 +37,7 @@ func (s permissionError) Error() string            { return string(s) }
 func (s permissionError) PublicError() string      { return "permission denied" }
 func (s permissionError) PermissionDenied() bool   { return true }
 func (s permissionError) Status() int              { return http.StatusForbidden }
-func (s permissionError) Code() codes.Code         { return codes.PermissionDenied }
+func (s permissionError) GRPCCode() int            { return grpc.PermissionDenied }
 func (s permissionError) FailType() event.FailType { return event.FailResourceDenied }
 
 // Unavailable service error.  The details are not exposed to the client.
@@ -54,7 +54,7 @@ func (e availabilityError) Error() string       { return e.internal.Error() }
 func (e availabilityError) PublicError() string { return "service unavailable" }
 func (e availabilityError) Unavailable() bool   { return true }
 func (e availabilityError) Status() int         { return http.StatusServiceUnavailable }
-func (e availabilityError) Code() codes.Code    { return codes.Unavailable }
+func (e availabilityError) GRPCCode() int       { return grpc.Unavailable }
 
 // RetryAfter creates a TooManyRequests error with the earliest time when the
 // request should be retried.
@@ -71,7 +71,7 @@ func (e rateError) PublicError() string      { return "request rate limit exceed
 func (e rateError) Unavailable() bool        { return true }
 func (e rateError) TooManyRequests() bool    { return true }
 func (e rateError) Status() int              { return http.StatusTooManyRequests }
-func (e rateError) Code() codes.Code         { return codes.Unavailable }
+func (e rateError) GRPCCode() int            { return grpc.Unavailable }
 func (e rateError) FailType() event.FailType { return event.FailRateLimit }
 
 func (e rateError) RetryAfter() time.Duration {

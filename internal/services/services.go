@@ -10,25 +10,18 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/catalog"
-	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/identity"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
 )
 
-type Logger = grpc.Logger
-
-func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random.Config, stderr Logger) (
+func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random.Config) (
 	func(context.Context) server.InstanceServices,
 	error,
 ) {
 	registry := new(service.Registry)
 
 	if err := service.Init(ctx, registry); err != nil {
-		return nil, err
-	}
-
-	if err := grpc.InitServices(ctx, registry, stderr); err != nil {
 		return nil, err
 	}
 

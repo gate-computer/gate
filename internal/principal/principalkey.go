@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"google.golang.org/grpc/codes"
+	"gate.computer/gate/internal/error/grpc"
 )
 
 const (
@@ -58,4 +58,4 @@ func (s principalKeyError) Error() string         { return string(s) }
 func (s principalKeyError) PublicError() string   { return string(s) }
 func (s principalKeyError) Unauthenticated() bool { return true }
 func (s principalKeyError) Status() int           { return http.StatusUnauthorized }
-func (s principalKeyError) Code() codes.Code      { return codes.Unauthenticated }
+func (s principalKeyError) GRPCCode() int         { return grpc.Unauthenticated }

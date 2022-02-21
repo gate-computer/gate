@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"google.golang.org/grpc/codes"
+	"gate.computer/gate/internal/error/grpc"
 )
 
 // Error is public.
@@ -28,7 +28,7 @@ func (s errorType) Error() string       { return string(s) }
 func (s errorType) PublicError() string { return string(s) }
 func (s errorType) ProgramError() bool  { return true }
 func (s errorType) Status() int         { return http.StatusBadRequest }
-func (s errorType) Code() codes.Code    { return codes.InvalidArgument }
+func (s errorType) GRPCCode() int       { return grpc.InvalidArgument }
 
 type programError interface {
 	error

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"net/http"
 
-	"google.golang.org/grpc/codes"
+	"gate.computer/gate/internal/error/grpc"
 )
 
 // Public function errors.
@@ -25,7 +25,7 @@ func (f function) PublicError() string    { return string(f) }
 func (f function) NotFound() bool         { return true }
 func (f function) FunctionNotFound() bool { return true }
 func (f function) Status() int            { return http.StatusNotFound }
-func (f function) Code() codes.Code       { return codes.NotFound }
+func (f function) GRPCCode() int          { return grpc.NotFound }
 
 type functionNotFound interface {
 	error

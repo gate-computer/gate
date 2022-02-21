@@ -29,7 +29,6 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/internal/bus"
 	"gate.computer/gate/internal/cmdconf"
-	"gate.computer/gate/internal/defaultlog"
 	"gate.computer/gate/internal/services"
 	"gate.computer/gate/internal/sys"
 	"gate.computer/gate/principal"
@@ -42,7 +41,6 @@ import (
 	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/service"
-	grpc "gate.computer/gate/service/grpc/config"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
 	"gate.computer/wag/compile"
@@ -165,8 +163,6 @@ func mainResult() int {
 		}
 	}
 
-	c.Service["grpc"] = grpc.Config
-
 	originConfig := origin.DefaultConfig
 	originConfig.MaxConns = 1e9
 	originConfig.BufSize = origin.DefaultBufSize
@@ -185,7 +181,7 @@ func mainResult() int {
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
 	var err error
-	c.Principal.Services, err = services.Init(context.Background(), &originConfig, &randomConfig, defaultlog.StandardLogger{})
+	c.Principal.Services, err = services.Init(context.Background(), &originConfig, &randomConfig)
 	check(err)
 
 	exec, err := gateruntime.NewExecutor(&c.Runtime.Config)

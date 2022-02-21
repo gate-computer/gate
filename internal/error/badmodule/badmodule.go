@@ -7,7 +7,7 @@ package badmodule
 import (
 	"net/http"
 
-	"google.golang.org/grpc/codes"
+	"gate.computer/gate/internal/error/grpc"
 )
 
 type Dual struct {
@@ -19,4 +19,4 @@ func (x *Dual) Error() string       { return x.Private }
 func (x *Dual) PublicError() string { return x.Public }
 func (x *Dual) ModuleError() bool   { return true }
 func (x *Dual) Status() int         { return http.StatusBadRequest }
-func (x *Dual) Code() codes.Code    { return codes.InvalidArgument }
+func (x *Dual) GRPCCode() int       { return grpc.InvalidArgument }

@@ -95,15 +95,10 @@ func targets() (targets Tasks) {
 			loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 		))
 
-		goTestBinaries := Group(
-			sources,
-			Command(GO, "build", "-o", Join(O, "lib/test-grpc-service"), "./internal/test/grpc-service"),
-		)
 		targets.Add(Target("check",
 			sources,
 			Command(GO, "vet", "./..."),
 			lib,
-			goTestBinaries,
 			goTestTask(GO, TAGS),
 			bin,
 			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
@@ -123,7 +118,6 @@ func targets() (targets Tasks) {
 			prebuild := prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
 			targets.Add(Target("prebuild",
 				prebuild,
-				goTestBinaries,
 				Env{"CGO_ENABLED": "0"}.Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
 			))
 
@@ -267,7 +261,6 @@ func protoTask(O, PROTOC, GO string) Task {
 			"server/api/pb/*.proto",
 			"server/event/pb/*.proto",
 			"server/web/internal/api/*.proto",
-			"service/grpc/api/*.proto",
 		)
 	)
 
@@ -282,7 +275,6 @@ func protoTask(O, PROTOC, GO string) Task {
 	}
 
 	addPlugin("google.golang.org/protobuf/cmd/protoc-gen-go")
-	addPlugin("google.golang.org/grpc/cmd/protoc-gen-go-grpc")
 
 	addProto := func(proto, supplement string) {
 		var (
@@ -306,8 +298,6 @@ func protoTask(O, PROTOC, GO string) Task {
 	addProto("server/api/pb/server.proto", "")
 	addProto("server/event/pb/event.proto", "")
 	addProto("server/web/internal/api/webserverapi.proto", "")
-	addProto("service/grpc/api/service.proto", "")
-	addProto("service/grpc/api/service.proto", "-grpc")
 
 	return Group(tasks...)
 }
