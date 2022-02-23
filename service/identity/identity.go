@@ -36,53 +36,39 @@ func (identity) Discoverable(context.Context) bool {
 }
 
 func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
-	return newInstance(config), nil
+	return instance{}, nil
 }
 
 const (
-	callNothing byte = iota
-	callPrincipalID
+	callPrincipalID uint8 = iota
 	callInstanceID
 )
 
-type instance struct {
-	service.InstanceBase
+type instance struct{ service.InstanceBase }
 
-	code packet.Code
-}
-
-func newInstance(config service.InstanceConfig) *instance {
-	return &instance{
-		code: config.Code,
-	}
-}
-
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() != packet.DomainCall {
 		return nil, nil
 	}
 
-	call := callNothing
-	if buf := p.Content(); len(buf) > 0 {
-		call = buf[0]
-	}
-
 	var id string
 
-	switch call {
-	case callPrincipalID:
-		if pri := principal.ContextID(ctx); pri != nil {
-			id = pri.String()
-		}
+	if buf := p.Content(); len(buf) > 0 {
+		switch buf[0] {
+		case callPrincipalID:
+			if pri := principal.ContextID(ctx); pri != nil {
+				id = pri.String()
+			}
 
-	case callInstanceID:
-		if b, ok := principal.ContextInstanceUUID(ctx); ok {
-			id = uuid.Must(uuid.FromBytes(b[:])).String()
+		case callInstanceID:
+			if b, ok := principal.ContextInstanceUUID(ctx); ok {
+				id = uuid.Must(uuid.FromBytes(b[:])).String()
+			}
 		}
 	}
 
 	b := []byte(id)
-	p = packet.MakeCall(inst.code, len(b))
+	p = packet.MakeCall(p.Code(), len(b))
 	copy(p.Content(), b)
 	return p, nil
 }
