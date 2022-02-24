@@ -22,6 +22,7 @@ type errorCode int16
 
 const (
 	_ errorCode = iota
+	errorScope
 	errorQuota
 	errorUser
 	errorWorkDir
