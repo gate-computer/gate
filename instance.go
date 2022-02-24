@@ -13,6 +13,7 @@ import (
 	"os/user"
 
 	"gate.computer/gate/packet"
+	"gate.computer/gate/scope/program"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/service"
 	"github.com/tsavola/threshold"
@@ -175,6 +176,10 @@ func (inst *instance) refreshRunning() (ok bool) {
 }
 
 func (inst *instance) startProcess(ctx context.Context, send chan<- packet.Thunk, argv []string) (errorCode, error) {
+	if !program.ContextContains(ctx, system.Scope) {
+		return errorScope, nil
+	}
+
 	u, err := user.LookupId(system.ContextUserID(ctx))
 	if err != nil {
 		return errorUser, nil
