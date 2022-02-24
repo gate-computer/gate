@@ -13,6 +13,7 @@ import (
 	"gate.computer/gate/service/identity"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
+	"gate.computer/gate/service/scope"
 )
 
 func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random.Config) (
@@ -30,9 +31,10 @@ func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random
 
 		r := registry.Clone()
 		r.MustRegister(o)
-		r.MustRegister(random.New(randomConfig))
 		r.MustRegister(catalog.New(r))
 		r.MustRegister(identity.Service)
+		r.MustRegister(random.New(randomConfig))
+		r.MustRegister(scope.Service)
 
 		return server.NewInstanceServices(o, r)
 	}
