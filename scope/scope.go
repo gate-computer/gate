@@ -9,7 +9,41 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 )
+
+func IsValid(s string) bool {
+	if s == "" || len(s) > 255 {
+		return false
+	}
+
+	for _, c := range []byte(s) {
+		if c >= '0' && c <= '9' {
+			continue
+		}
+		if c >= 'A' && c <= 'Z' {
+			continue
+		}
+		if c >= 'a' && c <= 'z' {
+			continue
+		}
+		switch c {
+		case '-', '.', '/', ':', '_':
+			continue
+		}
+
+		return false
+	}
+
+	if strings.HasPrefix(s, ":") || strings.HasSuffix(s, ":") {
+		return false
+	}
+	if strings.Contains(s, "::") {
+		return false
+	}
+
+	return true
+}
 
 var AliasRegexp = regexp.MustCompile(`.*\b([a-z0-9-._]+)$`)
 
