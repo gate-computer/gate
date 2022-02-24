@@ -402,7 +402,7 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 	handler = newWebHandler(mux)
 
 	if c.HTTP.AccessLog != "" {
-		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 		if err != nil {
 			return err
 		}

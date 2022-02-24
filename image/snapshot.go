@@ -18,8 +18,10 @@ import (
 	"gate.computer/wag/wa/opcode"
 )
 
-const wasmModuleHeaderSize = 8
-const snapshotVersion = 0
+const (
+	wasmModuleHeaderSize = 8
+	snapshotVersion      = 0
+)
 
 func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool) (*Program, error) {
 	// Instance file.
@@ -393,7 +395,7 @@ func makeMemorySection(memorySize uint32, memorySizeLimit int64) []byte {
 	return b[n:]
 }
 
-func makeGlobalSection(globalTypes []byte, segment []byte) []byte {
+func makeGlobalSection(globalTypes, segment []byte) []byte {
 	if len(globalTypes) == 0 {
 		return nil
 	}
@@ -420,7 +422,7 @@ func makeGlobalSection(globalTypes []byte, segment []byte) []byte {
 	return buf[maxHeaderSize-countLen-payloadSizeLen-1 : maxHeaderSize+itemsLen]
 }
 
-func putGlobals(target []byte, globalTypes []byte, segment []byte) (totalLen int) {
+func putGlobals(target, globalTypes, segment []byte) (totalLen int) {
 	for _, b := range globalTypes {
 		t := wa.GlobalType(b)
 
@@ -471,7 +473,7 @@ func makeSnapshotSection(snap *manifest.Snapshot) []byte {
 	// Section id, payload size.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
-	var maxPayloadLen = (0 +
+	maxPayloadLen := (0 +
 		1 + // Name length
 		len(wasm.SectionSnapshot) + // Name string
 		1 + // Snapshot version
@@ -511,7 +513,7 @@ func makeExportSectionWrapFrame(exportSectionSize uint32) []byte {
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
 	// Name length, name string.
-	var nameHeaderLen = 1 + len(wasm.SectionExport)
+	nameHeaderLen := 1 + len(wasm.SectionExport)
 
 	b := make([]byte, maxSectionFrameSize+nameHeaderLen)
 	i := maxSectionFrameSize
@@ -613,7 +615,7 @@ func makeStackSectionHeader(stackSize int) []byte {
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
 	// Name length, name string.
-	var customHeaderSize = 1 + len(wasm.SectionStack)
+	customHeaderSize := 1 + len(wasm.SectionStack)
 
 	buf := make([]byte, maxSectionFrameSize+customHeaderSize)
 	buf[0] = byte(section.Custom)

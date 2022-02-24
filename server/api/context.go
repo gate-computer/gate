@@ -20,9 +20,11 @@ const (
 	contextKeyOp
 )
 
-type Iface = pb.Iface
-type Op = pb.Op
-type Meta = pb.Meta
+type (
+	Iface = pb.Iface
+	Op    = pb.Op
+	Meta  = pb.Meta
+)
 
 func ContextWithMeta(ctx context.Context, m *Meta) (context.Context, error) {
 	if m.Iface != 0 {

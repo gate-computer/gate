@@ -17,8 +17,10 @@ func (s err) BadProgram() bool    { return true }
 func (s err) Status() int         { return 400 } // Bad Request
 func (s err) GRPCCode() int       { return grpc.InvalidArgument }
 
-const errInvalidCall = err("invalid call packet")
-const errInvalidData = err("invalid data packet")
+const (
+	errInvalidCall = err("invalid call packet")
+	errInvalidData = err("invalid data packet")
+)
 
 // IsValidCall checks service call packet's or call result packet's header.
 // Packet content is disregarded.

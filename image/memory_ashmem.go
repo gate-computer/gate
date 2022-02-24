@@ -45,8 +45,10 @@ func protectFileMemory(f *file.File, mask uintptr) error {
 	return ashmemSetProtMask.ioctl(f.Fd(), mask)
 }
 
-type ioctlSetInt uintptr
-type ioctlPair uintptr
+type (
+	ioctlSetInt uintptr
+	ioctlPair   uintptr
+)
 
 const (
 	ashmemSetSize     = ioctlSetInt(0x40087703)
@@ -60,7 +62,7 @@ var ioctlStrings = map[uintptr]string{
 	uintptr(ashmemPin):         "ASHMEM_PIN",
 }
 
-func (cmd ioctlSetInt) ioctl(fd uintptr, arg uintptr) error {
+func (cmd ioctlSetInt) ioctl(fd, arg uintptr) error {
 	return ioctl(fd, uintptr(cmd), arg)
 }
 

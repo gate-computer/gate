@@ -254,7 +254,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		}
 	}
 
-	var codeConfig = &compile.CodeConfig{
+	codeConfig := &compile.CodeConfig{
 		Text:   build.TextBuffer(),
 		Mapper: codeMap,
 		Config: config,
@@ -279,7 +279,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		panic(err)
 	}
 
-	var dataConfig = &compile.DataConfig{
+	dataConfig := &compile.DataConfig{
 		GlobalsMemory:   build.GlobalsMemoryBuffer(),
 		MemoryAlignment: build.MemoryAlignment(),
 		Config:          config,
@@ -568,7 +568,7 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 
 		filename := fmt.Sprintf("testdata/%s.%s.wasm", t.Name(), goruntime.GOARCH)
 
-		if err := ioutil.WriteFile(filename, data, 0644); err != nil {
+		if err := ioutil.WriteFile(filename, data, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

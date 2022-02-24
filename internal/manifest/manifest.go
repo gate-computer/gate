@@ -9,8 +9,10 @@ import (
 	"gate.computer/wag/compile"
 )
 
-const MaxSize = 4096 // Including header.
-const MaxBreakpoints = 100
+const (
+	MaxSize        = 4096 // Including header.
+	MaxBreakpoints = 100
+)
 
 func (x *ByteRange) End() int64 {
 	return x.Start + int64(x.Size)

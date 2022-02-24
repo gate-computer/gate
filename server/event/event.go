@@ -8,12 +8,14 @@ import (
 	"gate.computer/gate/server/event/pb"
 )
 
-type Event = pb.Event
-type EventFail = pb.Event_Fail
-type EventInstance = pb.Event_Instance
-type EventModule = pb.Event_Module
-type Fail = pb.Fail
-type FailType = pb.Fail_Type
-type Instance = pb.Instance
-type Module = pb.Module
-type Type = pb.Type
+type (
+	Event         = pb.Event
+	EventFail     = pb.Event_Fail
+	EventInstance = pb.Event_Instance
+	EventModule   = pb.Event_Module
+	Fail          = pb.Fail
+	FailType      = pb.Fail_Type
+	Instance      = pb.Instance
+	Module        = pb.Module
+	Type          = pb.Type
+)

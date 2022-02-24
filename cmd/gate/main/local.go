@@ -554,7 +554,7 @@ func daemonCallInstanceWaiter(method, id string) {
 	}
 }
 
-func openStdio() (r *os.File, w *os.File) {
+func openStdio() (r, w *os.File) {
 	r = os.Stdin
 	if term.IsTerminal(int(r.Fd())) {
 		r = copyStdin()
@@ -622,7 +622,7 @@ func openDebugFile() *os.File {
 		return f
 
 	default:
-		f, err := os.OpenFile(c.DebugLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		f, err := os.OpenFile(c.DebugLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 		check(err)
 		return f
 	}

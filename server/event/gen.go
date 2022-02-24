@@ -64,7 +64,7 @@ func main() {
 	data, err := m.RunIO(b, gofmt)
 	check(err)
 
-	check(ioutil.WriteFile(output, data, 0666))
+	check(ioutil.WriteFile(output, data, 0o666))
 }
 
 func snake2title(snake string) string {

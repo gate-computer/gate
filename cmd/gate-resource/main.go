@@ -74,10 +74,10 @@ func Main(outdir string, filenames []string) error {
 		}
 
 		if outdir != "" {
-			os.MkdirAll(outdir, 0755)
+			os.MkdirAll(outdir, 0o755)
 
 			outname := path.Join(outdir, name)
-			if err := ioutil.WriteFile(outname, data, 0644); err != nil {
+			if err := ioutil.WriteFile(outname, data, 0o644); err != nil {
 				os.Remove(outname)
 				return err
 			}

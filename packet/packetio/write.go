@@ -162,7 +162,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 			}
 		}
 
-		var consumed = s.consumed & mask
+		consumed := s.consumed & mask
 
 		if w == nil || consumed == atomic.LoadUint32(&s.produced)&mask {
 			select {

@@ -10,8 +10,10 @@ import (
 	internal "gate.computer/gate/internal/principal"
 )
 
-type ID = internal.ID
-type Type = internal.Type
+type (
+	ID   = internal.ID
+	Type = internal.Type
+)
 
 const (
 	TypeLocal   Type = internal.TypeLocal

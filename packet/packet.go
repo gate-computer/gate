@@ -100,7 +100,7 @@ func MakeInfo(code Code, contentSize int) Buf {
 	return Make(code, DomainInfo, HeaderSize+contentSize)
 }
 
-func MakeFlow(code Code, id int32, increment int32) Buf {
+func MakeFlow(code Code, id, increment int32) Buf {
 	b := MakeFlows(code, 1)
 	b.Set(0, id, increment)
 	return Buf(b)

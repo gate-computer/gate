@@ -249,11 +249,11 @@ func TestRedirect(t *testing.T) {
 
 func TestMethodNotAllowed(t *testing.T) {
 	for path, methods := range map[string][]string{
-		api.Path:                 []string{http.MethodPost, http.MethodPut},
-		api.PathModuleSources:    []string{http.MethodPost, http.MethodPut},
-		api.PathInstances:        []string{http.MethodPut},
-		api.PathInstances + "id": []string{http.MethodPut},
-		api.PathKnownModules:     []string{http.MethodPut},
+		api.Path:                 {http.MethodPost, http.MethodPut},
+		api.PathModuleSources:    {http.MethodPost, http.MethodPut},
+		api.PathInstances:        {http.MethodPut},
+		api.PathInstances + "id": {http.MethodPut},
+		api.PathKnownModules:     {http.MethodPut},
 	} {
 		for _, method := range methods {
 			req := httptest.NewRequest(method, path, nil)
@@ -267,10 +267,10 @@ func TestFeatures(t *testing.T) {
 	expectScope := []string{system.Scope}
 
 	for query, expect := range map[string]*api.Features{
-		"":                         &api.Features{},
-		"?feature=scope":           &api.Features{Scope: expectScope},
-		"?feature=*":               &api.Features{Scope: expectScope},
-		"?feature=*&feature=scope": &api.Features{Scope: expectScope},
+		"":                         {},
+		"?feature=scope":           {Scope: expectScope},
+		"?feature=*":               {Scope: expectScope},
+		"?feature=*&feature=scope": {Scope: expectScope},
 	} {
 		req := httptest.NewRequest(http.MethodGet, api.Path+query, nil)
 		_, content := checkResponse(t, newHandler(t), req, http.StatusOK)

@@ -11,15 +11,17 @@ import (
 	"gate.computer/gate/server/api/pb"
 )
 
-type DebugConfig = pb.DebugConfig
-type DebugRequest = pb.DebugRequest
-type DebugResponse = pb.DebugResponse
-type Features = pb.Features
-type InstanceUpdate = pb.InstanceUpdate
-type InvokeOptions = pb.InvokeOptions
-type LaunchOptions = pb.LaunchOptions
-type ModuleOptions = pb.ModuleOptions
-type ResumeOptions = pb.ResumeOptions
+type (
+	DebugConfig    = pb.DebugConfig
+	DebugRequest   = pb.DebugRequest
+	DebugResponse  = pb.DebugResponse
+	Features       = pb.Features
+	InstanceUpdate = pb.InstanceUpdate
+	InvokeOptions  = pb.InvokeOptions
+	LaunchOptions  = pb.LaunchOptions
+	ModuleOptions  = pb.ModuleOptions
+	ResumeOptions  = pb.ResumeOptions
+)
 
 type Server interface {
 	DebugInstance(context.Context, string, *DebugRequest) (*DebugResponse, error)

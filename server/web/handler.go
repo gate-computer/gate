@@ -36,9 +36,11 @@ type errorWriter interface {
 	WriteError(status int, text string)
 }
 
-type instanceMethod func(ctx context.Context, s server.Server, instance string) error
-type instanceStatusMethod func(ctx context.Context, s server.Server, instance string) (*server.Status, error)
-type instanceWaiterMethod func(ctx context.Context, s server.Server, instance string) (server.Instance, error)
+type (
+	instanceMethod       func(ctx context.Context, s server.Server, instance string) error
+	instanceStatusMethod func(ctx context.Context, s server.Server, instance string) (*server.Status, error)
+	instanceWaiterMethod func(ctx context.Context, s server.Server, instance string) (server.Instance, error)
+)
 
 func deleteInstance(ctx context.Context, s server.Server, instance string) error {
 	return s.DeleteInstance(ctx, instance)
@@ -268,7 +270,7 @@ func newFeatureHandler(s *webserver, path string, featureAll *server.Features) h
 		Scope: featureAll.Scope,
 	}
 
-	var answers = [3]staticContent{
+	answers := [3]staticContent{
 		prepareStaticContent(struct{}{}),
 		prepareStaticContent(featureScope), // scope
 		prepareStaticContent(featureScope), // all

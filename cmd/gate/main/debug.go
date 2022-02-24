@@ -326,9 +326,9 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 	var moduleLen int64
 	check(call.Store(&moduleLen))
 
-	var reader = compile.NewLoader(bufio.NewReader(r))
+	reader := compile.NewLoader(bufio.NewReader(r))
 	var custom section.CustomSections
-	var config = compile.Config{
+	config := compile.Config{
 		CustomSectionLoader: section.CustomLoader(map[string]section.CustomContentLoader{
 			"name":            names.Load,
 			".debug_abbrev":   custom.Load,
@@ -348,7 +348,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		return
 	}
 
-	var codeConfig = &compile.CodeConfig{
+	codeConfig := &compile.CodeConfig{
 		Mapper:      &codeMap,
 		Breakpoints: make(map[uint32]compile.Breakpoint, len(res.Config.Breakpoints)),
 		Config:      config,

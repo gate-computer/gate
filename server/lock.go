@@ -8,8 +8,10 @@ import (
 	"sync"
 )
 
-type serverLock struct{}
-type serverMutex struct{ sync.Mutex }
+type (
+	serverLock  struct{}
+	serverMutex struct{ sync.Mutex }
+)
 
 func (m *serverMutex) Lock() serverLock {
 	m.Mutex.Lock()
@@ -40,8 +42,10 @@ func (m *serverMutex) GuardProgram(f func(serverLock) *program) *program {
 	return f(lock)
 }
 
-type instanceLock struct{}
-type instanceMutex struct{ sync.Mutex }
+type (
+	instanceLock  struct{}
+	instanceMutex struct{ sync.Mutex }
+)
 
 func (m *instanceMutex) Lock() instanceLock {
 	m.Mutex.Lock()

@@ -60,7 +60,7 @@ func ignoreSignals() {
 	signal.Ignore(ignore...)
 }
 
-func execveat(dirfd int, pathname string, argv []string, envv []string, flags int) error {
+func execveat(dirfd int, pathname string, argv, envv []string, flags int) error {
 	pathnamep, err := syscall.BytePtrFromString(pathname)
 	if err != nil {
 		return err
@@ -247,7 +247,7 @@ func childMain() (err error) {
 	setrlimit("NOFILE", unix.RLIMIT_NOFILE, 1048576)
 
 	if common.Sandbox {
-		syscall.Umask(0777)
+		syscall.Umask(0o777)
 
 		if err := setrlimit("FSIZE", unix.RLIMIT_FSIZE, limitFSIZE); err != nil {
 			return err

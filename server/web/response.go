@@ -75,7 +75,7 @@ func setAccessControlAllowHeaders(w http.ResponseWriter, r *http.Request, s *web
 	return originSet
 }
 
-func setAccessControlAllowExposeHeaders(w http.ResponseWriter, r *http.Request, s *webserver, methods string, allowHeaders string, exposeHeaders string) {
+func setAccessControlAllowExposeHeaders(w http.ResponseWriter, r *http.Request, s *webserver, methods, allowHeaders, exposeHeaders string) {
 	if setAccessControlAllowHeaders(w, r, s, methods, allowHeaders) {
 		w.Header().Set("Access-Control-Expose-Headers", exposeHeaders)
 	}

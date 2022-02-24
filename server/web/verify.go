@@ -15,8 +15,10 @@ import (
 	"gate.computer/gate/server/web/api"
 )
 
-const maxExpireMargin = 15 * 60 // Seconds
-const maxScopeLength = 10
+const (
+	maxExpireMargin = 15 * 60 // Seconds
+	maxScopeLength  = 10
+)
 
 func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, expires int64) {
 	if expires == 0 && s.localAuthorization {

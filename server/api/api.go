@@ -26,8 +26,10 @@ func EncodeKnownModule(hashSum []byte) string {
 	return hex.EncodeToString(hashSum)
 }
 
-type ModuleInfo = pb.ModuleInfo
-type Modules = pb.Modules
+type (
+	ModuleInfo = pb.ModuleInfo
+	Modules    = pb.Modules
+)
 
 func SortableModules(x *Modules) Sortable {
 	return sortableModules{x.Modules}
@@ -64,9 +66,11 @@ const (
 	CauseInternal                      = pb.Cause_INTERNAL
 )
 
-type State = pb.State
-type Cause = pb.Cause
-type Status = pb.Status
+type (
+	State  = pb.State
+	Cause  = pb.Cause
+	Status = pb.Status
+)
 
 func CloneStatus(s *Status) *Status {
 	if s == nil {
@@ -80,8 +84,10 @@ func CloneStatus(s *Status) *Status {
 	}
 }
 
-type InstanceInfo = pb.InstanceInfo
-type Instances = pb.Instances
+type (
+	InstanceInfo = pb.InstanceInfo
+	Instances    = pb.Instances
+)
 
 func SortableInstances(x *Instances) Sortable {
 	return sortableInstances{x.Instances}

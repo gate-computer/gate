@@ -793,9 +793,7 @@ func funcRTTrap(a *ga.Assembly) {
 		a.Label(".exit_time")
 		resetRT(a, status, monotonicTime)
 		{
-			var (
-				stackVars = local0.As("stackVars")
-			)
+			stackVars := local0.As("stackVars")
 
 			macroStackVars(a, stackVars, scratch0)
 
@@ -1121,7 +1119,7 @@ func main() {
 		as(arch, output)
 	}
 
-	if err := ioutil.WriteFile(filename, []byte(output), 0666); err != nil {
+	if err := ioutil.WriteFile(filename, []byte(output), 0o666); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

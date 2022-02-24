@@ -17,8 +17,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-var errUnauthenticated = server.Unauthenticated("missing authentication credentials")
-var errPermissionDenied = server.PermissionDenied("key not authorized")
+var (
+	errUnauthenticated  = server.Unauthenticated("missing authentication credentials")
+	errPermissionDenied = server.PermissionDenied("key not authorized")
+)
 
 // AuthorizedKeys authorizes access for the supported (ssh-ed25519) public keys
 // found in an SSH authorized_keys file.

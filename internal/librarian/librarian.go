@@ -225,7 +225,7 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		data = b.Bytes()
 	}
 
-	if err := ioutil.WriteFile(output, data, 0644); err != nil {
+	if err := ioutil.WriteFile(output, data, 0o644); err != nil {
 		return err
 	}
 

@@ -4,5 +4,7 @@
 
 package bus
 
-const DaemonIface = "computer.gate.Daemon"
-const DaemonPath = "/computer/gate/Daemon"
+const (
+	DaemonIface = "computer.gate.Daemon"
+	DaemonPath  = "/computer/gate/Daemon"
+)

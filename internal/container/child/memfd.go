@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func memfdCreateDup(name string, data []byte, asFD int, dupFlags int) error {
+func memfdCreateDup(name string, data []byte, asFD, dupFlags int) error {
 	fd, err := unix.MemfdCreate(name, unix.MFD_ALLOW_SEALING|unix.MFD_CLOEXEC)
 	if err != nil {
 		return fmt.Errorf("creating memfd for %s: %w", name, err)

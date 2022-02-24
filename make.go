@@ -255,13 +255,11 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 }
 
 func protoTask(O, PROTOC, GO string) Task {
-	var (
-		deps = Globber(
-			"internal/manifest/*.proto",
-			"server/api/pb/*.proto",
-			"server/event/pb/*.proto",
-			"server/web/internal/api/*.proto",
-		)
+	deps := Globber(
+		"internal/manifest/*.proto",
+		"server/api/pb/*.proto",
+		"server/event/pb/*.proto",
+		"server/web/internal/api/*.proto",
 	)
 
 	var tasks Tasks
@@ -572,7 +570,7 @@ func benchmarkTask(O, GO, TAGS string) Task {
 
 		Println("Writing", BENCHSTATSNEW)
 
-		if err := ioutil.WriteFile(BENCHSTATSNEW, output, 0666); err != nil {
+		if err := ioutil.WriteFile(BENCHSTATSNEW, output, 0o666); err != nil {
 			return err
 		}
 

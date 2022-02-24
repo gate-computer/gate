@@ -39,7 +39,7 @@ func NewFilesystem(root string) (fs *Filesystem, err error) {
 
 	// Don't use MkdirAll to get an error if root doesn't exist.
 	for _, p := range []string{progPath, instPath} {
-		if e := os.Mkdir(p, 0700); e != nil && !os.IsExist(e) {
+		if e := os.Mkdir(p, 0o700); e != nil && !os.IsExist(e) {
 			err = e
 			return
 		}
@@ -74,7 +74,7 @@ func (fs *Filesystem) programBackend() interface{}  { return fs }
 func (fs *Filesystem) instanceBackend() interface{} { return fs }
 
 func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
-	f, err = openat(int(fs.progDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0400)
+	f, err = openat(int(fs.progDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o400)
 	if err != nil {
 		return
 	}
@@ -172,7 +172,7 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (*Program, error
 }
 
 func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
-	f, err = openat(int(fs.instDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0600)
+	f, err = openat(int(fs.instDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o600)
 	if err != nil {
 		return
 	}

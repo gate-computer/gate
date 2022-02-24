@@ -192,7 +192,7 @@ func mainResult() int {
 
 	var storage image.Storage = image.Memory
 	if c.Image.VarDir != "" {
-		check(os.MkdirAll(c.Image.VarDir, 0755))
+		check(os.MkdirAll(c.Image.VarDir, 0o755))
 		fs, err := image.NewFilesystem(c.Image.VarDir)
 		check(err)
 		defer fs.Close()

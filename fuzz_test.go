@@ -61,6 +61,5 @@ func FuzzServerUploadModule(f *testing.F) {
 				t.Errorf("incorrect module hash: %q", resultHash)
 			}
 		}
-
 	})
 }
