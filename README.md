@@ -168,27 +168,29 @@ and install them separately.
 
 ### Build everything using make.go
 
+Build targets:
+
+  - `go run make.go lib` builds components implemented with C++ and assembly.
+  - `go run make.go bin` builds Go programs without bundling non-Go components.
+  - `go run make.go` builds all of the above and more.
+  - `go run make.go check` runs tests.
+  - `go run make.go -h` shows all targets and options.
+
 Build requirements:
 
   - Linux
   - C++ compiler
   - Go compiler
-  - protobuf-compiler
-  - libprotobuf-dev
 
-The components implemented with C++ and assembly can be built using `go run
-make.go lib`.  `go run make.go bin` builds the Go programs without bundling the
-non-Go components in them.  `go run make.go` builds all of them by default.
-
-Additional requirements for `go run make.go check`:
+Test requirements:
 
   - Python 3
   - uidmap (shadow-utils)
 
-See file `make.go` for more targets.
-
 
 ### Installation
+
+The build system builds a standalone installer which can be invoked as root:
 
   1. `go run make.go` or `go run make.go installer ...`
   2. `sudo bin/install`

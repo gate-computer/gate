@@ -37,8 +37,6 @@ func targets() (targets Tasks) {
 		PREFIX     = Getvar("PREFIX", "/usr/local")
 		LIBEXECDIR = Getvar("LIBEXECDIR", Join(PREFIX, "lib/gate"))
 
-		PROTOC = Getvar("PROTOC", "protoc")
-
 		GO         = Getvar("GO", "go")
 		GOFMT      = Getvar("GOFMT", "gofmt")
 		TAGS       = Getvar("TAGS", "gateexecdir")
@@ -66,7 +64,7 @@ func targets() (targets Tasks) {
 	))
 
 	sources := Group(
-		protoTask(O, PROTOC, GO),
+		protoTask(O, GO),
 		eventTypesTask(GO, GOFMT),
 		runtimeerrors.Task(GOFMT),
 	)
@@ -254,8 +252,8 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 	)
 }
 
-func protoTask(O, PROTOC, GO string) Task {
-	deps := Globber(
+func protoTask(O, GO string) Task {
+	protos := Globber(
 		"internal/manifest/*.proto",
 		"server/api/pb/*.proto",
 		"server/event/pb/*.proto",
@@ -264,38 +262,11 @@ func protoTask(O, PROTOC, GO string) Task {
 
 	var tasks Tasks
 
-	addPlugin := func(pkg string) {
-		plugin := Join(O, "lib", Base(pkg))
-
-		tasks.Add(If(Outdated(plugin, nil),
-			Command(GO, "build", "-o", plugin, pkg)),
-		)
-	}
-
-	addPlugin("google.golang.org/protobuf/cmd/protoc-gen-go")
-
-	addProto := func(proto, supplement string) {
-		var (
-			plugin = Join(O, "lib/protoc-gen-go"+supplement)
-			suffix = strings.Replace(supplement, "-", "_", 1)
-			gen    = ReplaceSuffix(proto, suffix+".pb.go")
-		)
-
-		tasks.Add(If(Outdated(gen, Flattener(deps, plugin)),
-			Command(PROTOC,
-				"--plugin="+plugin,
-				"--go"+supplement+"_out=.",
-				"--go"+supplement+"_opt=paths=source_relative",
-				proto,
-			),
+	for _, proto := range protos() {
+		tasks.Add(If(Outdated(ReplaceSuffix(proto, ".pb.go"), protos),
+			Command(GO, "run", "github.com/bufbuild/buf/cmd/buf", "generate", "--path", proto),
 		))
 	}
-
-	addProto("internal/manifest/manifest.proto", "")
-	addProto("server/api/pb/meta.proto", "")
-	addProto("server/api/pb/server.proto", "")
-	addProto("server/event/pb/event.proto", "")
-	addProto("server/web/internal/api/webserverapi.proto", "")
 
 	return Group(tasks...)
 }
