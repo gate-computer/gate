@@ -10,65 +10,35 @@ package main
 //go:generate go run make.go generate
 
 import (
-	"strings"
-
 	. "import.name/make"
 )
 
 func main() { Main(targets, "make.go", "go.mod") }
 
 func targets() (targets Tasks) {
-	var (
-		GO     = Getvar("GO", "go")
-		PROTOC = Getvar("PROTOC", "protoc")
-	)
+	GO := Getvar("GO", "go")
 
-	sources := generate(GO, PROTOC)
+	sources := generate(GO)
 	targets.Add(Target("generate", sources))
 	targets.Add(Target("check", sources, check(GO)))
 	targets.Add(Target("clean", Removal("lib")))
 	return
 }
 
-func generate(GO, PROTOC string) Task {
-	var (
-		deps = Globber(
-			"api/*.proto",
-		)
+func generate(GO string) Task {
+	protos := Globber(
+		"api/*.proto",
 	)
 
-	var tasks Tasks
-
-	addPlugin := func(pkg string) {
-		plugin := Join("lib", Base(pkg))
-
-		tasks.Add(If(Outdated(plugin, nil),
-			Command(GO, "build", "-o", plugin, pkg)),
-		)
+	tasks := Tasks{
+		Command(GO, "build", "-o", "lib/", "google.golang.org/grpc/cmd/protoc-gen-go-grpc"),
 	}
 
-	addPlugin("google.golang.org/protobuf/cmd/protoc-gen-go")
-	addPlugin("google.golang.org/grpc/cmd/protoc-gen-go-grpc")
-
-	addProto := func(proto, supplement string) {
-		var (
-			plugin = Join("lib/protoc-gen-go" + supplement)
-			suffix = strings.Replace(supplement, "-", "_", 1)
-			gen    = ReplaceSuffix(proto, suffix+".pb.go")
-		)
-
-		tasks.Add(If(Outdated(gen, Flattener(deps, plugin)),
-			Command(PROTOC,
-				"--plugin="+plugin,
-				"--go"+supplement+"_out=.",
-				"--go"+supplement+"_opt=paths=source_relative",
-				proto,
-			),
+	for _, proto := range protos() {
+		tasks.Add(If(Outdated(ReplaceSuffix(proto, ".pb.go"), protos),
+			Command(GO, "run", "github.com/bufbuild/buf/cmd/buf", "generate", "--path", proto),
 		))
 	}
-
-	addProto("api/service.proto", "")
-	addProto("api/service.proto", "-grpc")
 
 	return Group(tasks...)
 }
