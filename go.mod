@@ -20,7 +20,7 @@ require (
 	import.name/confi v1.6.0
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
 	import.name/make v0.0.0-20220104073727-8e6e5ea95bef
-	import.name/pan v0.1.1
+	import.name/pan v0.2.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.63
 	modernc.org/sqlite v1.14.6
 )

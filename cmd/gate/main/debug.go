@@ -34,6 +34,8 @@ import (
 	"gate.computer/wag/wa"
 	dbus "github.com/godbus/dbus/v5"
 	"import.name/pan"
+
+	. "import.name/pan/check"
 )
 
 type location struct {
@@ -108,7 +110,7 @@ func debug(call debugCallFunc) {
 
 	case "dumptext":
 		_, text, codeMap, names, _ := build(res)
-		check(dumpText(text, codeMap.FuncAddrs, &names))
+		Check(dumpText(text, codeMap.FuncAddrs, &names))
 
 	default:
 		modkey := res.Module
@@ -182,7 +184,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 
 	for r := info.Reader(); ; {
 		e, err := r.Next()
-		check(err)
+		Check(err)
 		if e == nil {
 			break
 		}
@@ -191,7 +193,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 		case dwarf.TagCompileUnit:
 			if e.Children {
 				lr, err := info.LineReader(e)
-				check(err)
+				Check(err)
 
 				if lr != nil {
 					for {
@@ -201,7 +203,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 							if err == io.EOF {
 								break
 							}
-							check(err)
+							Check(err)
 						}
 
 						locAddrs[le.File.Name] = append(locAddrs[le.File.Name], lineAddr{le.Line, le.Address, le.Column})
@@ -305,7 +307,7 @@ func debugBacktrace(res *api.DebugResponse) {
 
 	mod, _, codeMap, names, info := build(res)
 	frames := traceStack(res.Data, codeMap, mod.FuncTypes())
-	check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
+	Check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
 }
 
 func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
@@ -317,14 +319,14 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 	}
 
 	r, w, err := os.Pipe()
-	check(err)
+	Check(err)
 
 	wFD := dbus.UnixFD(w.Fd())
 	call := daemonCall("DownloadModule", wFD, modkey)
 	closeFiles(w)
 
 	var moduleLen int64
-	check(call.Store(&moduleLen))
+	Check(call.Store(&moduleLen))
 
 	reader := compile.NewLoader(bufio.NewReader(r))
 	var custom section.CustomSections
@@ -341,7 +343,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 	}
 
 	mod, err = compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader)
-	check(err)
+	Check(err)
 
 	err = binding.BindImports(&mod, new(abi.ImportResolver))
 	if err != nil {
@@ -393,7 +395,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType) []stack.Frame {
 	if n := len(buf); n == 0 || n&7 != 0 {
-		check(fmt.Errorf("invalid stack size %d", n))
+		Check(fmt.Errorf("invalid stack size %d", n))
 	}
 
 	var frames []stack.Frame
@@ -403,12 +405,12 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 
 		callIndex := uint32(pair)
 		if callIndex >= uint32(len(textMap.CallSites)) {
-			check(fmt.Errorf("function call site index %d is unknown", callIndex))
+			Check(fmt.Errorf("function call site index %d is unknown", callIndex))
 		}
 		call := textMap.CallSites[callIndex]
 
 		if off := int32(pair >> 32); off != call.StackOffset {
-			check(fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset))
+			Check(fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset))
 		}
 
 		if len(textMap.FuncAddrs) == 0 || call.RetAddr < textMap.FuncAddrs[0] {
@@ -416,15 +418,15 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		}
 
 		if call.StackOffset&7 != 0 {
-			check(fmt.Errorf("invalid stack offset %d", call.StackOffset))
+			Check(fmt.Errorf("invalid stack offset %d", call.StackOffset))
 		}
 		if call.StackOffset == 0 {
-			check(errors.New("inconsistent call stack"))
+			Check(errors.New("inconsistent call stack"))
 		}
 
 		init, funcIndex, callIndexAgain, stackOffset, retOff := textMap.FindCall(call.RetAddr)
 		if init || callIndexAgain != int(callIndex) || stackOffset != call.StackOffset {
-			check(fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr))
+			Check(fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr))
 		}
 
 		numParams := len(funcTypes[funcIndex].Params)

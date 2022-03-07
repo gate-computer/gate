@@ -21,6 +21,8 @@ import (
 	"golang.org/x/term"
 	"import.name/confi"
 	"import.name/pan"
+
+	. "import.name/pan/check"
 )
 
 const (
@@ -139,7 +141,7 @@ func Main() {
 	}
 
 	defaultIdentityFile, err := cmdconf.JoinHome(DefaultIdentityFile)
-	check(err)
+	Check(err)
 
 	c.IdentityFile = defaultIdentityFile
 	c.Pin = DefaultPin
@@ -285,7 +287,7 @@ func printScope(w io.Writer, scope []string) {
 
 func openFile(name string) *os.File {
 	f, err := os.Open(name)
-	check(err)
+	Check(err)
 	return f
 }
 
@@ -313,17 +315,13 @@ func fatal(x interface{}, args ...interface{}) {
 	if err == nil {
 		err = errors.New("nil")
 	}
-	check(err)
+	Check(err)
 }
 
 func fatalf(format string, args ...interface{}) {
-	check(fmt.Errorf(format, args...))
-}
-
-func check(err error) {
-	pan.Check(err)
+	Check(fmt.Errorf(format, args...))
 }
 
 func check_(_ interface{}, err error) {
-	pan.Check(err)
+	Check(err)
 }

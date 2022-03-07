@@ -9,6 +9,8 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/gorilla/websocket"
+
+	. "import.name/pan/check"
 )
 
 type REPLConfig struct {
@@ -22,7 +24,7 @@ func repl(r io.Reader, w io.Writer) {
 		HistoryFile:  c.REPL.HistoryFile,
 		HistoryLimit: c.REPL.HistoryLimit,
 	})
-	check(err)
+	Check(err)
 	defer rl.Close()
 
 	readErr := make(chan error, 1)
@@ -56,13 +58,13 @@ func repl(r io.Reader, w io.Writer) {
 			if err == io.EOF {
 				break
 			}
-			check(err)
+			Check(err)
 		}
 
 		outbuf = append(line, '\n')
 	}
 
-	check(<-readErr)
+	Check(<-readErr)
 }
 
 type websocketConn struct {

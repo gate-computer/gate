@@ -49,6 +49,8 @@ import (
 	"google.golang.org/protobuf/proto"
 	"import.name/confi"
 	"import.name/pan"
+
+	. "import.name/pan/check"
 )
 
 const (
@@ -182,47 +184,47 @@ func mainResult() int {
 
 	var err error
 	c.Principal.Services, err = services.Init(context.Background(), &originConfig, &randomConfig)
-	check(err)
+	Check(err)
 
 	exec, err := gateruntime.NewExecutor(&c.Runtime.Config)
-	check(err)
+	Check(err)
 	defer exec.Close()
 
-	check(sys.ClearCaps())
+	Check(sys.ClearCaps())
 
 	var storage image.Storage = image.Memory
 	if c.Image.VarDir != "" {
-		check(os.MkdirAll(c.Image.VarDir, 0o755))
+		Check(os.MkdirAll(c.Image.VarDir, 0o755))
 		fs, err := image.NewFilesystem(c.Image.VarDir)
-		check(err)
+		Check(err)
 		defer fs.Close()
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
 	}
 
 	conn, err := dbus.SessionBusPrivate()
-	check(err)
+	Check(err)
 	defer conn.Close()
-	check(conn.Auth(nil))
-	check(conn.Hello())
+	Check(conn.Auth(nil))
+	Check(conn.Hello())
 	ctx := conn.Context()
 
 	signal.Ignore(syscall.SIGHUP)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
 	inventoryDB, err := database.Resolve(c.Inventory)
-	check(err)
+	Check(err)
 	defer inventoryDB.Close()
 	inventory, err := inventoryDB.InitInventory(ctx)
-	check(err)
+	Check(err)
 
 	ctx = principal.ContextWithLocalID(ctx)
 
 	inited := make(chan api.Server, 1)
 	defer close(inited)
-	check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
+	Check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
 
 	reply, err := conn.RequestName(bus.DaemonIface, dbus.NameFlagDoNotQueue)
-	check(err)
+	Check(err)
 	switch reply {
 	case dbus.RequestNameReplyPrimaryOwner:
 		// ok
@@ -244,15 +246,15 @@ func mainResult() int {
 	}
 
 	s, err := server.New(ctx, serverConfig)
-	check(err)
+	Check(err)
 	defer s.Shutdown(ctx)
 
 	httpDone := make(chan error, 1)
 	if c.HTTP.Addr != "" {
 		host, port, err := net.SplitHostPort(c.HTTP.Addr)
-		check(err)
+		Check(err)
 		if host == "" {
-			check(errors.New("HTTP hostname must be configured explicitly"))
+			Check(errors.New("HTTP hostname must be configured explicitly"))
 		}
 		verifyLoopbackHost("HTTP", host)
 
@@ -265,12 +267,12 @@ func mainResult() int {
 		}
 
 		if len(c.HTTP.Origins) == 0 {
-			check(errors.New("no HTTP origins configured"))
+			Check(errors.New("no HTTP origins configured"))
 		}
 		for _, origin := range c.HTTP.Origins {
 			if origin != "" && origin != "null" {
 				u, err := url.Parse(origin)
-				check(err)
+				Check(err)
 				verifyLoopbackHost("HTTP origin", u.Hostname())
 			}
 		}
@@ -288,12 +290,12 @@ func mainResult() int {
 	inited <- s
 
 	_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
-	check(err)
+	Check(err)
 
 	select {
 	case <-terminate:
 	case err := <-httpDone:
-		check(err)
+		Check(err)
 	}
 
 	daemon.SdNotify(false, daemon.SdNotifyStopping)
@@ -302,11 +304,11 @@ func mainResult() int {
 
 func verifyLoopbackHost(errorDesc, host string) {
 	ips, err := net.LookupIP(host)
-	check(err)
+	Check(err)
 
 	for _, ip := range ips {
 		if !ip.IsLoopback() {
-			check(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
+			Check(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
 		}
 	}
 }
@@ -559,7 +561,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 
 func listModules(ctx context.Context, s api.Server) []string {
 	refs, err := s.Modules(ctx)
-	check(err)
+	Check(err)
 	sort.Sort(api.SortableModules(refs))
 	ids := make([]string, 0, len(refs.Modules))
 	for _, ref := range refs.Modules {
@@ -570,13 +572,13 @@ func listModules(ctx context.Context, s api.Server) []string {
 
 func getModuleInfo(ctx context.Context, s api.Server, moduleID string) (tags []string) {
 	info, err := s.ModuleInfo(ctx, moduleID)
-	check(err)
+	Check(err)
 	return info.Tags
 }
 
 func downloadModule(ctx context.Context, s api.Server, moduleID string) (io.ReadCloser, int64) {
 	stream, length, err := s.ModuleContent(ctx, moduleID)
-	check(err)
+	Check(err)
 	return stream, length
 }
 
@@ -589,16 +591,16 @@ func uploadModule(ctx context.Context, s api.Server, file *os.File, length int64
 	defer upload.Close()
 
 	id, err := s.UploadModule(ctx, upload, opt)
-	check(err)
+	Check(err)
 	return id
 }
 
 func pinModule(ctx context.Context, s api.Server, moduleID string, opt *api.ModuleOptions) {
-	check(s.PinModule(ctx, moduleID, opt))
+	Check(s.PinModule(ctx, moduleID, opt))
 }
 
 func unpinModule(ctx context.Context, s api.Server, moduleID string) {
-	check(s.UnpinModule(ctx, moduleID))
+	Check(s.UnpinModule(ctx, moduleID))
 }
 
 // doCall module id or file.  Module options apply only to module file.
@@ -654,7 +656,7 @@ func doCall(
 	suspend = nil
 
 	wrote = true
-	check(inst.Connect(ctx, r, w))
+	Check(inst.Connect(ctx, r, w))
 	status := inst.Wait(ctx)
 	return inst.ID(), status.State, status.Cause, status.Result
 }
@@ -680,18 +682,18 @@ func doLaunch(
 		defer upload.Close()
 
 		_, inst, err := s.UploadModuleInstance(ctx, upload, moduleOpt, launch)
-		check(err)
+		Check(err)
 		return inst
 	} else {
 		inst, err := s.NewInstance(ctx, moduleID, launch)
-		check(err)
+		Check(err)
 		return inst
 	}
 }
 
 func listInstances(ctx context.Context, s api.Server) []string {
 	instances, err := s.Instances(ctx)
-	check(err)
+	Check(err)
 	sort.Sort(api.SortableInstances(instances))
 	ids := make([]string, 0, len(instances.Instances))
 	for _, i := range instances.Instances {
@@ -702,23 +704,23 @@ func listInstances(ctx context.Context, s api.Server) []string {
 
 func getInstanceInfo(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
 	info, err := s.InstanceInfo(ctx, instanceID)
-	check(err)
+	Check(err)
 	return info.Status.State, info.Status.Cause, info.Status.Result, info.Tags
 }
 
 func waitInstance(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
 	status, err := s.WaitInstance(ctx, instanceID)
-	check(err)
+	Check(err)
 	return status.State, status.Cause, status.Result
 }
 
 func deleteInstance(ctx context.Context, s api.Server, instanceID string) {
-	check(s.DeleteInstance(ctx, instanceID))
+	Check(s.DeleteInstance(ctx, instanceID))
 }
 
 func suspendInstance(ctx context.Context, s api.Server, instanceID string) {
 	_, err := s.SuspendInstance(ctx, instanceID)
-	check(err)
+	Check(err)
 }
 
 func resumeInstance(ctx context.Context, s api.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
@@ -728,12 +730,12 @@ func resumeInstance(ctx context.Context, s api.Server, instance string, resume *
 	resume.Invoke = invoke
 
 	_, err := s.ResumeInstance(ctx, instance, resume)
-	check(err)
+	Check(err)
 }
 
 func killInstance(ctx context.Context, s api.Server, instanceID string) {
 	_, err := s.KillInstance(ctx, instanceID)
-	check(err)
+	Check(err)
 }
 
 func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
@@ -756,39 +758,39 @@ func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, 
 		}
 	}()
 
-	check(err) // First SetNonblock error.
+	Check(err) // First SetNonblock error.
 
 	_, connIO, err := s.InstanceConnection(ctx, instanceID)
-	check(err)
+	Check(err)
 	if connIO == nil {
 		return false
 	}
 
 	wrote = true
-	check(connIO(ctx, r, w))
+	Check(connIO(ctx, r, w))
 	return true
 }
 
 func snapshot(ctx context.Context, s api.Server, instanceID string, moduleOpt *api.ModuleOptions) string {
 	moduleID, err := s.Snapshot(ctx, instanceID, moduleOpt)
-	check(err)
+	Check(err)
 	return moduleID
 }
 
 func updateInstance(ctx context.Context, s api.Server, instanceID string, update *api.InstanceUpdate) {
 	_, err := s.UpdateInstance(ctx, instanceID, update)
-	check(err)
+	Check(err)
 }
 
 func debugInstance(ctx context.Context, s api.Server, instanceID string, reqBuf []byte) []byte {
 	req := new(api.DebugRequest)
-	check(proto.Unmarshal(reqBuf, req))
+	Check(proto.Unmarshal(reqBuf, req))
 
 	res, err := s.DebugInstance(ctx, instanceID, req)
-	check(err)
+	Check(err)
 
 	resBuf, err := proto.Marshal(res)
-	check(err)
+	Check(err)
 	return resBuf
 }
 
@@ -839,7 +841,7 @@ func moduleUpload(f *os.File) *api.ModuleUpload {
 	}
 
 	data, err := ioutil.ReadAll(f)
-	check(err)
+	Check(err)
 
 	return &api.ModuleUpload{
 		Stream: ioutil.NopCloser(bytes.NewReader(data)),
@@ -906,13 +908,13 @@ func newHTTPHandler(api http.Handler, origin string) http.Handler {
 
 	for _, static := range c.HTTP.Static {
 		if !strings.HasPrefix(static.URI, "/") {
-			check(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
+			Check(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
 		}
 		if static.Path == "" {
-			check(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
+			Check(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
 		}
 		if strings.HasSuffix(static.URI, "/") != strings.HasSuffix(static.Path, "/") {
-			check(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
+			Check(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
 		}
 
 		mux.HandleFunc(static.URI, newStaticHTTPHandler(static.URI, static.Path, origin))
@@ -966,8 +968,4 @@ func newStaticHTTPHandler(staticPattern, staticPath, staticOrigin string) http.H
 
 		http.ServeFile(w, r, staticFile)
 	}
-}
-
-func check(err error) {
-	pan.Check(err)
 }

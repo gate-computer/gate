@@ -23,6 +23,8 @@ import (
 	dbus "github.com/godbus/dbus/v5"
 	"golang.org/x/term"
 	"google.golang.org/protobuf/proto"
+
+	. "import.name/pan/check"
 )
 
 var daemon dbus.BusObject
@@ -30,7 +32,7 @@ var daemon dbus.BusObject
 func daemonCall(method string, args ...interface{}) *dbus.Call {
 	if daemon == nil {
 		conn, err := dbus.SessionBus()
-		check(err)
+		Check(err)
 
 		daemon = conn.Object(bus.DaemonIface, bus.DaemonPath)
 	}
@@ -97,7 +99,7 @@ var localCommands = map[string]command{
 				instanceID string
 				status     = new(api.Status)
 			)
-			check(call.Store(&instanceID, &status.State, &status.Cause, &status.Result))
+			Check(call.Store(&instanceID, &status.State, &status.Cause, &status.Result))
 
 			if persistInstance {
 				fmt.Fprintln(terminalOr(os.Stderr), instanceID, statusString(status))
@@ -110,14 +112,14 @@ var localCommands = map[string]command{
 				case api.StateHalted, api.StateTerminated:
 				default:
 					reqBuf, err := proto.Marshal(&api.DebugRequest{Op: api.DebugOpReadStack})
-					check(err)
+					Check(err)
 
 					call := daemonCall("DebugInstance", instanceID, reqBuf)
 					var resBuf []byte
-					check(call.Store(&resBuf))
+					Check(call.Store(&resBuf))
 
 					res := new(api.DebugResponse)
-					check(proto.Unmarshal(resBuf, res))
+					Check(proto.Unmarshal(resBuf, res))
 
 					fmt.Fprintln(terminalOr(os.Stderr), "Call stack:")
 					debugBacktrace(res)
@@ -140,14 +142,14 @@ var localCommands = map[string]command{
 		do: func() {
 			debug(func(instID string, req *api.DebugRequest) *api.DebugResponse {
 				reqBuf, err := proto.Marshal(req)
-				check(err)
+				Check(err)
 
 				call := daemonCall("DebugInstance", instID, reqBuf)
 				var resBuf []byte
-				check(call.Store(&resBuf))
+				Check(call.Store(&resBuf))
 
 				res := new(api.DebugResponse)
-				check(proto.Unmarshal(resBuf, res))
+				Check(proto.Unmarshal(resBuf, res))
 				return res
 			})
 		},
@@ -156,7 +158,7 @@ var localCommands = map[string]command{
 	"delete": {
 		usage: "instance",
 		do: func() {
-			check(daemonCall("DeleteInstance", flag.Arg(0)).Store())
+			Check(daemonCall("DeleteInstance", flag.Arg(0)).Store())
 		},
 	},
 
@@ -192,11 +194,11 @@ var localCommands = map[string]command{
 			} else {
 				data, err := ioutil.ReadAll(r)
 				r.Close()
-				check(err)
+				Check(err)
 				length = int64(len(data))
 
 				r, w, err = os.Pipe()
-				check(err)
+				Check(err)
 
 				copied = make(chan error, 1)
 				go func() {
@@ -210,10 +212,10 @@ var localCommands = map[string]command{
 			closeFiles(r)
 
 			var moduleID string
-			check(call.Store(&moduleID))
+			Check(call.Store(&moduleID))
 
 			if copied != nil {
-				check(<-copied)
+				Check(<-copied)
 			}
 
 			fmt.Println(moduleID)
@@ -224,7 +226,7 @@ var localCommands = map[string]command{
 		do: func() {
 			call := daemonCall("ListInstances")
 			var ids []string
-			check(call.Store(&ids))
+			Check(call.Store(&ids))
 
 			for _, id := range ids {
 				fmt.Printf("%-36s %s\n", id, daemonCallGetInstanceInfo(id))
@@ -243,7 +245,7 @@ var localCommands = map[string]command{
 			closeFiles(r, w)
 
 			var ok bool
-			check(call.Store(&ok))
+			Check(call.Store(&ok))
 
 			if !ok {
 				os.Exit(1)
@@ -289,7 +291,7 @@ var localCommands = map[string]command{
 			closeFiles(debug, moduleFile)
 
 			var instanceID string
-			check(call.Store(&instanceID))
+			Check(call.Store(&instanceID))
 
 			fmt.Println(instanceID)
 		},
@@ -299,12 +301,12 @@ var localCommands = map[string]command{
 		do: func() {
 			call := daemonCall("ListModules")
 			var ids []string
-			check(call.Store(&ids))
+			Check(call.Store(&ids))
 
 			for _, id := range ids {
 				call := daemonCall("GetModuleInfo", id)
 				var tags []string
-				check(call.Store(&tags))
+				Check(call.Store(&tags))
 
 				fmt.Println(id, tags)
 			}
@@ -318,7 +320,7 @@ var localCommands = map[string]command{
 				c.ModuleTags = tail
 			}
 
-			check(daemonCall("PinModule", flag.Arg(0), c.ModuleTags).Store())
+			Check(daemonCall("PinModule", flag.Arg(0), c.ModuleTags).Store())
 		},
 	},
 
@@ -333,7 +335,7 @@ var localCommands = map[string]command{
 			}
 
 			r, w, err := os.Pipe()
-			check(err)
+			Check(err)
 
 			copied := make(chan error, 1)
 			go func() {
@@ -347,9 +349,9 @@ var localCommands = map[string]command{
 			closeFiles(r)
 
 			var moduleID string
-			check(call.Store(&moduleID))
+			Check(call.Store(&moduleID))
 
-			check(<-copied)
+			Check(<-copied)
 		},
 	},
 
@@ -359,14 +361,14 @@ var localCommands = map[string]command{
 			c.address = flag.Arg(0)
 
 			r, w, err := os.Pipe()
-			check(err)
+			Check(err)
 
 			wFD := dbus.UnixFD(w.Fd())
 			call := daemonCall("DownloadModule", wFD, flag.Arg(1))
 			closeFiles(w)
 
 			var moduleLen int64
-			check(call.Store(&moduleLen))
+			Check(call.Store(&moduleLen))
 
 			req := &http.Request{
 				Method: http.MethodPut,
@@ -388,9 +390,9 @@ var localCommands = map[string]command{
 		usage: "instance",
 		do: func() {
 			ir, iw, err := os.Pipe()
-			check(err)
+			Check(err)
 			or, ow, err := os.Pipe()
-			check(err)
+			Check(err)
 
 			orFD := dbus.UnixFD(or.Fd())
 			iwFD := dbus.UnixFD(iw.Fd())
@@ -408,7 +410,7 @@ var localCommands = map[string]command{
 
 			var ok bool
 			if c := <-call; c != nil {
-				check(c.Store(&ok))
+				Check(c.Store(&ok))
 			}
 
 			if !ok {
@@ -428,7 +430,7 @@ var localCommands = map[string]command{
 			debugFD := dbus.UnixFD(debug.Fd())
 			call := daemonCall("ResumeInstance", flag.Arg(0), c.Function, c.Scope, debugFD, c.DebugLog != "")
 			closeFiles(debug)
-			check(call.Store())
+			Check(call.Store())
 		},
 	},
 
@@ -437,7 +439,7 @@ var localCommands = map[string]command{
 		do: func() {
 			call := daemonCall("GetModuleInfo", flag.Arg(0))
 			var tags []string
-			check(call.Store(&tags))
+			Check(call.Store(&tags))
 
 			fmt.Println(tags)
 		},
@@ -452,7 +454,7 @@ var localCommands = map[string]command{
 
 			call := daemonCall("Snapshot", flag.Arg(0), c.ModuleTags)
 			var moduleID string
-			check(call.Store(&moduleID))
+			Check(call.Store(&moduleID))
 
 			fmt.Println(moduleID)
 		},
@@ -475,7 +477,7 @@ var localCommands = map[string]command{
 	"unpin": {
 		usage: "module",
 		do: func() {
-			check(daemonCall("UnpinModule", flag.Arg(0)).Store())
+			Check(daemonCall("UnpinModule", flag.Arg(0)).Store())
 		},
 	},
 
@@ -491,7 +493,7 @@ var localCommands = map[string]command{
 			}
 
 			call := daemonCall("UpdateInstance", flag.Arg(0), true, tags)
-			check(call.Store())
+			Check(call.Store())
 		},
 	},
 
@@ -508,7 +510,7 @@ func discoverLocalScope(w io.Writer) {
 
 	call := daemonCall("GetScope")
 	var scope []string
-	check(call.Store(&scope))
+	Check(call.Store(&scope))
 
 	printScope(w, scope)
 }
@@ -516,13 +518,13 @@ func discoverLocalScope(w io.Writer) {
 func exportLocalModule(moduleID, filename string) {
 	download(filename, func() (r io.Reader, moduleLen int64) {
 		r, w, err := os.Pipe()
-		check(err)
+		Check(err)
 
 		wFD := dbus.UnixFD(w.Fd())
 		call := daemonCall("DownloadModule", wFD, moduleID)
 		closeFiles(w)
 
-		check(call.Store(&moduleLen))
+		Check(call.Store(&moduleLen))
 		return
 	})
 }
@@ -533,7 +535,7 @@ func daemonCallGetInstanceInfo(id string) string {
 		status = new(api.Status)
 		tags   []string
 	)
-	check(call.Store(&status.State, &status.Cause, &status.Result, &tags))
+	Check(call.Store(&status.State, &status.Cause, &status.Result, &tags))
 
 	return fmt.Sprintf("%s %s", statusString(status), tags)
 }
@@ -541,13 +543,13 @@ func daemonCallGetInstanceInfo(id string) string {
 func daemonCallWaitInstance(id string) string {
 	call := daemonCall("WaitInstance", id)
 	status := new(api.Status)
-	check(call.Store(&status.State, &status.Cause, &status.Result))
+	Check(call.Store(&status.State, &status.Cause, &status.Result))
 
 	return statusString(status)
 }
 
 func daemonCallInstanceWaiter(method, id string) {
-	check(daemonCall(method, id).Store())
+	Check(daemonCall(method, id).Store())
 
 	if c.Wait {
 		fmt.Println(daemonCallWaitInstance(id))
@@ -570,7 +572,7 @@ func openStdio() (r, w *os.File) {
 
 func copyStdin() *os.File {
 	r, w, err := os.Pipe()
-	check(err)
+	Check(err)
 
 	go func() {
 		defer w.Close()
@@ -582,7 +584,7 @@ func copyStdin() *os.File {
 
 func copyStdout() *os.File {
 	r, w, err := os.Pipe()
-	check(err)
+	Check(err)
 
 	go func() {
 		defer r.Close()
@@ -594,7 +596,7 @@ func copyStdout() *os.File {
 
 func newSignalPipe(signals ...os.Signal) *os.File {
 	r, w, err := os.Pipe()
-	check(err)
+	Check(err)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, signals...)
@@ -618,12 +620,12 @@ func openDebugFile() *os.File {
 
 	case "":
 		f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-		check(err)
+		Check(err)
 		return f
 
 	default:
 		f, err := os.OpenFile(c.DebugLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		check(err)
+		Check(err)
 		return f
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+
+	. "import.name/pan/check"
 )
 
 func download(filename string, get func() (io.Reader, int64)) {
@@ -24,7 +26,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 		f, err := os.OpenFile(filename, os.O_WRONLY, 0)
 		if err == nil {
 			info, err := f.Stat()
-			check(err)
+			Check(err)
 			if info.Mode().IsRegular() {
 				f.Close()
 				temp = true
@@ -44,7 +46,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 
 	if temp {
 		out, err = ioutil.TempFile(path.Dir(filename), ".*.wasm")
-		check(err)
+		Check(err)
 		defer func() {
 			if out != nil {
 				os.Remove(out.Name())
@@ -55,10 +57,10 @@ func download(filename string, get func() (io.Reader, int64)) {
 	if checkCopy(out, in) != length {
 		fatal(io.ErrUnexpectedEOF)
 	}
-	check(out.Close())
+	Check(out.Close())
 
 	if temp {
-		check(os.Rename(out.Name(), filename))
+		Check(os.Rename(out.Name(), filename))
 		out = nil
 	}
 }

@@ -864,8 +864,8 @@ import.name/lock v0.0.0-20211205191324-f24933776f0b h1:BGZe3RGI6lRASOz5fdX9i00k9
 import.name/lock v0.0.0-20211205191324-f24933776f0b/go.mod h1:A/P+1darHq1WWQZaqhNcXx0mdLynmjtDPIu6g0ZxuX8=
 import.name/make v0.0.0-20220104073727-8e6e5ea95bef h1:Qz57EU65fEJtsfZj+LM5gO+lf5ShciwqBDNUpTNMU7E=
 import.name/make v0.0.0-20220104073727-8e6e5ea95bef/go.mod h1:lJxYlYvf7VgXqrXO0XjrpDOdBfVluCfJHS/g9bK+/qw=
-import.name/pan v0.1.1 h1:aTTOwLAwLmL4OOtrZqFGZqVq8GnVeFneGB5cTx+QgzY=
-import.name/pan v0.1.1/go.mod h1:snP0jwjUyxGNm7n8LD3QF/uG7HNg8lg22zwC3wm0h9M=
+import.name/pan v0.2.0 h1:wSKQfOXNKHhol1Hf3gyo6kmoAmFe0vp3Y0jsSpykPqQ=
+import.name/pan v0.2.0/go.mod h1:jzAC3o4KYbMoLWPgtxfDXjtZxa+JikGUdbQGgaDqf7U=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.63 h1:qDJqBXzcE/Yg9pdUCwfNKdqtljiIIfPBCCErh85OhJg=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.63/go.mod h1:JlNivsKtS3oDnPX1ejKaDNEcKX/OKMxBI+KMpWxrMRM=
 kernel.org/pub/linux/libs/security/libcap/psx v1.2.63 h1:A9wMQ0/zCt8dDWf1su84NWuHJC6KF+zeAHLBO+ikjTk=

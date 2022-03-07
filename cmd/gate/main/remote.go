@@ -26,6 +26,8 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
+
+	. "import.name/pan/check"
 )
 
 var remoteCommands = map[string]command{
@@ -89,7 +91,7 @@ var remoteCommands = map[string]command{
 		do: func() {
 			debug(func(instID string, debug *api.DebugRequest) *api.DebugResponse {
 				debugJSON, err := proto.Marshal(debug)
-				check(err)
+				Check(err)
 
 				params := url.Values{
 					webapi.ParamAction: []string{webapi.ActionDebug},
@@ -167,7 +169,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, webapi.PathInstances, nil)
 
 			var is webapi.Instances
-			check(json.NewDecoder(resp.Body).Decode(&is))
+			Check(json.NewDecoder(resp.Body).Decode(&is))
 
 			for _, inst := range is.Instances {
 				fmt.Printf("%-36s %s %s\n", inst.Instance, inst.Status, inst.Tags)
@@ -285,7 +287,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, webapi.PathKnownModules, nil)
 
 			var refs webapi.Modules
-			check(json.NewDecoder(resp.Body).Decode(&refs))
+			Check(json.NewDecoder(resp.Body).Decode(&refs))
 
 			for _, m := range refs.Modules {
 				fmt.Println(m.ID, m.Tags)
@@ -321,12 +323,12 @@ var remoteCommands = map[string]command{
 
 			var d websocket.Dialer
 			conn, _, err := d.Dial(makeWebsocketURL(webapi.PathInstances+flag.Arg(0), params), nil)
-			check(err)
+			Check(err)
 
-			check(conn.WriteJSON(webapi.IO{Authorization: makeAuthorization()}))
+			Check(conn.WriteJSON(webapi.IO{Authorization: makeAuthorization()}))
 
 			var reply webapi.IOConnection
-			check(conn.ReadJSON(&reply))
+			Check(conn.ReadJSON(&reply))
 			if !reply.Connected {
 				fatal("connection rejected")
 			}
@@ -357,7 +359,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, webapi.PathKnownModules+flag.Arg(0), nil)
 
 			var info webapi.ModuleInfo
-			check(json.NewDecoder(resp.Body).Decode(&info))
+			Check(json.NewDecoder(resp.Body).Decode(&info))
 
 			fmt.Println(info.Tags)
 		},
@@ -400,7 +402,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), nil)
 
 			info := new(webapi.InstanceInfo)
-			check(json.NewDecoder(resp.Body).Decode(info))
+			Check(json.NewDecoder(resp.Body).Decode(info))
 
 			fmt.Printf("%s %s\n", info.Status, info.Tags)
 		},
@@ -444,7 +446,7 @@ var remoteCommands = map[string]command{
 			}
 
 			updateJSON, err := json.Marshal(update)
-			check(err)
+			Check(err)
 
 			req := &http.Request{
 				Method: http.MethodPost,
@@ -478,7 +480,7 @@ func discoverRemoteScope(w io.Writer) {
 	_, resp := doHTTP(req, webapi.Path, params)
 
 	var f webapi.Features
-	check(json.NewDecoder(resp.Body).Decode(&f))
+	Check(json.NewDecoder(resp.Body).Decode(&f))
 
 	printScope(w, f.Scope)
 }
@@ -508,22 +510,22 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 	url := makeWebsocketURL(webapi.PathKnownModules+key, params)
 
 	conn, _, err := new(websocket.Dialer).Dial(url, nil)
-	check(err)
+	Check(err)
 	defer conn.Close()
 
-	check(conn.WriteJSON(webapi.Call{
+	Check(conn.WriteJSON(webapi.Call{
 		Authorization: makeAuthorization(),
 		ContentType:   webapi.ContentTypeWebAssembly,
 		ContentLength: int64(module.Len()),
 	}))
-	check(conn.WriteMessage(websocket.BinaryMessage, module.Bytes()))
-	check(conn.ReadJSON(new(webapi.CallConnection)))
+	Check(conn.WriteMessage(websocket.BinaryMessage, module.Bytes()))
+	Check(conn.ReadJSON(new(webapi.CallConnection)))
 
 	// TODO: input
 
 	for {
 		msgType, data, err := conn.ReadMessage()
-		check(err)
+		Check(err)
 
 		switch msgType {
 		case websocket.BinaryMessage:
@@ -531,7 +533,7 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 
 		case websocket.TextMessage:
 			var status webapi.ConnectionStatus
-			check(json.Unmarshal(data, &status))
+			Check(json.Unmarshal(data, &status))
 			return status.Status
 		}
 	}
@@ -587,7 +589,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	}
 
 	resp, err := http.DefaultClient.Do(req)
-	check(err)
+	Check(err)
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent, http.StatusCreated:
@@ -617,7 +619,7 @@ func makeURL(uri string, params url.Values, prelocate bool) (u *url.URL) {
 
 	if prelocate {
 		resp, err := http.Head(addr + webapi.Path)
-		check(err)
+		Check(err)
 		resp.Body.Close()
 
 		u = resp.Request.URL
@@ -659,7 +661,7 @@ func makeAuthorization() string {
 	}
 
 	aud, err := url.Parse(c.address)
-	check(err)
+	Check(err)
 	if aud.Scheme == "" {
 		aud.Scheme = "https"
 	}
@@ -675,11 +677,11 @@ func makeAuthorization() string {
 	}
 
 	identity, err := ioutil.ReadFile(c.IdentityFile)
-	check(err)
+	Check(err)
 
 	if len(identity) != 0 {
 		x, err := ssh.ParseRawPrivateKey(identity)
-		check(err)
+		Check(err)
 
 		privateKey, ok := x.(*ed25519.PrivateKey)
 		if !ok {
@@ -689,7 +691,7 @@ func makeAuthorization() string {
 		publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
 		jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
 		auth, err := webapi.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
-		check(err)
+		Check(err)
 
 		return auth
 	} else {
@@ -698,7 +700,7 @@ func makeAuthorization() string {
 		}
 
 		ips, err := net.LookupIP(aud.Hostname())
-		check(err)
+		Check(err)
 
 		for _, ip := range ips {
 			if !ip.IsLoopback() {
@@ -707,14 +709,14 @@ func makeAuthorization() string {
 		}
 
 		auth, err := webapi.AuthorizationBearerLocal(claims)
-		check(err)
+		Check(err)
 
 		return auth
 	}
 }
 
 func unmarshalStatus(serialized string) (status webapi.Status) {
-	check(json.Unmarshal([]byte(serialized), &status))
+	Check(json.Unmarshal([]byte(serialized), &status))
 	if status.Error != "" {
 		fatal(status.String())
 	}
@@ -723,12 +725,12 @@ func unmarshalStatus(serialized string) (status webapi.Status) {
 
 func decodeProto(r io.Reader, m proto.Message) {
 	b, err := ioutil.ReadAll(r)
-	check(err)
-	check(proto.Unmarshal(b, m))
+	Check(err)
+	Check(proto.Unmarshal(b, m))
 }
 
 func checkCopy(w io.Writer, r io.Reader) int64 {
 	n, err := io.Copy(w, r)
-	check(err)
+	Check(err)
 	return n
 }
