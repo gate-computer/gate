@@ -116,7 +116,7 @@ func targets() (targets Tasks) {
 			prebuild := prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
 			targets.Add(Target("prebuild",
 				prebuild,
-				Env{"CGO_ENABLED": "0"}.Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
+				Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
 			))
 
 			targets.Add(Target("generate",
