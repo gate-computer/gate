@@ -1,6 +1,7 @@
 version: v1
 plugins:
-  - remote: buf.build/protocolbuffers/plugins/go:v1.27.1-1
+  - name: go
+    path: lib/protoc-gen-go
     opt: paths=source_relative
     out: .
   - name: go-grpc

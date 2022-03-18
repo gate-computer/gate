@@ -13,7 +13,7 @@ import (
 	. "import.name/make"
 )
 
-func main() { Main(targets, "make.go", "go.mod") }
+func main() { Main(targets, "make.go", "buf.gen.yaml") }
 
 func targets() (targets Tasks) {
 	GO := Getvar("GO", "go")
@@ -31,6 +31,7 @@ func generate(GO string) Task {
 	)
 
 	tasks := Tasks{
+		Command(GO, "build", "-o", "lib/", "google.golang.org/protobuf/cmd/protoc-gen-go"),
 		Command(GO, "build", "-o", "lib/", "google.golang.org/grpc/cmd/protoc-gen-go-grpc"),
 	}
 
