@@ -155,8 +155,8 @@ Build requirements:
 
 The Gate programs and programs importing Gate modules can be built normally
 using `go install`, `go get` etc.  See the
-[cmd](https://github.com/gate-computer/cmd#readme) repository for a list of
-programs.
+[gate-cmd](https://github.com/gate-computer/gate-cmd#readme) repository for a
+list of programs.
 
 Gate runtime needs to execute some separately built binaries.  To make the
 built Go programs self-contained, pre-built binaries are bundled into them by
