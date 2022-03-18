@@ -25,7 +25,7 @@ import (
 	. "import.name/make"
 )
 
-func main() { Main(targets, "make.go", "go.mod") }
+func main() { Main(targets, "make.go", "buf.gen.yaml") }
 
 func targets() (targets Tasks) {
 	var (
@@ -260,7 +260,9 @@ func protoTask(O, GO string) Task {
 		"server/web/internal/api/*.proto",
 	)
 
-	var tasks Tasks
+	tasks := Tasks{
+		Command(GO, "build", "-o", "lib/", "google.golang.org/protobuf/cmd/protoc-gen-go"),
+	}
 
 	for _, proto := range protos() {
 		tasks.Add(If(Outdated(ReplaceSuffix(proto, ".pb.go"), protos),
