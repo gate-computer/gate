@@ -21,7 +21,10 @@ import (
 
 const magicKey = "TNGREHAGVZRPBAGNVARE"
 
-var magicValue = runtime.Version()
+var (
+	executable = "/proc/self/exe"
+	magicValue = runtime.Version()
+)
 
 func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exec.Cmd, error) {
 	executorBin, err := openExecutorBinary(c)
@@ -42,8 +45,9 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	}
 	defer cgroupDir.Close()
 
+	// Intercepted by the init() function below.
 	cmd := &exec.Cmd{
-		Path:   "/proc/self/exe", // Intercepted by the init() function below.
+		Path:   executable,
 		Args:   []string{common.ContainerFilename},
 		Env:    append(append([]string{}, os.Environ()...), magicKey+"="+magicValue),
 		Stderr: os.Stderr,
