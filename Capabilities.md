@@ -5,7 +5,6 @@ gate-server) may need
 [capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html)
 to create and/or configure the
 [namespaces](https://man7.org/linux/man-pages/man7/namespaces.7.html).
-Gate programs should never be run as root.
 
 Possible configurations:
 
@@ -32,6 +31,10 @@ Possible configurations:
    By default the `/etc/subuid` and `/etc/subgid` files are used to discover
    appropriate ids for the container configuration (but the uidmap programs are
    not needed).  It is also possible to specify ids via Gate config options.
+
+   If gate-server is started as root in order to gain capabilities, the
+   `server.uid` and `server.gid` config options can be used to change identity
+   after initialization.
 
 4. Namespace creation can be disabled altogether.  It is highly unsafe.
 

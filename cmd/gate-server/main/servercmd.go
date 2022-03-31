@@ -20,6 +20,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"gate.computer/gate/image"
@@ -87,7 +88,12 @@ type Config struct {
 
 	Service map[string]interface{}
 
-	Server server.Config
+	Server struct {
+		server.Config
+
+		UID int
+		GID int
+	}
 
 	Access struct {
 		Policy string
@@ -372,7 +378,7 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
 	}
 
-	serverImpl, err := server.New(ctx, &c.Server)
+	serverImpl, err := server.New(ctx, &c.Server.Config)
 	if err != nil {
 		return err
 	}
@@ -460,6 +466,17 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 			return err
 		}
 		defer acmeListener.Close()
+	}
+
+	if c.Server.GID != 0 {
+		if err := syscall.Setgid(c.Server.GID); err != nil {
+			return err
+		}
+	}
+	if c.Server.UID != 0 {
+		if err := syscall.Setuid(c.Server.UID); err != nil {
+			return err
+		}
 	}
 
 	if err := sys.ClearCaps(); err != nil {
