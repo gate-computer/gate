@@ -41,7 +41,7 @@ require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/klauspost/compress v1.14.2 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
-	github.com/knightsc/gapstone v0.0.0-20180903222833-a85919f1441b // indirect
+	github.com/knightsc/gapstone v0.0.0-20211014144438-5e0e64002a6e // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
 	github.com/naoina/toml v0.1.1 // indirect
