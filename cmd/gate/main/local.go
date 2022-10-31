@@ -497,6 +497,17 @@ var localCommands = map[string]command{
 		},
 	},
 
+	"version": {
+		do: func() {
+			if Version != "" {
+				fmt.Println("Gate client version:", Version)
+			} else {
+				fmt.Println("Gate client version is unknown")
+			}
+			fmt.Println("Go compiler version:", runtime.Version())
+		},
+	},
+
 	"wait": {
 		usage: "instance",
 		do: func() {

@@ -25,6 +25,8 @@ import (
 	. "import.name/pan/check"
 )
 
+var Version string
+
 const (
 	DefaultIdentityFile = ".ssh/id_ed25519" // Relative to home directory.
 	DefaultPin          = true
@@ -83,6 +85,7 @@ Common commands:
 Local commands (no address before command):
   pull      copy a wasm module from a remote server to local storage
   push      copy a wasm module from local storage to a remote server
+  version   print client version
 
 Address examples:
   example.net           (scheme defaults to https)
