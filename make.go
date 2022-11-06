@@ -165,7 +165,7 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 		cxxflags = Flatten(
 			"--target=wasm32",
 			"-I"+wasiinclude,
-			"-Iinclude",
+			"-Igate/include",
 			"-Os",
 			"-Wall",
 			"-Wextra",
@@ -226,7 +226,7 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 
 		flags = Flatten(
 			"--target=wasm32",
-			"-Iinclude",
+			"-Igate/include",
 			"-O2",
 			"-Wall",
 			"-Wextra",
