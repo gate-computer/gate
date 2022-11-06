@@ -7,6 +7,7 @@ package main
 import (
 	"gate.computer/cmd/gate-server/server"
 	_ "gate.computer/grpc"
+	_ "gate.computer/localhost"
 	_ "modernc.org/sqlite"
 )
 

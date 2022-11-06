@@ -10,6 +10,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.3.2
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/golang/protobuf v1.5.2
+	github.com/google/flatbuffers v1.12.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.5.0
