@@ -172,11 +172,11 @@ and install them separately.
 
 Build targets:
 
-  - `go run make.go lib` builds components implemented with C++ and assembly.
-  - `go run make.go bin` builds Go programs without bundling non-Go components.
-  - `go run make.go` builds all of the above and more.
-  - `go run make.go check` runs tests.
-  - `go run make.go -h` shows all targets and options.
+  - `go run . lib` builds components implemented with C++ and assembly.
+  - `go run . bin` builds Go programs without bundling non-Go components.
+  - `go run .` builds all of the above and more.
+  - `go run . check` runs tests.
+  - `go run . -h` shows all targets and options.
 
 Build requirements:
 
@@ -194,7 +194,7 @@ Test requirements:
 
 The build system builds a standalone installer which can be invoked as root:
 
-  1. `go run make.go` or `go run make.go installer ...`
+  1. `go run .` or `go run . installer [...]`
   2. `sudo bin/install`
 
 
