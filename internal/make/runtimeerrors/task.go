@@ -9,14 +9,14 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	runtimeerrors "gate.computer/gate/internal/error/runtime"
+	runtimeerrors "gate.computer/internal/error/runtime"
 	m "import.name/make"
 )
 
 const source = "internal/make/runtimeerrors/task.go"
 
 func Task(GOFMT string) m.Task {
-	cTarget := "runtime/include/errors.gen.hpp"
+	cTarget := "gate/runtime/include/errors.gen.hpp"
 	gTarget := "internal/error/runtime/const.gen.go"
 	deps := m.Globber("internal/error/runtime/*.go", source)
 

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"gate.computer/gate/internal/container/common"
+	"gate.computer/internal/container/common"
 	config "gate.computer/gate/runtime/container"
 	"golang.org/x/sys/unix"
 )

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gate.computer/gate/internal/error/grpc"
+	"gate.computer/internal/error/grpc"
 )
 
 // Error with public information.

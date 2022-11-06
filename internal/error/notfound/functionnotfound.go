@@ -8,7 +8,7 @@ import (
 	"errors"
 	"net/http"
 
-	"gate.computer/gate/internal/error/grpc"
+	"gate.computer/internal/error/grpc"
 )
 
 // Public function errors.

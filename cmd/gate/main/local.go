@@ -17,7 +17,7 @@ import (
 	"strings"
 	"syscall"
 
-	"gate.computer/gate/internal/bus"
+	"gate.computer/internal/bus"
 	"gate.computer/gate/server/api"
 	webapi "gate.computer/gate/server/web/api"
 	dbus "github.com/godbus/dbus/v5"

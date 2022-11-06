@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"gate.computer/gate/internal/librarian"
+	"gate.computer/internal/librarian"
 )
 
 const usage = `Usage: %s [options] filename [-- command... [-- command...] ...]

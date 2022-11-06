@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"gate.computer/gate/image"
-	"gate.computer/gate/internal/cmdconf"
-	"gate.computer/gate/internal/services"
-	"gate.computer/gate/internal/sys"
+	"gate.computer/internal/cmdconf"
+	"gate.computer/internal/services"
+	"gate.computer/internal/sys"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/runtime/system"
 	"gate.computer/gate/server"

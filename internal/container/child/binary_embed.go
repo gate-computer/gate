@@ -12,7 +12,7 @@ import (
 	"compress/gzip"
 	"io"
 
-	"gate.computer/gate/internal/container/common"
+	"gate.computer/internal/container/common"
 	"golang.org/x/sys/unix"
 )
 

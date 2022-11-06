@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	"gate.computer/gate/internal/error/badprogram"
+	"gate.computer/internal/error/badprogram"
 )
 
 const MaxLen = binary.MaxVarintLen32

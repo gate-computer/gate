@@ -6,7 +6,7 @@ syntax = "proto3";
 
 package gate.image.manifest;
 
-option go_package = "gate.computer/gate/internal/manifest";
+option go_package = "gate.computer/internal/manifest";
 
 message ByteRange {
   int64 start = 1;

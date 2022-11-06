@@ -5,7 +5,7 @@
 package build
 
 import (
-	"gate.computer/gate/internal/error/notfound"
+	"gate.computer/internal/error/notfound"
 	"gate.computer/wag/binding"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/wa"

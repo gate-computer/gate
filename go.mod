@@ -1,4 +1,4 @@
-module gate.computer/gate
+module gate.computer
 
 go 1.17
 

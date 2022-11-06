@@ -18,10 +18,10 @@ import (
 	"strconv"
 	"strings"
 
-	"gate.computer/gate/internal/container/common"
-	"gate.computer/gate/internal/executable"
-	"gate.computer/gate/internal/librarian"
-	"gate.computer/gate/internal/make/runtimeerrors"
+	"gate.computer/internal/container/common"
+	"gate.computer/internal/executable"
+	"gate.computer/internal/librarian"
+	"gate.computer/internal/make/runtimeerrors"
 	. "import.name/make"
 )
 
@@ -154,7 +154,7 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 		wasimodule  = "testdata/wasi-libc"
 		wasiinclude = Join(wasimodule, "libc-bottom-half/headers/public")
 		deps        = Globber(
-			"include/*.h",
+			"gate/include/*.h",
 			"testdata/*.hpp",
 			Join(wasiinclude, "wasi/*"),
 		)
@@ -215,10 +215,10 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 		WASMOBJDUMP = Getvar("WASMOBJDUMP", "wasm-objdump")
 
 		deps = Globber(
-			"include/*.h",
+			"gate/include/*.h",
+			"gate/runtime/abi/library/*.cpp",
+			"gate/runtime/abi/library/*.hpp",
 			"internal/librarian/*.go",
-			"runtime/abi/library/*.cpp",
-			"runtime/abi/library/*.hpp",
 		)
 
 		flags = Flatten(
@@ -237,9 +237,9 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 			"-std=c++17",
 		)
 
-		source = "runtime/abi/library/library.cpp"
+		source = "gate/runtime/abi/library/library.cpp"
 		object = Join(O, "obj", ReplaceSuffix(source, ".wasm"))
-		gen    = "runtime/abi/library.gen.go"
+		gen    = "gate/runtime/abi/library.gen.go"
 	)
 
 	return If(Outdated(gen, deps),
@@ -254,10 +254,10 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 
 func protoTask(O, GO string) Task {
 	protos := Globber(
-		"internal/manifest/*.proto",
-		"server/api/pb/*.proto",
-		"server/event/pb/*.proto",
-		"server/web/internal/api/*.proto",
+		"gate/server/api/pb/*.proto",
+		"gate/server/event/pb/*.proto",
+		"gate/server/web/internal/api/*.proto",
+        "internal/manifest/*.proto",
 	)
 
 	tasks := Tasks{
@@ -276,28 +276,28 @@ func protoTask(O, GO string) Task {
 func eventTypesTask(GO, GOFMT string) Task {
 	var (
 		deps = Globber(
-			"server/event/*.go",
-			"server/event/pb/*.go",
+			"gate/server/event/*.go",
+			"gate/server/event/pb/*.go",
 		)
 
-		output = "server/event/event.gen.go"
+		output = "gate/server/event/event.gen.go"
 	)
 
 	return If(Outdated(output, deps),
-		Command(GO, "run", "server/event/gen.go", GOFMT, output),
+		Command(GO, "run", "gate/server/event/gen.go", GOFMT, output),
 	)
 }
 
 func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
 		deps = Globber(
-			"runtime/executor/*.cpp",
-			"runtime/executor/*.hpp",
-			"runtime/include/*.hpp",
+			"gate/runtime/executor/*.cpp",
+			"gate/runtime/executor/*.hpp",
+			"gate/runtime/include/*.hpp",
 		)
 
 		cppflags = Flatten(
-			"-Iruntime/include",
+			"-Igate/runtime/include",
 			`-DGATE_COMPAT_VERSION="`+common.CompatVersion+`"`,
 			`-DGATE_LOADER_FILENAME="`+common.LoaderFilename+`"`,
 			Fields(CPPFLAGS),
@@ -319,32 +319,32 @@ func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 
 	return If(Outdated(binary, deps),
 		DirectoryOf(binary),
-		Command(CXX, cppflags, cxxflags, ldflags, "-o", binary, "runtime/executor/executor.cpp"),
+		Command(CXX, cppflags, cxxflags, ldflags, "-o", binary, "gate/runtime/executor/executor.cpp"),
 	)
 }
 
 func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
 		deps = Globber(
-			"internal/error/runtime/*.go",
-			"runtime/include/*.hpp",
-			"runtime/include/*/*.hpp",
-			"runtime/loader/*.S",
-			"runtime/loader/*.cpp",
-			"runtime/loader/*.go",
-			"runtime/loader/*.hpp",
-			"runtime/loader/*/*.S",
-			"runtime/loader/*/*.hpp",
+			"gate/runtime/include/*.hpp",
+			"gate/runtime/include/*/*.hpp",
+			"gate/runtime/loader/*.S",
+			"gate/runtime/loader/*.cpp",
+			"gate/runtime/loader/*.go",
+			"gate/runtime/loader/*.hpp",
+			"gate/runtime/loader/*/*.S",
+			"gate/runtime/loader/*/*.hpp",
+            "internal/error/runtime/*.go",
 		)
 
 		cppflags = Flatten(
 			"-DGATE_STACK_LIMIT_OFFSET="+strconv.Itoa(executable.StackLimitOffset),
 			"-DPIE",
-			"-I"+Join(objdir, "runtime/loader"),
-			"-I"+Join("runtime/loader", arch),
-			"-I"+Join("runtime/loader"),
-			"-I"+Join("runtime/include", arch),
-			"-I"+Join("runtime/include"),
+			"-I"+Join(objdir, "gate/runtime/loader"),
+			"-I"+Join("gate/runtime/loader", arch),
+			"-I"+Join("gate/runtime/loader"),
+			"-I"+Join("gate/runtime/include", arch),
+			"-I"+Join("gate/runtime/include"),
 			Fields(CPPFLAGS),
 		)
 
@@ -373,10 +373,10 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 	var tasks Tasks
 
 	addGen := func(filename string) {
-		gen := Join(objdir, "runtime/loader", filename)
+		gen := Join(objdir, "gate/runtime/loader", filename)
 
 		tasks.Add(DirectoryOf(gen))
-		tasks.Add(Command(GO, "run", "runtime/loader/gen.go", gen, arch, OS))
+		tasks.Add(Command(GO, "run", "gate/runtime/loader/gen.go", gen, arch, OS))
 	}
 
 	addGen("rt.gen.S")
@@ -390,9 +390,9 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 		tasks.Add(CommandWrap(CCACHE, CXX, flags, "-c", "-o", object, source))
 	}
 
-	addCompilation(Join("runtime/loader", arch, "start.S"), cppflags)
-	addCompilation(Join("runtime/loader/loader.cpp"), cppflags, cxxflags)
-	addCompilation(Join("runtime/loader", arch, "rt.S"), cppflags) // Link as last.
+	addCompilation(Join("gate/runtime/loader", arch, "start.S"), cppflags)
+	addCompilation(Join("gate/runtime/loader/loader.cpp"), cppflags, cxxflags)
+	addCompilation(Join("gate/runtime/loader", arch, "rt.S"), cppflags) // Link as last.
 
 	tasks.Add(DirectoryOf(binary))
 	tasks.Add(CommandWrap(CCACHE, CXX, cxxflags, ldflags, "-o", binary, objects))
@@ -405,16 +405,16 @@ func loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 		PYTHON = Getvar("PYTHON", "python3")
 
 		deps = Globber(
-			"runtime/include/*.hpp",
-			"runtime/include/*/*.hpp",
-			"runtime/loader/inspect/*.cpp",
-			"runtime/loader/inspect/*.hpp",
+			"gate/runtime/include/*.hpp",
+			"gate/runtime/include/*/*.hpp",
+			"gate/runtime/loader/inspect/*.cpp",
+			"gate/runtime/loader/inspect/*.hpp",
 		)
 
 		cppflags = Flatten(
 			"-DPIE",
-			"-I"+Join("runtime/include", GOARCH),
-			"-I"+Join("runtime/include"),
+			"-I"+Join("gate/runtime/include", GOARCH),
+			"-I"+Join("gate/runtime/include"),
 			Fields(CPPFLAGS),
 		)
 
@@ -431,8 +431,8 @@ func loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 			Fields(LDFLAGS),
 		)
 
-		rt    = Join(O, "obj/runtime/loader", GOARCH, "rt.o")
-		start = Join(O, "obj/runtime/loader", GOARCH, "start.o")
+		rt    = Join(O, "obj/gate/runtime/loader", GOARCH, "rt.o")
+		start = Join(O, "obj/gate/runtime/loader", GOARCH, "start.o")
 	)
 
 	inspection := func(run func(src, bin string) error, source, lib string, flags ...string) Task {
@@ -460,8 +460,8 @@ func loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 	}
 
 	return Group(
-		inspection(runBinary, "runtime/loader/inspect/signal.cpp", rt, "-Wl,-Ttext-segment=0x40000000"),
-		inspection(runPython, "runtime/loader/inspect/stack.cpp", start, "-nostdlib"),
+		inspection(runBinary, "gate/runtime/loader/inspect/signal.cpp", rt, "-Wl,-Ttext-segment=0x40000000"),
+		inspection(runPython, "gate/runtime/loader/inspect/stack.cpp", start, "-nostdlib"),
 	)
 }
 

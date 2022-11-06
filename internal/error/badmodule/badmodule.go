@@ -7,7 +7,7 @@ package badmodule
 import (
 	"net/http"
 
-	"gate.computer/gate/internal/error/grpc"
+	"gate.computer/internal/error/grpc"
 )
 
 type Dual struct {

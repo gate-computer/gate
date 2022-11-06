@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"net/http"
 
-	"gate.computer/gate/internal/error/grpc"
+	"gate.computer/internal/error/grpc"
 )
 
 const (

@@ -13,8 +13,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	"gate.computer/gate/internal/container/common"
-	runtimeerrors "gate.computer/gate/internal/error/runtime"
+	"gate.computer/internal/container/common"
+	runtimeerrors "gate.computer/internal/error/runtime"
 	"golang.org/x/sys/unix"
 )
 

@@ -10,7 +10,7 @@ package child
 import (
 	"syscall"
 
-	"gate.computer/gate/internal/container/common"
+	"gate.computer/internal/container/common"
 )
 
 func setupBinaries() error {

@@ -15,8 +15,8 @@ import (
 	"sort"
 	"strings"
 
-	"gate.computer/gate/internal"
-	"gate.computer/gate/internal/cmdconf"
+	"gate.computer/internal"
+	"gate.computer/internal/cmdconf"
 	gatescope "gate.computer/gate/scope"
 	"golang.org/x/term"
 	"import.name/confi"

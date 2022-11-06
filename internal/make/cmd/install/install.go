@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"io/ioutil"
 
-	"gate.computer/gate/internal/container/common"
+	"gate.computer/internal/container/common"
 	. "import.name/make"
 )
 
