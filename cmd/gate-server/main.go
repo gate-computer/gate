@@ -5,8 +5,10 @@
 package main
 
 import (
-	m "gate.computer/gate/cmd/gate-server/main"
+	"gate.computer/cmd/gate-server/server"
 	_ "modernc.org/sqlite"
 )
 
-func main() { m.Main() }
+func main() {
+	server.Main()
+}

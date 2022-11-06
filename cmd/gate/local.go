@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package client
+package main
 
 import (
 	"flag"
@@ -499,8 +499,9 @@ var localCommands = map[string]command{
 
 	"version": {
 		do: func() {
-			if Version != "" {
-				fmt.Println("Gate client version:", Version)
+			var version string // TODO
+			if version != "" {
+				fmt.Println("Gate client version:", version)
 			} else {
 				fmt.Println("Gate client version is unknown")
 			}

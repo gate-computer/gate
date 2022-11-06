@@ -153,10 +153,12 @@ Build requirements:
   - The **gate** client program requires Go 1.13
   - Other programs require Go 1.16
 
-The Gate programs and programs importing Gate modules can be built normally
-using `go install`, `go get` etc.  See the
-[gate-cmd](https://github.com/gate-computer/gate-cmd#readme) repository for a
-list of programs.
+The Gate programs can be built normally using the Go toolchain:
+
+	go install gate.computer/cmd/gate@latest
+	go install gate.computer/cmd/gate-daemon@latest
+	go install gate.computer/cmd/gate-runtime@latest
+	go install gate.computer/cmd/gate-server@latest
 
 Gate runtime needs to execute some separately built binaries.  To make the
 built Go programs self-contained, pre-built binaries are bundled into them by
@@ -206,6 +208,6 @@ The build system builds a standalone installer which can be invoked as root:
 - [Build-time extensions](Extension.md)
 - [Security](Security.md)
 - [Container capabilities](Capabilities.md)
-- [Go packages](https://godoc.org/gate.computer/gate)
+- [Go packages](https://pkg.go.dev/gate.computer/gate)
 - [wag](https://gate.computer/wag)
 

@@ -4,6 +4,10 @@
 
 package main
 
-import m "gate.computer/gate/cmd/gate-runtime/main"
+import (
+	"gate.computer/cmd/gate-runtime/runtime"
+)
 
-func main() { m.Main() }
+func main() {
+	runtime.Main()
+}

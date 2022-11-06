@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package client
+package main
 
 import (
 	"errors"
@@ -24,8 +24,6 @@ import (
 
 	. "import.name/pan/check"
 )
-
-var Version string
 
 const (
 	DefaultIdentityFile = ".ssh/id_ed25519" // Relative to home directory.
@@ -134,7 +132,7 @@ type command struct {
 	do       func()
 }
 
-func Main() {
+func main() {
 	log.SetFlags(0)
 
 	if internal.CmdPanic == "" {

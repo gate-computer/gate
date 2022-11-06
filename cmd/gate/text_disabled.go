@@ -5,7 +5,7 @@
 //go:build !gatedumptext
 // +build !gatedumptext
 
-package client
+package main
 
 import (
 	"errors"

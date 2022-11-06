@@ -1,8 +1,6 @@
 # Build-time extensions
 
 Service implementations must be imported at build time.
-The [cmd module](https://gate.computer/cmd) provides versions of the
-gate-daemon and gate-server programs with a larger collection of services.
 
 Go packages [implementing services](Service.md) may register themselves as Gate
 extensions.  The convention is to register the extension at import (via the
@@ -40,10 +38,10 @@ package main
 
 import (
 	_ "example.org/mything"
-	m "gate.computer/gate/cmd/gate-server/main"
+	"gate.computer/cmd/gate-server/server"
 )
 
-func main() { m.Main() }
+func main() { server.Main() }
 ```
 
 If there are multiple extensions with the same name, they can be renamed to
@@ -55,12 +53,12 @@ package main
 import (
 	mythingnet "example.net/mything"
 	mythingorg "example.org/mything"
-	m "gate.computer/gate/cmd/gate-server/main"
+	"gate.computer/cmd/gate-server/server"
 )
 
 func main() {
 	mythingnet.Ext.Name = "mything-net"
 	mythingorg.Ext.Name = "mything-org"
-	m.Main()
+	server.Main()
 }
 ```
