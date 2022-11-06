@@ -2,9 +2,12 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:build generate
+// +build generate
+
 package main
 
-//go:generate go run . generate
+//go:generate go run make.go generate
 
 import (
 	"fmt"
