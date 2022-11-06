@@ -13,6 +13,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.5.0
+	github.com/tsavola/threshold v1.0.0
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/sys v0.0.0-20220318055525-2edf467146b5
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
