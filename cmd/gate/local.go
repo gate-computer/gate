@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	runtimedebug "runtime/debug"
 	"strings"
 	"syscall"
 
@@ -499,7 +500,10 @@ var localCommands = map[string]command{
 
 	"version": {
 		do: func() {
-			var version string // TODO
+			var version string
+			if info, ok := runtimedebug.ReadBuildInfo(); ok {
+				version = info.Main.Version
+			}
 			if version != "" {
 				fmt.Println("Gate client version:", version)
 			} else {
