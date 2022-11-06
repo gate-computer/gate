@@ -4,3 +4,7 @@ plugins:
     path: lib/protoc-gen-go
     opt: paths=source_relative
     out: .
+  - name: go-grpc
+    path: lib/protoc-gen-go-grpc
+    opt: paths=source_relative
+    out: .

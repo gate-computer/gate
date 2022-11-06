@@ -16,6 +16,8 @@ require (
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/sys v0.0.0-20220318055525-2edf467146b5
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	google.golang.org/grpc v1.45.0
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.27.1
 	import.name/confi v1.6.0
 	import.name/lock v0.0.0-20211205191324-f24933776f0b

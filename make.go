@@ -90,10 +90,15 @@ func targets() (targets Tasks) {
 			loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 		))
 
+		goTestBinaries := Group(
+			sources,
+			Command(GO, "build", "-o", Join(O, "lib/test-grpc-service"), "./internal/test/grpc-service"),
+		)
 		targets.Add(Target("check",
 			sources,
 			Command(GO, "vet", "./..."),
 			lib,
+			goTestBinaries,
 			goTestTask(GO, TAGS),
 			bin,
 			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
@@ -113,6 +118,7 @@ func targets() (targets Tasks) {
 			prebuild := prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
 			targets.Add(Target("prebuild",
 				prebuild,
+				goTestBinaries,
 				Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
 			))
 
@@ -254,11 +260,13 @@ func protoTask(O, GO string) Task {
 		"gate/server/api/pb/*.proto",
 		"gate/server/event/pb/*.proto",
 		"gate/server/web/internal/api/*.proto",
+		"grpc/api/*.proto",
         "internal/manifest/*.proto",
 	)
 
 	tasks := Tasks{
 		Command(GO, "build", "-o", "lib/", "google.golang.org/protobuf/cmd/protoc-gen-go"),
+		Command(GO, "build", "-o", "lib/", "google.golang.org/grpc/cmd/protoc-gen-go-grpc"),
 	}
 
 	for _, proto := range protos() {

@@ -6,6 +6,7 @@ package main
 
 import (
 	"gate.computer/cmd/gate-daemon/daemon"
+	_ "gate.computer/grpc"
 	_ "modernc.org/sqlite"
 )
 
