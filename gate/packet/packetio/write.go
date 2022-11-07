@@ -11,8 +11,8 @@ import (
 	"math/bits"
 	"sync/atomic"
 
-	"gate.computer/internal/error/badprogram"
 	"gate.computer/gate/packet"
+	"gate.computer/internal/error/badprogram"
 )
 
 var errWriteBufferOverflow = badprogram.Error("write stream buffer overflow")

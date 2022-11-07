@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"gate.computer/internal/error/grpc"
 	"gate.computer/gate/server/event"
+	"gate.computer/internal/error/grpc"
 )
 
 // Unauthenticated error.  The reason will be shown to the client.

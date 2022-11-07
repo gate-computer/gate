@@ -16,9 +16,9 @@ import (
 
 	"gate.computer/ga"
 	"gate.computer/ga/linux"
+	"gate.computer/gate/trap"
 	runtimeerrors "gate.computer/internal/error/runtime"
 	"gate.computer/internal/executable"
-	"gate.computer/gate/trap"
 	"gate.computer/wag/object/abi"
 	"golang.org/x/sys/unix"
 )

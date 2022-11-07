@@ -8,9 +8,9 @@ import (
 	"net"
 	"os/exec"
 
+	"gate.computer/gate/runtime/container"
 	internal "gate.computer/internal/container"
 	"gate.computer/internal/sys"
-	"gate.computer/gate/runtime/container"
 )
 
 func startContainer(c *container.Config) (cmd *exec.Cmd, unixConn *net.UnixConn, err error) {

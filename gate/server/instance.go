@@ -14,9 +14,6 @@ import (
 	"time"
 
 	"gate.computer/gate/image"
-	"gate.computer/internal/error/subsystem"
-	"gate.computer/internal/manifest"
-	"gate.computer/internal/principal"
 	pprincipal "gate.computer/gate/principal"
 	"gate.computer/gate/runtime"
 	programscope "gate.computer/gate/scope/program"
@@ -26,6 +23,9 @@ import (
 	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"gate.computer/internal/error/subsystem"
+	"gate.computer/internal/manifest"
+	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
 	"github.com/google/uuid"
 )

@@ -11,11 +11,11 @@ import (
 	"encoding/json"
 	"strings"
 
-	"gate.computer/internal/principal"
 	"gate.computer/gate/scope"
 	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
+	"gate.computer/internal/principal"
 )
 
 func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) context.Context {

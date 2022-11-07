@@ -13,10 +13,10 @@ import (
 	"io/ioutil"
 	"os"
 
-	"gate.computer/internal/error/badprogram"
-	"gate.computer/internal/file"
 	"gate.computer/gate/packet"
 	"gate.computer/gate/snapshot"
+	"gate.computer/internal/error/badprogram"
+	"gate.computer/internal/file"
 )
 
 func popServiceBuffers(frozen *snapshot.Buffers) (services []snapshot.Service) {

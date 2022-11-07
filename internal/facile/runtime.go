@@ -10,13 +10,13 @@ import (
 	"log"
 	"os"
 
-	"gate.computer/internal/container"
-	"gate.computer/internal/defaultlog"
-	"gate.computer/internal/sys"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/trap"
+	"gate.computer/internal/container"
+	"gate.computer/internal/defaultlog"
+	"gate.computer/internal/sys"
 	"gate.computer/wag/object/stack/stacktrace"
 	"golang.org/x/sys/unix"
 )

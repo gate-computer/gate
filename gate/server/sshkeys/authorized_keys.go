@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"gate.computer/internal/principal"
 	"gate.computer/gate/scope"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
+	"gate.computer/internal/principal"
 	"golang.org/x/crypto/ssh"
 )
 

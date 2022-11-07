@@ -7,8 +7,8 @@ package web
 import (
 	"context"
 
-	"gate.computer/internal/error/subsystem"
 	"gate.computer/gate/server/event"
+	"gate.computer/internal/error/subsystem"
 )
 
 func reportInternalError(ctx context.Context, s *webserver, sourceURI, progHash, function, instID string, err error) {

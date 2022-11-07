@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"testing"
 
+	"gate.computer/gate/runtime/container"
 	internal "gate.computer/internal/container"
 	"gate.computer/internal/sys"
-	"gate.computer/gate/runtime/container"
 )
 
 var testExecDir = "../lib/gate"

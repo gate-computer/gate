@@ -8,11 +8,11 @@ import (
 	"encoding/binary"
 	"syscall"
 
+	"gate.computer/gate/snapshot"
+	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/internal/file"
 	"gate.computer/internal/manifest"
 	"gate.computer/internal/varint"
-	"gate.computer/gate/snapshot"
-	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa"
 	"gate.computer/wag/wa/opcode"

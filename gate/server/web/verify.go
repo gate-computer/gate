@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"gate.computer/internal/principal"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
+	"gate.computer/internal/principal"
 )
 
 const (

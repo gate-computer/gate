@@ -7,9 +7,9 @@ package server
 import (
 	"reflect"
 
-	"gate.computer/internal/principal"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
+	"gate.computer/internal/principal"
 )
 
 type accountProgram struct {

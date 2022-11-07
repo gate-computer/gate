@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"gate.computer/internal/error/grpc"
 	"gate.computer/gate/server/event"
+	"gate.computer/internal/error/grpc"
 )
 
 var metadata = [...]struct {

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"gate.computer/gate/image"
-	internalbuild "gate.computer/internal/build"
 	"gate.computer/gate/packet"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/runtime/abi"
@@ -31,6 +30,7 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	internalbuild "gate.computer/internal/build"
 	"gate.computer/wag/binding"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"

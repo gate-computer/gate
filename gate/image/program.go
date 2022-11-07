@@ -8,12 +8,12 @@ import (
 	"bytes"
 	"io"
 
+	"gate.computer/gate/snapshot"
+	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/internal/error/notfound"
 	internal "gate.computer/internal/executable"
 	"gate.computer/internal/file"
 	"gate.computer/internal/manifest"
-	"gate.computer/gate/snapshot"
-	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/wag/object"
 )
 

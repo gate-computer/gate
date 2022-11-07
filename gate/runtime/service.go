@@ -8,9 +8,9 @@ import (
 	"context"
 	"encoding/binary"
 
-	"gate.computer/internal/error/badprogram"
 	"gate.computer/gate/packet"
 	"gate.computer/gate/snapshot"
+	"gate.computer/internal/error/badprogram"
 )
 
 const maxServices = 256

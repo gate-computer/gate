@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"io"
 
-	"gate.computer/internal/error/badprogram"
-	"gate.computer/internal/manifest"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"gate.computer/internal/error/badprogram"
+	"gate.computer/internal/manifest"
 	"gate.computer/wag/binary"
 	"gate.computer/wag/section"
 )

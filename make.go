@@ -264,7 +264,7 @@ func protoTask(O, GO string) Task {
 		"gate/server/event/pb/*.proto",
 		"gate/server/web/internal/api/*.proto",
 		"grpc/api/*.proto",
-        "internal/manifest/*.proto",
+		"internal/manifest/*.proto",
 	)
 
 	tasks := Tasks{
@@ -342,7 +342,7 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 			"gate/runtime/loader/*.hpp",
 			"gate/runtime/loader/*/*.S",
 			"gate/runtime/loader/*/*.hpp",
-            "internal/error/runtime/*.go",
+			"internal/error/runtime/*.go",
 		)
 
 		cppflags = Flatten(

@@ -10,8 +10,8 @@ import (
 	"io"
 	"sync/atomic"
 
-	"gate.computer/internal/error/badprogram"
 	"gate.computer/gate/packet"
+	"gate.computer/internal/error/badprogram"
 )
 
 var errNegativeSubscription = badprogram.Error("stream flow increment is negative")

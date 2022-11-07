@@ -12,9 +12,9 @@ import (
 	"path"
 	"syscall"
 
+	"gate.computer/gate/runtime/abi"
 	"gate.computer/internal/file"
 	"gate.computer/internal/manifest"
-	"gate.computer/gate/runtime/abi"
 	"gate.computer/wag/object"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"

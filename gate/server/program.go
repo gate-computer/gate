@@ -16,12 +16,12 @@ import (
 
 	"gate.computer/gate/build"
 	"gate.computer/gate/image"
-	"gate.computer/internal/error/badmodule"
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/snapshot"
+	"gate.computer/internal/error/badmodule"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
 )

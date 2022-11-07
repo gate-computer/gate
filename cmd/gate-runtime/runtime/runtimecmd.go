@@ -12,8 +12,8 @@ import (
 	"os"
 	"path"
 
-	internal "gate.computer/internal/container"
 	"gate.computer/gate/runtime/container"
+	internal "gate.computer/internal/container"
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"import.name/confi"

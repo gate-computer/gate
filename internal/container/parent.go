@@ -12,10 +12,10 @@ import (
 	"runtime"
 	"syscall"
 
+	config "gate.computer/gate/runtime/container"
 	"gate.computer/internal/container/child"
 	"gate.computer/internal/container/common"
 	runtimeerrors "gate.computer/internal/error/runtime"
-	config "gate.computer/gate/runtime/container"
 	"golang.org/x/sys/unix"
 )
 

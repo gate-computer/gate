@@ -12,10 +12,10 @@ import (
 	"io"
 	"sync"
 
-	"gate.computer/internal/varint"
 	"gate.computer/gate/packet"
 	"gate.computer/gate/packet/packetio"
 	"gate.computer/gate/service"
+	"gate.computer/internal/varint"
 	"import.name/lock"
 )
 

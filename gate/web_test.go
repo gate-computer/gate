@@ -20,7 +20,6 @@ import (
 	"testing"
 	"time"
 
-	_ "gate.computer/internal/test/service-ext"
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
@@ -30,6 +29,7 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/snapshot/wasm"
+	_ "gate.computer/internal/test/service-ext"
 	"gate.computer/wag"
 	"gate.computer/wag/binding"
 	"gate.computer/wag/compile"

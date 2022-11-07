@@ -7,8 +7,8 @@ package api
 import (
 	"context"
 
-	"gate.computer/internal/principal"
 	"gate.computer/gate/server/api/pb"
+	"gate.computer/internal/principal"
 )
 
 type contextKey int

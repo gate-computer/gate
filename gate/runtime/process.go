@@ -17,12 +17,12 @@ import (
 	"time"
 	"unsafe"
 
+	"gate.computer/gate/snapshot"
+	"gate.computer/gate/trap"
 	"gate.computer/internal/error/badprogram"
 	internal "gate.computer/internal/error/runtime"
 	"gate.computer/internal/executable"
 	"gate.computer/internal/file"
-	"gate.computer/gate/snapshot"
-	"gate.computer/gate/trap"
 	"gate.computer/wag/object/abi"
 )
 
