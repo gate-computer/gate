@@ -13,7 +13,6 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.5.0
-	github.com/tsavola/threshold v1.0.0
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd
 	golang.org/x/sys v0.0.0-20220318055525-2edf467146b5
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
@@ -21,6 +20,7 @@ require (
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.27.1
 	import.name/confi v1.6.0
+	import.name/flux v1.0.0
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
 	import.name/make v0.0.0-20220104073727-8e6e5ea95bef
 	import.name/pan v0.2.0

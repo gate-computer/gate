@@ -16,7 +16,7 @@ import (
 	"gate.computer/gate/scope/program"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/service"
-	"github.com/tsavola/threshold"
+	"import.name/flux"
 )
 
 type errorCode int16
@@ -45,7 +45,7 @@ type instance struct {
 
 	code    packet.Code
 	running chan struct{}
-	flow    *threshold.Uint32
+	flow    *flux.Uint32
 }
 
 func newInstance(config service.InstanceConfig) *instance {
@@ -64,7 +64,7 @@ func (inst *instance) restore(snapshot []byte) {
 		inst.running = make(chan struct{}, 1)
 	}
 	if flags&flagFlowing != 0 {
-		inst.flow = threshold.NewUint32(0) // Value is irrelevant.
+		inst.flow = flux.NewUint32(0) // Value is irrelevant.
 	}
 }
 
@@ -205,14 +205,14 @@ func (inst *instance) startProcess(ctx context.Context, send chan<- packet.Thunk
 	}
 
 	inst.running = make(chan struct{}, 1)
-	inst.flow = threshold.NewUint32(0)
+	inst.flow = flux.NewUint32(0)
 	go inst.io(ctx, cmd, stdout, send, inst.flow)
 
 	ok = true
 	return 0, nil
 }
 
-func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *threshold.Uint32) {
+func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *flux.Uint32) {
 	var exited bool
 	defer func() {
 		if exited {
@@ -253,7 +253,7 @@ func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadClose
 	}
 }
 
-func (inst *instance) ioCopy(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *threshold.Uint32) (cmderr error, ok bool) {
+func (inst *instance) ioCopy(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *flux.Uint32) (cmderr error, ok bool) {
 	defer func() {
 		cmderr = cmd.Wait()
 	}()
