@@ -292,7 +292,16 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 
 	var fs *image.Filesystem
 	if c.Image.ProgramStorage == "filesystem" || c.Image.InstanceStorage == "filesystem" {
-		fs, err = image.NewFilesystem(c.Image.VarDir)
+		uid := -1
+		gid := -1
+		if c.Server.UID > 0 {
+			uid = c.Server.UID
+		}
+		if c.Server.GID > 0 {
+			gid = c.Server.GID
+		}
+
+		fs, err = image.NewFilesystemWithOwnership(c.Image.VarDir, uid, gid)
 		if err != nil {
 			return fmt.Errorf("filesystem: %w", err)
 		}
