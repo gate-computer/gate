@@ -150,6 +150,14 @@ type Config struct {
 
 var c = new(Config)
 
+var extMux = http.NewServeMux()
+
+// Router can be used to register additional URLs to serve via HTTP.
+func Router() router.Router {
+	return extMux
+}
+
+// Main will not return.
 func Main() {
 	log.SetFlags(0)
 
@@ -250,19 +258,18 @@ func Main() {
 	c.Server.Monitor = monitor
 	c.HTTP.Monitor = monitor
 
-	mux := http.NewServeMux()
-	ctx := router.Context(context.Background(), mux)
+	ctx := context.Background()
 
 	var err error
-	c.Principal.Services, err = services.Init(ctx, &originConfig, &randomConfig)
+	c.Principal.Services, err = services.Init(router.Context(ctx, extMux), &originConfig, &randomConfig)
 	if err != nil {
 		critLog.Fatal(err)
 	}
 
-	critLog.Fatal(main2(ctx, mux, critLog))
+	critLog.Fatal(main2(ctx, critLog))
 }
 
-func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
+func main2(ctx context.Context, critLog *log.Logger) error {
 	var err error
 
 	var (
@@ -412,9 +419,11 @@ func main2(ctx context.Context, mux *http.ServeMux, critLog *log.Logger) error {
 		}
 	}
 
-	handler := web.NewHandler("/", &c.HTTP.Config)
-	mux.Handle(webapi.Path, handler)
-	handler = newWebHandler(mux)
+	mux := http.NewServeMux()
+	mux.Handle(webapi.Path, web.NewHandler("/", &c.HTTP.Config))
+	mux.Handle("/", extMux)
+
+	handler := newWebHandler(mux)
 
 	if c.HTTP.AccessLog != "" {
 		f, err := os.OpenFile(c.HTTP.AccessLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
