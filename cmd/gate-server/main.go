@@ -8,7 +8,6 @@ import (
 	"gate.computer/cmd/gate-server/server"
 	_ "gate.computer/grpc"
 	_ "gate.computer/localhost"
-	_ "gate.computer/shell"
 	_ "modernc.org/sqlite"
 )
 
