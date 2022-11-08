@@ -33,7 +33,11 @@ type Filesystem struct {
 	instDir *file.File
 }
 
-func NewFilesystem(root string) (fs *Filesystem, err error) {
+func NewFilesystem(root string) (*Filesystem, error) {
+	return NewFilesystemWithOwnership(root, -1, -1)
+}
+
+func NewFilesystemWithOwnership(root string, uid, gid int) (fs *Filesystem, err error) {
 	progPath := path.Join(root, "program")
 	instPath := path.Join(root, "instance")
 
@@ -58,6 +62,22 @@ func NewFilesystem(root string) (fs *Filesystem, err error) {
 	instDir, err := openat(unix.AT_FDCWD, instPath, syscall.O_DIRECTORY, 0)
 	if err != nil {
 		return
+	}
+	defer func() {
+		if err != nil {
+			instDir.Close()
+		}
+	}()
+
+	if uid >= 0 || gid >= 0 {
+		err = unix.Fchownat(int(progDir.Fd()), ".", uid, gid, 0)
+		if err != nil {
+			return
+		}
+		err = unix.Fchownat(int(instDir.Fd()), ".", uid, gid, 0)
+		if err != nil {
+			return
+		}
 	}
 
 	fs = &Filesystem{progDir, instDir}
