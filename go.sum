@@ -46,6 +46,7 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
+gate.computer/ga v0.0.0-20220211160221-c07eec41cf23 h1:CfIbFLe0uplwnjzOXpypHZ0evelICYXqtHp9fb3h2zM=
 gate.computer/ga v0.0.0-20220211160221-c07eec41cf23/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
 gate.computer/wag v0.35.0 h1:kh4XT0F8cp3oZOb2+htey6O5p/mIA4AgJXG0ZG++wPA=
 gate.computer/wag v0.35.0/go.mod h1:KYW+5Dtn+iIsNM+wkqA4yndyafUJFt98qbdTPnwfdv8=
