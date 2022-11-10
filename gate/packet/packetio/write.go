@@ -13,6 +13,7 @@ import (
 
 	"gate.computer/gate/packet"
 	"gate.computer/internal/error/badprogram"
+	"import.name/flux"
 )
 
 var errWriteBufferOverflow = badprogram.Error("write stream buffer overflow")
@@ -26,7 +27,7 @@ var errWriteBufferOverflow = badprogram.Error("write stream buffer overflow")
 // marshaled afterwards.
 type WriteStream struct {
 	State    State
-	wakeup   chan struct{}
+	waker    flux.Waker
 	produced uint32 // Circular data buffer offsets.  Must be wrapped to buffer
 	consumed uint32 // size at read time (if necessary).
 }
@@ -41,8 +42,8 @@ func MakeWriteStream(bufferSize int) WriteStream {
 	}
 
 	return WriteStream{
-		State:  InitialStateWithDataBuffer(make([]byte, 0, bufferSize)),
-		wakeup: make(chan struct{}, 1),
+		State: InitialStateWithDataBuffer(make([]byte, 0, bufferSize)),
+		waker: flux.MakeWaker(),
 	}
 }
 
@@ -99,7 +100,7 @@ func (s *WriteStream) Write(data []byte) (n int, err error) {
 	}
 
 	atomic.AddUint32(&s.produced, uint32(n))
-	poke(s.wakeup)
+	s.waker.Poke()
 	return
 }
 
@@ -110,13 +111,13 @@ func (s *WriteStream) CloseWrite() error {
 	}
 
 	atomic.StoreUint32(&s.State.Flags, s.State.Flags&^FlagSendReceiving)
-	poke(s.wakeup)
+	s.waker.Poke()
 	return nil
 }
 
 // StopTransfer the transfer.  The write methods must not be called after this.
 func (s *WriteStream) StopTransfer() {
-	close(s.wakeup)
+	s.waker.Finish()
 }
 
 // Transfer data from a service's data stream while managing its flow.
@@ -173,7 +174,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 					send = nil
 				}
 
-			case _, ok := <-s.wakeup:
+			case _, ok := <-s.waker.Chan():
 				if !ok {
 					goto stopped
 				}
@@ -192,7 +193,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 					send = nil
 				}
 
-			case _, ok := <-s.wakeup:
+			case _, ok := <-s.waker.Chan():
 				if !ok {
 					goto stopped
 				}
@@ -239,7 +240,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 
 	// Make sure that the final Flags value is seen.
 	select {
-	case <-s.wakeup:
+	case <-s.waker.Chan():
 	default:
 	}
 

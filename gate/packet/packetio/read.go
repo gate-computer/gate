@@ -12,6 +12,7 @@ import (
 
 	"gate.computer/gate/packet"
 	"gate.computer/internal/error/badprogram"
+	"import.name/flux"
 )
 
 var errNegativeSubscription = badprogram.Error("stream flow increment is negative")
@@ -24,16 +25,16 @@ var errNegativeSubscription = badprogram.Error("stream flow increment is negativ
 // State can be unmarshaled before subscription and transfer, and it can be
 // marshaled afterwards.
 type ReadStream struct {
-	State  State
-	wakeup chan struct{}
+	State State
+	waker flux.Waker
 }
 
 // MakeReadStream is useful for initializing a field.  Don't use multiple
 // copies of the value.
 func MakeReadStream() ReadStream {
 	return ReadStream{
-		State:  InitialState(),
-		wakeup: make(chan struct{}, 1),
+		State: InitialState(),
+		waker: flux.MakeWaker(),
 	}
 }
 
@@ -71,7 +72,7 @@ func (s *ReadStream) Subscribe(increment int32) error {
 	}
 
 	atomic.AddUint32(&s.State.Subscribed, uint32(increment))
-	poke(s.wakeup)
+	s.waker.Poke()
 	return nil
 }
 
@@ -85,14 +86,14 @@ func (s *ReadStream) FinishSubscription() error {
 	// loop ends either after it sees this mutation or the channel closure;
 	// Flags can be read directly here.
 	atomic.StoreUint32(&s.State.Flags, s.State.Flags&^FlagSubscribing)
-	poke(s.wakeup)
+	s.waker.Poke()
 	return nil
 }
 
 // StopTransfer the transfer.  The subscribe methods must not be called after
 // this.
 func (s *ReadStream) StopTransfer() {
-	close(s.wakeup)
+	s.waker.Finish()
 }
 
 // Transfer data from a reader to a service's data stream according to
@@ -147,7 +148,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 					send = nil
 				}
 
-			case _, ok := <-s.wakeup:
+			case _, ok := <-s.waker.Chan():
 				if !ok {
 					goto stopped
 				}
@@ -163,7 +164,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 			}
 		} else {
 			select {
-			case _, ok := <-s.wakeup:
+			case _, ok := <-s.waker.Chan():
 				if !ok {
 					goto stopped
 				}
@@ -207,7 +208,7 @@ func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, stream
 	// Make sure that Flags and Subscribed have their final modifications by
 	// the other side.
 	select {
-	case <-s.wakeup:
+	case <-s.waker.Chan():
 	default:
 	}
 
