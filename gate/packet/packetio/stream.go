@@ -86,29 +86,30 @@ func (s *Stream) StopTransfer() {
 // program's stream.  Read buffer size is limited by config.MaxSendSize.
 //
 // I/O or context errors are returned, excluding EOF.
-func (s *Stream) Transfer(ctx context.Context, config packet.Service, streamID int32, r io.Reader, w io.WriteCloser, send chan<- packet.Thunk) (readErr, writeErr error) {
-	done := make(chan interface{}, 1)
+func (s *Stream) Transfer(ctx context.Context, config packet.Service, streamID int32, r io.Reader, w io.WriteCloser, send chan<- packet.Thunk) error {
+	var (
+		readDone   = make(chan interface{}, 1)
+		readErr    error
+		readNormal bool
+	)
 
 	go func() {
 		defer func() {
-			done <- recover()
+			readDone <- recover()
 		}()
 		readErr = s.ReadStream.Transfer(ctx, config, streamID, send, r)
+		readNormal = true
 	}()
 
-	writeErr = s.WriteStream.Transfer(ctx, config, streamID, w, send)
+	writeErr := s.WriteStream.Transfer(ctx, config, streamID, w, send)
 
-	if x := <-done; x != nil {
-		panic(x)
+	recovered := <-readDone
+	if !readNormal {
+		panic(recovered)
 	}
 
-	return
-}
-
-// RWError returns one of the errors.
-func RWError(r, w error) error {
-	if r != nil {
-		return r
+	if readErr != nil {
+		return readErr
 	}
-	return w
+	return writeErr
 }
