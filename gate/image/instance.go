@@ -163,22 +163,20 @@ func (inst *Instance) SetEntryFunc(prog *Program, index int) error {
 }
 
 // Store the instance.  The names must not contain path separators.
-func (inst *Instance) Store(name, progName string, prog *Program) (err error) {
+func (inst *Instance) Store(name, progName string, prog *Program) error {
 	if !inst.coherent {
-		err = ErrInvalidState
-		return
+		return ErrInvalidState
 	}
 	if inst.name != "" {
-		err = errors.New("instance already stored")
-		return
+		return errors.New("instance already stored")
 	}
 
 	if prog.storage.storeInstanceSupported() {
-		err = prog.storage.storeInstance(inst, name)
-	} else {
-		inst.name = name
+		return prog.storage.storeInstance(inst, name)
 	}
-	return
+
+	inst.name = name
+	return nil
 }
 
 func (inst *Instance) Unstore() error {
@@ -206,10 +204,10 @@ func (inst *Instance) Unstore() error {
 	return fdatasync(dir.FD())
 }
 
-func (inst *Instance) Close() (err error) {
-	err = inst.file.Close()
+func (inst *Instance) Close() error {
+	err := inst.file.Close()
 	inst.file = nil
-	return
+	return err
 }
 
 func (inst *Instance) TextAddr() uint64      { return inst.man.TextAddr }
@@ -276,20 +274,17 @@ changed:
 // the next Instance method call.
 func (inst *Instance) BeginMutation(textAddr uint64) (file interface{ Fd() uintptr }, err error) {
 	if !inst.coherent {
-		err = ErrInvalidState
-		return
+		return nil, ErrInvalidState
 	}
 
-	err = inst.Unstore()
-	if err != nil {
-		return
+	if err := inst.Unstore(); err != nil {
+		return nil, err
 	}
 
 	// Text address is currently unused, as it's later read from stack vars.
 
 	inst.coherent = false
-	file = inst.file
-	return
+	return inst.file, nil
 }
 
 // CheckMutation can be invoked after the mutation has ended.
@@ -350,7 +345,7 @@ func (inst *Instance) checkMutation() (vars stackVars, err error) {
 	return
 }
 
-func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
+func (inst *Instance) Globals(prog *Program) ([]uint64, error) {
 	var (
 		instGlobalsEnd    = int64(inst.man.StackSize) + alignPageOffset32(inst.man.GlobalsSize)
 		instGlobalsOffset = instGlobalsEnd - int64(inst.man.GlobalsSize)
@@ -358,18 +353,17 @@ func (inst *Instance) Globals(prog *Program) (values []uint64, err error) {
 
 	b := make([]byte, inst.man.GlobalsSize)
 
-	_, err = inst.file.ReadAt(b, instGlobalsOffset)
-	if err != nil {
-		return
+	if _, err := inst.file.ReadAt(b, instGlobalsOffset); err != nil {
+		return nil, err
 	}
 
-	values = make([]uint64, len(prog.man.GlobalTypes))
+	values := make([]uint64, len(prog.man.GlobalTypes))
 
 	for i := range values {
 		values[i] = binary.LittleEndian.Uint64(b[len(b)-(i+1)*8:])
 	}
 
-	return
+	return values, nil
 }
 
 // ReplaceCallStack with a "suspended" function call with given arguments.
@@ -422,35 +416,31 @@ func (inst *Instance) ReplaceCallStack(funcAddr uint32, funcArgs []uint64) error
 	return nil
 }
 
-func (inst *Instance) readStack() (stack []byte, err error) {
+func (inst *Instance) readStack() ([]byte, error) {
 	b := make([]byte, inst.man.StackSize)
 
-	_, err = inst.file.ReadAt(b, 0)
-	if err != nil {
-		return
+	if _, err := inst.file.ReadAt(b, 0); err != nil {
+		return nil, err
 	}
 
 	if inst.man.StackUsage == 0 {
-		return
+		return nil, nil
 	}
 
-	stack = b[len(b)-int(inst.man.StackUsage):]
-	return
+	return b[len(b)-int(inst.man.StackUsage):], nil
 }
 
-func (inst *Instance) ExportStack(textMap stack.TextMap) (stack []byte, err error) {
+func (inst *Instance) ExportStack(textMap stack.TextMap) ([]byte, error) {
 	b, err := inst.readStack()
 	if err != nil || len(b) == 0 {
-		return
+		return nil, err
 	}
 
-	err = exportStack(b, b, inst.man.TextAddr, textMap)
-	if err != nil {
-		return
+	if err := exportStack(b, b, inst.man.TextAddr, textMap); err != nil {
+		return nil, err
 	}
 
-	stack = b
-	return
+	return b, nil
 }
 
 func (inst *Instance) Stacktrace(textMap stack.TextMap, funcTypes []wa.FuncType) ([]stack.Frame, error) {
@@ -498,7 +488,7 @@ func checkStackMagic(numbers []uint64) bool {
 	return true
 }
 
-func maxInstanceMemory(prog *Program, n int) (adjusted int, err error) {
+func maxInstanceMemory(prog *Program, n int) (int, error) {
 	if prog.man.MemorySizeLimit >= 0 && n > int(prog.man.MemorySizeLimit) {
 		n = int(prog.man.MemorySizeLimit)
 	}

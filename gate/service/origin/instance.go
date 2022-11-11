@@ -54,15 +54,16 @@ func (inst *instance) init(service packet.Service) {
 }
 
 // restore is invoked by Connector when the program instance is being resumed.
-func (inst *instance) restore(input []byte) (err error) {
+func (inst *instance) restore(input []byte) error {
 	if len(input) == 0 {
-		return
+		return nil
 	}
 
-	inst.accepting, input, err = varint.Scan(input)
+	accepting, input, err := varint.Scan(input)
 	if err != nil {
-		return
+		return err
 	}
+	inst.accepting = accepting
 	if inst.accepting < 0 {
 		// TODO
 	}
@@ -71,12 +72,12 @@ func (inst *instance) restore(input []byte) (err error) {
 	}
 
 	if len(input) == 0 {
-		return
+		return nil
 	}
 
 	numStreams, input, err := varint.Scan(input)
 	if err != nil {
-		return
+		return err
 	}
 
 	// Length of the input buffer puts a practical limit on stream count.
@@ -86,23 +87,22 @@ func (inst *instance) restore(input []byte) (err error) {
 
 		id, input, err = varint.Scan(input)
 		if err != nil {
-			return
+			return err
 		}
 
 		s := newStream(inst.BufSize)
 		input, err = s.Unmarshal(input, inst.Service)
 		if err != nil {
-			return
+			return err
 		}
 
 		if _, exist := inst.streams[id]; exist {
-			err = errors.New("origin service resumed stream with duplicate id")
-			return
+			return errors.New("origin service resumed stream with duplicate id")
 		}
 		inst.streams[id] = s
 	}
 
-	return
+	return nil
 }
 
 func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {

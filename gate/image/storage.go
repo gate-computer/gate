@@ -24,6 +24,6 @@ type combinedStorage struct {
 	InstanceStorage
 }
 
-func (cs *combinedStorage) LoadProgram(name string) (prog *Program, err error) {
+func (cs *combinedStorage) LoadProgram(name string) (*Program, error) {
 	return cs.loadProgram(cs, name)
 }

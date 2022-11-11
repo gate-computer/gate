@@ -1309,14 +1309,14 @@ func TestInstanceTerminated(t *testing.T) {
 		var final bool
 
 		loaders := map[string]section.CustomContentLoader{
-			wasm.SectionSnapshot: func(_ string, r section.Reader, _ uint32) (err error) {
+			wasm.SectionSnapshot: func(_ string, r section.Reader, _ uint32) error {
 				snap, _, err := wasm.ReadSnapshotSection(r)
 				if err != nil {
-					return
+					return err
 				}
 
 				final = snap.Final()
-				return
+				return nil
 			},
 		}
 

@@ -42,14 +42,14 @@ type ProgramImage struct {
 	objectMap       object.CallMap
 }
 
-func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImage, err error) {
+func NewProgramImage(programStorage *Filesystem, wasm []byte) (*ProgramImage, error) {
 	storage := image.CombinedStorage(programStorage.fs, image.Memory)
 
 	var objectMap object.CallMap
 
 	b, err := build.New(storage, len(wasm), compile.MaxTextSize, &objectMap, false)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer b.Close()
 
@@ -59,58 +59,51 @@ func NewProgramImage(programStorage *Filesystem, wasm []byte) (prog *ProgramImag
 
 	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), r)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	b.StackSize = wa.PageSize
 	b.SetMaxMemorySize(compile.MaxMemorySize)
 
-	err = b.BindFunctions("")
-	if err != nil {
-		return
+	if err = b.BindFunctions(""); err != nil {
+		return nil, err
 	}
 
-	err = compile.LoadCodeSection(b.CodeConfig(&objectMap), r, b.Module, abi.Library())
-	if err != nil {
-		return
+	if err := compile.LoadCodeSection(b.CodeConfig(&objectMap), r, b.Module, abi.Library()); err != nil {
+		return nil, err
 	}
 
-	err = b.VerifyBreakpoints()
-	if err != nil {
-		return
+	if err := b.VerifyBreakpoints(); err != nil {
+		return nil, err
 	}
 
 	b.InstallSnapshotDataLoaders()
 
-	err = compile.LoadCustomSections(&b.Config, r)
-	if err != nil {
-		return
+	if err := compile.LoadCustomSections(&b.Config, r); err != nil {
+		return nil, err
 	}
 
-	err = b.FinishImageText()
-	if err != nil {
-		return
+	if err := b.FinishImageText(); err != nil {
+		return nil, err
 	}
 
 	b.InstallLateSnapshotLoaders()
 
-	err = compile.LoadDataSection(b.DataConfig(), r, b.Module)
-	if err != nil {
-		return
+	if err := compile.LoadDataSection(b.DataConfig(), r, b.Module); err != nil {
+		return nil, err
 	}
 
-	err = compile.LoadCustomSections(&b.Config, r)
-	if err != nil {
-		return
+	if err := compile.LoadCustomSections(&b.Config, r); err != nil {
+		return nil, err
 	}
 
 	progImage, err := b.FinishProgramImage()
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	prog = &ProgramImage{progImage, b.Module.MemorySizeLimit(), b.Buffers, b.Module.FuncTypes(), objectMap}
-	return
+	prog := &ProgramImage{progImage, b.Module.MemorySizeLimit(), b.Buffers, b.Module.FuncTypes(), objectMap}
+	return prog, nil
 }
 
 func (prog *ProgramImage) Close() error {
@@ -122,21 +115,20 @@ type InstanceImage struct {
 	buffers snapshot.Buffers
 }
 
-func NewInstanceImage(prog *ProgramImage, entryFunction string) (inst *InstanceImage, err error) {
+func NewInstanceImage(prog *ProgramImage, entryFunction string) (*InstanceImage, error) {
 	stackSize := wa.PageSize
 
 	entryFunc, err := prog.image.ResolveEntryFunc(entryFunction, false)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	instImage, err := image.NewInstance(prog.image, prog.memorySizeLimit, stackSize, entryFunc)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	inst = &InstanceImage{instImage, prog.buffers}
-	return
+	return &InstanceImage{instImage, prog.buffers}, nil
 }
 
 func (inst *InstanceImage) Close() error {

@@ -14,17 +14,14 @@ import (
 func socketFilePair(flags int) (f1, f2 *os.File, err error) {
 	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC|flags, 0)
 	if err != nil {
-		err = fmt.Errorf("socketpair: %w", err)
-		return
+		return nil, nil, fmt.Errorf("socketpair: %w", err)
 	}
 
-	err = syscall.SetNonblock(p[1], true)
-	if err != nil {
-		err = fmt.Errorf("set nonblock: %w", err)
-		return
+	if err := syscall.SetNonblock(p[1], true); err != nil {
+		return nil, nil, fmt.Errorf("set nonblock: %w", err)
 	}
 
 	f1 = os.NewFile(uintptr(p[0]), "unix")
 	f2 = os.NewFile(uintptr(p[1]), "unix")
-	return
+	return f1, f2, nil
 }

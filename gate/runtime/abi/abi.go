@@ -134,7 +134,8 @@ type ImportResolver struct {
 	Random bool
 }
 
-func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (index uint32, err error) {
+// ResolveFunc index.
+func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (uint32, error) {
 	m := module
 	f := field
 
@@ -185,26 +186,23 @@ func (ir *ImportResolver) ResolveFunc(module, field string, sig wa.FuncType) (in
 	}
 
 	if !found {
-		err = badprogram.Errorf("import function not supported: %q %q", module, field)
-		return
+		return 0, badprogram.Errorf("import function not supported: %q %q", module, field)
 	}
 
 	if !sig.Equal(libfn.Type) {
-		err = badprogram.Errorf("function %s.%s %s imported with wrong signature %s", module, field, libfn.Type, sig)
-		return
+		return 0, badprogram.Errorf("function %s.%s %s imported with wrong signature %s", module, field, libfn.Type, sig)
 	}
 
 	if libfn.Index == library_random_get.Index {
 		ir.Random = true
 	}
 
-	index = libfn.Index
-	return
+	return libfn.Index, nil
 }
 
-func (*ImportResolver) ResolveGlobal(module, field string, t wa.Type) (value uint64, err error) {
-	err = badprogram.Errorf("import global not supported: %q %q", module, field)
-	return
+// ResolveGlobal value.
+func (*ImportResolver) ResolveGlobal(module, field string, t wa.Type) (uint64, error) {
+	return 0, badprogram.Errorf("import global not supported: %q %q", module, field)
 }
 
 func allDigits(s string) bool {

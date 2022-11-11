@@ -84,10 +84,10 @@ func NewFilesystemWithOwnership(root string, uid, gid int) (fs *Filesystem, err 
 	return
 }
 
-func (fs *Filesystem) Close() (err error) {
+func (fs *Filesystem) Close() error {
 	fs.instDir.Close()
 	fs.progDir.Close()
-	return
+	return nil
 }
 
 func (fs *Filesystem) programBackend() interface{}  { return fs }
@@ -110,34 +110,29 @@ func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 
 func (fs *Filesystem) protectProgramFile(*file.File) error { return nil }
 
-func (fs *Filesystem) storeProgram(prog *Program, name string) (err error) {
-	err = marshalManifest(prog.file, prog.man, progManifestOffset, programFileTag)
-	if err != nil {
-		return
+func (fs *Filesystem) storeProgram(prog *Program, name string) error {
+	if err := marshalManifest(prog.file, prog.man, progManifestOffset, programFileTag); err != nil {
+		return err
 	}
 
-	err = fdatasync(prog.file.FD())
-	if err != nil {
-		return
+	if err := fdatasync(prog.file.FD()); err != nil {
+		return err
 	}
 
-	err = linkTempFile(prog.file.Fd(), fs.progDir.Fd(), name)
-	if err != nil {
+	if err := linkTempFile(prog.file.Fd(), fs.progDir.Fd(), name); err != nil {
 		if !os.IsExist(err) {
-			return
+			return err
 		}
-		err = nil
 	}
 
-	err = fdatasync(fs.progDir.FD())
-	return
+	return fdatasync(fs.progDir.FD())
 }
 
-func (fs *Filesystem) Programs() (names []string, err error) {
+func (fs *Filesystem) Programs() ([]string, error) {
 	return fs.listNames(fs.progDir.Fd())
 }
 
-func (fs *Filesystem) LoadProgram(name string) (prog *Program, err error) {
+func (fs *Filesystem) LoadProgram(name string) (*Program, error) {
 	return fs.loadProgram(fs, name)
 }
 
@@ -209,36 +204,32 @@ func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
 func (fs *Filesystem) instanceFileWriteSupported() bool { return true }
 func (fs *Filesystem) storeInstanceSupported() bool     { return true }
 
-func (fs *Filesystem) storeInstance(inst *Instance, name string) (err error) {
+func (fs *Filesystem) storeInstance(inst *Instance, name string) error {
 	if inst.manDirty {
-		err = marshalManifest(inst.file, inst.man, instManifestOffset, instanceFileTag)
-		if err != nil {
-			return
+		if err := marshalManifest(inst.file, inst.man, instManifestOffset, instanceFileTag); err != nil {
+			return err
 		}
 		inst.manDirty = false
 	}
 
-	err = fdatasync(inst.file.FD())
-	if err != nil {
-		return
+	if err := fdatasync(inst.file.FD()); err != nil {
+		return err
 	}
 
-	err = linkTempFile(inst.file.Fd(), fs.instDir.Fd(), name)
-	if err != nil {
-		return
+	if err := linkTempFile(inst.file.Fd(), fs.instDir.Fd(), name); err != nil {
+		return err
 	}
 
-	err = fdatasync(fs.instDir.FD())
-	if err != nil {
-		return
+	if err := fdatasync(fs.instDir.FD()); err != nil {
+		return err
 	}
 
 	inst.dir = fs.instDir
 	inst.name = name
-	return
+	return nil
 }
 
-func (fs *Filesystem) Instances() (names []string, err error) {
+func (fs *Filesystem) Instances() ([]string, error) {
 	return fs.listNames(fs.instDir.Fd())
 }
 
@@ -268,30 +259,31 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 	return
 }
 
-func (fs *Filesystem) listNames(dirFD uintptr) (names []string, err error) {
+func (fs *Filesystem) listNames(dirFD uintptr) ([]string, error) {
 	dir, err := os.Open(fmt.Sprintf("/proc/self/fd/%d", dirFD))
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer dir.Close()
 
 	infos, err := dir.Readdir(-1)
 	if err != nil {
-		return
+		return nil, err
 	}
 
+	names := make([]string, 0, len(infos))
 	for _, info := range infos {
 		if info.Mode().IsRegular() {
 			names = append(names, info.Name())
 		}
 	}
-	return
+	return names, nil
 }
 
-func marshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) (err error) {
+func marshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) error {
 	marsh, err := proto.Marshal(man)
 	if err != nil {
-		return
+		return err
 	}
 
 	size := manifestHeaderSize + len(marsh)
@@ -300,26 +292,26 @@ func marshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) 
 	binary.LittleEndian.PutUint32(b[4:], uint32(size))
 	copy(b[manifestHeaderSize:], marsh)
 
-	_, err = f.WriteAt(b, offset)
-	return
+	if _, err := f.WriteAt(b, offset); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func unmarshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) (err error) {
+func unmarshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) error {
 	b := make([]byte, manifest.MaxSize)
-	_, err = io.ReadFull(io.NewSectionReader(f, offset, manifest.MaxSize), b)
-	if err != nil {
-		return
+	if _, err := io.ReadFull(io.NewSectionReader(f, offset, manifest.MaxSize), b); err != nil {
+		return err
 	}
 
 	if x := binary.LittleEndian.Uint32(b); x != tag {
-		err = fmt.Errorf("incorrect file tag: %#x", x)
-		return
+		return fmt.Errorf("incorrect file tag: %#x", x)
 	}
 
 	size := binary.LittleEndian.Uint32(b[4:])
 	if size < manifestHeaderSize || size > manifest.MaxSize {
-		err = fmt.Errorf("manifest size out of bounds: %d", size)
-		return
+		return fmt.Errorf("manifest size out of bounds: %d", size)
 	}
 
 	return proto.Unmarshal(b[manifestHeaderSize:size], man)

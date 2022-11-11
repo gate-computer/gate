@@ -162,26 +162,26 @@ func newWebsocketReadWriteCanceler(conn *websocket.Conn, cancel func()) *websock
 	}
 }
 
-func (crw *websocketReadWriteCanceler) Read(buf []byte) (n int, err error) {
-	n, err = crw.websocketReadWriter.Read(buf)
+func (crw *websocketReadWriteCanceler) Read(buf []byte) (int, error) {
+	n, err := crw.websocketReadWriter.Read(buf)
 	if err != nil {
 		crw.cancel()
 	}
-	return
+	return n, err
 }
 
-func (crw *websocketReadWriteCanceler) CloseRead() (err error) {
-	err = crw.websocketReadWriter.CloseRead()
+func (crw *websocketReadWriteCanceler) CloseRead() error {
+	err := crw.websocketReadWriter.CloseRead()
 	if err != nil {
 		crw.cancel()
 	}
-	return
+	return err
 }
 
-func (crw *websocketReadWriteCanceler) Write(buf []byte) (n int, err error) {
-	n, err = crw.websocketReadWriter.Write(buf)
+func (crw *websocketReadWriteCanceler) Write(buf []byte) (int, error) {
+	n, err := crw.websocketReadWriter.Write(buf)
 	if err != nil {
 		crw.cancel()
 	}
-	return
+	return n, err
 }

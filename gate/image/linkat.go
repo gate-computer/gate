@@ -12,23 +12,19 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func linkat(olddirfd int, oldpath string, newdirfd int, newpath string, flags int) (err error) {
-	err = unix.Linkat(olddirfd, oldpath, newdirfd, newpath, flags)
-	if err != nil {
+func linkat(olddirfd int, oldpath string, newdirfd int, newpath string, flags int) error {
+	if err := unix.Linkat(olddirfd, oldpath, newdirfd, newpath, flags); err != nil {
 		if err == syscall.EEXIST {
-			err = os.ErrExist
-			return
+			return os.ErrExist
 		}
 		if err == syscall.ENOENT {
-			err = os.ErrNotExist
-			return
+			return os.ErrNotExist
 		}
 
-		err = fmt.Errorf("linkat %d %q %d %q %#x: %w", olddirfd, oldpath, newdirfd, newpath, flags, err)
-		return
+		return fmt.Errorf("linkat %d %q %d %q %#x: %w", olddirfd, oldpath, newdirfd, newpath, flags, err)
 	}
 
-	return
+	return nil
 }
 
 func linkTempFile(fd, newdirfd uintptr, newpath string) error {

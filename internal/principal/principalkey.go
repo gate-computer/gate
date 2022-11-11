@@ -21,10 +21,10 @@ type Key struct {
 	id ID
 }
 
-func ParseEd25519Key(encodedKey string) (pri *Key, err error) {
-	pri = &Key{ID{s: TypeEd25519 + ":" + encodedKey}}
-	err = parseEd25519Key(pri.id.key[:], encodedKey)
-	return
+func ParseEd25519Key(encodedKey string) (*Key, error) {
+	pri := &Key{ID{s: TypeEd25519 + ":" + encodedKey}}
+	err := parseEd25519Key(pri.id.key[:], encodedKey)
+	return pri, err
 }
 
 func parseEd25519Key(dest []byte, encodedKey string) error {

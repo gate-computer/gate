@@ -41,6 +41,6 @@ func newMemoryFile(name string, size int64) (*file.File, error) {
 
 // protectFileMemory on a best-effort basis.  mask is a combination of
 // syscall.PROT_* flags.
-func protectFileMemory(f *file.File, mask uintptr) (err error) {
-	return
+func protectFileMemory(f *file.File, mask uintptr) error {
+	return nil
 }

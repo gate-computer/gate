@@ -55,6 +55,6 @@ func copyObjectMapTo(b []byte, m *object.CallMap) {
 	copy(b[callSitesSize(m):], funcAddrsBytes(m))
 }
 
-func writeObjectMapAt(f *file.File, m *object.CallMap, offset int64) (err error) {
+func writeObjectMapAt(f *file.File, m *object.CallMap, offset int64) error {
 	return f.WriteVecAt([2][]byte{callSitesBytes(m), funcAddrsBytes(m)}, offset)
 }

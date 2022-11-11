@@ -12,21 +12,18 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func copyFileRange(r *file.File, roff *int64, w *file.File, woff *int64, length int) (err error) {
+func copyFileRange(r *file.File, roff *int64, w *file.File, woff *int64, length int) error {
 	for {
 		if length == 0 {
-			return
+			return nil
 		}
 
-		var n int
-
-		n, err = unix.CopyFileRange(int(r.Fd()), roff, int(w.Fd()), woff, length, 0)
+		n, err := unix.CopyFileRange(int(r.Fd()), roff, int(w.Fd()), woff, length, 0)
 		if err != nil {
 			if err == unix.EXDEV {
 				goto fallback
 			}
-			err = fmt.Errorf("copy_file_range: %w", err)
-			return
+			return fmt.Errorf("copy_file_range: %w", err)
 		}
 
 		length -= n
@@ -35,7 +32,7 @@ func copyFileRange(r *file.File, roff *int64, w *file.File, woff *int64, length 
 fallback:
 	n, err := io.Copy(fileRangeWriter{w, woff}, io.NewSectionReader(r, *roff, int64(length)))
 	*roff += n
-	return
+	return err
 }
 
 type fileRangeWriter struct {
@@ -43,8 +40,8 @@ type fileRangeWriter struct {
 	off *int64
 }
 
-func (x fileRangeWriter) Write(b []byte) (n int, err error) {
-	n, err = x.f.WriteAt(b, *x.off)
+func (x fileRangeWriter) Write(b []byte) (int, error) {
+	n, err := x.f.WriteAt(b, *x.off)
 	*x.off += int64(n)
-	return
+	return n, err
 }

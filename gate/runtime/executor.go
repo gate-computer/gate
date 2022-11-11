@@ -43,14 +43,13 @@ type Executor struct {
 	procs map[int16]*execProcess
 }
 
-func NewExecutor(config *Config) (e *Executor, err error) {
+func NewExecutor(config *Config) (*Executor, error) {
 	maxProcs := config.MaxProcs
 	if maxProcs == 0 {
 		maxProcs = MaxProcs
 	}
 	if maxProcs > MaxProcs {
-		err = errors.New("executor process limit is too high")
-		return
+		return nil, errors.New("executor process limit is too high")
 	}
 
 	errorLog := config.ErrorLog
@@ -61,27 +60,31 @@ func NewExecutor(config *Config) (e *Executor, err error) {
 	var (
 		conn *net.UnixConn
 		cmd  *exec.Cmd
+		err  error
 	)
 
 	switch {
 	case config.ConnFile != nil:
-		var c net.Conn
-		c, err = net.FileConn(config.ConnFile)
-		if err == nil {
-			conn = c.(*net.UnixConn)
+		c, err := net.FileConn(config.ConnFile)
+		if err != nil {
+			return nil, err
 		}
+		conn = c.(*net.UnixConn)
 
 	case config.DaemonSocket != "":
 		conn, err = dialContainerDaemon(config.DaemonSocket)
+		if err != nil {
+			return nil, err
+		}
 
 	default:
 		cmd, conn, err = startContainer(&config.Container)
-	}
-	if err != nil {
-		return
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	e = &Executor{
+	e := &Executor{
 		conn:          conn,
 		ids:           make(chan int16, maxProcs),
 		execRequests:  make(chan execRequest), // No buffering.  Request must be released.
@@ -106,7 +109,7 @@ func NewExecutor(config *Config) (e *Executor, err error) {
 		}()
 	}
 
-	return
+	return e, nil
 }
 
 // NewProcess creates a process into the default group.

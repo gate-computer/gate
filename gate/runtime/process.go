@@ -167,10 +167,10 @@ func newProcess(ctx context.Context, e *Executor, group file.Ref) (*Process, err
 // process terminates.
 //
 // This function must be called before Serve.
-func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPolicy) (err error) {
+func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPolicy) error {
 	textAddr, heapAddr, stackAddr, random, err := getRand(state.TextAddr(), code.Random())
 	if err != nil {
-		return
+		return err
 	}
 
 	if policy.TimeResolution <= 0 || policy.TimeResolution > time.Second {
@@ -216,7 +216,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 	if policy.DebugLog != nil {
 		debugReader, debugWriter, err = os.Pipe()
 		if err != nil {
-			return
+			return err
 		}
 		defer func() {
 			debugWriter.Close()
@@ -228,12 +228,12 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 
 	textFile, err := code.Text()
 	if err != nil {
-		return
+		return err
 	}
 
 	stateFile, err := state.BeginMutation(textAddr)
 	if err != nil {
-		return
+		return err
 	}
 
 	var cmsg []byte
@@ -243,9 +243,8 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		cmsg = syscall.UnixRights(int(debugWriter.Fd()), int(textFile.Fd()), int(stateFile.Fd()))
 	}
 
-	err = syscall.Sendmsg(p.writer.FD(), buf.Bytes(), cmsg, nil, 0)
-	if err != nil {
-		return
+	if err := syscall.Sendmsg(p.writer.FD(), buf.Bytes(), cmsg, nil, 0); err != nil {
+		return err
 	}
 
 	if policy.DebugLog != nil {
@@ -254,7 +253,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 		p.debugging = done
 	}
 
-	return
+	return nil
 }
 
 // Serve the user program until the process terminates.  Canceling the context
@@ -351,7 +350,7 @@ func (p *Process) Kill() {
 }
 
 // Close must not be called concurrently with Start or Serve.
-func (p *Process) Close() (err error) {
+func (p *Process) Close() error {
 	p.execution.kill()
 
 	if p.reader != nil {
@@ -371,7 +370,7 @@ func (p *Process) Close() (err error) {
 		p.debugFile = nil
 	}
 
-	return
+	return nil
 }
 
 type contextProcessValueKey struct{}

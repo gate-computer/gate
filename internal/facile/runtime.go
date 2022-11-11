@@ -117,14 +117,13 @@ type RuntimeProcess struct {
 	p *runtime.Process
 }
 
-func NewRuntimeProcess(executor *RuntimeExecutor) (process *RuntimeProcess, err error) {
+func NewRuntimeProcess(executor *RuntimeExecutor) (*RuntimeProcess, error) {
 	p, err := executor.e.NewProcess(context.Background())
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	process = &RuntimeProcess{p}
-	return
+	return &RuntimeProcess{p}, nil
 }
 
 func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) error {
@@ -134,7 +133,7 @@ func (process *RuntimeProcess) Start(code *ProgramImage, state *InstanceImage) e
 	})
 }
 
-func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) (err error) {
+func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) error {
 	connector := origin.New(&origin.Config{MaxConns: 1})
 
 	go func() {
@@ -151,28 +150,27 @@ func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) (
 	}()
 
 	var services service.Registry
-	err = services.Register(connector)
-	if err != nil {
-		return
+	if err := services.Register(connector); err != nil {
+		return err
 	}
 
 	_, trapID, err := process.p.Serve(context.Background(), &services, &state.buffers)
 	if err != nil {
-		return
+		return err
 	}
 	if trapID == trap.Exit {
-		return
+		return nil
 	}
 
-	trace, e := state.image.Stacktrace(&code.objectMap, code.funcTypes)
-	if e == nil {
-		e = stacktrace.Fprint(os.Stdout, trace, code.funcTypes, nil, nil)
+	trace, err := state.image.Stacktrace(&code.objectMap, code.funcTypes)
+	if err == nil {
+		err = stacktrace.Fprint(os.Stdout, trace, code.funcTypes, nil, nil)
 	}
-	if e != nil {
-		log.Printf("stacktrace: %v", e)
+	if err != nil {
+		log.Printf("stacktrace: %v", err)
 	}
 
-	return
+	return nil
 }
 
 func (process *RuntimeProcess) Suspend() {

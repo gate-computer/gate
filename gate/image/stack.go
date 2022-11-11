@@ -45,10 +45,9 @@ func putInitStack(portable []byte, start, entry *manifest.Function) {
 }
 
 // exportStack from native source buffer to portable target buffer.
-func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap) (err error) {
+func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap) error {
 	if n := len(native); n == 0 || n&7 != 0 {
-		err = fmt.Errorf("invalid stack size %d", n)
-		return
+		return fmt.Errorf("invalid stack size %d", n)
 	}
 	if n := len(portable); n != len(native) {
 		panic(n)
@@ -63,8 +62,7 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 
 	for {
 		if len(native) == 0 {
-			err = errors.New("ran out of stack before initial call")
-			return
+			return errors.New("ran out of stack before initial call")
 		}
 
 		absRetAddr := binary.LittleEndian.Uint64(native)
@@ -76,14 +74,12 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 
 		retAddr := absRetAddr - textAddr
 		if retAddr > math.MaxUint32 {
-			err = fmt.Errorf("return address 0x%x is not in text section", absRetAddr)
-			return
+			return fmt.Errorf("return address 0x%x is not in text section", absRetAddr)
 		}
 
 		init, _, callIndex, stackOffset, _ := textMap.FindCall(uint32(retAddr))
 		if callIndex < 0 {
-			err = fmt.Errorf("call instruction not found for return address 0x%x", retAddr)
-			return
+			return fmt.Errorf("call instruction not found for return address 0x%x", retAddr)
 		}
 
 		binary.LittleEndian.PutUint64(portable, uint64(stackOffset)<<32|uint64(callIndex))
@@ -100,8 +96,7 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 		}
 
 		if stackOffset == 0 || stackOffset&7 != 0 {
-			err = fmt.Errorf("invalid stack offset %d", stackOffset)
-			return
+			return fmt.Errorf("invalid stack offset %d", stackOffset)
 		}
 
 		copy(portable[:stackOffset-8], native[:stackOffset-8])
@@ -136,18 +131,16 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 		// follows start function call; this is the entry function return site.
 
 	default:
-		err = fmt.Errorf("initial function call site has inconsistent stack offset %d", initStackOffset)
-		return
+		return fmt.Errorf("initial function call site has inconsistent stack offset %d", initStackOffset)
 	}
 
 	if n := len(native); n != 0 {
-		err = fmt.Errorf("%d bytes of excess data at start of stack", n)
-		return
+		return fmt.Errorf("%d bytes of excess data at start of stack", n)
 	}
 	if n := len(portable); n != len(native) {
 		panic(n)
 	}
-	return
+	return nil
 }
 
 // importStack converts buffer from portable to native representation in-place.

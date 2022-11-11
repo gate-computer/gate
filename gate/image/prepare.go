@@ -23,16 +23,13 @@ type preparedPrograms struct {
 	c <-chan fileResult
 }
 
-func (pp *preparedPrograms) newProgramFile() (f *file.File, err error) {
+func (pp *preparedPrograms) newProgramFile() (*file.File, error) {
 	r, ok := <-pp.c
 	if !ok {
-		err = context.Canceled // TODO: actual error
-		return
+		return nil, context.Canceled // TODO: actual error
 	}
 
-	f = r.file
-	err = r.err
-	return
+	return r.file, r.err
 }
 
 func preparePrograms(ctx context.Context, c chan fileResult, storage ProgramStorage) {
@@ -76,16 +73,13 @@ type preparedInstances struct {
 	c <-chan fileResult
 }
 
-func (pi *preparedInstances) newInstanceFile() (f *file.File, err error) {
+func (pi *preparedInstances) newInstanceFile() (*file.File, error) {
 	r, ok := <-pi.c
 	if !ok {
-		err = context.Canceled // TODO: actual error
-		return
+		return nil, context.Canceled // TODO: actual error
 	}
 
-	f = r.file
-	err = r.err
-	return
+	return r.file, r.err
 }
 
 func prepareInstances(ctx context.Context, c chan fileResult, storage InstanceStorage) {

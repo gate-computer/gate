@@ -76,32 +76,30 @@ func (s *WriteStream) Writing() bool {
 }
 
 // Write all data or return an error.
-func (s *WriteStream) Write(data []byte) (n int, err error) {
+func (s *WriteStream) Write(data []byte) (int, error) {
 	var (
 		size = s.bufferSize()
 		mask = uint32(size) - 1
 	)
 
 	if s.State.Flags&FlagSendReceiving == 0 {
-		err = errors.New("write stream already closed")
-		return
+		return 0, errors.New("write stream already closed")
 	}
 
 	used := s.produced - atomic.LoadUint32(&s.consumed)
 	if uint64(used)+uint64(len(data)) >= uint64(size) { // Leave a one-byte gap.
-		err = errWriteBufferOverflow
-		return
+		return 0, errWriteBufferOverflow
 	}
 
 	off := s.produced & mask
-	n = copy(s.State.Data[off:size], data)
+	n := copy(s.State.Data[off:size], data)
 	if tail := data[n:]; len(tail) > 0 {
 		n += copy(s.State.Data[:size], tail)
 	}
 
 	atomic.AddUint32(&s.produced, uint32(n))
 	s.waker.Poke()
-	return
+	return n, nil
 }
 
 // CloseWrite signals that no more data will be written.

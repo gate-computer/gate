@@ -57,9 +57,9 @@ func (m *subIDMap) parse(username string) error {
 	}
 }
 
-func (m *subIDMap) getID() (id int, err error) {
+func (m *subIDMap) getID() (int, error) {
 	for m.next < m.end && m.next <= 0xffffffff {
-		id = m.next
+		id := m.next
 		m.next++
 
 		for _, reservedID := range m.reserved {
@@ -68,13 +68,12 @@ func (m *subIDMap) getID() (id int, err error) {
 			}
 		}
 
-		return
+		return id, nil
 
 	skip:
 	}
 
-	err = fmt.Errorf("%s: not enough ids", m.filename)
-	return
+	return 0, fmt.Errorf("%s: not enough ids", m.filename)
 }
 
 // NamespaceCreds for user namespace.
@@ -83,18 +82,16 @@ type NamespaceCreds struct {
 	Executor  config.Cred
 }
 
-func ParseCreds(c *config.NamespaceConfig) (creds *NamespaceCreds, err error) {
+func ParseCreds(c *config.NamespaceConfig) (*NamespaceCreds, error) {
 	var (
 		container = c.Container
 		executor  = c.Executor
 	)
 
 	if container.UID == 0 || container.GID == 0 || executor.UID == 0 || executor.GID == 0 {
-		var u *user.User
-
-		u, err = user.Current()
+		u, err := user.Current()
 		if err != nil {
-			return
+			return nil, err
 		}
 
 		if container.UID == 0 || executor.UID == 0 {
@@ -103,22 +100,21 @@ func ParseCreds(c *config.NamespaceConfig) (creds *NamespaceCreds, err error) {
 				reserved: []int{os.Getuid(), container.UID, executor.UID},
 			}
 
-			err = m.parse(u.Username)
-			if err != nil {
-				return
+			if err := m.parse(u.Username); err != nil {
+				return nil, err
 			}
 
 			if container.UID == 0 {
 				container.UID, err = m.getID()
 				if err != nil {
-					return
+					return nil, err
 				}
 			}
 
 			if executor.UID == 0 {
 				executor.UID, err = m.getID()
 				if err != nil {
-					return
+					return nil, err
 				}
 			}
 		}
@@ -129,27 +125,25 @@ func ParseCreds(c *config.NamespaceConfig) (creds *NamespaceCreds, err error) {
 				reserved: []int{os.Getgid(), container.GID, executor.GID},
 			}
 
-			err = m.parse(u.Username)
-			if err != nil {
-				return
+			if err := m.parse(u.Username); err != nil {
+				return nil, err
 			}
 
 			if container.GID == 0 {
 				container.GID, err = m.getID()
 				if err != nil {
-					return
+					return nil, err
 				}
 			}
 
 			if executor.GID == 0 {
 				executor.GID, err = m.getID()
 				if err != nil {
-					return
+					return nil, err
 				}
 			}
 		}
 	}
 
-	creds = &NamespaceCreds{container, executor}
-	return
+	return &NamespaceCreds{container, executor}, nil
 }

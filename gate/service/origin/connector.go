@@ -64,9 +64,9 @@ func (cr *Connector) Connect(ctx context.Context) func(context.Context, io.Reade
 
 // Close causes currently blocked and future Connect calls to return nil.
 // Established connections will not be closed.
-func (cr *Connector) Close() (err error) {
+func (cr *Connector) Close() error {
 	close(cr.closed)
-	return
+	return nil
 }
 
 func (cr *Connector) Properties() service.Properties {

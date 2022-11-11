@@ -583,31 +583,31 @@ func makeBufferSectionHeader(buffers snapshot.Buffers) ([]byte, uint32) {
 	return header, uint32(sectionLen)
 }
 
-func writeBufferSectionDataAt(f *file.File, bs snapshot.Buffers, off int64) (total int, err error) {
+func writeBufferSectionDataAt(f *file.File, bs snapshot.Buffers, off int64) (int, error) {
 	n, err := f.WriteAt(bs.Input, off)
+	total := n
 	if err != nil {
-		return
+		return total, err
 	}
-	total += n
 	off += int64(n)
 
 	n, err = f.WriteAt(bs.Output, off)
-	if err != nil {
-		return
-	}
 	total += n
+	if err != nil {
+		return total, err
+	}
 	off += int64(n)
 
 	for _, s := range bs.Services {
 		n, err = f.WriteAt(s.Buffer, off)
-		if err != nil {
-			return
-		}
 		total += n
+		if err != nil {
+			return total, err
+		}
 		off += int64(n)
 	}
 
-	return
+	return total, nil
 }
 
 func makeStackSectionHeader(stackSize int) []byte {

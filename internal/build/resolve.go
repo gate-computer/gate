@@ -11,10 +11,10 @@ import (
 	"gate.computer/wag/wa"
 )
 
-// ResolveEntryFunc or the implicit _start function.  This function doesn't
-// know if the module is a snapshot: the started argument must be true for
-// snapshots.
-func ResolveEntryFunc(mod compile.Module, exportName string, started bool) (index int, err error) {
+// ResolveEntryFunc index or the implicit _start function index.  This function
+// doesn't know if the module is a snapshot: the started argument must be true
+// for snapshots.
+func ResolveEntryFunc(mod compile.Module, exportName string, started bool) (int, error) {
 	// image.Program.ResolveEntryFunc must be kept in sync with this.
 
 	var (

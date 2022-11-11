@@ -211,7 +211,7 @@ func Exec() {
 	os.Exit(1)
 }
 
-func childMain() (err error) {
+func childMain() error {
 	var (
 		namespaceDisabled bool
 		singleUID         bool
@@ -330,10 +330,10 @@ func childMain() (err error) {
 	}
 
 	args := append([]string{common.ExecutorFilename}, os.Args[1:]...)
-	err = execveat(common.ExecutorFD, "", args, nil, unix.AT_EMPTY_PATH)
+	err := execveat(common.ExecutorFD, "", args, nil, unix.AT_EMPTY_PATH)
 	if runtimeDebug {
 		return fmt.Errorf("execveat: %w", err)
 	}
 	os.Exit(runtimeerrors.ERR_CONT_EXEC_EXECUTOR) // stderr doesn't work anymore.
-	return                                        // Unreachable.
+	panic("unreachable")
 }

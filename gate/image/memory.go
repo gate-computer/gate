@@ -75,57 +75,51 @@ func (pmem persistMem) newInstanceFile() (*file.File, error) { return Memory.new
 func (pmem persistMem) instanceFileWriteSupported() bool     { return Memory.instanceFileWriteSupported() }
 func (pmem persistMem) storeInstanceSupported() bool         { return true }
 
-func (pmem persistMem) storeInstance(inst *Instance, name string) (err error) {
+func (pmem persistMem) storeInstance(inst *Instance, name string) error {
 	f, err := pmem.fs.newInstanceFile()
 	if err != nil {
-		return
+		return err
 	}
 	defer f.Close()
 
 	o := int64(inst.man.StackSize - inst.man.StackUsage)
 	l := int64(inst.man.StackUsage)
 
-	_, err = io.Copy(&offsetWriter{f, o}, io.NewSectionReader(inst.file, o, l))
-	if err != nil {
-		return
+	if _, err := io.Copy(&offsetWriter{f, o}, io.NewSectionReader(inst.file, o, l)); err != nil {
+		return err
 	}
 
 	o = int64(inst.man.StackSize) + alignPageOffset32(inst.man.GlobalsSize) - int64(inst.man.GlobalsSize)
 	l = int64(inst.man.GlobalsSize + inst.man.MemorySize)
 
-	_, err = io.Copy(&offsetWriter{f, o}, io.NewSectionReader(inst.file, o, l))
-	if err != nil {
-		return
+	if _, err := io.Copy(&offsetWriter{f, o}, io.NewSectionReader(inst.file, o, l)); err != nil {
+		return err
 	}
 
 	// TODO: cache serialized form
-	err = marshalManifest(f, inst.man, instManifestOffset, instanceFileTag)
-	if err != nil {
-		return
+	if err := marshalManifest(f, inst.man, instManifestOffset, instanceFileTag); err != nil {
+		return err
 	}
 	inst.manDirty = false
 
-	err = fdatasync(f.FD())
-	if err != nil {
-		return
+	if err := fdatasync(f.FD()); err != nil {
+		return err
 	}
 
-	err = linkTempFile(f.Fd(), pmem.fs.instDir.Fd(), name)
-	if err != nil {
-		return
+	if err := linkTempFile(f.Fd(), pmem.fs.instDir.Fd(), name); err != nil {
+		return err
 	}
 
-	err = fdatasync(pmem.fs.instDir.FD())
-	if err != nil {
-		return
+	if err := fdatasync(pmem.fs.instDir.FD()); err != nil {
+		return err
 	}
 
 	inst.dir = pmem.fs.instDir
 	inst.name = name
-	return
+	return nil
 }
 
-func (pmem persistMem) Instances() (names []string, err error) {
+func (pmem persistMem) Instances() ([]string, error) {
 	return pmem.fs.Instances()
 }
 
@@ -161,20 +155,22 @@ func (pmem persistMem) LoadInstance(name string) (inst *Instance, err error) {
 	return
 }
 
-func copyInstance(dest, src *file.File, man *manifest.Instance) (err error) {
+func copyInstance(dest, src *file.File, man *manifest.Instance) error {
 	o := int64(man.StackSize - man.StackUsage)
 	l := int64(man.StackUsage)
 
-	_, err = io.Copy(&offsetWriter{dest, o}, io.NewSectionReader(src, o, l))
-	if err != nil {
-		return
+	if _, err := io.Copy(&offsetWriter{dest, o}, io.NewSectionReader(src, o, l)); err != nil {
+		return err
 	}
 
 	o = int64(man.StackSize) + alignPageOffset32(man.GlobalsSize) - int64(man.GlobalsSize)
 	l = int64(man.GlobalsSize + man.MemorySize)
 
-	_, err = io.Copy(&offsetWriter{dest, o}, io.NewSectionReader(src, o, l))
-	return
+	if _, err := io.Copy(&offsetWriter{dest, o}, io.NewSectionReader(src, o, l)); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type offsetWriter struct {
@@ -182,8 +178,8 @@ type offsetWriter struct {
 	offset   int64
 }
 
-func (ow *offsetWriter) Write(b []byte) (n int, err error) {
-	n, err = ow.writerAt.WriteAt(b, ow.offset)
+func (ow *offsetWriter) Write(b []byte) (int, error) {
+	n, err := ow.writerAt.WriteAt(b, ow.offset)
 	ow.offset += int64(n)
-	return
+	return n, err
 }

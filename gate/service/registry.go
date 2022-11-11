@@ -294,7 +294,7 @@ func (d *discoverer) Start(ctx context.Context, send chan<- packet.Thunk) error 
 	return nil
 }
 
-func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []runtime.ServiceState, err error) {
+func (d *discoverer) Discover(ctx context.Context, newNames []string) ([]runtime.ServiceState, error) {
 	for _, name := range newNames {
 		s := serverService{
 			Service: snapshot.Service{
@@ -304,8 +304,7 @@ func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []
 
 		if f := d.registry.lookup(name); f != nil && f.Discoverable(ctx) {
 			if _, dupe := d.factories[f]; dupe {
-				err = runtime.ErrDuplicateService
-				return
+				return nil, runtime.ErrDuplicateService
 			}
 
 			d.factories[f] = struct{}{}
@@ -315,13 +314,13 @@ func (d *discoverer) Discover(ctx context.Context, newNames []string) (states []
 		d.services = append(d.services, s)
 	}
 
-	states = make([]runtime.ServiceState, len(d.services))
+	states := make([]runtime.ServiceState, len(d.services))
 	for i, s := range d.services {
 		if s.factory != nil {
 			states[i].SetAvail()
 		}
 	}
-	return
+	return states, nil
 }
 
 func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {

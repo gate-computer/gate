@@ -12,20 +12,19 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func ParsePublicKey(line []byte) (jwk *api.PublicKey, err error) {
+func ParsePublicKey(line []byte) (*api.PublicKey, error) {
 	sshKey, _, _, _, err := ssh.ParseAuthorizedKey(line)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	switch algo := sshKey.Type(); algo {
 	case ssh.KeyAlgoED25519:
 		cryptoKey := sshKey.(ssh.CryptoPublicKey).CryptoPublicKey()
-		jwk = api.PublicKeyEd25519(cryptoKey.(ed25519.PublicKey))
-		return
+		jwk := api.PublicKeyEd25519(cryptoKey.(ed25519.PublicKey))
+		return jwk, nil
 
 	default:
-		err = fmt.Errorf("unsupported key type: %s", algo)
-		return
+		return nil, fmt.Errorf("unsupported key type: %s", algo)
 	}
 }

@@ -63,25 +63,21 @@ func IsValidData(b []byte, c Code) bool {
 }
 
 // ImportCall packet, validating it leniently.  The buffer is NOT copied.
-func ImportCall(b []byte, c Code) (p Buf, err error) {
+func ImportCall(b []byte, c Code) (Buf, error) {
 	if !isValidHeader(b, HeaderSize, c, DomainCall) {
-		err = errInvalidCall
-		return
+		return nil, errInvalidCall
 	}
 
-	p = Buf(b)
-	return
+	return Buf(b), nil
 }
 
 // ImportData packet, validating it leniently.  The buffer is NOT copied.
-func ImportData(b []byte, c Code) (p DataBuf, err error) {
+func ImportData(b []byte, c Code) (DataBuf, error) {
 	if !isValidHeader(b, DataHeaderSize, c, DomainData) || DataBuf(b).ID() < 0 {
-		err = errInvalidData
-		return
+		return nil, errInvalidData
 	}
 
-	p = DataBuf(b)
-	return
+	return DataBuf(b), nil
 }
 
 func isValidHeader(b []byte, n int, c Code, d Domain) bool {

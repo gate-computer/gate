@@ -245,17 +245,9 @@ func (b *Build) MemoryAlignment() int {
 }
 
 // FinishProgram after module, stack, globals and memory have been populated.
-func (b *Build) FinishProgram(
-	sectionMap SectionMap,
-	mod compile.Module,
-	startFuncIndex int,
-	entryFuncs bool,
-	snap *snapshot.Snapshot,
-	bufferSectionHeaderLength int,
-) (prog *Program, err error) {
+func (b *Build) FinishProgram(sectionMap SectionMap, mod compile.Module, startFuncIndex int, entryFuncs bool, snap *snapshot.Snapshot, bufferSectionHeaderLength int) (*Program, error) {
 	if b.stackUsage != len(b.stack) {
-		err = errors.New("stack was not populated")
-		return
+		return nil, errors.New("stack was not populated")
 	}
 
 	if b.inst.enabled {
@@ -267,15 +259,13 @@ func (b *Build) FinishProgram(
 			copyLen      = stackMapSize + alignPageSize(b.data.Len())
 		)
 
-		err = copyFileRange(b.inst.file, &off1, b.prog.file, &off2, copyLen)
-		if err != nil {
-			return
+		if err := copyFileRange(b.inst.file, &off1, b.prog.file, &off2, copyLen); err != nil {
+			return nil, err
 		}
 	}
 
-	err = b.storage.protectProgramFile(b.prog.file)
-	if err != nil {
-		return
+	if err := b.storage.protectProgramFile(b.prog.file); err != nil {
+		return nil, err
 	}
 
 	man := &manifest.Program{
@@ -321,14 +311,14 @@ func (b *Build) FinishProgram(
 
 	b.munmapAll()
 
-	prog = &Program{
+	prog := &Program{
 		Map:     *b.prog.objectMap,
 		storage: b.storage,
 		man:     man,
 		file:    b.prog.file,
 	}
 	b.prog.file = nil
-	return
+	return prog, nil
 }
 
 // FinishInstance after FinishProgram.  Applicable only if an instance storage
@@ -393,22 +383,22 @@ func (b *Build) munmapAll() {
 }
 
 // mmapp rounds length up to page.
-func mmapp(ptr *[]byte, f *file.File, offset int64, length int) (err error) {
+func mmapp(ptr *[]byte, f *file.File, offset int64, length int) error {
 	if *ptr != nil {
 		panic("memory already mapped")
 	}
 
 	if length == 0 {
-		return
+		return nil
 	}
 
 	b, err := mmap(f.FD(), offset, alignPageSize(length), syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 	if err != nil {
-		return
+		return err
 	}
 
 	*ptr = b
-	return
+	return nil
 }
 
 func munmapp(ptr *[]byte) {
@@ -433,14 +423,11 @@ func globalTypeBytes(array []wa.GlobalType) []byte {
 	return b
 }
 
-func generateRandTextAddr() (textAddr uint64, err error) {
+func generateRandTextAddr() (uint64, error) {
 	b := make([]byte, 4)
-
-	_, err = rand.Read(b)
-	if err != nil {
-		return
+	if _, err := rand.Read(b); err != nil {
+		return 0, err
 	}
 
-	textAddr = internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b)
-	return
+	return internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b), nil
 }

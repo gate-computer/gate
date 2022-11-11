@@ -34,10 +34,10 @@ type AuthorizedKeys struct {
 	publicKeys map[[ed25519.PublicKeySize]byte]string
 }
 
-func (ak *AuthorizedKeys) ParseFile(uid, filename string) (err error) {
+func (ak *AuthorizedKeys) ParseFile(uid, filename string) error {
 	text, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return
+		return err
 	}
 
 	return ak.Parse(uid, text)

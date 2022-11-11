@@ -33,9 +33,9 @@ func (prog *Program) Random() bool      { return prog.man.Random }
 // Breakpoints are in ascending order and unique.
 func (prog *Program) Breakpoints() []uint64 { return prog.man.Snapshot.Breakpoints }
 
-// ResolveEntryFunc or the implicit _start function.  The started argument is
-// disregarded if the program is a snapshot.
-func (prog *Program) ResolveEntryFunc(exportName string, started bool) (index int, err error) {
+// ResolveEntryFunc index or the implicit _start function index.  The started
+// argument is disregarded if the program is a snapshot.
+func (prog *Program) ResolveEntryFunc(exportName string, started bool) (int, error) {
 	// internal/build.ResolveEntryFunc must be kept in sync with this.
 
 	var (
@@ -71,8 +71,7 @@ func (prog *Program) ResolveEntryFunc(exportName string, started bool) (index in
 }
 
 func (prog *Program) Text() (file interface{ Fd() uintptr }, err error) {
-	file = prog.file
-	return
+	return prog.file, nil
 }
 
 func (prog *Program) NewModuleReader() io.Reader {
@@ -112,10 +111,10 @@ func (prog *Program) Store(name string) error {
 	return prog.storage.storeProgram(prog, name)
 }
 
-func (prog *Program) Close() (err error) {
-	err = prog.file.Close()
+func (prog *Program) Close() error {
+	err := prog.file.Close()
 	prog.file = nil
-	return
+	return err
 }
 
 type ProgramStorage interface {

@@ -50,61 +50,55 @@ func (f *File) Close() error {
 func (f *File) FD() int     { return f.fd }
 func (f *File) Fd() uintptr { return uintptr(f.fd) }
 
-func (f *File) Read(b []byte) (n int, err error) {
+func (f *File) Read(b []byte) (int, error) {
 	if len(b) == 0 {
-		return
+		return 0, nil
 	}
 
 	for {
-		n, err = syscall.Read(f.fd, b)
-
-		switch err {
+		switch n, err := syscall.Read(f.fd, b); err {
 		case nil:
 			if n == 0 {
-				err = io.EOF
+				return 0, io.EOF
 			}
-			return
+			return n, nil
 
 		case syscall.EAGAIN, syscall.EINTR:
 			continue
 
 		default:
-			err = fmt.Errorf("read: %w", err)
-			return
+			return n, fmt.Errorf("read: %w", err)
 		}
 	}
 }
 
-func (f *File) ReadAt(b []byte, offset int64) (n int, err error) {
+func (f *File) ReadAt(b []byte, offset int64) (int, error) {
 	if len(b) == 0 {
-		return
+		return 0, nil
 	}
 
 	for {
-		n, err = syscall.Pread(f.fd, b, offset)
-
-		switch err {
+		switch n, err := syscall.Pread(f.fd, b, offset); err {
 		case nil:
 			if n == 0 {
-				err = io.EOF
+				return 0, io.EOF
 			}
-			return
+			return n, nil
 
 		case syscall.EAGAIN, syscall.EINTR:
 			continue
 
 		default:
-			err = fmt.Errorf("pread: %w", err)
-			return
+			return n, fmt.Errorf("pread: %w", err)
 		}
 	}
 }
 
-func (f *File) WriteAt(b []byte, offset int64) (n int, err error) {
+func (f *File) WriteAt(b []byte, offset int64) (int, error) {
+	var n int
+
 	for len(b) > 0 {
-		count, err := syscall.Pwrite(f.fd, b, offset)
-
-		switch err {
+		switch count, err := syscall.Pwrite(f.fd, b, offset); err {
 		case nil:
 			if count == 0 {
 				return n, io.EOF
@@ -121,14 +115,14 @@ func (f *File) WriteAt(b []byte, offset int64) (n int, err error) {
 		}
 	}
 
-	return
+	return n, nil
 }
 
 func (f *File) WriteVec(bufs [2][]byte) error {
 	return f.WriteVecAt(bufs, -1)
 }
 
-func (f *File) WriteVecAt(bufs [2][]byte, offset int64) (err error) {
+func (f *File) WriteVecAt(bufs [2][]byte, offset int64) error {
 	bs := bufs[:]
 	iov := make([]syscall.Iovec, 2)
 
@@ -142,7 +136,7 @@ func (f *File) WriteVecAt(bufs [2][]byte, offset int64) (err error) {
 			}
 		}
 		if n == 0 {
-			return
+			return nil
 		}
 
 		n, _, errno := syscall.Syscall6(unix.SYS_PWRITEV2, uintptr(f.fd), uintptr(unsafe.Pointer(&iov[0])), n, uintptr(offset), 0, 0)
@@ -150,16 +144,14 @@ func (f *File) WriteVecAt(bufs [2][]byte, offset int64) (err error) {
 		switch errno {
 		case 0:
 			if n == 0 {
-				err = io.EOF
-				return
+				return io.EOF
 			}
 
 		case syscall.EAGAIN, syscall.EINTR:
 			continue
 
 		default:
-			err = fmt.Errorf("pwritev2: %w", error(errno))
-			return
+			return fmt.Errorf("pwritev2: %w", error(errno))
 		}
 
 		if offset >= 0 {
@@ -171,7 +163,7 @@ func (f *File) WriteVecAt(bufs [2][]byte, offset int64) (err error) {
 				n -= uintptr(len(bs[0]))
 				bs = bs[1:]
 				if n == 0 && len(bs) == 0 {
-					return
+					return nil
 				}
 			} else {
 				bs[0] = bs[0][n:]

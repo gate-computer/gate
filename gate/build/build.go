@@ -55,46 +55,41 @@ func New(storage image.Storage, moduleSize, maxTextSize int, objectMap *object.C
 }
 
 func (b *Build) InstallEarlySnapshotLoaders() {
-	b.Loaders[wasm.SectionSnapshot] = func(_ string, r section.Reader, length uint32) (err error) {
+	b.Loaders[wasm.SectionSnapshot] = func(_ string, r section.Reader, length uint32) error {
 		b.installDuplicateSnapshotLoader()
 
 		snap, n, err := wasm.ReadSnapshotSection(r)
 		if err != nil {
-			return
+			return err
 		}
 
-		_, err = io.CopyN(ioutil.Discard, r, int64(length)-int64(n))
-		if err != nil {
-			return
+		if _, err := io.CopyN(ioutil.Discard, r, int64(length)-int64(n)); err != nil {
+			return err
 		}
 
 		b.SectionMap.Snapshot = b.SectionMap.Sections[section.Custom]
 		b.Snapshot = &snap
-		return
+		return nil
 	}
 
-	b.Loaders[wasm.SectionExport] = func(_ string, r section.Reader, length uint32) (err error) {
+	b.Loaders[wasm.SectionExport] = func(_ string, r section.Reader, length uint32) error {
 		if b.Snapshot == nil {
-			err = badprogram.Error("gate.export section without gate.snapshot section")
-			return
+			return badprogram.Error("gate.export section without gate.snapshot section")
 		}
 
 		if length < 2 { // Minimum standard section frame size.
-			err = badprogram.Error("gate.export section is too short")
-			return
+			return badprogram.Error("gate.export section is too short")
 		}
 
 		id, err := r.ReadByte()
 		if err != nil {
-			return
+			return err
 		}
 		if id != byte(section.Export) {
-			err = badprogram.Error("gate.export section does not contain a standard export section")
-			return
+			return badprogram.Error("gate.export section does not contain a standard export section")
 		}
-		err = r.UnreadByte()
-		if err != nil {
-			return
+		if err := r.UnreadByte(); err != nil {
+			return err
 		}
 
 		// Don't read payload; wag will load it as a standard section.
@@ -104,7 +99,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		return section.Unwrapped
 	}
 
-	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
+	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) error {
 		return badprogram.Error("gate.buffer section appears too early in wasm module")
 	}
 
@@ -138,26 +133,25 @@ func (b *Build) SetMaxMemorySize(maxMemorySize int) error {
 
 // BindFunctions (imports and entry function) after initial module sections
 // have been loaded.
-func (b *Build) BindFunctions(entryName string) (err error) {
-	err = binding.BindImports(&b.Module, b.Image.ImportResolver())
-	if err != nil {
-		return
+func (b *Build) BindFunctions(entryName string) error {
+	if err := binding.BindImports(&b.Module, b.Image.ImportResolver()); err != nil {
+		return err
 	}
 
 	if b.SectionMap.ExportWrap.Size != 0 {
 		// Exports are hidden.
 		if entryName != "" {
-			err = notfound.ErrSuspended
-			return
+			return notfound.ErrSuspended
 		}
 	} else {
-		b.entryIndex, err = internal.ResolveEntryFunc(b.Module, entryName, b.Snapshot != nil)
+		index, err := internal.ResolveEntryFunc(b.Module, entryName, b.Snapshot != nil)
 		if err != nil {
-			return
+			return err
 		}
+		b.entryIndex = index
 	}
 
-	return
+	return nil
 }
 
 func (b *Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
@@ -178,91 +172,82 @@ func (b *Build) CodeConfig(mapper compile.ObjectMapper) *compile.CodeConfig {
 	}
 }
 
-func (b *Build) VerifyBreakpoints() (err error) {
+func (b *Build) VerifyBreakpoints() error {
 	if b.Snapshot == nil {
-		return
+		return nil
 	}
 
 	for _, offset := range b.Snapshot.Breakpoints {
 		if offset > math.MaxUint32 {
-			err = badprogram.Errorf("breakpoint could not be set at offset 0x%x", offset)
-			return
+			return badprogram.Errorf("breakpoint could not be set at offset 0x%x", offset)
 		}
 	}
 
 	for offset, bp := range b.breakpoints {
 		if !bp.Set {
-			err = badprogram.Errorf("breakpoint could not be set at offset 0x%x", offset)
-			return
+			return badprogram.Errorf("breakpoint could not be set at offset 0x%x", offset)
 		}
 	}
 
-	return
+	return nil
 }
 
 func (b *Build) InstallSnapshotDataLoaders() {
-	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) (err error) {
+	b.Loaders[wasm.SectionBuffer] = func(_ string, r section.Reader, length uint32) error {
 		b.installLateSnapshotLoader()
 		b.installDuplicateBufferLoader()
 
 		if b.Snapshot == nil {
-			err = badprogram.Error("gate.buffer section without gate.snapshot section")
-			return
+			return badprogram.Error("gate.buffer section without gate.snapshot section")
 		}
 
-		var dataBuf []byte
-
-		b.Buffers, b.bufferSectionHeaderLength, dataBuf, err = wasm.ReadBufferSectionHeader(r, length)
+		bs, readLen, dataBuf, err := wasm.ReadBufferSectionHeader(r, length)
 		if err != nil {
-			return
+			return err
 		}
 
-		_, err = io.ReadFull(r, dataBuf)
-		if err != nil {
-			return
+		b.Buffers = bs
+		b.bufferSectionHeaderLength = readLen
+
+		if _, err := io.ReadFull(r, dataBuf); err != nil {
+			return err
 		}
 
-		_, err = io.CopyN(ioutil.Discard, r, int64(length)-int64(b.bufferSectionHeaderLength)-int64(len(dataBuf)))
-		if err != nil {
-			return
+		if _, err := io.CopyN(ioutil.Discard, r, int64(length)-int64(b.bufferSectionHeaderLength)-int64(len(dataBuf))); err != nil {
+			return err
 		}
 
 		b.SectionMap.Buffer = b.SectionMap.Sections[section.Custom]
-		return
+		return nil
 	}
 
-	b.Loaders[wasm.SectionStack] = func(_ string, r section.Reader, length uint32) (err error) {
+	b.Loaders[wasm.SectionStack] = func(_ string, r section.Reader, length uint32) error {
 		b.installLateSnapshotLoader()
 		b.installLateBufferLoader()
 		b.installDuplicateStackLoader()
 
 		if b.Snapshot == nil {
-			err = badprogram.Error("gate.stack section without gate.snapshot section")
-			return
+			return badprogram.Error("gate.stack section without gate.snapshot section")
 		}
 
 		if b.entryIndex >= 0 {
-			err = notfound.ErrSuspended
-			return
+			return notfound.ErrSuspended
 		}
 
 		if length > uint32(b.StackSize)-executable.StackUsageOffset {
-			err = badprogram.Error("gate.stack section is too large")
-			return
+			return badprogram.Error("gate.stack section is too large")
 		}
 
-		err = b.finishImageText(int(length))
-		if err != nil {
-			return
+		if err := b.finishImageText(int(length)); err != nil {
+			return err
 		}
 
-		err = b.Image.ReadStack(r, b.Module.Types(), b.Module.FuncTypeIndexes())
-		if err != nil {
-			return
+		if err := b.Image.ReadStack(r, b.Module.Types(), b.Module.FuncTypeIndexes()); err != nil {
+			return err
 		}
 
 		b.SectionMap.Stack = b.SectionMap.Sections[section.Custom]
-		return
+		return nil
 	}
 }
 
@@ -289,9 +274,9 @@ func (b *Build) finishImageText(stackUsage int) error {
 }
 
 // FinishImageText after code and snapshot sections have been loaded.
-func (b *Build) FinishImageText() (err error) {
+func (b *Build) FinishImageText() error {
 	if b.SectionMap.Stack.Start != 0 {
-		return // Already done by stack section loader.
+		return nil // Already done by stack section loader.
 	}
 
 	return b.finishImageText(0)

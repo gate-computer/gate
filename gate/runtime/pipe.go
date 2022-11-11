@@ -15,13 +15,11 @@ import (
 func pipe2(flags int) (r *os.File, w *file.File, err error) {
 	var p [2]int
 
-	err = syscall.Pipe2(p[:], syscall.O_CLOEXEC|flags)
-	if err != nil {
-		err = fmt.Errorf("pipe2: %w", err)
-		return
+	if err := syscall.Pipe2(p[:], syscall.O_CLOEXEC|flags); err != nil {
+		return nil, nil, fmt.Errorf("pipe2: %w", err)
 	}
 
 	r = os.NewFile(uintptr(p[0]), "|0")
 	w = file.New(p[1])
-	return
+	return r, w, nil
 }
