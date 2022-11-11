@@ -37,7 +37,7 @@ func newAccount(pri *principal.ID) *account {
 	}
 }
 
-func (acc *account) shutdown(lock serverLock) (is map[string]accountInstance) {
+func (acc *account) shutdown(lock serverLock) map[string]accountInstance {
 	ps := acc.programs
 	acc.programs = nil
 
@@ -45,9 +45,9 @@ func (acc *account) shutdown(lock serverLock) (is map[string]accountInstance) {
 		prog.unref(lock)
 	}
 
-	is = acc.instances
+	is := acc.instances
 	acc.instances = nil
-	return
+	return is
 }
 
 // ensureProgramRef adds program reference unless already found.  It must not

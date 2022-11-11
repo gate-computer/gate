@@ -19,34 +19,34 @@ import (
 	"gate.computer/internal/file"
 )
 
-func popServiceBuffers(frozen *snapshot.Buffers) (services []snapshot.Service) {
+func popServiceBuffers(frozen *snapshot.Buffers) []snapshot.Service {
 	if frozen == nil {
-		return
+		return nil
 	}
 
-	services = frozen.Services
+	ss := frozen.Services
 	frozen.Services = nil
-	return
+	return ss
 }
 
-func popInputBuffer(frozen *snapshot.Buffers) (input []byte) {
+func popInputBuffer(frozen *snapshot.Buffers) []byte {
 	if frozen == nil {
-		return
+		return nil
 	}
 
-	input = frozen.Input
+	b := frozen.Input
 	frozen.Input = nil
-	return
+	return b
 }
 
-func popOutputBuffer(frozen *snapshot.Buffers) (output []byte) {
+func popOutputBuffer(frozen *snapshot.Buffers) []byte {
 	if frozen == nil {
-		return
+		return nil
 	}
 
-	output = frozen.Output
+	b := frozen.Output
 	frozen.Output = nil
-	return
+	return b
 }
 
 type read struct {

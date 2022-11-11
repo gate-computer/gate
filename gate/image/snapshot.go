@@ -664,11 +664,11 @@ func putString(dest []byte, s string) (tail []byte) {
 	return dest[len(s):]
 }
 
-func putVaruint32Before(dest []byte, offset int, x uint32) (n int) {
+func putVaruint32Before(dest []byte, offset int, x uint32) int {
 	var temp [binary.MaxVarintLen32]byte
-	n = binary.PutUvarint(temp[:], uint64(x))
+	n := binary.PutUvarint(temp[:], uint64(x))
 	copy(dest[offset-n:], temp[:n])
-	return
+	return n
 }
 
 func mapOldSection(offset int64, dest, src []*manifest.ByteRange, i section.ID) int64 {

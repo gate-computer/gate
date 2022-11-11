@@ -214,13 +214,13 @@ func popOptionalActionParam(w http.ResponseWriter, r *http.Request, s *webserver
 	return false
 }
 
-func mustPopOptionalLastFunctionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) (value string) {
-	value = popOptionalLastParam(w, r, s, query, api.ParamFunction)
+func mustPopOptionalLastFunctionParam(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) string {
+	value := popOptionalLastParam(w, r, s, query, api.ParamFunction)
 	if value != "" && !api.FunctionRegexp.MatchString(value) {
 		respondInvalidFunction(w, r, s, value)
 		panic(responded)
 	}
-	return
+	return value
 }
 
 func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, query url.Values) {

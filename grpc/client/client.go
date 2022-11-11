@@ -339,9 +339,9 @@ func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Thu
 	}
 }
 
-func receiveBuffer(initial packet.Buf, stream api.Instance_ReceiveClient, abort func(error)) (buf []byte) {
+func receiveBuffer(initial packet.Buf, stream api.Instance_ReceiveClient, abort func(error)) []byte {
 	initial.SetSize()
-	buf = initial
+	buf := initial
 
 	for {
 		r, err := stream.Recv()
@@ -349,7 +349,7 @@ func receiveBuffer(initial packet.Buf, stream api.Instance_ReceiveClient, abort 
 			if err != io.EOF {
 				abort(err)
 			}
-			return
+			return buf
 		}
 
 		p := mustBePacket(r.Value, abort)

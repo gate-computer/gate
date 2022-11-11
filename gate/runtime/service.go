@@ -133,8 +133,8 @@ func (discoverer *serviceDiscoverer) checkPacket(p packet.Buf) (packet.Buf, erro
 	return p, nil
 }
 
-func makeServicesPacket(domain packet.Domain, services []ServiceState) (resp packet.Buf) {
-	resp = packet.Make(packet.CodeServices, domain, packet.ServicesHeaderSize+len(services))
+func makeServicesPacket(domain packet.Domain, services []ServiceState) packet.Buf {
+	resp := packet.Make(packet.CodeServices, domain, packet.ServicesHeaderSize+len(services))
 	resp.SetSize()
 	binary.LittleEndian.PutUint16(resp[packet.OffsetServicesCount:], uint16(len(services)))
 
@@ -142,5 +142,5 @@ func makeServicesPacket(domain packet.Domain, services []ServiceState) (resp pac
 		resp[packet.ServicesHeaderSize+i] = s.flags
 	}
 
-	return
+	return resp
 }

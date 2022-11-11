@@ -30,7 +30,7 @@ func (code Code) String() string {
 	}
 }
 
-func (b Buf) String() (s string) {
+func (b Buf) String() string {
 	var (
 		size  string
 		index string
@@ -46,7 +46,7 @@ func (b Buf) String() (s string) {
 		index = fmt.Sprintf(" index=%d", i)
 	}
 
-	s = fmt.Sprintf("size=%s code=%s domain=%s%s", size, b.Code(), b.Domain(), index)
+	s := fmt.Sprintf("size=%s code=%s domain=%s%s", size, b.Code(), b.Domain(), index)
 
 	switch b.Domain() {
 	case DomainFlow:
@@ -55,7 +55,8 @@ func (b Buf) String() (s string) {
 	case DomainData:
 		s += DataBuf(b).string()
 	}
-	return
+
+	return s
 }
 
 func (b FlowBuf) String() string {
@@ -74,13 +75,13 @@ func (b DataBuf) String() string {
 	return Buf(b).String() + b.string()
 }
 
-func (b DataBuf) string() (s string) {
-	s = fmt.Sprintf(" id=%d", b.ID())
+func (b DataBuf) string() string {
+	s := fmt.Sprintf(" id=%d", b.ID())
 	if n := b.DataLen(); n > 0 {
 		s += fmt.Sprintf(" datalen=%d", n)
 	}
 	if x := b.Note(); x != 0 {
 		s += fmt.Sprintf(" note=%d", x)
 	}
-	return
+	return s
 }

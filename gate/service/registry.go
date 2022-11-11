@@ -141,9 +141,11 @@ func (r *Registry) Clone() *Registry {
 
 // Catalog of service metadata.  Only the services which are discoverable in
 // this context are included.
-func (r *Registry) Catalog(ctx context.Context) (services []Service) {
+func (r *Registry) Catalog(ctx context.Context) []Service {
 	m := make(map[string]string)
 	r.catalog(ctx, m)
+
+	services := make([]Service, 0, len(m))
 
 	for name, revision := range m {
 		if revision != "" {
@@ -151,7 +153,7 @@ func (r *Registry) Catalog(ctx context.Context) (services []Service) {
 		}
 	}
 
-	return
+	return services
 }
 
 func (r *Registry) catalog(ctx context.Context, m map[string]string) {
@@ -168,18 +170,15 @@ func (r *Registry) catalog(ctx context.Context, m map[string]string) {
 	}
 }
 
-func (r *Registry) lookup(name string) (result Factory) {
+func (r *Registry) lookup(name string) Factory {
 	for {
-		var found bool
-
-		result, found = r.factories[name]
-		if found {
-			return
+		if f, found := r.factories[name]; found {
+			return f
 		}
 
 		r = r.parent
 		if r == nil {
-			return
+			return nil
 		}
 	}
 }
