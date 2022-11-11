@@ -611,11 +611,16 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	return
 }
 
-func makeURL(uri string, params url.Values, prelocate bool) (u *url.URL) {
+func makeURL(uri string, params url.Values, prelocate bool) *url.URL {
 	addr := c.address
 	if !strings.Contains(addr, "://") {
 		addr = "https://" + addr
 	}
+
+	var (
+		u   *url.URL
+		err error
+	)
 
 	if prelocate {
 		resp, err := http.Head(addr + webapi.Path)
@@ -625,19 +630,15 @@ func makeURL(uri string, params url.Values, prelocate bool) (u *url.URL) {
 		u = resp.Request.URL
 		u.Path = u.Path + strings.Replace(uri, webapi.Path, "", 1)
 	} else {
-		var err error
-
 		u, err = url.Parse(addr + uri)
-		if err != nil {
-			return
-		}
+		Check(err)
 	}
 
 	if len(params) > 0 {
 		u.RawQuery = params.Encode()
 	}
 
-	return
+	return u
 }
 
 func makeWebsocketURL(uri string, params url.Values) string {
