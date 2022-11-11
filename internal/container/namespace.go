@@ -65,18 +65,18 @@ func setupNamespace(attr *syscall.SysProcAttr, ns *config.NamespaceConfig, cred 
 
 // configureUserNamespace with external tools.
 func configureUserNamespace(pid int, c *config.NamespaceConfig, cred *NamespaceCreds) error {
-	if err := writeIdMap(c.Newuidmap, pid, os.Getuid(), cred.Container.UID, cred.Executor.UID); err != nil {
+	if err := writeIDMap(c.Newuidmap, pid, os.Getuid(), cred.Container.UID, cred.Executor.UID); err != nil {
 		return err
 	}
 
-	if err := writeIdMap(c.Newgidmap, pid, os.Getgid(), cred.Container.GID, cred.Executor.GID); err != nil {
+	if err := writeIDMap(c.Newgidmap, pid, os.Getgid(), cred.Container.GID, cred.Executor.GID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeIdMap(binary string, pid, initial, container, executor int) error {
+func writeIDMap(binary string, pid, initial, container, executor int) error {
 	cmd := exec.Command(binary, strconv.Itoa(pid),
 		// Inside, Outside, Count,
 		strconv.Itoa(common.ContainerCred), strconv.Itoa(container), "1",
