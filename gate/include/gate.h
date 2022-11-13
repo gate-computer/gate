@@ -86,6 +86,8 @@ extern "C" {
 #define __GATE_FD __GATE_SYMVER(__gate_fd, GATE_MAX_RECV_SIZE)
 #define __GATE_IO __GATE_SYMVER(__gate_io, GATE_MAX_RECV_SIZE)
 
+typedef uint64_t gate_flags_t;
+
 struct gate_iovec {
 	void *iov_base;
 	size_t iov_len;
@@ -93,7 +95,7 @@ struct gate_iovec {
 
 void __gate_debug_type_not_supported(void); // No implementation.
 GATE_PURE uint32_t __GATE_FD(void) GATE_NOEXCEPT;
-void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, const struct gate_iovec *send, int sendlen, size_t *sendsize, int64_t timeout) GATE_NOEXCEPT;
+void __GATE_IO(const struct gate_iovec *recv, int recvlen, size_t *recvsize, const struct gate_iovec *send, int sendlen, size_t *sendsize, int64_t timeout, gate_flags_t *flags) GATE_NOEXCEPT;
 
 static inline void __gate_debug_data(const char *data, size_t size) GATE_NOEXCEPT
 {
@@ -310,16 +312,16 @@ static inline void gate_exit(int status) GATE_NOEXCEPT
 	__wasi_proc_exit(status);
 }
 
-static inline void gate_io(const struct gate_iovec *recv, int recvveclen, size_t *nreceived, const struct gate_iovec *send, int sendveclen, size_t *nsent, int64_t timeout) GATE_NOEXCEPT
+static inline void gate_io(const struct gate_iovec *recv, int recvveclen, size_t *nreceived, const struct gate_iovec *send, int sendveclen, size_t *nsent, int64_t timeout, gate_flags_t *flags) GATE_NOEXCEPT
 {
-	__GATE_IO(recv, recvveclen, nreceived, send, sendveclen, nsent, timeout);
+	__GATE_IO(recv, recvveclen, nreceived, send, sendveclen, nsent, timeout, flags);
 }
 
 static inline size_t gate_recv(void *buf, size_t size, int64_t timeout) GATE_NOEXCEPT
 {
 	const struct gate_iovec iov = {buf, size};
 	size_t n;
-	__GATE_IO(&iov, 1, &n, NULL, 0, NULL, timeout);
+	__GATE_IO(&iov, 1, &n, NULL, 0, NULL, timeout, NULL);
 	return n;
 }
 
@@ -327,7 +329,7 @@ static inline size_t gate_send(const void *data, size_t size, int64_t timeout) G
 {
 	const struct gate_iovec iov = {(void *) data, size};
 	size_t n;
-	__GATE_IO(NULL, 0, NULL, &iov, 1, &n, timeout);
+	__GATE_IO(NULL, 0, NULL, &iov, 1, &n, timeout, NULL);
 	return n;
 }
 

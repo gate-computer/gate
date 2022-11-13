@@ -36,6 +36,10 @@ private: \
 
 namespace {
 
+class Flags {
+	FLAGS_CLASS_MEMBERS(Flags, uint64_t)
+};
+
 enum class Error : uint16_t {
 	Success = 0,
 	Again = 6,
@@ -230,12 +234,13 @@ inline Error fd_error(FD fd, Error err)
 
 extern "C" {
 
+Flags rt_flags(void);
 Timestamp rt_time(ClockID id);
-uint32_t rt_timemask();
+uint32_t rt_timemask(void);
 size_t rt_read(void* buf, size_t size);
 size_t rt_write(void const* data, size_t size);
 PollEvents rt_poll(PollEvents in, PollEvents out, int64_t nsec, int64_t sec); // Note order.
-int rt_random();
+int rt_random(void);
 
 } // extern "C"
 
@@ -575,7 +580,7 @@ EXPORT Error fd_write(FD fd, IOVec const* iov, int iovlen, uint32_t* nwritten_pt
 	return Error::Success;
 }
 
-EXPORT void io(IOVec const* recv, int recvlen, uint32_t* nrecv_ptr, IOVec const* send, int sendlen, uint32_t* nsent_ptr, int64_t timeout)
+EXPORT void io(IOVec const* recv, int recvlen, uint32_t* nrecv_ptr, IOVec const* send, int sendlen, uint32_t* nsent_ptr, int64_t timeout, Flags* flags_ptr)
 {
 	auto events = PollEvents::input | PollEvents::output;
 
@@ -641,6 +646,8 @@ no_wait:;
 		*nsent_ptr = nsent;
 	if (nrecv_ptr)
 		*nrecv_ptr = nrecv;
+	if (flags_ptr)
+		*flags_ptr = rt_flags();
 }
 
 EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t* nout_ptr)

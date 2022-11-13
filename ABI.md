@@ -40,7 +40,7 @@ prefix.
 
 
 ```wasm
-(import "gate" "io_N" (func (param i32 i32 i32 i32 i32 i32 i64)))
+(import "gate" "io_N" (func (param i32 i32 i32 i32 i32 i32 i64) i32))
 ```
 > Receive and/or send packet data.  (This is an alternative to the WASI I/O
 > functions.)  Parameters 1-3 and 4-6 specify reception and sending parameters,
@@ -57,7 +57,8 @@ prefix.
 >
 > `N` is the maximum size of received packets.
 >
-> TODO: document timeout parameter
+> TODO: document timeout and flags parameters
+>
 > The call may still be interrupted without any bytes having been transferred.
 
 

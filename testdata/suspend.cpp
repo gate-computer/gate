@@ -11,7 +11,7 @@ namespace {
 
 void slow_nop()
 {
-	gate_io(nullptr, 0, nullptr, nullptr, 0, nullptr, 0);
+	gate_io(nullptr, 0, nullptr, nullptr, 0, nullptr, 0, nullptr);
 }
 
 void delay()
@@ -30,7 +30,7 @@ volatile unsigned long saved_mem = 0;
 
 __attribute__((noinline)) unsigned long barrier(unsigned long x)
 {
-	gate_io(reinterpret_cast<gate_iovec*>(&x), 0, nullptr, nullptr, 0, nullptr, 0);
+	gate_io(reinterpret_cast<gate_iovec*>(&x), 0, nullptr, nullptr, 0, nullptr, 0, nullptr);
 	return x;
 }
 

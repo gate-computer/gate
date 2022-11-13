@@ -51,6 +51,7 @@ extern code current_memory;
 extern code grow_memory;
 extern code retpoline;
 extern code rt_debug;
+extern code rt_flags;
 extern code rt_nop;
 extern code rt_poll;
 extern code rt_random;
@@ -419,6 +420,7 @@ clock_gettime_found:
 	// These assignments reflect the functions map in runtime/abi/rt/rt.go
 	// and rtFunctions map in runtime/abi/abi.go
 	// TODO: check that runtime and vector contents don't overlap
+	*(vector_end - 21) = rt_func_addr(rt, &rt_flags);
 	*(vector_end - 20) = rt_func_addr(rt, &rt_timemask);
 	*(vector_end - 19) = rt_func_addr(rt, &rt_write8);
 	*(vector_end - 18) = rt_func_addr(rt, &rt_read8);

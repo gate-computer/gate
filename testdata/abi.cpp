@@ -501,7 +501,8 @@ TEST(io)
 	while (send_num || recv_num) {
 		size_t received;
 		size_t sent;
-		gate_io(recv_iov, recv_num, &received, send_iov, send_num, &sent, -1);
+		gate_flags_t flags = ~0ULL;
+		gate_io(recv_iov, recv_num, &received, send_iov, send_num, &sent, -1, &flags);
 
 		if (sent) {
 			ASSERT(sent == 16);
@@ -512,6 +513,8 @@ TEST(io)
 			ASSERT(received == 16);
 			recv_num = 0;
 		}
+
+		ASSERT(flags == 0);
 	}
 }
 

@@ -60,6 +60,11 @@ GATE_ALIGN_PACKET(size)
 #### Types
 
 ```c
+typedef uint64_t gate_flags_t;
+```
+> Global flags.
+
+```c
 struct gate_iovec {
 	void *iov_base;
 	size_t iov_len;
@@ -129,7 +134,8 @@ void gate_io(const struct gate_iovec *recv,
              const struct gate_iovec *send,
              int sendveclen,
              size_t *nsent,
-             int64_t timeout);
+             int64_t timeout,
+             gate_flags_t *flags);
 size_t gate_recv(void *buf, size_t size, int64_t timeout);
 size_t gate_send(const void *data, size_t size, int64_t timeout);
 ```
@@ -141,7 +147,8 @@ size_t gate_send(const void *data, size_t size, int64_t timeout);
 > `GATE_PACKET_ALIGNMENT-1` padding bytes must be sent after the packet to
 > ensure alignment.
 >
-> TODO: document timeout parameter
+> TODO: document timeout and flags parameters
+>
 > The call may still be interrupted without any bytes having been transferred.
 
 

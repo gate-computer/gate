@@ -22,6 +22,7 @@ const (
 // Mirrors the vector initialization in runtime/loader/loader.cpp
 var rtFunctions = map[string]map[string]int{
 	"env": {
+		"rt_flags":    -21,
 		"rt_timemask": -20,
 		"rt_write8":   -19, // Public ABI.
 		"rt_read8":    -18, // Public ABI.

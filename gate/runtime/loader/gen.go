@@ -303,6 +303,7 @@ func generateRT(arch ga.Arch, variant string) string {
 	funcGrowMemory(a, variant)
 	funcRTNop(a)
 	routineTrampoline(a)
+	funcRTFlags(a)
 	funcRTPoll(a)
 	funcIO(a, "rt_read", linux.SYS_READ, inputFD, ga.GE, runtimeerrors.ERR_RT_READ)
 	funcIO(a, "rt_write", linux.SYS_WRITE, outputFD, ga.GT, runtimeerrors.ERR_RT_WRITE)
@@ -604,6 +605,15 @@ func funcRTNop(a *ga.Assembly) {
 			a.FunctionEpilogue()
 			a.Jump(".trampoline")
 		}
+	}
+}
+
+func funcRTFlags(a *ga.Assembly) {
+	a.Function("rt_flags")
+	resetRT(a)
+	{
+		a.MoveImm(result, 0)
+		a.Jump(".resume")
 	}
 }
 
