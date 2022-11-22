@@ -86,8 +86,8 @@ func (acc *account) unrefProgram(lock serverLock, prog *program) (found bool) {
 	return
 }
 
-func (acc *account) _checkUniqueInstanceID(_ serverLock, id string) {
+func (acc *account) checkUniqueInstanceID(pan icky, lock serverLock, id string) {
 	if _, found := acc.instances[id]; found {
-		_check(failrequest.Error(event.FailInstanceIDExists, "duplicate instance id"))
+		pan.check(failrequest.Error(event.FailInstanceIDExists, "duplicate instance id"))
 	}
 }

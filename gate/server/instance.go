@@ -34,14 +34,14 @@ func makeInstanceID() string {
 	return uuid.New().String()
 }
 
-func _validateInstanceID(s string) {
+func validateInstanceID(pan icky, s string) {
 	if x, err := uuid.Parse(s); err == nil {
 		if x.Version() == 4 && x.Variant() == uuid.RFC4122 {
 			return
 		}
 	}
 
-	_check(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
+	pan.check(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
 }
 
 func instanceServingContext(ctx context.Context, id string) context.Context {
@@ -54,17 +54,17 @@ func instanceStorageKey(pri *principal.ID, instID string) string {
 	return fmt.Sprintf("%s.%s", pri.String(), instID)
 }
 
-func _parseInstanceStorageKey(key string) (*principal.ID, string) {
+func parseInstanceStorageKey(pan icky, key string) (*principal.ID, string) {
 	i := strings.LastIndexByte(key, '.')
 	if i < 0 {
-		_check(fmt.Errorf("invalid instance storage key: %q", key))
+		pan.check(fmt.Errorf("invalid instance storage key: %q", key))
 	}
 
 	pri, err := principal.ParseID(key[:i])
-	_check(err)
+	pan.check(err)
 
 	instID := key[i+1:]
-	_validateInstanceID(instID)
+	validateInstanceID(pan, instID)
 	return pri, instID
 }
 
@@ -127,7 +127,7 @@ func (inst *Instance) ID() string {
 	return inst.id
 }
 
-func (inst *Instance) store(_ instanceLock, prog *program) error {
+func (inst *Instance) store(lock instanceLock, prog *program) error {
 	return inst.image.Store(instanceStorageKey(inst.acc.ID, inst.id), prog.id, prog.image)
 }
 
@@ -190,7 +190,7 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 	return true, nil
 }
 
-func (inst *Instance) stop(instanceLock) {
+func (inst *Instance) stop(lock instanceLock) {
 	close(inst.stopped)
 
 	inst.process.Close()
@@ -300,36 +300,36 @@ func (inst *Instance) getProcess() *runtime.Process {
 	return inst.process
 }
 
-func (inst *Instance) _checkResume(function string) {
+func (inst *Instance) checkResume(pan icky, function string) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	inst._resumeCheck(lock, function)
+	inst.resumeCheck(pan, lock, function)
 }
 
-func (inst *Instance) _resumeCheck(_ instanceLock, function string) {
+func (inst *Instance) resumeCheck(pan icky, lock instanceLock, function string) {
 	if !inst.exists {
-		_check(notfound.ErrInstance)
+		pan.check(notfound.ErrInstance)
 	}
 
 	switch inst.status.State {
 	case api.StateSuspended:
 		if function != "" {
-			_check(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
+			pan.check(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
 		}
 
 	case api.StateHalted:
 		if function == "" {
-			_check(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
+			pan.check(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
 		}
 
 	default:
-		_check(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
+		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
 	}
 }
 
 // doResume steals proc, services and debugLog.
-func (inst *Instance) _doResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) {
+func (inst *Instance) doResume(pan icky, function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) {
 	var ok bool
 	defer func() {
 		if !ok {
@@ -341,7 +341,7 @@ func (inst *Instance) _doResume(function string, proc *runtime.Process, services
 	defer inst.mu.Unlock()
 
 	// Check again in case of a race condition.
-	inst._resumeCheck(lock, function)
+	inst.resumeCheck(pan, lock, function)
 
 	inst.status = &api.Status{State: api.StateRunning}
 	inst.process = proc
@@ -384,40 +384,40 @@ func (inst *Instance) connect(ctx context.Context) func(context.Context, io.Read
 	return s.Connect(ctx)
 }
 
-func (inst *Instance) _snapshot(prog *program) (*image.Program, snapshot.Buffers) {
+func (inst *Instance) snapshot(pan icky, prog *program) (*image.Program, snapshot.Buffers) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		_check(notfound.ErrInstance)
+		pan.check(notfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		_check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
+		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	buffers := inst.buffers
 	progImage, err := image.Snapshot(prog.image, inst.image, buffers, inst.status.State == api.StateSuspended)
-	_check(err)
+	pan.check(err)
 
 	return progImage, buffers
 }
 
 // annihilate a stopped instance into nonexistence.
-func (inst *Instance) _annihilate() {
+func (inst *Instance) annihilate(pan icky) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		_check(notfound.ErrInstance)
+		pan.check(notfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		_check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
+		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	inst.doAnnihilate(lock)
 }
 
-func (inst *Instance) doAnnihilate(_ instanceLock) {
+func (inst *Instance) doAnnihilate(lock instanceLock) {
 	inst.exists = false
 	inst.image.Unstore()
 	inst.image.Close()
@@ -544,16 +544,16 @@ func (inst *Instance) update(update *api.InstanceUpdate) (modified bool) {
 	return
 }
 
-func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
+func (inst *Instance) debug(ctx context.Context, pan icky, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		_check(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
+		pan.check(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
-		_check(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
+		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
 	breaks := inst.image.Breakpoints()
@@ -566,7 +566,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(config.Breakpoints) > manifest.MaxBreakpoints {
-			_check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
+			pan.check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		breaks = manifest.SortDedupUint64(config.Breakpoints)
@@ -578,7 +578,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		config := req.GetConfig()
 
 		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
-			_check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
+			pan.check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		breaks = append([]uint64{}, breaks...)
@@ -613,7 +613,7 @@ func (inst *Instance) _debug(ctx context.Context, prog *program, req *api.DebugR
 		}
 
 		data, err = inst.image.ExportStack(callMap)
-		_check(err)
+		pan.check(err)
 	}
 
 	var (

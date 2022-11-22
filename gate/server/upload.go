@@ -10,16 +10,16 @@ import (
 	"gate.computer/gate/server/api"
 )
 
-func _validateUpload(opt *api.ModuleUpload) {
+func validateUpload(pan icky, opt *api.ModuleUpload) {
 	h := api.KnownModuleHash.New()
 
 	if _, err := io.Copy(h, opt.Stream); err != nil {
-		_check(wrapContentError(err))
+		pan.check(wrapContentError(err))
 	}
 
 	if err := opt.TakeStream().Close(); err != nil {
-		_check(wrapContentError(err))
+		pan.check(wrapContentError(err))
 	}
 
-	_validateHashBytes(opt.Hash, h.Sum(nil))
+	validateHashBytes(pan, opt.Hash, h.Sum(nil))
 }
