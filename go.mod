@@ -1,6 +1,6 @@
 module gate.computer
 
-go 1.17
+go 1.18
 
 require (
 	gate.computer/ga v0.0.0-20220211160221-c07eec41cf23

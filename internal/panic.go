@@ -10,7 +10,7 @@ package internal
 //
 // This can be set during linking:
 //
-//     go build -ldflags="-X gate.computer/internal.CmdPanic=1"
+//	go build -ldflags="-X gate.computer/internal.CmdPanic=1"
 //
 // This is not a stable feature: it may change or disappear at any time.
 var CmdPanic string
@@ -21,7 +21,7 @@ var CmdPanic string
 //
 // This can be set during linking:
 //
-//     go build -ldflags="-X gate.computer/internal.ServerPanic=1"
+//	go build -ldflags="-X gate.computer/internal.ServerPanic=1"
 //
 // This is not a stable feature: it may change or disappear at any time.
 var ServerPanic string
