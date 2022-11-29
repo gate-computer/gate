@@ -3,7 +3,6 @@
 // license that can be found in the LICENSE file.
 
 //go:build !gatedumptext
-// +build !gatedumptext
 
 package main
 
