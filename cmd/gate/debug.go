@@ -35,7 +35,7 @@ import (
 	dbus "github.com/godbus/dbus/v5"
 	"import.name/pan"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 type location struct {
@@ -183,8 +183,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 	)
 
 	for r := info.Reader(); ; {
-		e, err := r.Next()
-		Check(err)
+		e := Must(r.Next())
 		if e == nil {
 			break
 		}
@@ -192,10 +191,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 		switch e.Tag {
 		case dwarf.TagCompileUnit:
 			if e.Children {
-				lr, err := info.LineReader(e)
-				Check(err)
-
-				if lr != nil {
+				if lr := Must(info.LineReader(e)); lr != nil {
 					for {
 						var le dwarf.LineEntry
 
@@ -342,8 +338,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		}),
 	}
 
-	mod, err = compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader)
-	Check(err)
+	mod = Must(compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader))
 
 	err = binding.BindImports(&mod, new(abi.ImportResolver))
 	if err != nil {

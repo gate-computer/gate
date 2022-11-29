@@ -27,7 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 var remoteCommands = map[string]command{
@@ -90,8 +90,7 @@ var remoteCommands = map[string]command{
 		usage: "instance [command [offset...]]",
 		do: func() {
 			debug(func(instID string, debug *api.DebugRequest) *api.DebugResponse {
-				debugJSON, err := proto.Marshal(debug)
-				Check(err)
+				debugJSON := Must(proto.Marshal(debug))
 
 				params := url.Values{
 					webapi.ParamAction: []string{webapi.ActionDebug},
@@ -109,7 +108,7 @@ var remoteCommands = map[string]command{
 				_, resp := doHTTP(req, webapi.PathInstances+instID, params)
 
 				res := new(api.DebugResponse)
-				decodeProto(resp.Body, res)
+				Check(proto.Unmarshal(Must(ioutil.ReadAll(resp.Body)), res))
 				return res
 			})
 		},
@@ -189,7 +188,7 @@ var remoteCommands = map[string]command{
 			}
 
 			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
-			checkCopy(os.Stdout, resp.Body)
+			Must(io.Copy(os.Stdout, resp.Body))
 		},
 	},
 
@@ -445,8 +444,7 @@ var remoteCommands = map[string]command{
 				fatal("no tags")
 			}
 
-			updateJSON, err := json.Marshal(update)
-			Check(err)
+			updateJSON := Must(json.Marshal(update))
 
 			req := &http.Request{
 				Method: http.MethodPost,
@@ -500,7 +498,7 @@ func callPost(uri string, params url.Values) webapi.Status {
 	}
 
 	_, resp := doHTTP(req, uri, params)
-	checkCopy(os.Stdout, resp.Body)
+	Must(io.Copy(os.Stdout, resp.Body))
 	return unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
 }
 
@@ -562,12 +560,12 @@ func commandInstanceWaiter(action string) {
 }
 
 func loadModule(filename string) (b *bytes.Buffer, key string) {
-	f := openFile(filename)
+	f := Must(os.Open(filename))
 	defer f.Close()
 
 	b = new(bytes.Buffer)
 	h := webapi.KnownModuleHash.New()
-	checkCopy(h, io.TeeReader(f, b))
+	Must(io.Copy(h, io.TeeReader(f, b)))
 	key = webapi.EncodeKnownModule(h.Sum(nil))
 	return
 }
@@ -588,8 +586,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 		req.Header.Set(webapi.HeaderAuthorization, auth)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
-	Check(err)
+	resp = Must(http.DefaultClient.Do(req))
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent, http.StatusCreated:
@@ -617,21 +614,16 @@ func makeURL(uri string, params url.Values, prelocate bool) *url.URL {
 		addr = "https://" + addr
 	}
 
-	var (
-		u   *url.URL
-		err error
-	)
+	var u *url.URL
 
 	if prelocate {
-		resp, err := http.Head(addr + webapi.Path)
-		Check(err)
+		resp := Must(http.Head(addr + webapi.Path))
 		resp.Body.Close()
 
 		u = resp.Request.URL
 		u.Path = u.Path + strings.Replace(uri, webapi.Path, "", 1)
 	} else {
-		u, err = url.Parse(addr + uri)
-		Check(err)
+		u = Must(url.Parse(addr + uri))
 	}
 
 	if len(params) > 0 {
@@ -661,8 +653,7 @@ func makeAuthorization() string {
 		return ""
 	}
 
-	aud, err := url.Parse(c.address)
-	Check(err)
+	aud := Must(url.Parse(c.address))
 	if aud.Scheme == "" {
 		aud.Scheme = "https"
 	}
@@ -677,13 +668,10 @@ func makeAuthorization() string {
 		Scope: scope,
 	}
 
-	identity, err := ioutil.ReadFile(c.IdentityFile)
-	Check(err)
+	identity := Must(ioutil.ReadFile(c.IdentityFile))
 
 	if len(identity) != 0 {
-		x, err := ssh.ParseRawPrivateKey(identity)
-		Check(err)
-
+		x := Must(ssh.ParseRawPrivateKey(identity))
 		privateKey, ok := x.(*ed25519.PrivateKey)
 		if !ok {
 			fatalf("%s: not an Ed25519 private key", c.IdentityFile)
@@ -691,28 +679,19 @@ func makeAuthorization() string {
 
 		publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
 		jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
-		auth, err := webapi.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims)
-		Check(err)
-
-		return auth
+		return Must(webapi.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims))
 	} else {
 		if aud.Scheme != "http" {
 			fatalf("%s scheme with empty identity", aud.Scheme)
 		}
 
-		ips, err := net.LookupIP(aud.Hostname())
-		Check(err)
-
-		for _, ip := range ips {
+		for _, ip := range Must(net.LookupIP(aud.Hostname())) {
 			if !ip.IsLoopback() {
 				fatalf("non-loopback host with empty identity: %s", ip)
 			}
 		}
 
-		auth, err := webapi.AuthorizationBearerLocal(claims)
-		Check(err)
-
-		return auth
+		return Must(webapi.AuthorizationBearerLocal(claims))
 	}
 }
 
@@ -722,16 +701,4 @@ func unmarshalStatus(serialized string) (status webapi.Status) {
 		fatal(status.String())
 	}
 	return
-}
-
-func decodeProto(r io.Reader, m proto.Message) {
-	b, err := ioutil.ReadAll(r)
-	Check(err)
-	Check(proto.Unmarshal(b, m))
-}
-
-func checkCopy(w io.Writer, r io.Reader) int64 {
-	n, err := io.Copy(w, r)
-	Check(err)
-	return n
 }

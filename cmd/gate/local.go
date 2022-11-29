@@ -25,16 +25,14 @@ import (
 	"golang.org/x/term"
 	"google.golang.org/protobuf/proto"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 var daemon dbus.BusObject
 
 func daemonCall(method string, args ...interface{}) *dbus.Call {
 	if daemon == nil {
-		conn, err := dbus.SessionBus()
-		Check(err)
-
+		conn := Must(dbus.SessionBus())
 		daemon = conn.Object(bus.DaemonIface, bus.DaemonPath)
 	}
 
@@ -90,7 +88,7 @@ var localCommands = map[string]command{
 			if !(strings.Contains(module, "/") || strings.Contains(module, ".")) {
 				call = daemonCall("Call", module, c.Function, c.InstanceTags, c.Scope, !persistInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			} else {
-				moduleFile = openFile(module)
+				moduleFile = Must(os.Open(module))
 				moduleFD := dbus.UnixFD(moduleFile.Fd())
 				call = daemonCall("CallFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.InstanceTags, c.Scope, !persistInstance, suspendFD, rFD, wFD, debugFD, c.DebugLog != "")
 			}
@@ -112,8 +110,7 @@ var localCommands = map[string]command{
 				switch status.State {
 				case api.StateHalted, api.StateTerminated:
 				default:
-					reqBuf, err := proto.Marshal(&api.DebugRequest{Op: api.DebugOpReadStack})
-					Check(err)
+					reqBuf := Must(proto.Marshal(&api.DebugRequest{Op: api.DebugOpReadStack}))
 
 					call := daemonCall("DebugInstance", instanceID, reqBuf)
 					var resBuf []byte
@@ -142,8 +139,7 @@ var localCommands = map[string]command{
 		usage: "instance [command [offset...]]",
 		do: func() {
 			debug(func(instID string, req *api.DebugRequest) *api.DebugResponse {
-				reqBuf, err := proto.Marshal(req)
-				Check(err)
+				reqBuf := Must(proto.Marshal(req))
 
 				call := daemonCall("DebugInstance", instID, reqBuf)
 				var resBuf []byte
@@ -189,7 +185,7 @@ var localCommands = map[string]command{
 				copied chan error
 			)
 
-			r = openFile(flag.Arg(0))
+			r = Must(os.Open(flag.Arg(0)))
 			if info, err := r.Stat(); err == nil && info.Mode().IsRegular() {
 				length = info.Size()
 			} else {
@@ -285,7 +281,7 @@ var localCommands = map[string]command{
 			if !(strings.Contains(module, "/") || strings.Contains(module, ".")) {
 				call = daemonCall("Launch", module, c.Function, c.Suspend, c.InstanceTags, c.Scope, debugFD, c.DebugLog != "")
 			} else {
-				moduleFile = openFile(module)
+				moduleFile = Must(os.Open(module))
 				moduleFD := dbus.UnixFD(moduleFile.Fd())
 				call = daemonCall("LaunchFile", moduleFD, c.Pin, c.ModuleTags, c.Function, c.Suspend, c.InstanceTags, c.Scope, debugFD, c.DebugLog != "")
 			}
@@ -635,14 +631,10 @@ func openDebugFile() *os.File {
 		return os.Stderr
 
 	case "":
-		f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
-		Check(err)
-		return f
+		return Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0))
 
 	default:
-		f, err := os.OpenFile(c.DebugLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-		Check(err)
-		return f
+		return Must(os.OpenFile(c.DebugLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644))
 	}
 }
 

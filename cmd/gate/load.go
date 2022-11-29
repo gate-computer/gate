@@ -10,14 +10,13 @@ import (
 	"os"
 	"path"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 func download(filename string, get func() (io.Reader, int64)) {
 	var (
 		out  *os.File
 		temp bool
-		err  error
 	)
 
 	if filename == "" {
@@ -25,9 +24,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 	} else {
 		f, err := os.OpenFile(filename, os.O_WRONLY, 0)
 		if err == nil {
-			info, err := f.Stat()
-			Check(err)
-			if info.Mode().IsRegular() {
+			if info := Must(f.Stat()); info.Mode().IsRegular() {
 				f.Close()
 				temp = true
 			} else {
@@ -45,8 +42,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 	in, length := get()
 
 	if temp {
-		out, err = ioutil.TempFile(path.Dir(filename), ".*.wasm")
-		Check(err)
+		out = Must(ioutil.TempFile(path.Dir(filename), ".*.wasm"))
 		defer func() {
 			if out != nil {
 				os.Remove(out.Name())
@@ -54,7 +50,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 		}()
 	}
 
-	if checkCopy(out, in) != length {
+	if Must(io.Copy(out, in)) != length {
 		fatal(io.ErrUnexpectedEOF)
 	}
 	Check(out.Close())

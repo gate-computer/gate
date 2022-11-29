@@ -10,7 +10,7 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/gorilla/websocket"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 type REPLConfig struct {
@@ -19,12 +19,11 @@ type REPLConfig struct {
 }
 
 func repl(r io.Reader, w io.Writer) {
-	rl, err := readline.NewEx(&readline.Config{
+	rl := Must(readline.NewEx(&readline.Config{
 		Prompt:       "> ",
 		HistoryFile:  c.REPL.HistoryFile,
 		HistoryLimit: c.REPL.HistoryLimit,
-	})
-	Check(err)
+	}))
 	defer rl.Close()
 
 	readErr := make(chan error, 1)

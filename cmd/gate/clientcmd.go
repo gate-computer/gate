@@ -22,7 +22,7 @@ import (
 	"import.name/confi"
 	"import.name/pan"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 const (
@@ -141,8 +141,7 @@ func main() {
 		}()
 	}
 
-	defaultIdentityFile, err := cmdconf.JoinHome(DefaultIdentityFile)
-	Check(err)
+	defaultIdentityFile := Must(cmdconf.JoinHome(DefaultIdentityFile))
 
 	c.IdentityFile = defaultIdentityFile
 	c.Pin = DefaultPin
@@ -284,12 +283,6 @@ func printScope(w io.Writer, scope []string) {
 	for _, s := range append(short, long...) {
 		fmt.Fprintf(w, "  %s\n", s)
 	}
-}
-
-func openFile(name string) *os.File {
-	f, err := os.Open(name)
-	Check(err)
-	return f
 }
 
 func terminalOr(fallback io.Writer) io.Writer {

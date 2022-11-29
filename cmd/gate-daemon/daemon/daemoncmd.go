@@ -50,7 +50,7 @@ import (
 	"import.name/confi"
 	"import.name/pan"
 
-	. "import.name/pan/check"
+	. "import.name/pan/mustcheck"
 )
 
 const (
@@ -182,12 +182,9 @@ func mainResult() int {
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
-	var err error
-	c.Principal.Services, err = services.Init(context.Background(), &originConfig, &randomConfig)
-	Check(err)
+	c.Principal.Services = Must(services.Init(context.Background(), &originConfig, &randomConfig))
 
-	exec, err := gateruntime.NewExecutor(&c.Runtime.Config)
-	Check(err)
+	exec := Must(gateruntime.NewExecutor(&c.Runtime.Config))
 	defer exec.Close()
 
 	Check(sys.ClearCaps())
@@ -195,14 +192,12 @@ func mainResult() int {
 	var storage image.Storage = image.Memory
 	if c.Image.VarDir != "" {
 		Check(os.MkdirAll(c.Image.VarDir, 0o755))
-		fs, err := image.NewFilesystem(c.Image.VarDir)
-		Check(err)
+		fs := Must(image.NewFilesystem(c.Image.VarDir))
 		defer fs.Close()
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
 	}
 
-	conn, err := dbus.SessionBusPrivate()
-	Check(err)
+	conn := Must(dbus.SessionBusPrivate())
 	defer conn.Close()
 	Check(conn.Auth(nil))
 	Check(conn.Hello())
@@ -211,11 +206,9 @@ func mainResult() int {
 	signal.Ignore(syscall.SIGHUP)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
-	inventoryDB, err := database.Resolve(c.Inventory)
-	Check(err)
+	inventoryDB := Must(database.Resolve(c.Inventory))
 	defer inventoryDB.Close()
-	inventory, err := inventoryDB.InitInventory(ctx)
-	Check(err)
+	inventory := Must(inventoryDB.InitInventory(ctx))
 
 	ctx = principal.ContextWithLocalID(ctx)
 
@@ -223,8 +216,7 @@ func mainResult() int {
 	defer close(inited)
 	Check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
 
-	reply, err := conn.RequestName(bus.DaemonIface, dbus.NameFlagDoNotQueue)
-	Check(err)
+	reply := Must(conn.RequestName(bus.DaemonIface, dbus.NameFlagDoNotQueue))
 	switch reply {
 	case dbus.RequestNameReplyPrimaryOwner:
 		// ok
@@ -245,8 +237,7 @@ func mainResult() int {
 		serverConfig.ProcessFactory = gateruntime.PrepareProcesses(ctx, exec, n)
 	}
 
-	s, err := server.New(ctx, serverConfig)
-	Check(err)
+	s := Must(server.New(ctx, serverConfig))
 	defer s.Shutdown(ctx)
 
 	httpDone := make(chan error, 1)
@@ -271,8 +262,7 @@ func mainResult() int {
 		}
 		for _, origin := range c.HTTP.Origins {
 			if origin != "" && origin != "null" {
-				u, err := url.Parse(origin)
-				Check(err)
+				u := Must(url.Parse(origin))
 				verifyLoopbackHost("HTTP origin", u.Hostname())
 			}
 		}
@@ -289,8 +279,7 @@ func mainResult() int {
 
 	inited <- s
 
-	_, err = daemon.SdNotify(false, daemon.SdNotifyReady)
-	Check(err)
+	Must(daemon.SdNotify(false, daemon.SdNotifyReady))
 
 	select {
 	case <-terminate:
@@ -303,10 +292,7 @@ func mainResult() int {
 }
 
 func verifyLoopbackHost(errorDesc, host string) {
-	ips, err := net.LookupIP(host)
-	Check(err)
-
-	for _, ip := range ips {
+	for _, ip := range Must(net.LookupIP(host)) {
 		if !ip.IsLoopback() {
 			Check(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
 		}
@@ -394,7 +380,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 
 		"DeleteInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			deleteInstance(ctx, s(), instanceID)
+			Check(s().DeleteInstance(ctx, instanceID))
 			return
 		},
 
@@ -418,7 +404,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 
 		"GetModuleInfo": func(moduleID string) (tags []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			tags = getModuleInfo(ctx, s(), moduleID)
+			tags = Must(s().ModuleInfo(ctx, moduleID)).Tags
 			return
 		},
 
@@ -492,13 +478,13 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 				Pin:  true,
 				Tags: tags,
 			}
-			pinModule(ctx, s(), moduleID, opt)
+			Check(s().PinModule(ctx, moduleID, opt))
 			return
 		},
 
 		"KillInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			killInstance(ctx, s(), instanceID)
+			Must(s().KillInstance(ctx, instanceID))
 			return
 		},
 
@@ -515,19 +501,19 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 		"Snapshot": func(instanceID string, moduleTags []string) (moduleID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
 			moduleOpt := moduleOptions(true, moduleTags)
-			moduleID = snapshot(ctx, s(), instanceID, moduleOpt)
+			moduleID = Must(s().Snapshot(ctx, instanceID, moduleOpt))
 			return
 		},
 
 		"SuspendInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			suspendInstance(ctx, s(), instanceID)
+			Must(s().SuspendInstance(ctx, instanceID))
 			return
 		},
 
 		"UnpinModule": func(moduleID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			unpinModule(ctx, s(), moduleID)
+			Check(s().UnpinModule(ctx, moduleID))
 			return
 		},
 
@@ -537,7 +523,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 				Persist: persist,
 				Tags:    tags,
 			}
-			updateInstance(ctx, s(), instanceID, update)
+			Must(s().UpdateInstance(ctx, instanceID, update))
 			return
 		},
 
@@ -560,20 +546,13 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 }
 
 func listModules(ctx context.Context, s api.Server) []string {
-	refs, err := s.Modules(ctx)
-	Check(err)
+	refs := Must(s.Modules(ctx))
 	sort.Sort(api.SortableModules(refs))
 	ids := make([]string, 0, len(refs.Modules))
 	for _, ref := range refs.Modules {
 		ids = append(ids, ref.Id)
 	}
 	return ids
-}
-
-func getModuleInfo(ctx context.Context, s api.Server, moduleID string) (tags []string) {
-	info, err := s.ModuleInfo(ctx, moduleID)
-	Check(err)
-	return info.Tags
 }
 
 func downloadModule(ctx context.Context, s api.Server, moduleID string) (io.ReadCloser, int64) {
@@ -590,17 +569,7 @@ func uploadModule(ctx context.Context, s api.Server, file *os.File, length int64
 	}
 	defer upload.Close()
 
-	id, err := s.UploadModule(ctx, upload, opt)
-	Check(err)
-	return id
-}
-
-func pinModule(ctx context.Context, s api.Server, moduleID string, opt *api.ModuleOptions) {
-	Check(s.PinModule(ctx, moduleID, opt))
-}
-
-func unpinModule(ctx context.Context, s api.Server, moduleID string) {
-	Check(s.UnpinModule(ctx, moduleID))
+	return Must(s.UploadModule(ctx, upload, opt))
 }
 
 // doCall module id or file.  Module options apply only to module file.
@@ -685,15 +654,12 @@ func doLaunch(
 		Check(err)
 		return inst
 	} else {
-		inst, err := s.NewInstance(ctx, moduleID, launch)
-		Check(err)
-		return inst
+		return Must(s.NewInstance(ctx, moduleID, launch))
 	}
 }
 
 func listInstances(ctx context.Context, s api.Server) []string {
-	instances, err := s.Instances(ctx)
-	Check(err)
+	instances := Must(s.Instances(ctx))
 	sort.Sort(api.SortableInstances(instances))
 	ids := make([]string, 0, len(instances.Instances))
 	for _, i := range instances.Instances {
@@ -703,24 +669,13 @@ func listInstances(ctx context.Context, s api.Server) []string {
 }
 
 func getInstanceInfo(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
-	info, err := s.InstanceInfo(ctx, instanceID)
-	Check(err)
+	info := Must(s.InstanceInfo(ctx, instanceID))
 	return info.Status.State, info.Status.Cause, info.Status.Result, info.Tags
 }
 
 func waitInstance(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
-	status, err := s.WaitInstance(ctx, instanceID)
-	Check(err)
+	status := Must(s.WaitInstance(ctx, instanceID))
 	return status.State, status.Cause, status.Result
-}
-
-func deleteInstance(ctx context.Context, s api.Server, instanceID string) {
-	Check(s.DeleteInstance(ctx, instanceID))
-}
-
-func suspendInstance(ctx context.Context, s api.Server, instanceID string) {
-	_, err := s.SuspendInstance(ctx, instanceID)
-	Check(err)
 }
 
 func resumeInstance(ctx context.Context, s api.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
@@ -729,13 +684,7 @@ func resumeInstance(ctx context.Context, s api.Server, instance string, resume *
 
 	resume.Invoke = invoke
 
-	_, err := s.ResumeInstance(ctx, instance, resume)
-	Check(err)
-}
-
-func killInstance(ctx context.Context, s api.Server, instanceID string) {
-	_, err := s.KillInstance(ctx, instanceID)
-	Check(err)
+	Must(s.ResumeInstance(ctx, instance, resume))
 }
 
 func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
@@ -771,27 +720,13 @@ func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, 
 	return true
 }
 
-func snapshot(ctx context.Context, s api.Server, instanceID string, moduleOpt *api.ModuleOptions) string {
-	moduleID, err := s.Snapshot(ctx, instanceID, moduleOpt)
-	Check(err)
-	return moduleID
-}
-
-func updateInstance(ctx context.Context, s api.Server, instanceID string, update *api.InstanceUpdate) {
-	_, err := s.UpdateInstance(ctx, instanceID, update)
-	Check(err)
-}
-
 func debugInstance(ctx context.Context, s api.Server, instanceID string, reqBuf []byte) []byte {
 	req := new(api.DebugRequest)
 	Check(proto.Unmarshal(reqBuf, req))
 
-	res, err := s.DebugInstance(ctx, instanceID, req)
-	Check(err)
+	res := Must(s.DebugInstance(ctx, instanceID, req))
 
-	resBuf, err := proto.Marshal(res)
-	Check(err)
-	return resBuf
+	return Must(proto.Marshal(res))
 }
 
 type access struct {
@@ -840,8 +775,7 @@ func moduleUpload(f *os.File) *api.ModuleUpload {
 		}
 	}
 
-	data, err := ioutil.ReadAll(f)
-	Check(err)
+	data := Must(ioutil.ReadAll(f))
 
 	return &api.ModuleUpload{
 		Stream: ioutil.NopCloser(bytes.NewReader(data)),

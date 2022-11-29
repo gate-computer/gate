@@ -148,10 +148,7 @@ make.go build system.
 
 ### Normal build using Go
 
-Build requirements:
-
-  - The **gate** client program requires Go 1.13
-  - Other programs require Go 1.16
+Build requires Go toolchain version 1.18 or newer.
 
 The Gate programs can be built normally using the Go toolchain:
 
