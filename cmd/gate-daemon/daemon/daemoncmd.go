@@ -79,7 +79,7 @@ type Config struct {
 
 	Inventory map[string]database.Config
 
-	Service map[string]interface{}
+	Service map[string]any
 
 	Principal server.AccessConfig
 
@@ -299,7 +299,7 @@ func verifyLoopbackHost(errorDesc, host string) {
 	}
 }
 
-func methods(ctx context.Context, inited <-chan api.Server) map[string]interface{} {
+func methods(ctx context.Context, inited <-chan api.Server) map[string]any {
 	var initedServer api.Server
 	s := func() api.Server {
 		if initedServer != nil {
@@ -315,7 +315,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]interface
 		panic(pan.Wrap(errors.New("daemon initialization was aborted")))
 	}
 
-	methods := map[string]interface{}{
+	methods := map[string]any{
 		"Call": func(
 			moduleID string,
 			function string,
@@ -830,7 +830,7 @@ func openDebugLog(id string) io.WriteCloser {
 	return f
 }
 
-func asBusError(x interface{}) *dbus.Error {
+func asBusError(x any) *dbus.Error {
 	if x == nil {
 		return nil
 	}

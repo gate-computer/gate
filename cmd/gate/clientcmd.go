@@ -294,7 +294,7 @@ func terminalOr(fallback io.Writer) io.Writer {
 	return fallback
 }
 
-func fatal(x interface{}, args ...interface{}) {
+func fatal(x any, args ...any) {
 	var (
 		err error
 		ok  bool
@@ -303,7 +303,7 @@ func fatal(x interface{}, args ...interface{}) {
 		err, ok = x.(error)
 	}
 	if !ok {
-		args = append([]interface{}{x}, args...)
+		args = append([]any{x}, args...)
 		err = errors.New(fmt.Sprint(args...))
 	}
 	if err == nil {
@@ -312,10 +312,10 @@ func fatal(x interface{}, args ...interface{}) {
 	Check(err)
 }
 
-func fatalf(format string, args ...interface{}) {
+func fatalf(format string, args ...any) {
 	Check(fmt.Errorf(format, args...))
 }
 
-func check_(_ interface{}, err error) {
+func check_(_ any, err error) {
 	Check(err)
 }

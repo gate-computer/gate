@@ -90,8 +90,8 @@ func (fs *Filesystem) Close() error {
 	return nil
 }
 
-func (fs *Filesystem) programBackend() interface{}  { return fs }
-func (fs *Filesystem) instanceBackend() interface{} { return fs }
+func (fs *Filesystem) programBackend() any  { return fs }
+func (fs *Filesystem) instanceBackend() any { return fs }
 
 func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
 	f, err = openat(int(fs.progDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o400)

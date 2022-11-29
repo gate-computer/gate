@@ -44,7 +44,7 @@ func JoinHomeFallback(dir, alternative string) string {
 
 // Parse command-line flags into the configuration object.  The default
 // filename patterns can be absolute, or relative to home directory.
-func Parse(config interface{}, flags *flag.FlagSet, lenient bool, defaults ...string) {
+func Parse(config any, flags *flag.FlagSet, lenient bool, defaults ...string) {
 	var absDefaults []string
 	for _, p := range defaults {
 		if p, err := JoinHome(p); err == nil {

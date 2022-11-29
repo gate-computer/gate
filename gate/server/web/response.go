@@ -40,7 +40,7 @@ func join(fields ...string) string {
 	return strings.Join(fields, ", ")
 }
 
-func mustMarshalJSON(x interface{}) []byte {
+func mustMarshalJSON(x any) []byte {
 	content, err := json.MarshalIndent(x, "", "\t")
 	if err != nil {
 		panic(err)

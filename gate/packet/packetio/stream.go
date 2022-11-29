@@ -88,7 +88,7 @@ func (s *Stream) StopTransfer() {
 // I/O or context errors are returned, excluding EOF.
 func (s *Stream) Transfer(ctx context.Context, config packet.Service, streamID int32, r io.Reader, w io.WriteCloser, send chan<- packet.Thunk) error {
 	var (
-		readDone   = make(chan interface{}, 1)
+		readDone   = make(chan any, 1)
 		readErr    error
 		readNormal bool
 	)

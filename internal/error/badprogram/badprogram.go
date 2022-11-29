@@ -18,7 +18,7 @@ func Error(s string) error {
 }
 
 // Errorf formats public information.
-func Errorf(format string, args ...interface{}) error {
+func Errorf(format string, args ...any) error {
 	return errorType(fmt.Sprintf(format, args...))
 }
 

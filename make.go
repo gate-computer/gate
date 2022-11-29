@@ -390,7 +390,7 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 	addGen("rt.gen.S")
 	addGen("start.gen.S")
 
-	addCompilation := func(source string, flags ...interface{}) {
+	addCompilation := func(source string, flags ...any) {
 		object := Join(objdir, ReplaceSuffix(source, ".o"))
 		objects = append(objects, object)
 

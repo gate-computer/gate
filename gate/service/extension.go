@@ -11,8 +11,8 @@ import (
 
 // Extension declaration.
 type Extension struct {
-	Name   string      // Can be overridden to avoid conflicts.
-	Config interface{} // Pointer to a custom struct type, or nil.
+	Name   string // Can be overridden to avoid conflicts.
+	Config any    // Pointer to a custom struct type, or nil.
 	Init   func(context.Context, *Registry) error
 }
 
@@ -33,7 +33,7 @@ var Extensions []*Extension
 // be foo.
 func Extend(
 	name string,
-	config interface{},
+	config any,
 	init func(context.Context, *Registry) error,
 ) *Extension {
 	e := &Extension{name, config, init}
@@ -43,8 +43,8 @@ func Extend(
 
 // Config for global services (including Extensions).  If there are multiple
 // entries with the same identifier and non-empty config, they are excluded.
-func Config() map[string]interface{} {
-	m := make(map[string]interface{}, len(Extensions))
+func Config() map[string]any {
+	m := make(map[string]any, len(Extensions))
 	var dupes []string
 
 	for _, e := range Extensions {

@@ -304,13 +304,13 @@ func TestModuleSourceList(t *testing.T) {
 		t.Error(x)
 	}
 
-	var sources interface{}
+	var sources any
 
 	if err := json.Unmarshal(content, &sources); err != nil {
 		t.Fatal(err)
 	}
 
-	if !reflect.DeepEqual(sources, []interface{}{
+	if !reflect.DeepEqual(sources, []any{
 		api.KnownModuleSource,
 		"test",
 	}) {
@@ -318,7 +318,7 @@ func TestModuleSourceList(t *testing.T) {
 	}
 }
 
-func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expect interface{}) {
+func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expect any) {
 	t.Helper()
 
 	req := newSignedRequest(pri, http.MethodPost, api.PathKnownModules, nil)
@@ -328,7 +328,7 @@ func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expec
 		t.Error(x)
 	}
 
-	var refs interface{}
+	var refs any
 
 	if err := json.Unmarshal(content, &refs); err != nil {
 		t.Fatal(err)
@@ -344,7 +344,7 @@ func TestKnownModule(t *testing.T) {
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
-		checkModuleList(t, handler, pri, map[string]interface{}{})
+		checkModuleList(t, handler, pri, map[string]any{})
 	})
 
 	t.Run("Put", func(t *testing.T) {
@@ -368,9 +368,9 @@ func TestKnownModule(t *testing.T) {
 	})
 
 	t.Run("ListOne", func(t *testing.T) {
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{
-				map[string]interface{}{
+		checkModuleList(t, handler, pri, map[string]any{
+			"modules": []any{
+				map[string]any{
 					"id": hashHello,
 				},
 			},
@@ -384,9 +384,9 @@ func TestKnownModule(t *testing.T) {
 	})
 
 	t.Run("ListStillOne", func(t *testing.T) {
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{
-				map[string]interface{}{
+		checkModuleList(t, handler, pri, map[string]any{
+			"modules": []any{
+				map[string]any{
 					"id": hashHello,
 				},
 			},
@@ -483,7 +483,7 @@ func TestKnownModule(t *testing.T) {
 			t.Error(content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{})
+		checkModuleList(t, handler, pri, map[string]any{})
 	})
 
 	t.Run("UnpinNotFound", func(t *testing.T) {
@@ -517,7 +517,7 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("trailer: %v", resp.Trailer)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{})
+		checkModuleList(t, handler, pri, map[string]any{})
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathKnownModules+hashHello+"?action=unpin", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
@@ -549,9 +549,9 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("trailer: %v", resp.Trailer)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{
-				map[string]interface{}{
+		checkModuleList(t, handler, pri, map[string]any{
+			"modules": []any{
+				map[string]any{
 					"id": hashHello,
 				},
 			},
@@ -578,7 +578,7 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{})
+		checkModuleList(t, handler, pri, map[string]any{})
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathKnownModules+hashHello+"?action=unpin", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
@@ -601,9 +601,9 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", content)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{
-				map[string]interface{}{
+		checkModuleList(t, handler, pri, map[string]any{
+			"modules": []any{
+				map[string]any{
 					"id": hashHello,
 				},
 			},
@@ -700,9 +700,9 @@ func TestModuleSource(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		checkModuleList(t, handler, pri, map[string]interface{}{
-			"modules": []interface{}{
-				map[string]interface{}{
+		checkModuleList(t, handler, pri, map[string]any{
+			"modules": []any{
+				map[string]any{
 					"id": hashHello,
 				},
 			},
@@ -898,7 +898,7 @@ func TestModuleSource(t *testing.T) {
 	})
 }
 
-func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, expect interface{}) {
+func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, expect any) {
 	t.Helper()
 
 	req := newSignedRequest(pri, http.MethodPost, api.PathInstances, nil)
@@ -908,7 +908,7 @@ func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, exp
 		t.Error(x)
 	}
 
-	var ids interface{}
+	var ids any
 
 	if err := json.Unmarshal(content, &ids); err != nil {
 		t.Fatal(err)
@@ -971,7 +971,7 @@ func TestInstance(t *testing.T) {
 	pri := newPrincipalKey()
 
 	t.Run("ListEmpty", func(t *testing.T) {
-		checkInstanceList(t, handler, pri, map[string]interface{}{})
+		checkInstanceList(t, handler, pri, map[string]any{})
 	})
 
 	var instID string
@@ -991,12 +991,12 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("ListOne", func(t *testing.T) {
-		checkInstanceList(t, handler, pri, map[string]interface{}{
-			"instances": []interface{}{
-				map[string]interface{}{
+		checkInstanceList(t, handler, pri, map[string]any{
+			"instances": []any{
+				map[string]any{
 					"instance": instID,
 					"module":   hashHello,
-					"status": map[string]interface{}{
+					"status": map[string]any{
 						"state": api.StateRunning,
 					},
 				},
@@ -1053,7 +1053,7 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("ListEmptyAgain", func(t *testing.T) {
-		checkInstanceList(t, handler, pri, map[string]interface{}{})
+		checkInstanceList(t, handler, pri, map[string]any{})
 	})
 }
 

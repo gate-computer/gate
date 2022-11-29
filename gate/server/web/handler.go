@@ -204,7 +204,7 @@ type staticContent struct {
 	contentLength string
 }
 
-func prepareStaticContent(data interface{}) staticContent {
+func prepareStaticContent(data any) staticContent {
 	content := mustMarshalJSON(data)
 	return staticContent{
 		content:       content,
@@ -240,7 +240,7 @@ func newRedirectHandler(s *webserver, path string) http.HandlerFunc {
 	}
 }
 
-func newStaticHandler(s *webserver, path string, data interface{}) http.HandlerFunc {
+func newStaticHandler(s *webserver, path string, data any) http.HandlerFunc {
 	static := prepareStaticContent(data)
 
 	return func(w http.ResponseWriter, r *http.Request) {

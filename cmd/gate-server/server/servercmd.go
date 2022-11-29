@@ -86,7 +86,7 @@ type Config struct {
 
 	Inventory map[string]database.Config
 
-	Service map[string]interface{}
+	Service map[string]any
 
 	Server struct {
 		server.Config

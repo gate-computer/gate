@@ -12,7 +12,7 @@ type Storage interface {
 }
 
 func CombinedStorage(prog ProgramStorage, inst InstanceStorage) Storage {
-	if prog.(interface{}) == inst.(interface{}) {
+	if prog.(any) == inst.(any) {
 		return prog.(Storage)
 	} else {
 		return &combinedStorage{prog, inst}

@@ -30,7 +30,7 @@ import (
 
 var daemon dbus.BusObject
 
-func daemonCall(method string, args ...interface{}) *dbus.Call {
+func daemonCall(method string, args ...any) *dbus.Call {
 	if daemon == nil {
 		conn := Must(dbus.SessionBus())
 		daemon = conn.Object(bus.DaemonIface, bus.DaemonPath)

@@ -449,7 +449,7 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 	panic(pan.Wrap(errors.New("ran out of stack before initial call")))
 }
 
-func asUint64(x interface{}) uint64 {
+func asUint64(x any) uint64 {
 	switch v := reflect.ValueOf(x); v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return uint64(v.Int())

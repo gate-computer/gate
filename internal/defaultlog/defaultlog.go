@@ -10,6 +10,6 @@ import (
 
 type StandardLogger struct{}
 
-func (StandardLogger) Printf(fmt string, v ...interface{}) {
+func (StandardLogger) Printf(fmt string, v ...any) {
 	log.Printf(fmt, v...)
 }

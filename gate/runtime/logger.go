@@ -5,5 +5,5 @@
 package runtime
 
 type Logger interface {
-	Printf(string, ...interface{})
+	Printf(string, ...any)
 }

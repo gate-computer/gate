@@ -62,7 +62,7 @@ func Error(t event.FailType, s string) error {
 }
 
 // Errorf formats public information.
-func Errorf(t event.FailType, format string, args ...interface{}) error {
+func Errorf(t event.FailType, format string, args ...any) error {
 	return &simple{t, fmt.Sprintf(format, args...)}
 }
 
