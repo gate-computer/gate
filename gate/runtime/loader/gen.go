@@ -402,7 +402,7 @@ func funcSignalHandler(a *ga.Assembly) {
 		macroStackVars(a, local0, scratch0)
 		a.MoveImm64(local1, uint64(1<<62|1)) // Call and loop suspend bits.
 
-		a.Load4Bytes(local2, local0, 20) // suspend_bits
+		a.Load4Bytes(local2, local0, 20) // Bits.
 		a.JumpIfBitSet(local2, 1, ".do_not_modify_suspend_reg")
 
 		a.Load(scratch0, ucontext, a.Specify(ucontextStackLimit))
@@ -412,7 +412,7 @@ func funcSignalHandler(a *ga.Assembly) {
 		a.Label(".do_not_modify_suspend_reg")
 
 		a.OrImm(local2, 1<<0)
-		a.Store4Bytes(local0, 20, local2) // suspend_bits
+		a.Store4Bytes(local0, 20, local2) // Bits.
 
 		a.Jump(".signal_return")
 	}
@@ -612,7 +612,14 @@ func funcRTFlags(a *ga.Assembly) {
 	a.Function("rt_flags")
 	resetRT(a)
 	{
-		a.MoveImm(result, 0)
+		macroStackVars(a, local0, scratch0)
+		a.Load4Bytes(local1, local0, 20) // Bits.
+		a.MoveReg(result, local1)
+		a.AndImm(local1, ^0x4)            // Bits: started or resumed.
+		a.Store4Bytes(local0, 20, local1) // Bits.
+
+		a.ShiftImm(ga.RightLogical, result, 2)
+		a.AndImm(result, 0x1) // gate_io flags: started or resumed.
 		a.Jump(".resume")
 	}
 }
@@ -985,7 +992,7 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) ga.Reg {
 	macroStackVars(a, stackVars, scratch0)
 
 	if a.Arch == ga.AMD64 {
-		ga.AMD64.OrMem4BytesImm(a, stackVars.AMD64, 20, 1<<1) // suspend_bits; don't modify suspend reg.
+		ga.AMD64.OrMem4BytesImm(a, stackVars.AMD64, 20, 1<<1) // Bits; don't modify suspend reg.
 
 		a.Push(wagStackLimit)
 		a.Push(wagTextBase)
@@ -1002,7 +1009,7 @@ func macroTime(a *ga.Assembly, internalNamePrefix string) ga.Reg {
 		a.Pop(wagStackLimit)
 
 		a.MoveImm(scratch1, 0)
-		ga.AMD64.ExchangeMem4BytesReg(a, stackVars.AMD64, 20, scratch1.AMD64) // suspend_bits
+		ga.AMD64.ExchangeMem4BytesReg(a, stackVars.AMD64, 20, scratch1.AMD64) // Bits.
 		a.JumpIfBitNotSet(scratch1, 0, internalNamePrefix+"_not_suspended")
 
 		a.MoveImm64(scratch0, 0x4000000000000001) // Suspend calls and loops.

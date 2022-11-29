@@ -165,7 +165,7 @@ struct StackVars {
 	uint32_t current_memory_pages; // WebAssembly pages.
 	uint64_t monotonic_time_snapshot;
 	int32_t random_avail;
-	uint32_t suspend_bits; // 0x1 = suspended | 0x2 = don't modify suspend reg
+	uint32_t bits; // 0x1 = suspended | 0x2 = don't modify suspend reg | 0x4 = gate_io flag: started or resumed
 	uint64_t text_addr;
 	uint64_t result[2]; // [0] is int, [1] is float.
 	uint64_t magic[2];
@@ -357,7 +357,7 @@ clock_gettime_found:
 	vars->current_memory_pages = info.init_memory_size >> 16;
 	vars->monotonic_time_snapshot = info.monotonic_time;
 	vars->random_avail = sizeof info.random;
-	vars->suspend_bits = 0;
+	vars->bits = 0x4; // Started or resumed.
 	vars->text_addr = uintptr_t(text_ptr);
 	for (unsigned i = 0; i < sizeof vars->result / sizeof vars->result[0]; i++)
 		vars->result[i] = 0x5adfad0cafe;

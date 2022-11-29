@@ -498,10 +498,10 @@ TEST(io)
 	};
 	unsigned recv_num = 1;
 
-	while (send_num || recv_num) {
+	for (bool first = true; send_num || recv_num; first = false) {
 		size_t received;
 		size_t sent;
-		gate_flags_t flags = ~0ULL;
+		gate_flags_t flags = 0;
 		gate_io(recv_iov, recv_num, &received, send_iov, send_num, &sent, -1, &flags);
 
 		if (sent) {
@@ -514,7 +514,10 @@ TEST(io)
 			recv_num = 0;
 		}
 
-		ASSERT(flags == 0);
+		if (first)
+			ASSERT(flags == 0x1); // Started or resumed.
+		else
+			ASSERT(flags == 0);
 	}
 }
 
