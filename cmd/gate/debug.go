@@ -340,8 +340,8 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 	mod = Must(compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader))
 
-	err = binding.BindImports(&mod, new(abi.ImportResolver))
-	if err != nil {
+	if err := binding.BindImports(&mod, new(abi.ImportResolver)); err != nil {
+		log.Print(err)
 		return
 	}
 
@@ -355,8 +355,8 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		codeConfig.Breakpoints[uint32(offset)] = compile.Breakpoint{}
 	}
 
-	err = compile.LoadCodeSection(codeConfig, reader, mod, abi.Library())
-	if err != nil {
+	if err := compile.LoadCodeSection(codeConfig, reader, mod, abi.Library()); err != nil {
+		log.Print(err)
 		return
 	}
 
