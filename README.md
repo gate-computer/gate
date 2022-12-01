@@ -75,7 +75,7 @@ Programs:
 The available services are determined by what is built into the **gate-daemon**
 and **gate-server** programs.  The versions provided by this Go module include
 only the services implemented in this repository.  See
-[extension](Extension.md) about bundling additional services.
+[extension](doc/extension.md) about bundling additional services.
 
 
 ## Objectives
