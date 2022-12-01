@@ -59,7 +59,7 @@ func (InstanceBase) Shutdown(context.Context, bool) ([]byte, error)             
 
 // Factory creates instances of a particular service implementation.
 //
-// See https://github.com/gate-computer/gate/blob/master/Service.md for service
+// See https://github.com/gate-computer/gate/blob/main/doc/service.md for service
 // naming conventions.
 type Factory interface {
 	Properties() Properties

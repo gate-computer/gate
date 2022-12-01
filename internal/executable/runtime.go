@@ -4,7 +4,7 @@
 
 package executable
 
-// See wag/Stack.md.
+// See https://pkg.go.dev/gate.computer/wag/compile.
 const (
 	StackVarsSize    = 64       // Variables at start of stack memory.
 	stackSignalSpace = 4832 * 2 // For simultaneous SIGSEGV and SIGXCPU handling.

@@ -2,7 +2,7 @@
 
 Service implementations must be imported at build time.
 
-Go packages [implementing services](Service.md) may register themselves as Gate
+Go packages [implementing services](service.md) may register themselves as Gate
 extensions.  The convention is to register the extension at import (via the
 `init` function or otherwise), and export the extension handle as `Ext`:
 

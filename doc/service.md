@@ -3,7 +3,7 @@
 See
 [ServiceRegistry](https://godoc.org/gate.computer/gate/runtime#ServiceRegistry),
 [service package](https://godoc.org/gate.computer/gate/service) and
-[C API](C.md#packet-header) documentation.
+[C API](c-api.md#packet-header) documentation.
 
 
 ## Naming

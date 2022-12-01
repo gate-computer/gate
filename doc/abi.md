@@ -165,5 +165,5 @@ Index:
   - Must be ignored unless domain is 0 (function call).
   - See the C API for more information.
 
-See [C API](C.md) documentation for descriptions of built-in packet types.
+See [C API](c-api.md) documentation for descriptions of built-in packet types.
 

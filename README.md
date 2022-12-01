@@ -14,47 +14,47 @@ See [Introduction to Gate](https://savo.la/introduction-to-gate.html).
 
 [WebAssembly](https://webassembly.org) is the interchange format of the user
 programs.  However, the APIs are different from the browsers' usual WebAssembly
-environments.  See low-level [C API](C.md) or the higher-level
+environments.  See low-level [C API](doc/c-api.md) or the higher-level
 [Rust crate](https://crates.io/crates/gain) for details.
 
 The sandboxing and containerization features of the Linux kernel provide layers
-of security in addition to WebAssembly.  See [Security](Security.md) for
+of security in addition to WebAssembly.  See [Security](doc/security.md) for
 details.
 
 Gate *services* are akin to syscalls, but they work differently.  New services
 can be added easily, and available services are discovered at run time.  See
-[Service implementation](Service.md) for details.
+[Service implementation](doc/service.md) for details.
 
 
 ## Building blocks
 
-Gate appears as [Go](https://golang.org) packages and programs.  The execution
+Gate appears as [Go](https://go.dev) packages and programs.  The execution
 mechanism is implemented in C++ and assembly.  It is highly Linux-dependent.
 x86-64 and ARM64 are supported.
 
 Important Go packages:
 
-  - [**wag**](https://godoc.org/gate.computer/wag):
+  - [**wag**](https://pkg.go.dev/gate.computer/wag):
     The WebAssembly compiler (implemented in a
     [separate repository](https://gate.computer/wag)).
 
-  - [**gate/runtime**](https://godoc.org/gate.computer/gate/runtime):
+  - [**gate/runtime**](https://pkg.go.dev/gate.computer/gate/runtime):
     Core functionality.  Interface to the execution mechanism.
 
-  - [**gate/image**](https://godoc.org/gate.computer/gate/image):
+  - [**gate/image**](https://pkg.go.dev/gate.computer/gate/image):
     Low-level executable building and instance management.
 
-  - [**gate/build**](https://godoc.org/gate.computer/gate/build):
+  - [**gate/build**](https://pkg.go.dev/gate.computer/gate/build):
     High-level executable building and snapshot restoration.
 
-  - [**gate/server/web**](https://godoc.org/gate.computer/gate/server/web):
+  - [**gate/server/web**](https://pkg.go.dev/gate.computer/gate/server/web):
     HTTP server component which executes your code on purpose.  It has a
-    [RESTful API](Web.md), but some actions can be invoked also via websocket.
+    [RESTful API](doc/web-api.md), but some actions can be invoked also via websocket.
 
-  - [**gate/service**](https://godoc.org/gate.computer/gate/service):
+  - [**gate/service**](https://pkg.go.dev/gate.computer/gate/service):
     Service implementation support and built-in services.
 
-See the complete [list of Go packages](https://godoc.org/gate.computer/gate).
+See the complete [list of Go packages](https://pkg.go.dev/gate.computer/gate).
 
 Programs:
 
@@ -140,7 +140,7 @@ Run-time dependencies:
   D-Bus when accessing a remote server.
 
 - Programs other than **gate** may need external tools depending on their
-  configuration and [capabilities](Capabilities.md).
+  configuration and [capabilities](doc/linux-capabilities.md).
 
 There are two approaches to building Gate: the normal Go way, or via the
 make.go build system.
@@ -198,13 +198,13 @@ The build system builds a standalone installer which can be invoked as root:
 ## See also
 
 - [Gain crate for Rust user programs](https://crates.io/crates/gain)
-- [C API for user programs](C.md)
-- [ABI for user programs](ABI.md)
-- [Web server API](Web.md)
-- [Service implementation](Service.md)
-- [Build-time extensions](Extension.md)
-- [Security](Security.md)
-- [Container capabilities](Capabilities.md)
+- [C API for user programs](doc/c-api.md)
+- [ABI for user programs](doc/abi.md)
+- [Web server API](doc/web-api.md)
+- [Service implementation](doc/service.md)
+- [Build-time extensions](doc/extension.md)
+- [Security](doc/security.md)
+- [Container capabilities](doc/linux-capabilities.md)
 - [Go packages](https://pkg.go.dev/gate.computer/gate)
 - [wag](https://gate.computer/wag)
 
