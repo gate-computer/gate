@@ -45,8 +45,8 @@ func IsValidFlow(b []byte, c Code) bool {
 	}
 
 	p := FlowBuf(b)
-	for i := 0; i < p.Num(); i++ {
-		if id, increment := p.Get(i); id < 0 || increment < 0 {
+	for i := 0; i < p.Len(); i++ {
+		if flow := p.At(i); flow.ID < 0 || flow.IsNote() {
 			return false
 		}
 	}

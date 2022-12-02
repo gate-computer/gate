@@ -119,17 +119,17 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk, 
 }
 
 func (inst *instance) handleFlow(ctx context.Context, p packet.FlowBuf) error {
-	for i := 0; i < p.Num(); i++ {
-		id, increment := p.Get(i)
-		if inst.flow == nil || id != 0 {
+	for i := 0; i < p.Len(); i++ {
+		flow := p.At(i)
+		if inst.flow == nil || flow.ID != 0 {
 			return errors.New("shell: received flow packet with nonexistent stream id")
 		}
 
 		switch {
-		case increment > 0:
-			inst.flow.Increment(uint32(increment))
+		case flow.IsIncrement():
+			inst.flow.Increment(uint32(flow.Value))
 
-		case increment == 0:
+		case flow.IsEOF():
 			inst.flow.Finish()
 			inst.flow = nil
 		}

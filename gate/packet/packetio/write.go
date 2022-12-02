@@ -156,7 +156,7 @@ func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, strea
 				if pkt == nil {
 					pkt = packet.MakeFlows(config.Code, 1)
 				}
-				pkt.Set(0, streamID, increment)
+				pkt.SetFlow(0, streamID, increment)
 				sending = send
 			}
 		}

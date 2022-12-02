@@ -63,9 +63,9 @@ func (b FlowBuf) String() string {
 }
 
 func (b FlowBuf) string() (s string) {
-	for i := 0; i < b.Num(); i++ {
-		id, inc := b.Get(i)
-		s += fmt.Sprintf(" stream[%d]+=%d", id, inc)
+	for i := 0; i < b.Len(); i++ {
+		flow := b.At(i)
+		s += fmt.Sprintf(" stream[%d]+=%d", flow.ID, flow.Value)
 	}
 	return
 }

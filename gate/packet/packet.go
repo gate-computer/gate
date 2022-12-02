@@ -68,9 +68,9 @@ const (
 )
 
 const (
-	flowOffsetID        = 0
-	flowOffsetIncrement = 4
-	flowSize            = 8
+	flowOffsetID    = 0
+	flowOffsetValue = 4
+	flowSize        = 8
 )
 
 // Thunk may be called once to acquire a packet.  It returns an empty buffer if
@@ -100,9 +100,9 @@ func MakeInfo(code Code, contentSize int) Buf {
 	return Make(code, DomainInfo, HeaderSize+contentSize)
 }
 
-func MakeFlow(code Code, id, increment int32) Buf {
+func MakeFlow(code Code, id, value int32) Buf {
 	b := MakeFlows(code, 1)
-	b.Set(0, id, increment)
+	b.SetFlow(0, id, value)
 	return Buf(b)
 }
 
@@ -198,6 +198,32 @@ func (b Buf) Thunk() Thunk {
 	return func() (Buf, error) { return b, nil }
 }
 
+// Flow change of a stream.
+type Flow struct {
+	ID    int32 // Stream ID.
+	Value int32 // Positive increment, EOF indicator (0), or negative note.
+}
+
+func (f Flow) IsIncrement() bool { return f.Value > 0 }
+func (f Flow) IsEOF() bool       { return f.Value == 0 }
+func (f Flow) IsNote() bool      { return f.Value < 0 }
+
+// Increment is positive (if ok).
+func (f Flow) Increment() (n int32, ok bool) {
+	if f.Value > 0 {
+		return f.Value, true
+	}
+	return 0, false
+}
+
+// Note is negative (if ok).
+func (f Flow) Note() (n int32, ok bool) {
+	if f.Value < 0 {
+		return f.Value, true
+	}
+	return 0, false
+}
+
 // FlowBuf holds a flow packet of at least FlowHeaderSize bytes.
 type FlowBuf Buf
 
@@ -218,21 +244,26 @@ func (b FlowBuf) Code() Code {
 	return Buf(b).Code()
 }
 
-func (b FlowBuf) Num() int {
+func (b FlowBuf) Len() int {
 	return (len(b) - FlowHeaderSize) / flowSize
 }
 
-func (b FlowBuf) Get(i int) (id, increment int32) {
+func (b FlowBuf) At(i int) Flow {
 	flow := b[FlowHeaderSize+i*flowSize:]
-	id = int32(binary.LittleEndian.Uint32(flow[flowOffsetID:]))
-	increment = int32(binary.LittleEndian.Uint32(flow[flowOffsetIncrement:]))
-	return
+	return Flow{
+		int32(binary.LittleEndian.Uint32(flow[flowOffsetID:])),
+		int32(binary.LittleEndian.Uint32(flow[flowOffsetValue:])),
+	}
 }
 
-func (b FlowBuf) Set(i int, id, increment int32) {
+func (b FlowBuf) Set(i int, f Flow) {
+	b.SetFlow(i, f.ID, f.Value)
+}
+
+func (b FlowBuf) SetFlow(i int, id, value int32) {
 	flow := b[FlowHeaderSize+i*flowSize:]
 	binary.LittleEndian.PutUint32(flow[flowOffsetID:], uint32(id))
-	binary.LittleEndian.PutUint32(flow[flowOffsetIncrement:], uint32(increment))
+	binary.LittleEndian.PutUint32(flow[flowOffsetValue:], uint32(value))
 }
 
 // Thunk returns a function which returns the packet.

@@ -137,7 +137,7 @@ int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t* send_flow
 		.flows = {
 			{
 				.id = id,
-				.increment = recv_flow,
+				.value = recv_flow,
 			},
 		},
 	};
@@ -175,7 +175,7 @@ int32_t accept_stream(int16_t origin_code, int32_t recv_flow, int32_t* send_flow
 		for (unsigned i = 0; i < count; i++) {
 			auto flow = &flow_packet->flows[i];
 			if (flow->id == id) {
-				*send_flow = flow->increment;
+				*send_flow = flow->value;
 				return id;
 			}
 		}

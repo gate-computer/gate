@@ -209,7 +209,7 @@ struct gate_service_state_packet {
 
 struct gate_flow {
 	int32_t id;
-	int32_t increment;
+	int32_t value; // Positive increment, EOF indicator (0), or negative note.
 } GATE_PACKED;
 
 struct gate_flow_packet {

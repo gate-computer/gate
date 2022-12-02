@@ -54,16 +54,16 @@ func TestWriteStreamEnd(t *testing.T) {
 func flowEOF(t *testing.T, p packet.FlowBuf) bool {
 	var i int
 
-	for i = 0; i < p.Num(); i++ {
-		if id, increment := p.Get(i); id == testStreamID && increment == 0 {
+	for i = 0; i < p.Len(); i++ {
+		if flow := p.At(i); flow.ID == testStreamID && flow.IsEOF() {
 			goto found
 		}
 	}
 	return false
 
 found:
-	for i++; i < p.Num(); i++ {
-		if id, _ := p.Get(i); id == testStreamID {
+	for i++; i < p.Len(); i++ {
+		if p.At(i).ID == testStreamID {
 			t.Fatal(p)
 		}
 	}

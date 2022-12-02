@@ -140,20 +140,20 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	case packet.DomainFlow:
 		p := packet.FlowBuf(p)
 
-		for i := 0; i < p.Num(); i++ {
-			id, increment := p.Get(i)
+		for i := 0; i < p.Len(); i++ {
+			flow := p.At(i)
 
 			var s *stream
 			lock.Guard(&inst.mu, func() {
-				s = inst.streams[id]
+				s = inst.streams[flow.ID]
 			})
 			if s == nil {
 				return nil, errors.New("TODO: stream not found")
 			}
 
-			if increment < 0 {
+			if _, ok := flow.Note(); ok {
 				// TODO
-			} else if err := packetio.Subscribe(s, increment); err != nil {
+			} else if err := packetio.Subscribe(s, flow.Value); err != nil {
 				return nil, fmt.Errorf("TODO: %v", err)
 			}
 		}
