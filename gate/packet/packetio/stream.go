@@ -108,6 +108,9 @@ func (s *Stream) Transfer(ctx context.Context, config packet.Service, streamID i
 		panic(recovered)
 	}
 
+	if readErr != nil && writeErr != nil {
+		return dualError(readErr, writeErr)
+	}
 	if readErr != nil {
 		return readErr
 	}
