@@ -48,8 +48,8 @@ cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 gate.computer/ga v0.0.0-20220211160221-c07eec41cf23 h1:CfIbFLe0uplwnjzOXpypHZ0evelICYXqtHp9fb3h2zM=
 gate.computer/ga v0.0.0-20220211160221-c07eec41cf23/go.mod h1:ptFRNzPSeTorleDUxCozrDpJQS3r6tdBBnpJFOg3IJU=
-gate.computer/wag v0.35.1-0.20221129233425-d7c0955fd0f6 h1:C3aWOpVm5o0TxtNug6lqFHKnGX90IL/bg2HBlYj0cNk=
-gate.computer/wag v0.35.1-0.20221129233425-d7c0955fd0f6/go.mod h1:2fxaEIf6PU1i0SWkVyJbmXYBJopSrSKG+oQOtfm0LwY=
+gate.computer/wag v0.35.1-0.20221210023814-4a4b9794a3ed h1:85XV4dtSgyx2/+x7nF0NMKvKzuNm9FYHDf/0LNzHS38=
+gate.computer/wag v0.35.1-0.20221210023814-4a4b9794a3ed/go.mod h1:2fxaEIf6PU1i0SWkVyJbmXYBJopSrSKG+oQOtfm0LwY=
 github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 h1:UQHMgLO+TxOElx5B5HZ4hJQsoJ/PvUvKRhJHDQXO8P8=
 github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1/go.mod h1:xomTg63KZ2rFqZQzSB4Vz2SUXa1BpHTVz9L5PTmPC4E=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
