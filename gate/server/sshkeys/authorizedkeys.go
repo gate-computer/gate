@@ -8,7 +8,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"gate.computer/gate/scope"
 	"gate.computer/gate/scope/program/system"
@@ -35,7 +35,7 @@ type AuthorizedKeys struct {
 }
 
 func (ak *AuthorizedKeys) ParseFile(uid, filename string) error {
-	text, err := ioutil.ReadFile(filename)
+	text, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}

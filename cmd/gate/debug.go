@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -362,7 +361,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 	text = codeConfig.Text.Bytes()
 
-	_, err = section.CopyStandardSection(ioutil.Discard, reader, section.Data, config.CustomSectionLoader)
+	_, err = section.CopyStandardSection(io.Discard, reader, section.Data, config.CustomSectionLoader)
 	if err == nil {
 		err = compile.LoadCustomSections(&config, reader)
 	}

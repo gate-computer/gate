@@ -7,7 +7,7 @@ package localhost
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -69,7 +69,7 @@ func handleRequest(ctx context.Context, local *Localhost, config packet.Service,
 
 	if n := call.BodyLength(); n > 0 {
 		req.ContentLength = int64(n)
-		req.Body = ioutil.NopCloser(bytes.NewReader(call.BodyBytes()))
+		req.Body = io.NopCloser(bytes.NewReader(call.BodyBytes()))
 	}
 
 	res, err := local.client.Do(req.WithContext(ctx))
@@ -87,7 +87,7 @@ func handleRequest(ctx context.Context, local *Localhost, config packet.Service,
 	if res.ContentLength > int64(contentSpace) {
 		return buildErrorResponse(b, http.StatusBadGateway)
 	}
-	content, err := ioutil.ReadAll(res.Body) // TODO: limit
+	content, err := io.ReadAll(res.Body) // TODO: limit
 	if err != nil {
 		return buildErrorResponse(b, http.StatusBadGateway)
 	}

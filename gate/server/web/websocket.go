@@ -29,7 +29,6 @@ var (
 	websocketUnsupportedContent     = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "content not supported by action")
 	websocketUnsupportedContentType = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "unsupported content type")
 	websocketNotConnected           = websocket.FormatCloseMessage(websocket.ClosePolicyViolation, "not connected")
-	websocketInternalServerErr      = websocket.FormatCloseMessage(websocket.CloseInternalServerErr, "")
 )
 
 var websocketUpgrader = websocket.Upgrader{

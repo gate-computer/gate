@@ -14,7 +14,7 @@ type Type string
 
 const (
 	TypeLocal   Type = "local"
-	TypeEd25519      = "ed25519"
+	TypeEd25519 Type = "ed25519"
 )
 
 type RawKey [keySize]byte
@@ -28,7 +28,7 @@ var LocalID = &ID{s: string(TypeLocal)}
 
 func ParseID(s string) (*ID, error) {
 	if x := strings.SplitN(s, ":", 2); len(x) == 2 {
-		switch x[0] {
+		switch Type(x[0]) {
 		case TypeEd25519:
 			id := &ID{s: s}
 			if parseEd25519Key(id.key[:], x[1]) == nil {

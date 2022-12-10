@@ -6,7 +6,6 @@ package main
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -42,7 +41,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 	in, length := get()
 
 	if temp {
-		out = Must(ioutil.TempFile(path.Dir(filename), ".*.wasm"))
+		out = Must(os.CreateTemp(path.Dir(filename), ".*.wasm"))
 		defer func() {
 			if out != nil {
 				os.Remove(out.Name())

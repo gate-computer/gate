@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"math"
 	"net"
@@ -96,8 +95,6 @@ type Config struct {
 
 var c = new(Config)
 
-type instanceFunc func(api.Server, context.Context, string) (*server.Instance, error)
-
 var userID = strconv.Itoa(os.Getuid())
 
 var terminate = make(chan os.Signal, 1)
@@ -144,7 +141,7 @@ func mainResult() int {
 	c.Principal.TimeResolution = 1 // Best.
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
-	flags.SetOutput(ioutil.Discard)
+	flags.SetOutput(io.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
 
 	if defaultDB && len(c.Inventory) == 1 {
@@ -775,10 +772,10 @@ func moduleUpload(f *os.File) *api.ModuleUpload {
 		}
 	}
 
-	data := Must(ioutil.ReadAll(f))
+	data := Must(io.ReadAll(f))
 
 	return &api.ModuleUpload{
-		Stream: ioutil.NopCloser(bytes.NewReader(data)),
+		Stream: io.NopCloser(bytes.NewReader(data)),
 		Length: int64(len(data)),
 	}
 }

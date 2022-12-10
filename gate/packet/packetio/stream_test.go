@@ -5,8 +5,6 @@
 package packetio
 
 import (
-	"testing"
-
 	"gate.computer/gate/packet"
 )
 
@@ -15,23 +13,3 @@ var (
 	testService           = packet.Service{MaxSendSize: testMaxSendSize, Code: 1234}
 	testStreamID    int32 = 56789
 )
-
-type stream interface {
-	Live() bool
-	Unmarshal([]byte, packet.Service) ([]byte, error)
-	MarshaledSize() int
-	Marshal([]byte) []byte
-}
-
-func marshalUnmarshalStream(t *testing.T, s1, s2 stream) stream {
-	b := make([]byte, s1.MarshaledSize())
-	if n := len(s1.Marshal(b)); n != 0 {
-		t.Error(n)
-	}
-
-	if tail, err := s2.Unmarshal(b, testService); err != nil || len(tail) != 0 {
-		t.Error(err, len(tail))
-	}
-
-	return s2
-}

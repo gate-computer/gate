@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -189,7 +188,7 @@ var localCommands = map[string]command{
 			if info, err := r.Stat(); err == nil && info.Mode().IsRegular() {
 				length = info.Size()
 			} else {
-				data, err := ioutil.ReadAll(r)
+				data, err := io.ReadAll(r)
 				r.Close()
 				Check(err)
 				length = int64(len(data))
@@ -617,7 +616,7 @@ func newSignalPipe(signals ...os.Signal) *os.File {
 		<-c
 
 		// Newline after the ^\ in case the signal was sent via terminal.
-		fmt.Fprintln(terminalOr(ioutil.Discard))
+		fmt.Fprintln(terminalOr(io.Discard))
 
 		w.Write([]byte{0})
 	}()

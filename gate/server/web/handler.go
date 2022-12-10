@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"sort"
@@ -1085,7 +1084,7 @@ func handleCallWebsocket(response http.ResponseWriter, request *http.Request, s 
 			reportProtocolError(ctx, s, errWrongWebsocketMessageType)
 			return
 		}
-		upload := moduleUpload(ioutil.NopCloser(frame), r.ContentLength, key)
+		upload := moduleUpload(io.NopCloser(frame), r.ContentLength, key)
 		defer upload.Close()
 
 		module, inst, err = s.Server.UploadModuleInstance(ctx, upload, modulePin(pin, modTags), launch)

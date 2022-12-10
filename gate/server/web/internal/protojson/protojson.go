@@ -6,14 +6,13 @@ package protojson
 
 import (
 	"io"
-	"io/ioutil"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
 func Decode(r io.Reader, m proto.Message) error {
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
 		return err
 	}

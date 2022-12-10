@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -37,7 +36,7 @@ func TestDialParallelRestore(t *testing.T)        { testDial(t, true, true, fals
 func TestDialParallelRestoreSuspend(t *testing.T) { testDial(t, true, true, true) }
 
 func testDial(t *testing.T, parallel, restore, suspend bool) {
-	tmp, err := ioutil.TempDir("", "*.test")
+	tmp, err := os.MkdirTemp("", "*.test")
 	if err != nil {
 		panic(err)
 	}

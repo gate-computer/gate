@@ -6,7 +6,7 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 
 	"gate.computer/internal/container/common"
 	. "import.name/make"
@@ -72,7 +72,7 @@ func installBinTask(DESTDIR, BINDIR, name string) Task {
 
 func installRewriteTask(DESTDIR, SHAREDIR, BINDIR, filename string) Task {
 	return Func(func() error {
-		b, err := ioutil.ReadFile(Join("share", filename))
+		b, err := os.ReadFile(Join("share", filename))
 		if err != nil {
 			return err
 		}

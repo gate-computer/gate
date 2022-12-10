@@ -7,7 +7,6 @@ package runtime
 import (
 	"bufio"
 	"io"
-	"io/ioutil"
 	"os"
 )
 
@@ -49,5 +48,5 @@ func copyDebug(outputDone chan<- struct{}, output io.Writer, r *os.File) {
 	close(outputDone)
 	outputDone = nil
 
-	io.Copy(ioutil.Discard, r)
+	io.Copy(io.Discard, r)
 }

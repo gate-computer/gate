@@ -6,7 +6,7 @@ package source_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -140,7 +140,7 @@ func testIPFS(t *testing.T, source server.Source, uri string, maxSize int, timeo
 		t.Error("length:", length)
 	}
 
-	data, err = ioutil.ReadAll(r)
+	data, err = io.ReadAll(r)
 	if err != nil {
 		t.Fatal("ReadFile:", err)
 	}

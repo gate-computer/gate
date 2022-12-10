@@ -138,6 +138,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 	dataSectionLen := len(dataHeader) + int(inst.man.MemorySize)
 	// TODO: check if dataSectionLen is out of bounds
 	off = mapNewSection(off, newRanges, uint32(dataSectionLen), section.Data)
+	_ = off
 
 	// New module size.
 	newModuleSize := oldProg.man.ModuleSize

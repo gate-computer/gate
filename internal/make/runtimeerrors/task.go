@@ -7,7 +7,7 @@ package runtimeerrors
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	runtimeerrors "gate.computer/internal/error/runtime"
 	m "import.name/make"
@@ -65,11 +65,11 @@ func Task(GOFMT string) m.Task {
 				return err
 			}
 
-			if err := ioutil.WriteFile(cTarget, c.Bytes(), 0o666); err != nil {
+			if err := os.WriteFile(cTarget, c.Bytes(), 0o666); err != nil {
 				return err
 			}
 
-			if err := ioutil.WriteFile(gTarget, gFmt, 0o666); err != nil {
+			if err := os.WriteFile(gTarget, gFmt, 0o666); err != nil {
 				return err
 			}
 

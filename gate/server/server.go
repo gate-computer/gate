@@ -571,18 +571,18 @@ func (s *Server) ModuleInfo(ctx context.Context, module string) (_ *api.ModuleIn
 		pan.check(notfound.ErrModule)
 	}
 
-	x, found := acc.programs[prog]
+	x, found := acc.programs[prog] //lint:ignore SA5011 checked
 	if !found {
 		pan.check(notfound.ErrModule)
 	}
 
 	info := &api.ModuleInfo{
-		Id:   prog.id,
+		Id:   prog.id, //lint:ignore SA5011 checked
 		Tags: append([]string(nil), x.tags...),
 	}
 
 	s.monitorModule(ctx, event.TypeModuleInfo, &event.Module{
-		Module: prog.id,
+		Module: prog.id, //lint:ignore SA5011 checked
 	})
 
 	return info, nil
@@ -653,9 +653,9 @@ func (s *Server) ModuleContent(ctx context.Context, module string) (stream io.Re
 		pan.check(notfound.ErrModule)
 	}
 
-	length = prog.image.ModuleSize()
+	length = prog.image.ModuleSize() //lint:ignore SA5011 checked
 	stream = &moduleContent{
-		Reader: prog.image.NewModuleReader(),
+		Reader: prog.image.NewModuleReader(), //lint:ignore SA5011 checked
 		ctx:    ctx,
 		s:      s,
 		prog:   prog,
@@ -715,7 +715,8 @@ func (s *Server) PinModule(ctx context.Context, module string, know *api.ModuleO
 			pan.check(notfound.ErrModule)
 		}
 
-		if _, found := acc.programs[prog]; !found {
+		_, found := acc.programs[prog] //lint:ignore SA5011 checked
+		if !found {
 			for _, x := range acc.instances {
 				if x.prog == prog {
 					goto do
@@ -1284,7 +1285,7 @@ func (s *Server) getInstanceBorrowProgram(pan icky, lock serverLock, pri *princi
 		pan.check(notfound.ErrInstance)
 	}
 
-	x, found := acc.instances[instance]
+	x, found := acc.instances[instance] //lint:ignore SA5011 checked
 	if !found {
 		pan.check(notfound.ErrInstance)
 	}

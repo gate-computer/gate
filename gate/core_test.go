@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"regexp"
@@ -413,7 +412,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 }
 
 func TestABI(t *testing.T) {
-	src, err := ioutil.ReadFile("../testdata/abi.cpp")
+	src, err := os.ReadFile("../testdata/abi.cpp")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -561,14 +560,14 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 		}
 		defer prog2.Close()
 
-		data, err := ioutil.ReadAll(prog2.NewModuleReader())
+		data, err := io.ReadAll(prog2.NewModuleReader())
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		filename := fmt.Sprintf("../testdata/%s.%s.wasm", t.Name(), goruntime.GOARCH)
 
-		if err := ioutil.WriteFile(filename, data, 0o644); err != nil {
+		if err := os.WriteFile(filename, data, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

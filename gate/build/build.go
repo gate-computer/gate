@@ -6,7 +6,6 @@ package build
 
 import (
 	"io"
-	"io/ioutil"
 	"math"
 
 	"gate.computer/gate/image"
@@ -63,7 +62,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 			return err
 		}
 
-		if _, err := io.CopyN(ioutil.Discard, r, int64(length)-int64(n)); err != nil {
+		if _, err := io.CopyN(io.Discard, r, int64(length)-int64(n)); err != nil {
 			return err
 		}
 
@@ -213,7 +212,7 @@ func (b *Build) InstallSnapshotDataLoaders() {
 			return err
 		}
 
-		if _, err := io.CopyN(ioutil.Discard, r, int64(length)-int64(b.bufferSectionHeaderLength)-int64(len(dataBuf))); err != nil {
+		if _, err := io.CopyN(io.Discard, r, int64(length)-int64(b.bufferSectionHeaderLength)-int64(len(dataBuf))); err != nil {
 			return err
 		}
 

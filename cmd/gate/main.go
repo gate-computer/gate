@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"sort"
@@ -148,7 +147,7 @@ func main() {
 	c.Wait = DefaultWait
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
-	flags.SetOutput(ioutil.Discard)
+	flags.SetOutput(io.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
 
 	flag.Usage = func() {

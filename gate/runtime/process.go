@@ -436,6 +436,7 @@ func getRand(fixedTextAddr uint64, needData bool) (textAddr, heapAddr, stackAddr
 	if needData {
 		copy(randData[:], b)
 		b = b[16:]
+		_ = b
 	}
 
 	return

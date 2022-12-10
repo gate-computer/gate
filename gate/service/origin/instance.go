@@ -64,9 +64,7 @@ func (inst *instance) restore(input []byte) error {
 		return err
 	}
 	inst.accepting = accepting
-	if inst.accepting < 0 {
-		// TODO
-	}
+	// TODO: if inst.accepting < 0
 	if inst.accepting > 0 {
 		poke(inst.wakeup)
 	}

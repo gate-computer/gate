@@ -169,12 +169,6 @@ func respondUnsupportedLog(w http.ResponseWriter, r *http.Request, s *webserver,
 	reportProtocolError(r.Context(), s, err)
 }
 
-func respondInvalidQueryParamValue(w http.ResponseWriter, r *http.Request, s *webserver, key, value string) {
-	err := fmt.Errorf("invalid value for query parameter %s: %q", key, value)
-	respond(w, r, http.StatusBadRequest, err.Error())
-	reportProtocolError(r.Context(), s, err)
-}
-
 func respondDuplicateQueryParam(w http.ResponseWriter, r *http.Request, s *webserver) {
 	respond(w, r, http.StatusBadRequest, errDuplicateQueryParam.Error())
 	reportProtocolError(r.Context(), s, errDuplicateQueryParam)

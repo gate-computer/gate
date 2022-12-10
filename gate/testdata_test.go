@@ -9,7 +9,8 @@ import (
 	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
-	"io/ioutil"
+	"io"
+	"os"
 	"strings"
 )
 
@@ -32,7 +33,7 @@ var (
 )
 
 func readFile(filename string) []byte {
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +47,7 @@ func readFile(filename string) []byte {
 		panic(err)
 	}
 
-	data, err = ioutil.ReadAll(r)
+	data, err = io.ReadAll(r)
 	if err != nil {
 		panic(err)
 	}

@@ -10,7 +10,6 @@ import (
 	"crypto/ed25519"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
@@ -72,7 +71,7 @@ func (helloSource) CanonicalURI(uri string) (string, error) {
 func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	switch uri {
 	case "/test/hello":
-		return ioutil.NopCloser(bytes.NewReader(wasmHello)), int64(len(wasmHello)), nil
+		return io.NopCloser(bytes.NewReader(wasmHello)), int64(len(wasmHello)), nil
 
 	default:
 		panic(uri)
@@ -153,7 +152,7 @@ func newHandler(t *testing.T) http.Handler {
 func newRequest(method, path string, content []byte) (req *http.Request) {
 	var body io.ReadCloser
 	if content != nil {
-		body = ioutil.NopCloser(bytes.NewReader(content))
+		body = io.NopCloser(bytes.NewReader(content))
 	}
 	req = httptest.NewRequest(method, path, body)
 	req.ContentLength = int64(len(content))
@@ -179,7 +178,7 @@ func doRequest(t *testing.T, handler http.Handler, req *http.Request) (*http.Res
 	resp := w.Result()
 	defer resp.Body.Close()
 
-	content, err := ioutil.ReadAll(resp.Body)
+	content, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("response content error: %v", err)
 	}
@@ -1182,7 +1181,7 @@ func TestInstanceSuspend(t *testing.T) {
 		}
 
 		req = newSignedRequest(pri, http.MethodGet, location, nil)
-		resp, snapshot = checkResponse(t, handler, req, http.StatusOK)
+		_, snapshot = checkResponse(t, handler, req, http.StatusOK)
 
 		if false {
 			f, err := os.Create("/tmp/snapshot.wasm")
@@ -1292,7 +1291,7 @@ func TestInstanceTerminated(t *testing.T) {
 		}
 
 		req = newSignedRequest(pri, http.MethodGet, location, nil)
-		resp, snapshot := checkResponse(t, handler, req, http.StatusOK)
+		_, snapshot := checkResponse(t, handler, req, http.StatusOK)
 
 		if false {
 			f, err := os.Create("/tmp/snapshot.wasm")

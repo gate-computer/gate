@@ -12,7 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -26,7 +26,7 @@ func FuzzServerUploadModule(f *testing.F) {
 		f.Fatal(err)
 	}
 	for _, filename := range filenames {
-		wasm, err := ioutil.ReadFile(filename)
+		wasm, err := os.ReadFile(filename)
 		if err != nil {
 			f.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func FuzzServerUploadModule(f *testing.F) {
 		wasmHash := hex.EncodeToString(api.KnownModuleHash.New().Sum(wasm))
 
 		upload := &api.ModuleUpload{
-			Stream: ioutil.NopCloser(bytes.NewReader(wasm)),
+			Stream: io.NopCloser(bytes.NewReader(wasm)),
 			Length: int64(len(wasm)),
 			Hash:   wasmHash,
 		}

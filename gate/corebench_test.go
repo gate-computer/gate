@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -57,7 +56,7 @@ var optionalBenchData = []struct {
 
 func init() {
 	for _, x := range optionalBenchData {
-		wasm, err := ioutil.ReadFile(x.path)
+		wasm, err := os.ReadFile(x.path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue

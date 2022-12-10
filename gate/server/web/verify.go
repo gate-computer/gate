@@ -92,7 +92,7 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 
 func mustValidateScope(ctx context.Context, ew errorWriter, s *webserver, scope string) []string {
 	array := strings.SplitN(scope, " ", maxScopeLength)
-	if len(array) == maxScopeLength && strings.Index(array[maxScopeLength-1], " ") >= 0 {
+	if len(array) == maxScopeLength && strings.Contains(array[maxScopeLength-1], " ") {
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "scope has too many tokens", event.FailScopeTooLarge, nil)
 		panic(responded)
 	}

@@ -11,7 +11,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -101,14 +100,14 @@ var remoteCommands = map[string]command{
 					Header: http.Header{
 						webapi.HeaderContentType: []string{webapi.ContentTypeJSON},
 					},
-					Body:          ioutil.NopCloser(bytes.NewReader(debugJSON)),
+					Body:          io.NopCloser(bytes.NewReader(debugJSON)),
 					ContentLength: int64(len(debugJSON)),
 				}
 
 				_, resp := doHTTP(req, webapi.PathInstances+instID, params)
 
 				res := new(api.DebugResponse)
-				Check(proto.Unmarshal(Must(ioutil.ReadAll(resp.Body)), res))
+				Check(proto.Unmarshal(Must(io.ReadAll(resp.Body)), res))
 				return res
 			})
 		},
@@ -147,7 +146,7 @@ var remoteCommands = map[string]command{
 				Header: http.Header{
 					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
 				},
-				Body:          ioutil.NopCloser(data),
+				Body:          io.NopCloser(data),
 				ContentLength: int64(data.Len()),
 			}
 			params := url.Values{
@@ -271,7 +270,7 @@ var remoteCommands = map[string]command{
 				req.Header = http.Header{
 					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
 				}
-				req.Body = ioutil.NopCloser(module)
+				req.Body = io.NopCloser(module)
 				req.ContentLength = int64(module.Len())
 			}
 
@@ -451,7 +450,7 @@ var remoteCommands = map[string]command{
 				Header: http.Header{
 					webapi.HeaderContentType: []string{webapi.ContentTypeJSON},
 				},
-				Body:          ioutil.NopCloser(bytes.NewReader(updateJSON)),
+				Body:          io.NopCloser(bytes.NewReader(updateJSON)),
 				ContentLength: int64(len(updateJSON)),
 			}
 
@@ -595,7 +594,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 	default:
 		msg := resp.Status
 		if x := strings.SplitN(resp.Header.Get(webapi.HeaderContentType), ";", 2); x[0] == "text/plain" {
-			if text, _ := ioutil.ReadAll(resp.Body); len(text) > 0 {
+			if text, _ := io.ReadAll(resp.Body); len(text) > 0 {
 				msg = string(text)
 			}
 		}
@@ -668,7 +667,7 @@ func makeAuthorization() string {
 		Scope: scope,
 	}
 
-	identity := Must(ioutil.ReadFile(c.IdentityFile))
+	identity := Must(os.ReadFile(c.IdentityFile))
 
 	if len(identity) != 0 {
 		x := Must(ssh.ParseRawPrivateKey(identity))

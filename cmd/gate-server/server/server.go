@@ -11,7 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"log/syslog"
 	"net"
@@ -184,7 +184,7 @@ func Main() {
 	c.ACME.DirectoryURL = "https://acme-staging.api.letsencrypt.org/directory"
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
-	flags.SetOutput(ioutil.Discard)
+	flags.SetOutput(io.Discard)
 	cmdconf.Parse(c, flags, true, Defaults...)
 
 	if defaultDB && len(c.Inventory) == 1 {

@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"gate.computer/gate/packet"
@@ -189,7 +188,7 @@ func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, fro
 					}
 					frozen.Output = append(frozen.Output, read.buf...)
 
-					frozen.Input, err = ioutil.ReadAll(subject.writerOut.File())
+					frozen.Input, err = io.ReadAll(subject.writerOut.File())
 					subject.writerOut.Unref()
 					if err != nil {
 						return err

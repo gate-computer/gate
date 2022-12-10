@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"hash/crc64"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
@@ -26,7 +25,7 @@ func Build(output, ld, objdump, gopkg string, verbose bool, commands [][]string)
 	var objects []string
 
 	if len(commands) == 0 {
-		b, err := ioutil.ReadAll(os.Stdin)
+		b, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}
@@ -131,7 +130,7 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		fmt.Println()
 	}
 
-	data, err := ioutil.ReadFile(linked)
+	data, err := os.ReadFile(linked)
 	if err != nil {
 		return err
 	}
@@ -162,7 +161,7 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		section.Code:     true,
 	}
 	for id := section.Type; id <= section.Code; id++ {
-		w := ioutil.Discard
+		w := io.Discard
 		if librarySections[id] {
 			w = b
 		}
@@ -225,7 +224,7 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		data = b.Bytes()
 	}
 
-	if err := ioutil.WriteFile(output, data, 0o644); err != nil {
+	if err := os.WriteFile(output, data, 0o644); err != nil {
 		return err
 	}
 
@@ -278,7 +277,7 @@ func reprFuncType(f wa.FuncType) string {
 func writeTempFile(b []byte) (string, func(), error) {
 	var ok bool
 
-	f, err := ioutil.TempFile("", "*.wasm")
+	f, err := os.CreateTemp("", "*.wasm")
 	if err != nil {
 		return "", nil, err
 	}

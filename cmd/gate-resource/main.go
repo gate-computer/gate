@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path"
 
@@ -77,7 +76,7 @@ func Main(outdir string, filenames []string) error {
 			os.MkdirAll(outdir, 0o755)
 
 			outname := path.Join(outdir, name)
-			if err := ioutil.WriteFile(outname, data, 0o644); err != nil {
+			if err := os.WriteFile(outname, data, 0o644); err != nil {
 				os.Remove(outname)
 				return err
 			}
