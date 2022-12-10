@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	gate.computer/ga v0.0.0-20220211160221-c07eec41cf23
-	gate.computer/wag v0.35.1-0.20221210023814-4a4b9794a3ed
+	gate.computer/wag v0.36.0
 	github.com/bufbuild/buf v1.8.0
 	github.com/chzyer/readline v1.5.1
 	github.com/coreos/go-systemd/v22 v22.5.0
