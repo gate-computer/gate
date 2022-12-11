@@ -34,7 +34,7 @@ require (
 	github.com/bufbuild/connect-go v0.4.0 // indirect
 	github.com/chzyer/logex v1.2.1 // indirect
 	github.com/chzyer/test v1.0.0 // indirect
-	github.com/containerd/containerd v1.6.8 // indirect
+	github.com/containerd/containerd v1.6.12 // indirect
 	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
