@@ -16,7 +16,7 @@ import (
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service"
-	"gate.computer/localhost/flat"
+	"gate.computer/localhost/internal/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 

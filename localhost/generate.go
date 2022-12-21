@@ -4,4 +4,4 @@
 
 package localhost
 
-//go:generate flatc --go --go-namespace flat localhost.fbs
+//go:generate flatc --go --go-namespace flat -o internal localhost.fbs

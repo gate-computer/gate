@@ -9,7 +9,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/godbus/dbus/v5 v5.1.0
-	github.com/google/flatbuffers v1.12.0
+	github.com/google/flatbuffers v22.11.23+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.5.0

@@ -12,7 +12,7 @@ import (
 	"net/url"
 
 	"gate.computer/gate/packet"
-	"gate.computer/localhost/flat"
+	"gate.computer/localhost/internal/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
 )
 
