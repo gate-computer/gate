@@ -31,6 +31,7 @@
 
 .Lseccomp_filter:
 	bpf_stmt BPF_LD  | BPF_W   | BPF_ABS, 0				// Syscall number
+	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_clock_gettime, 13, 0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_read,          12, 0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_write,         11, 0	// Allow
 	bpf_jump BPF_JMP | BPF_JEQ | BPF_K,   SYS_ppoll,         10, 0	// Allow
