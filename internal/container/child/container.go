@@ -261,9 +261,6 @@ func childMain() error {
 		if err := setrlimit("RTPRIO", unix.RLIMIT_RTPRIO, 0); err != nil {
 			return err
 		}
-		if err := setrlimit("SIGPENDING", unix.RLIMIT_SIGPENDING, 0); err != nil { // Applies to sigqueue.
-			return err
-		}
 	}
 
 	if common.Sandbox && !namespaceDisabled {
@@ -301,6 +298,16 @@ func childMain() error {
 		fmt.Fprintln(os.Stderr, "container: disabled - sharing namespaces with host!")
 
 		if err := openProcPath("/proc"); err != nil {
+			return err
+		}
+	}
+
+	if common.Sandbox {
+		// SIGPENDING applies to sigqueue.
+		//
+		// On arm64 with cgo disabled, AllThreadsSyscall doesn't work if
+		// SIGPENDING is too small, so do this after the setCred calls.
+		if err := setrlimit("SIGPENDING", unix.RLIMIT_SIGPENDING, 0); err != nil {
 			return err
 		}
 	}
