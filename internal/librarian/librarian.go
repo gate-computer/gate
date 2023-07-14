@@ -102,23 +102,18 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		return err
 	}
 
+	expIgnore := regexp.MustCompile(`(^\w+ func|\scall \d+ <(env\.)?rt_\w+>)`)
+	expVerify := regexp.MustCompile(`(^Data|\scall|\sglobal|\smemory\.grow)`)
+
 	for _, line := range strings.Split(string(dump), "\n") {
-		matched, err := regexp.MatchString(`(^\w+ func|\scall \d+ <(env\.)?rt_\w+>)`, line)
-		if err != nil {
-			return err
-		}
-		if matched {
+		if expIgnore.MatchString(line) {
 			if verbose {
 				fmt.Println("", line)
 			}
 			continue
 		}
 
-		matched, err = regexp.MatchString(`(^Data|\scall|\sglobal|\smemory\.grow)`, line)
-		if err != nil {
-			return err
-		}
-		if matched {
+		if expVerify.MatchString(line) {
 			if verbose {
 				fmt.Println(line)
 			}
