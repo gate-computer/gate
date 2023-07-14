@@ -16,9 +16,9 @@ require (
 	golang.org/x/crypto v0.9.0
 	golang.org/x/sys v0.8.0
 	golang.org/x/term v0.8.0
-	google.golang.org/grpc v1.53.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
-	google.golang.org/protobuf v1.29.1
+	google.golang.org/grpc v1.56.2
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
+	google.golang.org/protobuf v1.31.0
 	import.name/confi v1.6.0
 	import.name/flux v1.0.0
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
@@ -110,7 +110,7 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/tools v0.9.3 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
-	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4 // indirect
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.66 // indirect
