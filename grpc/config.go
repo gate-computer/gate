@@ -15,6 +15,7 @@ import (
 	"gate.computer/grpc/client"
 	"gate.computer/grpc/executable"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type conn interface {
@@ -74,7 +75,7 @@ func (conf *Config) Init(ctx context.Context) error {
 		for _, s := range args[1:] {
 			switch s {
 			case "insecure":
-				opts = append(opts, grpc.WithInsecure())
+				opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 			case "optional":
 				optional = true

@@ -22,6 +22,7 @@ import (
 	"gate.computer/grpc/client"
 	"gate.computer/grpc/executable"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var binary = "../lib/test-grpc-service"
@@ -68,7 +69,7 @@ func testDial(t *testing.T, parallel, restore, suspend bool) {
 	var c *client.Conn
 	for i := 0; i < 100; i++ {
 		time.Sleep(time.Millisecond * 10)
-		c, err = client.DialContext(ctx, "unix:"+socket, grpc.WithInsecure())
+		c, err = client.DialContext(ctx, "unix:"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err == nil {
 			break
 		}

@@ -14,10 +14,10 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
-	"time"
 
 	"gate.computer/grpc/client"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Conn is a connection to a process.
@@ -62,7 +62,7 @@ func Execute(ctx context.Context, path string, args []string) (*Conn, error) {
 		}
 	}()
 
-	conn, err := client.DialContext(ctx, "socket", grpc.WithDialer(dialerFor(sock2)), grpc.WithInsecure())
+	conn, err := client.DialContext(ctx, "socket", grpc.WithContextDialer(dialerFor(sock2)), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
@@ -93,10 +93,10 @@ func (c *Conn) Close() error {
 	return errWait
 }
 
-func dialerFor(conn *os.File) func(string, time.Duration) (net.Conn, error) {
+func dialerFor(conn *os.File) func(context.Context, string) (net.Conn, error) {
 	dialed := false
 
-	return func(string, time.Duration) (net.Conn, error) {
+	return func(context.Context, string) (net.Conn, error) {
 		if dialed {
 			return nil, errors.New("reconnection not supported")
 		}
