@@ -5,6 +5,7 @@
 package container
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"os"
@@ -38,9 +39,11 @@ func configureExecutorCgroup(containerPID int, c *config.CgroupConfig) error {
 		props = append(props, dbus.PropSlice(c.Parent))
 	}
 
-	conn, err := dbus.NewSystemdConnection()
+	ctx := context.Background()
+
+	conn, err := dbus.NewSystemdConnectionContext(ctx)
 	if err != nil {
-		c, err2 := dbus.NewUserConnection()
+		c, err2 := dbus.NewUserConnectionContext(ctx)
 		if err2 != nil {
 			return fmt.Errorf("D-Bus connection attempts: %v; %w", err, err2)
 		}
@@ -50,7 +53,7 @@ func configureExecutorCgroup(containerPID int, c *config.CgroupConfig) error {
 
 	result := make(chan string, 1)
 
-	if _, err := conn.StartTransientUnit(scope, "fail", props, result); err != nil {
+	if _, err := conn.StartTransientUnitContext(ctx, scope, "fail", props, result); err != nil {
 		return fmt.Errorf("starting transient systemd unit for container: %w", err)
 	}
 
