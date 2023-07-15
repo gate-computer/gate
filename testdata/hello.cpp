@@ -41,11 +41,11 @@ int discover(int16_t* origin_code, int16_t* test_code)
 {
 	struct {
 		gate_service_name_packet header;
-		char names[12 + 1]; // Space for terminator.
+		char names[12 + 7]; // Space for terminator/padding.
 	} discover = {
 		.header = {
 			.header = {
-				.size = sizeof discover - 1, // No terminator.
+				.size = sizeof discover - 7, // No terminator/padding.
 				.code = GATE_PACKET_CODE_SERVICES,
 			},
 			.count = 2,
@@ -53,8 +53,7 @@ int discover(int16_t* origin_code, int16_t* test_code)
 		.names = "\x06origin\x04test",
 	};
 
-	// Send some uninitialized bytes from stack as padding.
-	send(&discover, GATE_ALIGN_PACKET(sizeof discover));
+	send(&discover, GATE_ALIGN_PACKET(sizeof discover - 7));
 
 	auto packet = receive_packet(receive_buffer, sizeof receive_buffer);
 
@@ -202,11 +201,11 @@ int send_hello(int16_t origin_code, int32_t id, int* flow)
 {
 	struct {
 		gate_data_packet header;
-		char data[13 + 1]; // Space for terminator.
+		char data[13 + 7]; // Space for terminator/padding.
 	} hello = {
 		.header = {
 			.header = {
-				.size = sizeof hello - 1, // No terminator.
+				.size = sizeof hello - 7, // No terminator/padding.
 				.code = origin_code,
 				.domain = GATE_PACKET_DOMAIN_DATA,
 			},
@@ -220,8 +219,7 @@ int send_hello(int16_t origin_code, int32_t id, int* flow)
 		return -1;
 	}
 
-	// Send some uninitialized bytes from stack as padding.
-	send(&hello, GATE_ALIGN_PACKET(sizeof hello));
+	send(&hello, GATE_ALIGN_PACKET(sizeof hello - 7));
 	*flow -= sizeof hello.data;
 	return 0;
 }

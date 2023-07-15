@@ -42,11 +42,11 @@ int loop()
 {
 	struct {
 		gate_service_name_packet header;
-		char names[25 + 1]; // Space for terminator.
+		char names[25 + 7]; // Space for terminator/padding.
 	} packet = {
 		.header = {
 			.header = {
-				.size = sizeof packet - 1, // No terminator.
+				.size = sizeof packet - 7, // No terminator/padding.
 				.code = GATE_PACKET_CODE_SERVICES,
 			},
 			.count = 3,
@@ -54,8 +54,7 @@ int loop()
 		.names = "\x06origin\x04test\x0c_nonexistent",
 	};
 
-	// Send some uninitialized bytes from stack as padding.
-	gate_send(&packet, GATE_ALIGN_PACKET(sizeof packet), -1);
+	gate_send(&packet, GATE_ALIGN_PACKET(sizeof packet - 7), -1);
 
 	for (long i = 0;; i++)
 		iteration(i);
