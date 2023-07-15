@@ -263,50 +263,27 @@ inline Timestamp time(ClockID id, Resolution precision)
 	return rt_time(id);
 }
 
-class Resolutions {
-public:
-	Resolutions() {}
+inline Resolution merge_resolution(Resolution dest, Resolution spec)
+{
+	if (spec == 0)
+		spec = 1;
 
-	void merge(ClockID id, Resolution r)
-	{
-		if (r == 0)
-			r = 1;
+	if (dest == 0 || dest > spec)
+		dest = spec;
 
-		if (id == ClockID::Realtime) {
-			if (realtime == 0 || realtime > r)
-				realtime = r;
-		} else {
-			if (monotonic == 0 || monotonic > r)
-				monotonic = r;
-		}
-	}
+	return dest;
+}
 
-	void coarsify()
-	{
-		if (realtime == 0 && monotonic == 0)
-			return;
+inline Resolution coarsify_resolution(Resolution r, Resolution limit)
+{
+	if (r == 0)
+		return r;
 
-		auto min = realtime;
-		if (min > monotonic)
-			min = monotonic;
+	if (r < limit)
+		r = limit;
 
-		if (min >= 1000000) // 1ms
-			return;
-
-		auto r = time_resolution();
-
-		if (realtime && realtime < r)
-			realtime = r;
-
-		if (monotonic && monotonic < r)
-			monotonic = r;
-	}
-
-	// Avoid stack memory access and globals by not using array.
-
-	Resolution realtime = 0;
-	Resolution monotonic = 0;
-};
+	return r;
+}
 
 class Timestamps {
 public:
@@ -656,26 +633,33 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 	RETURN_FAULT_IF(nsub > 0 && out == nullptr);
 	RETURN_FAULT_IF(nout_ptr == nullptr);
 
-	Resolutions res;
+	Resolution res_realtime = 0;
+	Resolution res_monotonic = 0;
 
 	for (int i = 0; i < nsub; i++) {
 		if (sub[i].tag == EventType::Clock) {
 			auto id = sub[i].u.clock.clockid;
 
 			if (clock_is_valid(id)) {
-				if (sub[i].u.clock.timeout.is_nonzero()) // Optimize special case.
-					res.merge(id, sub[i].u.clock.precision);
+				if (sub[i].u.clock.timeout.is_nonzero()) { // Optimize special case.
+					if (id == ClockID::Realtime)
+						res_realtime = merge_resolution(res_realtime, sub[i].u.clock.precision);
+					else
+						res_monotonic = merge_resolution(res_monotonic, sub[i].u.clock.precision);
+				}
 			}
 		}
 	}
 
-	res.coarsify();
+	auto res_limit = time_resolution();
+	res_realtime = coarsify_resolution(res_realtime, res_limit);
+	res_monotonic = coarsify_resolution(res_monotonic, res_limit);
 
 	Timestamps begin;
-	if (res.realtime)
-		begin.realtime = time(ClockID::Realtime, res.realtime);
-	if (res.monotonic)
-		begin.monotonic = time(ClockID::Monotonic, res.monotonic);
+	if (res_realtime)
+		begin.realtime = time(ClockID::Realtime, res_realtime);
+	if (res_monotonic)
+		begin.monotonic = time(ClockID::Monotonic, res_monotonic);
 
 	PollEvents pollin;
 	PollEvents pollout;
@@ -731,9 +715,9 @@ EXPORT Error poll_oneoff(Subscription const* sub, Event* out, int nsub, uint32_t
 
 	Timestamps end;
 	if (begin.realtime.is_nonzero())
-		end.realtime = time(ClockID::Realtime, res.realtime);
+		end.realtime = time(ClockID::Realtime, res_realtime);
 	if (begin.monotonic.is_nonzero())
-		end.monotonic = time(ClockID::Monotonic, res.monotonic);
+		end.monotonic = time(ClockID::Monotonic, res_monotonic);
 
 	int n = 0;
 
