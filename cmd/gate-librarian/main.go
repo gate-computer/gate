@@ -32,21 +32,18 @@ func main() {
 		flag.PrintDefaults()
 	}
 
+	var gopkg string
+
 	ld := os.Getenv("WASM_LD")
 	if ld == "" {
 		ld = "wasm-ld"
 	}
+
 	objdump := os.Getenv("WASM_OBJDUMP")
 	if objdump == "" {
 		objdump = "wasm-objdump"
 	}
 
-	var (
-		gopkg   string
-		verbose bool
-	)
-
-	flag.BoolVar(&verbose, "v", verbose, "don't be quiet")
 	flag.StringVar(&gopkg, "go", gopkg, "generate Go code for given package")
 	flag.StringVar(&ld, "ld", ld, "wasm-ld command to use")
 	flag.StringVar(&objdump, "objdump", objdump, "wasm-objdump command to use")
@@ -81,7 +78,7 @@ func main() {
 		commands = append(commands, cmd)
 	}
 
-	if err := librarian.Build(output, ld, objdump, gopkg, verbose, commands); err != nil {
+	if err := librarian.Build(output, ld, objdump, gopkg, commands); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

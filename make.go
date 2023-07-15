@@ -252,7 +252,7 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 		CommandWrap(CCACHE, WASMCXX, flags, "-c", "-o", object, source),
 		Func(func() error {
 			Println("Making", gen)
-			return librarian.Link(gen, WASMLD, WASMOBJDUMP, "abi", false, object)
+			return librarian.Link(gen, WASMLD, WASMOBJDUMP, "abi", object)
 		}),
 	)
 }

@@ -21,7 +21,7 @@ import (
 	"gate.computer/wag/wa"
 )
 
-func Build(output, ld, objdump, gopkg string, verbose bool, commands [][]string) error {
+func Build(output, ld, objdump, gopkg string, commands [][]string) error {
 	var objects []string
 
 	if len(commands) == 0 {
@@ -40,10 +40,6 @@ func Build(output, ld, objdump, gopkg string, verbose bool, commands [][]string)
 	}
 
 	for _, command := range commands {
-		if verbose {
-			fmt.Println(strings.Join(command, " "))
-		}
-
 		cmd := exec.Command(command[0], command[1:]...)
 		cmd.Stderr = os.Stderr
 		b, err := cmd.Output()
@@ -60,20 +56,16 @@ func Build(output, ld, objdump, gopkg string, verbose bool, commands [][]string)
 		objects = append(objects, filename)
 	}
 
-	return Link(output, ld, objdump, gopkg, verbose, objects...)
+	return Link(output, ld, objdump, gopkg, objects...)
 }
 
-func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) error {
+func Link(output, ld, objdump, gopkg string, objects ...string) error {
 	var linked string
 
 	if len(objects) == 1 && ld == "" {
 		linked = objects[0]
 	} else {
 		args := append([]string{"--allow-undefined", "--export-dynamic", "--no-entry", "-o", "/dev/stdout"}, objects...)
-
-		if verbose {
-			fmt.Println(ld, strings.Join(args, " "))
-		}
 
 		cmd := exec.Command(ld, args...)
 		cmd.Stderr = os.Stderr
@@ -91,10 +83,6 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		linked = filename
 	}
 
-	if verbose {
-		fmt.Println()
-	}
-
 	cmd := exec.Command(objdump, "-d", linked)
 	cmd.Stderr = os.Stderr
 	dump, err := cmd.Output()
@@ -102,27 +90,27 @@ func Link(output, ld, objdump, gopkg string, verbose bool, objects ...string) er
 		return err
 	}
 
-	expIgnore := regexp.MustCompile(`(^\w+ func|\scall \d+ <(env\.)?rt_\w+>)`)
-	expVerify := regexp.MustCompile(`(^Data|\scall|\sglobal|\smemory\.grow)`)
+	var (
+		expFunc   = regexp.MustCompile(`^\w+ func\[`)
+		expCallRT = regexp.MustCompile(`\scall \d+ <(env\.)?rt_\w+>`)
+		expBad    = regexp.MustCompile(`(^Data|\scall|\sglobal|\smemory\.grow)`)
+	)
+
+	buf := bytes.NewBuffer(nil)
 
 	for _, line := range strings.Split(string(dump), "\n") {
-		if expIgnore.MatchString(line) {
-			if verbose {
-				fmt.Println("", line)
-			}
-			continue
-		}
+		switch {
+		case expFunc.MatchString(line):
+			buf.Reset()
+			fmt.Fprintln(buf, line)
 
-		if expVerify.MatchString(line) {
-			if verbose {
-				fmt.Println(line)
-			}
-			return errors.New("WebAssembly module is not a suitable library")
-		}
-	}
+		case expCallRT.MatchString(line):
+			fmt.Fprintln(buf, line)
 
-	if verbose {
-		fmt.Println()
+		case expBad.MatchString(line):
+			fmt.Fprintln(buf, line)
+			return errors.New("WebAssembly module is not a suitable library:\n\n" + buf.String())
+		}
 	}
 
 	data, err := os.ReadFile(linked)
