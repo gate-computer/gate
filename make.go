@@ -105,7 +105,6 @@ func targets() (targets Tasks) {
 			bin,
 			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
 			Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
-			Env{"GOOS": "android"}.Command(GO, "build", "-o", "/dev/null", "./..."),
 			Env{"GOOS": "darwin"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
 			Env{"GOOS": "windows"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
 			Command(GO, "build", "-o", "/dev/null", "./cmd/gate-resource"),
