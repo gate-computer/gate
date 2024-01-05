@@ -20,11 +20,8 @@ import (
 
 const initStackSize = 24
 
-func putInitStack(portable []byte, start, entry *manifest.Function) {
-	if n := len(portable); n != initStackSize {
-		panic(n)
-	}
-
+// makeInitStack synthesizes portable initial stack contents.
+func makeInitStack(start, entry *manifest.Function) []byte {
 	var (
 		startIndex uint64 = math.MaxUint64
 		entryIndex uint64 = math.MaxUint64
@@ -36,12 +33,17 @@ func putInitStack(portable []byte, start, entry *manifest.Function) {
 		entryIndex = uint64(entry.Index)
 	}
 
-	const callIndex = 0    // Virtual call site at beginning of enter routine.
-	const stackOffset = 16 // The function address are on the stack.
+	const (
+		callIndex   = 0  // Virtual call site at beginning of enter routine.
+		stackOffset = 16 // The function address are on the stack.
+	)
 
-	binary.LittleEndian.PutUint64(portable[0:], stackOffset<<32|callIndex)
-	binary.LittleEndian.PutUint64(portable[8:], startIndex)
-	binary.LittleEndian.PutUint64(portable[16:], entryIndex)
+	b := make([]byte, initStackSize)
+	binary.LittleEndian.PutUint64(b[0:], stackOffset<<32|callIndex)
+	binary.LittleEndian.PutUint64(b[8:], startIndex)
+	binary.LittleEndian.PutUint64(b[16:], entryIndex)
+
+	return b
 }
 
 // exportStack from native source buffer to portable target buffer.
@@ -208,7 +210,7 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 
 	switch call.StackOffset {
 	case 16:
-		// Stack was synthesized by putInitStack.
+		// Stack was synthesized by makeInitStack.
 		var startAddr uint32
 
 		if funcIndex := binary.LittleEndian.Uint64(buf); funcIndex != math.MaxUint64 {

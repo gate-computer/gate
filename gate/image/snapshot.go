@@ -16,6 +16,9 @@ import (
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa"
 	"gate.computer/wag/wa/opcode"
+	"import.name/pan"
+
+	. "import.name/pan/mustcheck"
 )
 
 const (
@@ -23,352 +26,348 @@ const (
 	snapshotVersion      = 0
 )
 
-func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool) (*Program, error) {
-	// Instance file.
+// Snapshot creates a new program from an instance.  The instance must not be
+// running.
+func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool) (newProg *Program, err error) {
+	err = pan.Recover(func() {
+		s := mustNewState(oldProg, inst, buffers, suspended)
+		defer s.mustClose()
+		m := mustNewModuleState(s)
+		newProg = mustSerializeState(s, m)
+	})
+	return
+}
+
+// state of an instance.
+type state struct {
+	prog    *Program
+	inst    *Instance
+	buffers snapshot.Buffers
+
+	initStack bool
+	textAddr  uint64
+
+	instMap []byte
+	stack   []byte
+	globals []byte
+	memory  []byte
+}
+
+func mustNewState(prog *Program, inst *Instance, buffers snapshot.Buffers, suspended bool) *state {
+	s := &state{
+		prog:    prog,
+		inst:    inst,
+		buffers: buffers,
+	}
+
+	// Initial values: assume that there is no stack content and mapping starts
+	// between stack and globals, at page boundary.
 	var (
-		instStackOffset   = int64(0)
-		instGlobalsOffset = instStackOffset + int64(inst.man.StackSize)
-		instMemoryOffset  = instGlobalsOffset + alignPageOffset32(inst.man.GlobalsSize)
+		fileOffset           = int64(inst.man.StackSize)
+		mapStackOffset       = -1
+		mapGlobalsPageOffset = 0
 	)
 
-	var (
-		stackUsage  int
-		stackMapLen int
-		newTextAddr uint64
-	)
 	if suspended || inst.Final() {
 		if inst.man.StackUsage != 0 {
-			stackUsage = int(inst.man.StackUsage)
-			stackMapLen = alignPageSize(stackUsage)
-			newTextAddr = inst.man.TextAddr
+			var (
+				stackUsage         = int(inst.man.StackUsage)
+				stackUsagePageSize = alignPageSize32(inst.man.StackUsage)
+			)
+
+			// Mapping starts before stack contents, at page boundary.
+			fileOffset -= int64(stackUsagePageSize)
+			mapStackOffset = stackUsagePageSize - stackUsage
+			mapGlobalsPageOffset = stackUsagePageSize
+
+			// Stack contains absolute return addresses.
+			s.textAddr = inst.man.TextAddr
 		} else if suspended {
 			// Resume at virtual call site at beginning of enter routine.
-			// Stack data is synthesized later.
-			stackUsage = initStackSize
+			s.initStack = true
 		}
 	}
 
-	// TODO: reading might be faster.  exportStack could work in-place.
-	instMapOffset := instGlobalsOffset - int64(stackMapLen)
-	instMap, err := mmap(inst.file.FD(), instMapOffset, int(instMemoryOffset-instMapOffset), syscall.PROT_READ, syscall.MAP_PRIVATE)
-	if err != nil {
-		return nil, err
-	}
-	defer mustMunmap(instMap)
-
 	var (
-		instGlobalsMapping = instMap[stackMapLen:]
-		instGlobalsData    = instGlobalsMapping[len(instGlobalsMapping)-len(oldProg.man.GlobalTypes)*8:]
-		instStackData      []byte
+		globalsPageSize  = alignPageSize32(inst.man.GlobalsSize)
+		mapGlobalsOffset = mapGlobalsPageOffset + globalsPageSize - int(inst.man.GlobalsSize)
+		mapMemoryOffset  = mapGlobalsPageOffset + globalsPageSize
+		mapSize          = mapMemoryOffset + int(inst.man.MemorySize)
 	)
-	if stackMapLen != 0 {
-		instStackData = instMap[stackMapLen-stackUsage : stackMapLen]
+
+	s.instMap = Must(mmap(inst.file.FD(), fileOffset, mapSize, syscall.PROT_READ, syscall.MAP_PRIVATE))
+
+	if mapStackOffset >= 0 {
+		s.stack = s.instMap[mapStackOffset:mapGlobalsPageOffset]
+	}
+	s.globals = s.instMap[mapGlobalsOffset:mapMemoryOffset]
+	s.memory = s.instMap[mapMemoryOffset:]
+
+	return s
+}
+
+func (s *state) mustClose() {
+	mustMunmap(s.instMap)
+}
+
+func (s *state) hasStack() bool {
+	return s.initStack || len(s.stack) > 0
+}
+
+// moduleState is a companion for state.
+type moduleState struct {
+	memory     []byte
+	global     []byte
+	snapshot   []byte
+	exportWrap []byte
+	bufferHead []byte
+	bufferSize uint32
+	stackHead  []byte
+	stackData  []byte
+	dataHead   []byte
+
+	ranges          []*manifest.ByteRange
+	rangeSnapshot   *manifest.ByteRange
+	rangeExportWrap *manifest.ByteRange
+	rangeBuffer     *manifest.ByteRange
+	rangeStack      *manifest.ByteRange
+
+	size int64
+}
+
+func mustNewModuleState(s *state) *moduleState {
+	m := &moduleState{
+		ranges: make([]*manifest.ByteRange, section.Data+1),
 	}
 
-	// New module sections.
-	oldRanges := oldProg.man.Sections
-	newRanges := make([]*manifest.ByteRange, section.Data+1)
+	// Section contents
 
-	off := int64(wasmModuleHeaderSize)
-	off = mapOldSection(off, newRanges, oldRanges, section.Type)
-	off = mapOldSection(off, newRanges, oldRanges, section.Import)
-	off = mapOldSection(off, newRanges, oldRanges, section.Function)
-	off = mapOldSection(off, newRanges, oldRanges, section.Table)
+	m.memory = makeMemorySection(s.inst.man.MemorySize, s.prog.man.MemorySizeLimit) // TODO: check size
+	m.global = makeGlobalSection(s.prog.man.GlobalTypes, s.globals)                 // TODO: check size
+	m.snapshot = makeSnapshotSection(s.inst.man.Snapshot)
 
-	memorySection := makeMemorySection(inst.man.MemorySize, oldProg.man.MemorySizeLimit)
-	// TODO: ensure that memorySection size is within bounds
-	off = mapNewSection(off, newRanges, uint32(len(memorySection)), section.Memory)
+	exportSectionSize := s.prog.man.Sections[section.Export].GetSize()
+	if exportSectionSize > 0 && s.hasStack() {
+		m.exportWrap = makeExportSectionWrapFrame(exportSectionSize)
+	}
 
-	globalSection := makeGlobalSection(oldProg.man.GlobalTypes, instGlobalsData)
-	// TODO: ensure that globalSection size is within bounds
-	off = mapNewSection(off, newRanges, uint32(len(globalSection)), section.Global)
+	m.bufferHead, m.bufferSize = makeBufferSectionHeader(s.buffers)
 
-	snapshotSection := makeSnapshotSection(inst.man.Snapshot)
-	snapshotSectionOffset := off
-	off += int64(len(snapshotSection))
-
-	var (
-		exportSectionWrap      *manifest.ByteRange
-		exportSectionWrapFrame []byte
-	)
-	if suspended || inst.Final() {
-		if oldRanges[section.Export].Size != 0 {
-			if oldSize := oldProg.man.ExportSectionWrap.GetSize(); oldSize != 0 {
-				exportSectionWrap = &manifest.ByteRange{
-					Start: off,
-					Size:  oldSize,
-				}
-			} else {
-				exportSectionWrapFrame = makeExportSectionWrapFrame(oldRanges[section.Export].Size)
-				exportSectionWrap = &manifest.ByteRange{
-					Start: off,
-					Size:  uint32(len(exportSectionWrapFrame)) + oldRanges[section.Export].Size,
-				}
-			}
-			off += int64(exportSectionWrap.Size)
-			newRanges[section.Export] = &manifest.ByteRange{
-				Start: off - int64(oldRanges[section.Export].Size),
-				Size:  oldRanges[section.Export].Size,
-			}
+	if s.hasStack() {
+		if s.initStack {
+			m.stackData = makeInitStack(s.inst.man.StartFunc, s.inst.man.EntryFunc)
+		} else {
+			m.stackData = make([]byte, len(s.stack))
+			Check(exportStack(m.stackData, s.stack, s.inst.man.TextAddr, &s.prog.Map))
 		}
-	} else {
-		off = mapOldSection(off, newRanges, oldRanges, section.Export)
+		m.stackHead = makeStackSectionHeader(len(m.stackData))
 	}
 
-	off = mapOldSection(off, newRanges, oldRanges, section.Element)
-	off = mapOldSection(off, newRanges, oldRanges, section.Code)
+	m.dataHead = makeDataSectionHeader(len(s.memory))
 
-	bufferHeader, bufferSectionSize := makeBufferSectionHeader(buffers)
-	bufferSectionOffset := off
-	off += int64(bufferSectionSize)
+	// Section sizes
 
-	var (
-		stackHeader        []byte
-		stackSectionLen    int
-		stackSectionOffset int64
-	)
-	if stackUsage != 0 {
-		stackHeader = makeStackSectionHeader(stackUsage)
-		stackSectionLen = len(stackHeader) + stackUsage
-		stackSectionOffset = off
-		off += int64(stackSectionLen)
+	for i := section.Type; i <= section.Data; i++ {
+		if i != section.Start {
+			m.ranges[i] = &manifest.ByteRange{Size: s.prog.man.Sections[i].GetSize()}
+		}
 	}
 
-	dataHeader := makeDataSectionHeader(int(inst.man.MemorySize))
-	dataSectionLen := len(dataHeader) + int(inst.man.MemorySize)
-	// TODO: check if dataSectionLen is out of bounds
-	off = mapNewSection(off, newRanges, uint32(dataSectionLen), section.Data)
-	_ = off
+	m.ranges[section.Memory].Size = uint32(len(m.memory))
+	m.ranges[section.Global].Size = uint32(len(m.global))
+	m.rangeSnapshot = &manifest.ByteRange{Size: uint32(len(m.snapshot))}
 
-	// New module size.
-	newModuleSize := oldProg.man.ModuleSize
-
-	newModuleSize -= int64(oldRanges[section.Memory].Size)
-	newModuleSize -= int64(oldRanges[section.Global].Size)
-	newModuleSize -= int64(oldProg.man.SnapshotSection.GetSize())
-	newModuleSize -= int64(oldProg.man.ExportSectionWrap.GetSize())
-	if oldProg.man.ExportSectionWrap.GetSize() == 0 {
-		newModuleSize -= int64(oldRanges[section.Export].Size)
+	if wrapLen := len(m.exportWrap); wrapLen > 0 {
+		m.rangeExportWrap = &manifest.ByteRange{Size: uint32(wrapLen) + exportSectionSize}
 	}
-	newModuleSize -= int64(oldRanges[section.Start].Size)
-	newModuleSize -= int64(oldProg.man.BufferSection.GetSize())
-	newModuleSize -= int64(oldProg.man.StackSection.GetSize())
-	newModuleSize -= int64(oldRanges[section.Data].Size)
 
-	newModuleSize += int64(len(memorySection))
-	newModuleSize += int64(len(globalSection))
-	newModuleSize += int64(len(snapshotSection))
-	newModuleSize += int64(exportSectionWrap.GetSize())
-	if exportSectionWrap.GetSize() == 0 {
-		newModuleSize += int64(newRanges[section.Export].Size)
+	if len(m.bufferHead) > 0 {
+		m.rangeBuffer = &manifest.ByteRange{Size: m.bufferSize}
 	}
-	newModuleSize += int64(bufferSectionSize)
-	newModuleSize += int64(stackSectionLen)
-	newModuleSize += int64(dataSectionLen)
 
-	// New program file.
-	newFile, err := oldProg.storage.newProgramFile()
-	if err != nil {
-		return nil, err
+	if headLen := len(m.stackHead); headLen > 0 {
+		m.rangeStack = &manifest.ByteRange{Size: uint32(headLen + len(m.stackData))}
 	}
+
+	m.ranges[section.Data].Size = uint32(len(m.dataHead) + len(s.memory)) // TODO: check size
+
+	// Section offsets
+
+	offset := int64(wasmModuleHeaderSize)
+
+	for i := section.Type; i <= section.Table; i++ {
+		if size := m.ranges[i].GetSize(); size > 0 {
+			m.ranges[i].Start = offset
+			offset += int64(size)
+		}
+	}
+
+	m.ranges[section.Memory].Start = offset
+	offset += int64(m.ranges[section.Memory].Size)
+
+	if size := m.ranges[section.Global].GetSize(); size > 0 {
+		m.ranges[section.Global].Start = offset
+		offset += int64(size)
+	}
+
+	m.rangeSnapshot.Start = offset
+	offset += int64(m.rangeSnapshot.Size)
+
+	if size := m.rangeExportWrap.GetSize(); size > 0 {
+		m.rangeExportWrap.Start = offset
+		offset += int64(len(m.exportWrap)) // Don't skip wrappee.
+	}
+	if size := m.ranges[section.Export].GetSize(); size > 0 {
+		m.ranges[section.Export].Start = offset
+		offset += int64(size)
+	}
+
+	if size := m.ranges[section.Element].GetSize(); size > 0 {
+		m.ranges[section.Element].Start = offset
+		offset += int64(size)
+	}
+
+	if size := m.ranges[section.Code].GetSize(); size > 0 {
+		m.ranges[section.Code].Start = offset
+		offset += int64(size)
+	}
+
+	if len(m.bufferHead) > 0 {
+		m.rangeBuffer.Start = offset
+		offset += int64(m.rangeBuffer.Size)
+	}
+
+	if size := m.rangeStack.GetSize(); size > 0 {
+		m.rangeStack.Start = offset
+		offset += int64(size)
+	}
+
+	m.ranges[section.Data].Start = offset
+	offset += int64(m.ranges[section.Data].Size)
+
+	// Module size
+
+	m.size = offset + (s.prog.man.ModuleSize - s.prog.man.SectionsEnd())
+	return m
+}
+
+func mustSerializeState(s *state, m *moduleState) *Program {
+	prog := &Program{
+		Map:     s.prog.Map,
+		storage: s.prog.storage,
+		man: &manifest.Program{
+			LibraryChecksum:         s.prog.man.LibraryChecksum,
+			TextRevision:            s.prog.man.TextRevision,
+			TextAddr:                s.textAddr,
+			TextSize:                s.prog.man.TextSize,
+			StackUsage:              uint32(len(m.stackData)),
+			GlobalsSize:             s.prog.man.GlobalsSize,
+			MemorySize:              s.inst.man.MemorySize,
+			MemorySizeLimit:         s.prog.man.MemorySizeLimit,
+			MemoryDataSize:          s.inst.man.MemorySize,
+			ModuleSize:              m.size,
+			Sections:                m.ranges,
+			SnapshotSection:         m.rangeSnapshot,
+			ExportSectionWrap:       m.rangeExportWrap,
+			BufferSection:           m.rangeBuffer,
+			BufferSectionHeaderSize: uint32(len(m.bufferHead)),
+			StackSection:            m.rangeStack,
+			GlobalTypes:             s.prog.man.GlobalTypes,
+			StartFunc:               s.prog.man.StartFunc,
+			EntryIndexes:            s.prog.man.EntryIndexes,
+			EntryAddrs:              s.prog.man.EntryAddrs,
+			CallSitesSize:           s.prog.man.CallSitesSize,
+			FuncAddrsSize:           s.prog.man.FuncAddrsSize,
+			Random:                  s.prog.man.Random,
+			Snapshot:                s.prog.man.Snapshot.Clone(),
+		},
+	}
+
+	f := Must(prog.storage.newProgramFile())
 	defer func() {
-		if newFile != nil {
-			newFile.Close()
+		if f != nil {
+			f.Close()
 		}
 	}()
 
-	// Copy module header and sections up to and including table section.
-	copyLen := int(wasmModuleHeaderSize)
-	for i := section.Table; i >= section.Type; i-- {
-		if newRanges[i].Size != 0 {
-			copyLen = int(newRanges[i].End())
-			break
+	mustWriteState(f, s)
+	mustWriteModuleState(f, s, m)
+
+	prog.file = f
+	f = nil
+	return prog
+}
+
+func mustWriteState(f *file.File, s *state) {
+	// Program text
+
+	copySize := alignPageSize32(s.prog.man.TextSize)
+	copyDest := progTextOffset
+	copyFrom := progTextOffset
+
+	Check(copyFileRange(s.prog.file, &copyFrom, f, &copyDest, copySize))
+
+	// Instance stack, globals and memory
+
+	copySize = alignPageSize32(s.inst.man.GlobalsSize) + alignPageSize32(s.inst.man.MemorySize)
+	copyDest = progGlobalsPageOffset
+	copyFrom = s.inst.globalsPageOffset()
+
+	if len(s.stack) > 0 && s.textAddr != 0 {
+		stackPageSize := alignPageSize(len(s.stack))
+		copySize += stackPageSize
+		copyDest -= int64(stackPageSize)
+		copyFrom -= int64(stackPageSize)
+	}
+
+	Check(copyFileRange(s.inst.file, &copyFrom, f, &copyDest, copySize))
+}
+
+func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
+	dest := progModuleOffset
+
+	copyFromModule := func(r *manifest.ByteRange) {
+		if r.GetSize() > 0 {
+			from := progModuleOffset + r.Start
+			Check(copyFileRange(s.prog.file, &from, f, &dest, int(r.Size)))
 		}
 	}
 
-	newOff := progModuleOffset
-	oldOff := progModuleOffset
-	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen); err != nil {
-		return nil, err
+	copyFromModule(&manifest.ByteRange{Start: 0, Size: wasmModuleHeaderSize})
+
+	for i := section.Type; i <= section.Table; i++ {
+		copyFromModule(s.prog.man.Sections[i])
 	}
 
-	// Write new memory and global section, and skip old ones.
-	n, err := newFile.WriteAt(append(memorySection, globalSection...), newOff)
-	if err != nil {
-		return nil, err
-	}
-	newOff += int64(n)
-	oldOff += int64(oldRanges[section.Memory].Size) + int64(oldRanges[section.Global].Size)
+	dest += int64(Must(f.WriteAt(m.memory, dest)))
+	dest += int64(Must(f.WriteAt(m.global, dest)))
+	dest += int64(Must(f.WriteAt(m.snapshot, dest)))
 
-	// Write new snapshot section, and skip old one.
-	n, err = newFile.WriteAt(snapshotSection, newOff)
-	if err != nil {
-		return nil, err
-	}
-	newOff += int64(n)
-	oldOff += int64(oldProg.man.SnapshotSection.GetSize())
-
-	// Copy export section, possibly writing or skipping wrapper.
-	copyLen = int(oldRanges[section.Export].Size)
-	if exportSectionWrap.GetSize() != 0 {
-		if oldSize := oldProg.man.ExportSectionWrap.GetSize(); oldSize != 0 {
-			copyLen = int(oldSize)
-		} else {
-			n, err = newFile.WriteAt(exportSectionWrapFrame, newOff)
-			if err != nil {
-				return nil, err
-			}
-			newOff += int64(n)
-		}
-	} else {
-		if oldSize := oldProg.man.ExportSectionWrap.GetSize(); oldSize != 0 {
-			oldOff += int64(oldSize) - int64(oldRanges[section.Export].Size)
-		}
-	}
-	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen); err != nil {
-		return nil, err
+	if len(m.exportWrap) > 0 {
+		dest += int64(Must(f.WriteAt(m.exportWrap, dest)))
 	}
 
-	// Skip start section.
-	oldOff += int64(oldRanges[section.Start].Size)
-
-	// Copy element and code sections.
-	copyLen = int(oldRanges[section.Element].Size) + int(oldRanges[section.Code].Size)
-	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen); err != nil {
-		return nil, err
+	for i := section.Export; i <= section.Code; i++ {
+		copyFromModule(s.prog.man.Sections[i])
 	}
 
-	// Write new buffer section, and skip old one.
-	if bufferSectionSize > 0 {
-		n, err = newFile.WriteAt(bufferHeader, newOff)
-		if err != nil {
-			return nil, err
-		}
-		newOff += int64(n)
-
-		n, err = writeBufferSectionDataAt(newFile, buffers, newOff)
-		if err != nil {
-			return nil, err
-		}
-		newOff += int64(n)
-	}
-	oldOff += int64(oldProg.man.BufferSection.GetSize())
-
-	// Write new stack section, and skip old one.
-	if stackSectionLen > 0 {
-		newStackSection := make([]byte, stackSectionLen)
-		copy(newStackSection, stackHeader)
-
-		newStack := newStackSection[len(stackHeader):]
-
-		if instStackData != nil {
-			if err := exportStack(newStack, instStackData, inst.man.TextAddr, &oldProg.Map); err != nil {
-				return nil, err
-			}
-		} else {
-			putInitStack(newStack, inst.man.StartFunc, inst.man.EntryFunc)
-		}
-
-		n, err = newFile.WriteAt(newStackSection, newOff)
-		if err != nil {
-			return nil, err
-		}
-		newOff += int64(n)
-	}
-	oldOff += int64(oldProg.man.StackSection.GetSize())
-
-	// Copy new data section from instance, and skip old one.
-	n, err = newFile.WriteAt(dataHeader, newOff)
-	if err != nil {
-		return nil, err
-	}
-	newOff += int64(n)
-
-	instOff := instMemoryOffset
-	if err := copyFileRange(inst.file, &instOff, newFile, &newOff, int(inst.man.MemorySize)); err != nil {
-		return nil, err
-	}
-	oldOff += int64(oldRanges[section.Data].Size)
-
-	// Copy remaining (custom) sections.
-	copyLen = int(oldProg.man.ModuleSize - (oldOff - progModuleOffset))
-	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, copyLen); err != nil {
-		return nil, err
+	if len(m.bufferHead) > 0 {
+		dest += int64(Must(f.WriteAt(m.bufferHead, dest)))
+		dest += int64(Must(writeBufferSectionDataAt(f, s.buffers, dest)))
 	}
 
-	// Copy object map from program.
-	newOff = align8(newOff)
-	oldOff = align8(oldOff)
-	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, int(oldProg.man.CallSitesSize)+int(oldProg.man.FuncAddrsSize)); err != nil {
-		return nil, err
+	if len(m.stackHead) > 0 {
+		dest += int64(Must(f.WriteAt(m.stackHead, dest)))
+		dest += int64(Must(f.WriteAt(m.stackData, dest)))
 	}
 
-	// Copy text from program.
-	newOff = progTextOffset
-	oldOff = progTextOffset
-	if err := copyFileRange(oldProg.file, &oldOff, newFile, &newOff, alignPageSize32(oldProg.man.TextSize)); err != nil {
-		return nil, err
-	}
+	dest += int64(Must(f.WriteAt(m.dataHead, dest)))
+	from := s.inst.memoryOffset()
+	Check(copyFileRange(s.inst.file, &from, f, &dest, len(s.memory)))
 
-	// Copy stack from instance (again).
-	if instStackData != nil {
-		copyLen := alignPageSize(stackUsage)
-		newOff = progGlobalsOffset - int64(copyLen)
-		instOff := instGlobalsOffset - int64(copyLen)
-		if err := copyFileRange(inst.file, &instOff, newFile, &newOff, copyLen); err != nil {
-			return nil, err
-		}
-	}
-
-	// Copy globals and memory from instance (again).
-	newOff = progGlobalsOffset
-	instOff = instGlobalsOffset
-	if err := copyFileRange(inst.file, &instOff, newFile, &newOff, alignPageSize32(inst.man.GlobalsSize)+int(inst.man.MemorySize)); err != nil {
-		return nil, err
-	}
-
-	newProg := &Program{
-		Map:     oldProg.Map,
-		storage: oldProg.storage,
-		man: &manifest.Program{
-			LibraryChecksum: oldProg.man.LibraryChecksum,
-			TextRevision:    oldProg.man.TextRevision,
-			TextAddr:        newTextAddr,
-			TextSize:        oldProg.man.TextSize,
-			StackUsage:      uint32(stackUsage),
-			GlobalsSize:     oldProg.man.GlobalsSize,
-			MemorySize:      inst.man.MemorySize,
-			MemorySizeLimit: oldProg.man.MemorySizeLimit,
-			MemoryDataSize:  inst.man.MemorySize,
-			ModuleSize:      newModuleSize,
-			Sections:        newRanges,
-			SnapshotSection: &manifest.ByteRange{
-				Start: snapshotSectionOffset,
-				Size:  uint32(len(snapshotSection)),
-			},
-			ExportSectionWrap: exportSectionWrap,
-			BufferSection: &manifest.ByteRange{
-				Start: bufferSectionOffset,
-				Size:  bufferSectionSize,
-			},
-			BufferSectionHeaderSize: uint32(len(bufferHeader)),
-			StackSection: &manifest.ByteRange{
-				Start: stackSectionOffset,
-				Size:  uint32(stackSectionLen),
-			},
-			GlobalTypes:   oldProg.man.GlobalTypes,
-			StartFunc:     oldProg.man.StartFunc,
-			EntryIndexes:  oldProg.man.EntryIndexes,
-			EntryAddrs:    oldProg.man.EntryAddrs,
-			CallSitesSize: oldProg.man.CallSitesSize,
-			FuncAddrsSize: oldProg.man.FuncAddrsSize,
-			Random:        oldProg.man.Random,
-			Snapshot:      oldProg.man.Snapshot.Clone(),
-		},
-		file: newFile,
-	}
-	newFile = nil
-	return newProg, nil
+	// Trailing custom sections
+	from = s.prog.man.SectionsEnd()
+	copyFromModule(&manifest.ByteRange{Start: from, Size: uint32(s.prog.man.ModuleSize - from)})
 }
 
 func makeMemorySection(memorySize uint32, memorySizeLimit int64) []byte {
@@ -670,27 +669,6 @@ func putVaruint32Before(dest []byte, offset int, x uint32) int {
 	n := binary.PutUvarint(temp[:], uint64(x))
 	copy(dest[offset-n:], temp[:n])
 	return n
-}
-
-func mapOldSection(offset int64, dest, src []*manifest.ByteRange, i section.ID) int64 {
-	if src[i].Size != 0 {
-		dest[i] = &manifest.ByteRange{
-			Start: offset,
-			Size:  src[i].Size,
-		}
-		offset += int64(src[i].Size)
-	}
-	return offset
-}
-
-func mapNewSection(offset int64, dest []*manifest.ByteRange, size uint32, i section.ID) int64 {
-	if size != 0 {
-		dest[i] = &manifest.ByteRange{
-			Start: offset,
-			Size:  size,
-		}
-	}
-	return offset + int64(size)
 }
 
 func putVarint(dest []byte, x int64) (n int) {

@@ -29,6 +29,7 @@ import (
 var ErrInvalidState = errors.New("instance state is invalid")
 
 const (
+	instStackOffset    = int64(0)
 	instManifestOffset = int64(0x180000000)
 	instMaxOffset      = int64(0x200000000)
 )
@@ -107,7 +108,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int)
 		stackMapSize   = alignPageSize(instStackUsage)
 		globalsMapSize = alignPageSize32(prog.man.GlobalsSize)
 		memoryMapSize  = alignPageSize32(prog.man.MemoryDataSize)
-		off1           = progGlobalsOffset - int64(stackMapSize)
+		off1           = progGlobalsPageOffset - int64(stackMapSize)
 		off2           = int64(instStackSize - stackMapSize)
 		copyLen        = stackMapSize + globalsMapSize + memoryMapSize
 	)
@@ -223,6 +224,14 @@ func (inst *Instance) Final() bool           { return inst.Flags().Final() }
 func (inst *Instance) Trap() trap.ID         { return trap.ID(inst.man.Snapshot.GetTrap()) }
 func (inst *Instance) Result() int32         { return inst.man.Snapshot.GetResult() }
 func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.GetMonotonicTime() }
+
+func (inst *Instance) globalsPageOffset() int64 {
+	return instStackOffset + int64(inst.man.StackSize)
+}
+
+func (inst *Instance) memoryOffset() int64 {
+	return inst.globalsPageOffset() + alignPageOffset32(inst.man.GlobalsSize)
+}
 
 // Breakpoints are in ascending order and unique.
 func (inst *Instance) Breakpoints() []uint64 {

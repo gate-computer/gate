@@ -27,12 +27,12 @@ import (
 const TextRevision = 0
 
 const (
-	progTextOffset     = int64(0x000000000)
-	_                  = int64(0x080000000) // Stack space; aligned against globals.
-	progGlobalsOffset  = int64(0x100000000) // Globals and memory in consecutive pages.
-	progModuleOffset   = int64(0x200000000) // Module and object map packed with minimal alignment.
-	progManifestOffset = int64(0x400000000)
-	progMaxOffset      = int64(0x480000000)
+	progTextOffset        = int64(0x000000000)
+	_                     = int64(0x080000000) // Stack space; aligned against globals.
+	progGlobalsPageOffset = int64(0x100000000) // Globals and memory in consecutive pages.
+	progModuleOffset      = int64(0x200000000) // Module and object map packed with minimal alignment.
+	progManifestOffset    = int64(0x400000000)
+	progMaxOffset         = int64(0x480000000)
 )
 
 type programBuild struct {
@@ -160,7 +160,7 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) e
 
 	if !b.inst.enabled {
 		// Program stack, globals and memory contents.
-		err := mmapp(&b.compileMem, b.prog.file, progGlobalsOffset-int64(stackMapSize), mapSize)
+		err := mmapp(&b.compileMem, b.prog.file, progGlobalsPageOffset-int64(stackMapSize), mapSize)
 		if err != nil {
 			return err
 		}
@@ -254,7 +254,7 @@ func (b *Build) FinishProgram(sectionMap SectionMap, mod compile.Module, startFu
 		var (
 			stackMapSize = alignPageSize(b.stackUsage)
 			off1         = int64(b.inst.stackSize - stackMapSize)
-			off2         = progGlobalsOffset - int64(stackMapSize)
+			off2         = progGlobalsPageOffset - int64(stackMapSize)
 			copyLen      = stackMapSize + alignPageSize(b.data.Len())
 		)
 

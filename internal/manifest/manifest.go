@@ -7,7 +7,10 @@ package manifest
 import (
 	"gate.computer/wag/binding"
 	"gate.computer/wag/compile"
+	"gate.computer/wag/section"
 )
+
+const wasmModuleHeaderLen = 8
 
 const (
 	MaxSize        = 4096 // Including header.
@@ -57,6 +60,32 @@ func (man *Program) EntryFunc(entryIndex int) *Function {
 		Index: uint32(entryIndex),
 		Addr:  addr,
 	}
+}
+
+// SectionsEnd returns the end offset of last standard or Gate section.
+func (man *Program) SectionsEnd() int64 {
+	end := int64(wasmModuleHeaderLen)
+
+	for i := section.Type; i <= section.Data; i++ {
+		if man.Sections[i].GetSize() > 0 {
+			end = max(end, man.Sections[i].GetEnd())
+		}
+	}
+
+	if man.SnapshotSection.GetSize() > 0 {
+		end = max(end, man.SnapshotSection.GetEnd())
+	}
+	if man.ExportSectionWrap.GetSize() > 0 {
+		end = max(end, man.ExportSectionWrap.GetEnd())
+	}
+	if man.BufferSection.GetSize() > 0 {
+		end = max(end, man.BufferSection.GetEnd())
+	}
+	if man.StackSection.GetSize() > 0 {
+		end = max(end, man.StackSection.GetEnd())
+	}
+
+	return end
 }
 
 func InflateSnapshot(s **Snapshot) *Snapshot {
