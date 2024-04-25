@@ -47,6 +47,7 @@ require (
 	github.com/containerd/typeurl/v2 v2.1.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
+	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker v26.1.0+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
@@ -75,6 +76,7 @@ require (
 	github.com/knightsc/gapstone v0.0.0-20211014144438-5e0e64002a6e // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/moby/buildkit v0.11.6 // indirect
+	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/locker v1.0.1 // indirect
 	github.com/moby/sys/mountinfo v0.6.2 // indirect
 	github.com/moby/sys/sequential v0.5.0 // indirect
