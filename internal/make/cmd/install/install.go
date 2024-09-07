@@ -14,7 +14,7 @@ import (
 
 func main() { Main(targets, "") }
 
-// These are set via -ldflags by main.go.
+// These are set via -ldflags by make.go.
 var (
 	PREFIX     string
 	LIBEXECDIR string
