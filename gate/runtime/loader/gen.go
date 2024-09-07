@@ -58,10 +58,10 @@ var (
 
 	// Local registers are preserved across syscalls and library calls,
 	// but may be clobbered by some macros.
-	local0 = ga.Reg{AMD64: ga.RBP, ARM64: ga.X11, Use: "local0"}
-	local1 = ga.Reg{AMD64: ga.R12, ARM64: ga.X12, Use: "local1"}
-	local2 = ga.Reg{AMD64: ga.R13, ARM64: ga.X13, Use: "local2"}
-	local3 = ga.Reg{AMD64: ga.R14, ARM64: ga.X14, Use: "local3"}
+	local0 = ga.Reg{AMD64: ga.RBP, ARM64: ga.X19, Use: "local0"}
+	local1 = ga.Reg{AMD64: ga.R12, ARM64: ga.X20, Use: "local1"}
+	local2 = ga.Reg{AMD64: ga.R13, ARM64: ga.X21, Use: "local2"}
+	local3 = ga.Reg{AMD64: ga.R14, ARM64: ga.X22, Use: "local3"}
 
 	// Scratch registers may be clobbered by syscalls, library calls and
 	// some macros.
