@@ -25,7 +25,7 @@ var testNamespaceConfig = container.NamespaceConfig{
 
 func TestContainerPrivileged(t *testing.T) {
 	if os.Getenv("GATE_TEST_PRIVILEGED") == "" {
-		t.SkipNow()
+		t.Skip("skipping privileged container test")
 	}
 
 	var ns container.NamespaceConfig
@@ -37,6 +37,10 @@ func TestContainerPrivileged(t *testing.T) {
 }
 
 func TestContainerNewuidmap(t *testing.T) {
+	if os.Getenv("GATE_TEST_CONTAINER") == "" {
+		t.Skip("skipping newuidmap container test")
+	}
+
 	ns := testNamespaceConfig
 	creds, err := internal.ParseCreds(&ns)
 	if err != nil {
@@ -46,6 +50,10 @@ func TestContainerNewuidmap(t *testing.T) {
 }
 
 func TestContainerSingleUID(t *testing.T) {
+	if os.Getenv("GATE_TEST_CONTAINER") == "" {
+		t.Skip("skipping single-uid container test")
+	}
+
 	testContainer(t, container.NamespaceConfig{SingleUID: true}, nil)
 }
 
