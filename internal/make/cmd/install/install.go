@@ -25,6 +25,7 @@ func targets() (targets Tasks) {
 		DESTDIR  = Getvar("DESTDIR", "")
 		BINDIR   = Getvar("BINDIR", Join(PREFIX, "bin"))
 		SHAREDIR = Getvar("SHAREDIR", Join(PREFIX, "share"))
+		ETCDIR   = Getvar("ETCDIR", "/etc")
 	)
 
 	lib := targets.Add(TargetDefault("lib",
@@ -49,11 +50,16 @@ func targets() (targets Tasks) {
 		)),
 
 		targets.Add(Target("systemd",
-			installRewriteTask(DESTDIR, SHAREDIR, BINDIR, "systemd/user/gate.service"),
+			installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "systemd/system/gate-server.service"),
+			installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "systemd/user/gate-daemon.service"),
 
 			targets.Add(Target("dbus",
-				installRewriteTask(DESTDIR, SHAREDIR, BINDIR, "dbus-1/services/computer.gate.Daemon.service"),
+				installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "dbus-1/services/computer.gate.Daemon.service"),
 			)),
+		)),
+
+		targets.Add(Target("apparmor",
+			installRewriteTask(DESTDIR, BINDIR, ETCDIR, "etc", "apparmor.d/gate-daemon"),
 		)),
 	))
 
@@ -70,15 +76,15 @@ func installBinTask(DESTDIR, BINDIR, name string) Task {
 	}
 }
 
-func installRewriteTask(DESTDIR, SHAREDIR, BINDIR, filename string) Task {
+func installRewriteTask(DESTDIR, BINDIR, targetdir, sourcedir, filename string) Task {
 	return Func(func() error {
-		b, err := os.ReadFile(Join("share", filename))
+		b, err := os.ReadFile(Join(sourcedir, filename))
 		if err != nil {
 			return err
 		}
 
 		b = bytes.ReplaceAll(b, []byte("/usr/local/bin"), []byte(BINDIR))
 
-		return InstallData(DESTDIR+Join(SHAREDIR, filename), bytes.NewReader(b), false)
+		return InstallData(DESTDIR+Join(targetdir, filename), bytes.NewReader(b), false)
 	})
 }

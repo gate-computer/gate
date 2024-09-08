@@ -1,0 +1,7 @@
+[Unit]
+Description=Gate daemon
+
+[Service]
+Type=dbus
+BusName=computer.gate.Daemon
+ExecStart=/usr/local/bin/gate-daemon -o runtime.container.cgroup.executor=gate-executor.scope
