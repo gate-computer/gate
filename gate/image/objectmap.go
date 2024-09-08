@@ -5,7 +5,6 @@
 package image
 
 import (
-	"reflect"
 	"unsafe"
 
 	"gate.computer/internal/file"
@@ -23,13 +22,7 @@ func callSitesBytes(m *object.CallMap) []byte {
 	if size == 0 {
 		return nil
 	}
-
-	b := make([]byte, 0)
-	h := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	h.Len = size
-	h.Cap = size
-	h.Data = uintptr(unsafe.Pointer(&m.CallSites[0]))
-	return b
+	return unsafe.Slice((*byte)(unsafe.Pointer(&m.CallSites[0])), size)
 }
 
 func funcAddrsSize(m *object.CallMap) int {
@@ -41,13 +34,7 @@ func funcAddrsBytes(m *object.CallMap) []byte {
 	if size == 0 {
 		return nil
 	}
-
-	b := make([]byte, 0)
-	h := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	h.Len = size
-	h.Cap = size
-	h.Data = uintptr(unsafe.Pointer(&m.FuncAddrs[0]))
-	return b
+	return unsafe.Slice((*byte)(unsafe.Pointer(&m.FuncAddrs[0])), size)
 }
 
 func copyObjectMapTo(b []byte, m *object.CallMap) {

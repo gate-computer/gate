@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
-	"reflect"
 	"syscall"
 	"unsafe"
 
@@ -414,13 +413,7 @@ func globalTypeBytes(array []wa.GlobalType) []byte {
 	if len(array) == 0 {
 		return nil
 	}
-
-	b := make([]byte, 0)
-	h := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-	h.Len = len(array)
-	h.Cap = cap(array)
-	h.Data = uintptr(unsafe.Pointer(&array[0]))
-	return b
+	return unsafe.Slice((*byte)(unsafe.Pointer(&array[0])), len(array))
 }
 
 func generateRandTextAddr() (uint64, error) {
