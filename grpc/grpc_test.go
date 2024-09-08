@@ -69,7 +69,7 @@ func testDial(t *testing.T, parallel, restore, suspend bool) {
 	var c *client.Conn
 	for i := 0; i < 100; i++ {
 		time.Sleep(time.Millisecond * 10)
-		c, err = client.DialContext(ctx, "unix:"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		c, err = client.NewClient(ctx, "unix:"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err == nil {
 			break
 		}

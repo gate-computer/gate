@@ -85,7 +85,7 @@ func (conf *Config) Init(ctx context.Context) error {
 			}
 		}
 
-		c, err := client.DialContext(ctx, args[0], opts...)
+		c, err := client.NewClient(ctx, args[0], opts...)
 		if err != nil {
 			if optional {
 				log.Print(err)

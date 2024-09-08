@@ -107,9 +107,9 @@ func New(ctx context.Context, conn *grpc.ClientConn) (*Conn, error) {
 	return c, nil
 }
 
-// DialContext connects to a gRPC server.
-func DialContext(ctx context.Context, target string, opts ...grpc.DialOption) (*Conn, error) {
-	conn, err := grpc.DialContext(ctx, target, opts...)
+// NewClient connection to a gRPC server.
+func NewClient(ctx context.Context, target string, opts ...grpc.DialOption) (*Conn, error) {
+	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		return nil, err
 	}

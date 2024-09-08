@@ -62,7 +62,7 @@ func Execute(ctx context.Context, path string, args []string) (*Conn, error) {
 		}
 	}()
 
-	conn, err := client.DialContext(ctx, "socket", grpc.WithContextDialer(dialerFor(sock2)), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := client.NewClient(ctx, "0.0.0.0", grpc.WithContextDialer(dialerFor(sock2)), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
