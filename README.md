@@ -155,7 +155,7 @@ The Gate programs can be built normally using the Go toolchain:
 	go install gate.computer/cmd/gate-runtime@latest
 	go install gate.computer/cmd/gate-server@latest
 
-Go 1.18 is required.
+Go 1.20 is required.
 
 Gate runtime needs to execute some separately built binaries.  To make the
 built Go programs self-contained, pre-built binaries are bundled into them by
