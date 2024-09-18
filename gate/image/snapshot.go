@@ -124,7 +124,7 @@ type moduleState struct {
 	bufferSize uint32
 	stackHead  []byte
 	stackData  []byte
-	dataHead   []byte
+	data       []byte
 
 	ranges          []*manifest.ByteRange
 	rangeSnapshot   *manifest.ByteRange
@@ -163,7 +163,7 @@ func mustNewModuleState(s *state) *moduleState {
 		m.stackHead = makeStackSectionHeader(len(m.stackData))
 	}
 
-	m.dataHead = makeDataSectionHeader(len(s.memory))
+	m.data = mustMakeDataSection(s.inst.file, s.inst.memoryOffset(), s.memory)
 
 	// Section sizes
 
@@ -189,7 +189,7 @@ func mustNewModuleState(s *state) *moduleState {
 		m.rangeStack = &manifest.ByteRange{Size: uint32(headLen + len(m.stackData))}
 	}
 
-	m.ranges[section.Data].Size = uint32(len(m.dataHead) + len(s.memory)) // TODO: check size
+	m.ranges[section.Data].Size = uint32(len(m.data)) // TODO: check size
 
 	// Section offsets
 
@@ -361,12 +361,10 @@ func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
 		dest += int64(Must(f.WriteAt(m.stackData, dest)))
 	}
 
-	dest += int64(Must(f.WriteAt(m.dataHead, dest)))
-	from := s.inst.memoryOffset()
-	Check(copyFileRange(s.inst.file, &from, f, &dest, len(s.memory)))
+	dest += int64(Must(f.WriteAt(m.data, dest)))
 
 	// Trailing custom sections
-	from = s.prog.man.SectionsEnd()
+	from := s.prog.man.SectionsEnd()
 	copyFromModule(&manifest.ByteRange{Start: from, Size: uint32(s.prog.man.ModuleSize - from)})
 }
 
@@ -624,34 +622,6 @@ func makeStackSectionHeader(stackSize int) []byte {
 	copy(buf[1+payloadSizeLen+1:], wasm.SectionStack)
 
 	return buf[:1+payloadSizeLen+1+len(wasm.SectionStack)]
-}
-
-func makeDataSectionHeader(memorySize int) []byte {
-	const (
-		// Section id, payload size.
-		maxSectionFrameSize = 1 + binary.MaxVarintLen32
-
-		// Count, memory index, init expression, size.
-		maxSegmentHeaderSize = 1 + 1 + 3 + binary.MaxVarintLen32
-	)
-
-	buf := make([]byte, maxSectionFrameSize+maxSegmentHeaderSize)
-
-	segment := buf[maxSectionFrameSize:]
-	segment[0] = 1 // Count
-	segment[1] = 0 // Memory index
-	segment[2] = byte(opcode.I32Const)
-	segment[3] = 0 // Offset
-	segment[4] = byte(opcode.End)
-	segmentHeaderLen := 5 + binary.PutUvarint(segment[5:], uint64(memorySize))
-
-	payloadLen := segmentHeaderLen + memorySize
-	// TODO: check if payloadLen is out of bounds
-
-	payloadSizeLen := putVaruint32Before(buf, maxSectionFrameSize, uint32(payloadLen))
-	buf[maxSectionFrameSize-payloadSizeLen-1] = byte(section.Data)
-
-	return buf[maxSectionFrameSize-payloadSizeLen-1 : maxSectionFrameSize+segmentHeaderLen]
 }
 
 func putByte(dest []byte, x byte) (tail []byte) {
