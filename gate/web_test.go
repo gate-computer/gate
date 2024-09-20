@@ -949,9 +949,7 @@ func TestResumeSnapshot(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 		id := resp.Header.Get(api.HeaderInstance)
 
-		if testing.Verbose() {
-			time.Sleep(time.Second * 3)
-		}
+		time.Sleep(time.Second * 3)
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+id+"?action=kill&action=wait", nil)
 		resp, _ = checkResponse(t, handler, req, http.StatusNoContent)
@@ -1147,9 +1145,7 @@ func TestInstanceSuspend(t *testing.T) {
 		instID = resp.Header.Get(api.HeaderInstance)
 	}
 
-	if testing.Verbose() {
-		time.Sleep(time.Second / 3)
-	}
+	time.Sleep(time.Second / 3)
 
 	t.Run("Suspend", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=suspend", nil)
@@ -1210,17 +1206,13 @@ func TestInstanceSuspend(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=resume&log=*", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
 
-		if testing.Verbose() {
-			time.Sleep(time.Second / 3)
-		}
+		time.Sleep(time.Second / 3)
 
 		checkInstanceStatus(t, handler, pri, instID, api.Status{
 			State: api.StateRunning,
 		})
 
-		if testing.Verbose() {
-			time.Sleep(time.Second / 3)
-		}
+		time.Sleep(time.Second / 3)
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+instID+"?action=suspend", nil)
 		checkResponse(t, handler, req, http.StatusNoContent)
@@ -1241,9 +1233,7 @@ func TestInstanceSuspend(t *testing.T) {
 		resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
 		restoredID := resp.Header.Get(api.HeaderInstance)
 
-		if testing.Verbose() {
-			time.Sleep(time.Second / 3)
-		}
+		time.Sleep(time.Second / 3)
 
 		req = newSignedRequest(pri, http.MethodPost, api.PathInstances+restoredID+"?action=suspend", nil)
 		checkResponse(t, handler2, req, http.StatusNoContent)
