@@ -26,6 +26,15 @@ import (
 
 func main() { Main(targets, "make.go", "buf.gen.yaml") }
 
+var goPackages = []string{
+	"./cmd/...",
+	"./gate/...",
+	"./grpc/...",
+	"./internal/...",
+	"./localhost/...",
+	"./shell/...",
+}
+
 func targets() (targets Tasks) {
 	var (
 		O = Getvar("O", "")
@@ -98,13 +107,13 @@ func targets() (targets Tasks) {
 		)
 		targets.Add(Target("check",
 			sources,
-			Command(GO, "vet", "./cmd/...", "./gate/...", "./grpc/...", "./internal/...", "./localhost/...", "./shell/..."),
+			Command(GO, "vet", goPackages),
 			lib,
 			goTestBinaries,
 			goTestTask(GO, TAGS),
 			bin,
-			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
-			Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", "./..."),
+			Env{"GOARCH": "amd64"}.Command(GO, "build", "-o", "/dev/null", goPackages),
+			Env{"GOARCH": "arm64"}.Command(GO, "build", "-o", "/dev/null", goPackages),
 			Env{"GOOS": "darwin"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
 			Env{"GOOS": "windows"}.Command(GO, "build", "-o", "/dev/null", "./cmd/gate"),
 			Command(GO, "build", "-o", "/dev/null", "./cmd/gate-resource"),
@@ -120,7 +129,7 @@ func targets() (targets Tasks) {
 			targets.Add(Target("prebuild",
 				prebuild,
 				goTestBinaries,
-				Command(GO, "test", "-count=1", "./..."), // No gateexecdir tag.
+				Command(GO, "test", "-count=1", goPackages), // No gateexecdir tag.
 			))
 
 			targets.Add(Target("generate",
@@ -504,7 +513,7 @@ func goTestTask(GO, TAGS string) Task {
 		Fields(TESTFLAGS),
 	)
 
-	return Command(GO, "test", testflags, "./...")
+	return Command(GO, "test", testflags, goPackages)
 }
 
 func benchmarkTask(O, GO, TAGS string) Task {
@@ -517,7 +526,7 @@ func benchmarkTask(O, GO, TAGS string) Task {
 			"-bench="+BENCH,
 			"-tags="+TAGS,
 		)
-		benchcmd = Wrap(PERFLOCK, GO, "test", "-run=-", benchflags, "./...")
+		benchcmd = Wrap(PERFLOCK, GO, "test", "-run=-", benchflags, goPackages)
 
 		BENCHSTATSNEW = Getvar("BENCHSTATSNEW", Join(O, "bench-new.txt"))
 		BENCHSTATSOLD = Getvar("BENCHSTATSOLD", Join(O, "bench-old.txt"))
