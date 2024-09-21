@@ -180,6 +180,8 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 			"-Wall",
 			"-Wextra",
 			"-Wimplicit-fallthrough",
+			"-Wno-missing-field-initializers",
+			"-Wno-vla-cxx-extension",
 			"-Wl,--allow-undefined",
 			"-Wl,--no-entry",
 			"-fno-builtin",
@@ -187,7 +189,7 @@ func testdataTask(CCACHE, WASMCXX string) Task {
 			"-fno-inline",
 			"-g",
 			"-nostdlib",
-			"-std=c++2a",
+			"-std=c++20",
 		)
 	)
 
