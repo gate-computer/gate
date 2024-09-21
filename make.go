@@ -98,7 +98,7 @@ func targets() (targets Tasks) {
 		)
 		targets.Add(Target("check",
 			sources,
-			Command(GO, "vet", "./..."),
+			Command(GO, "vet", "./cmd/...", "./gate/...", "./grpc/...", "./internal/...", "./localhost/...", "./shell/..."),
 			lib,
 			goTestBinaries,
 			goTestTask(GO, TAGS),
