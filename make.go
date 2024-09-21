@@ -70,11 +70,11 @@ func targets() (targets Tasks) {
 
 	executor := targets.Add(Target("executor",
 		sources,
-		executorTask(Join(O, "lib/gate"), CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		executorTask(Join(O, "lib", ARCH, "gate"), CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	loader := targets.Add(Target("loader",
 		sources,
-		loaderTask(Join(O, "lib/gate"), Join(O, "obj"), ARCH, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		loaderTask(Join(O, "lib", ARCH, "gate"), Join(O, "obj", ARCH), ARCH, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	lib := targets.Add(TargetDefault("lib",
 		executor,
@@ -94,7 +94,7 @@ func targets() (targets Tasks) {
 
 		goTestBinaries := Group(
 			sources,
-			Command(GO, "build", "-o", Join(O, "lib/test-grpc-service"), "./internal/test/grpc-service"),
+			Command(GO, "build", "-o", Join(O, "lib", ARCH, "test-grpc-service"), "./internal/test/grpc-service"),
 		)
 		targets.Add(Target("check",
 			sources,
@@ -437,13 +437,13 @@ func loaderInspectTask(O, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 			Fields(LDFLAGS),
 		)
 
-		rt    = Join(O, "obj/gate/runtime/loader", GOARCH, "rt.o")
-		start = Join(O, "obj/gate/runtime/loader", GOARCH, "start.o")
+		rt    = Join(O, "obj", GOARCH, "gate/runtime/loader", GOARCH, "rt.o")
+		start = Join(O, "obj", GOARCH, "gate/runtime/loader", GOARCH, "start.o")
 	)
 
 	inspection := func(run func(src, bin string) error, source, lib string, flags ...string) Task {
-		object := Join(O, "obj", ReplaceSuffix(source, ".o"))
-		binary := Join(O, "lib", Base(ReplaceSuffix(source, "")))
+		object := Join(O, "obj", GOARCH, ReplaceSuffix(source, ".o"))
+		binary := Join(O, "lib", GOARCH, Base(ReplaceSuffix(source, "")))
 
 		return Group(
 			If(Outdated(binary, Flattener(lib, deps)),
@@ -583,7 +583,7 @@ func prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 			cxx       = toolchain + "c++"
 			objcopy   = toolchain + "objcopy"
 			strip     = toolchain + "strip"
-			objdir    = Join(O, "obj/prebuild", arch)
+			objdir    = Join(O, "obj", arch, "prebuild")
 		)
 
 		packTask := func(name, fullname string) Task {

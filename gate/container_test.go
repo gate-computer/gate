@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path"
+	"runtime"
 	"syscall"
 	"testing"
 
@@ -16,7 +18,7 @@ import (
 	"gate.computer/internal/sys"
 )
 
-var testExecDir = "../lib/gate"
+var testExecDir = path.Join("../lib", runtime.GOARCH, "gate")
 
 var testNamespaceConfig = container.NamespaceConfig{
 	Newuidmap: "newuidmap",
