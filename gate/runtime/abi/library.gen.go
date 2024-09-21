@@ -5,7 +5,7 @@ package abi
 import _ "embed"
 import "gate.computer/wag/wa"
 
-const libraryChecksum uint64 = 0xf99f52f228f172ce
+const libraryChecksum uint64 = 0x326f12bb84c9c9ed
 
 //go:embed library.wasm
 var libraryWASM []byte
