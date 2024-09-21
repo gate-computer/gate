@@ -108,7 +108,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int)
 		stackMapSize   = alignPageSize(instStackUsage)
 		globalsMapSize = alignPageSize32(prog.man.GlobalsSize)
 		memoryMapSize  = alignPageSize32(prog.man.MemoryDataSize)
-		off1           = progGlobalsPageOffset - int64(stackMapSize)
+		off1           = progGlobalsOffset - int64(stackMapSize)
 		off2           = int64(instStackSize - stackMapSize)
 		copyLen        = stackMapSize + globalsMapSize + memoryMapSize
 	)

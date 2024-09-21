@@ -49,7 +49,7 @@ type state struct {
 
 	instMap []byte
 	stack   []byte
-	globals []byte
+	globals []byte // Aligned against end.
 	memory  []byte
 }
 
@@ -63,9 +63,9 @@ func mustNewState(prog *Program, inst *Instance, buffers snapshot.Buffers, suspe
 	// Initial values: assume that there is no stack content and mapping starts
 	// between stack and globals, at page boundary.
 	var (
-		fileOffset           = int64(inst.man.StackSize)
-		mapStackOffset       = -1
-		mapGlobalsPageOffset = 0
+		fileOffset       = int64(inst.man.StackSize)
+		mapStackOffset   = -1
+		mapGlobalsOffset = 0
 	)
 
 	if suspended || inst.Final() {
@@ -78,7 +78,7 @@ func mustNewState(prog *Program, inst *Instance, buffers snapshot.Buffers, suspe
 			// Mapping starts before stack contents, at page boundary.
 			fileOffset -= int64(stackUsagePageSize)
 			mapStackOffset = stackUsagePageSize - stackUsage
-			mapGlobalsPageOffset = stackUsagePageSize
+			mapGlobalsOffset = stackUsagePageSize
 
 			// Stack contains absolute return addresses.
 			s.textAddr = inst.man.TextAddr
@@ -89,16 +89,14 @@ func mustNewState(prog *Program, inst *Instance, buffers snapshot.Buffers, suspe
 	}
 
 	var (
-		globalsPageSize  = alignPageSize32(inst.man.GlobalsSize)
-		mapGlobalsOffset = mapGlobalsPageOffset + globalsPageSize - int(inst.man.GlobalsSize)
-		mapMemoryOffset  = mapGlobalsPageOffset + globalsPageSize
-		mapSize          = mapMemoryOffset + int(inst.man.MemorySize)
+		mapMemoryOffset = mapGlobalsOffset + alignPageSize32(inst.man.GlobalsSize)
+		mapSize         = mapMemoryOffset + int(inst.man.MemorySize)
 	)
 
 	s.instMap = Must(mmap(inst.file.FD(), fileOffset, mapSize, syscall.PROT_READ, syscall.MAP_PRIVATE))
 
 	if mapStackOffset >= 0 {
-		s.stack = s.instMap[mapStackOffset:mapGlobalsPageOffset]
+		s.stack = s.instMap[mapStackOffset:mapGlobalsOffset]
 	}
 	s.globals = s.instMap[mapGlobalsOffset:mapMemoryOffset]
 	s.memory = s.instMap[mapMemoryOffset:]
@@ -310,7 +308,7 @@ func mustWriteState(f *file.File, s *state) {
 	// Instance stack, globals and memory
 
 	copySize = alignPageSize32(s.inst.man.GlobalsSize) + alignPageSize32(s.inst.man.MemorySize)
-	copyDest = progGlobalsPageOffset
+	copyDest = progGlobalsOffset
 	copyFrom = s.inst.globalsPageOffset()
 
 	if len(s.stack) > 0 && s.textAddr != 0 {
@@ -393,7 +391,7 @@ func makeMemorySection(memorySize uint32, memorySizeLimit int64) []byte {
 	return b[n:]
 }
 
-func makeGlobalSection(globalTypes, segment []byte) []byte {
+func makeGlobalSection(globalTypes, data []byte) []byte {
 	if len(globalTypes) == 0 {
 		return nil
 	}
@@ -409,7 +407,7 @@ func makeGlobalSection(globalTypes, segment []byte) []byte {
 	buf := make([]byte, maxHeaderSize+len(globalTypes)*maxItemSize)
 
 	// Items:
-	itemsLen := putGlobals(buf[maxHeaderSize:], globalTypes, segment)
+	itemsLen := putGlobals(buf[maxHeaderSize:], globalTypes, data)
 
 	// Header:
 	countLen := putVaruint32Before(buf, maxHeaderSize, uint32(len(globalTypes)))
@@ -420,12 +418,15 @@ func makeGlobalSection(globalTypes, segment []byte) []byte {
 	return buf[maxHeaderSize-countLen-payloadSizeLen-1 : maxHeaderSize+itemsLen]
 }
 
-func putGlobals(target, globalTypes, segment []byte) (totalLen int) {
+func putGlobals(target, globalTypes, data []byte) (totalLen int) {
+	offset := len(data) - len(globalTypes)*8
+	data = data[offset:]
+
 	for _, b := range globalTypes {
 		t := wa.GlobalType(b)
 
-		value := binary.LittleEndian.Uint64(segment)
-		segment = segment[8:]
+		value := binary.LittleEndian.Uint64(data)
+		data = data[8:]
 
 		encoded := t.Encode()
 		n := copy(target, encoded[:])
