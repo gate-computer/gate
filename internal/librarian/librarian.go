@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -21,7 +22,7 @@ import (
 	"gate.computer/wag/wa"
 )
 
-func Build(output, ld, objdump, gopkg string, commands [][]string) error {
+func Build(output, ld, objdump, gosrc, gopkg string, commands [][]string) error {
 	var objects []string
 
 	if len(commands) == 0 {
@@ -56,10 +57,10 @@ func Build(output, ld, objdump, gopkg string, commands [][]string) error {
 		objects = append(objects, filename)
 	}
 
-	return Link(output, ld, objdump, gopkg, objects...)
+	return Link(output, ld, objdump, gosrc, gopkg, objects...)
 }
 
-func Link(output, ld, objdump, gopkg string, objects ...string) error {
+func Link(output, ld, objdump, gosrc, gopkg string, objects ...string) error {
 	var linked string
 
 	if len(objects) == 1 && ld == "" {
@@ -153,9 +154,11 @@ func Link(output, ld, objdump, gopkg string, objects ...string) error {
 		}
 	}
 
-	data = b.Bytes()
+	if err := os.WriteFile(output, b.Bytes(), 0o644); err != nil {
+		return err
+	}
 
-	if gopkg != "" {
+	if gosrc != "" {
 		var funcs []string
 		for name := range module.ExportFuncs() {
 			funcs = append(funcs, name)
@@ -169,9 +172,13 @@ func Link(output, ld, objdump, gopkg string, objects ...string) error {
 		fmt.Fprintln(b)
 		fmt.Fprintf(b, "package %s\n", gopkg)
 		fmt.Fprintln(b)
+		fmt.Fprintln(b, `import _ "embed"`)
 		fmt.Fprintln(b, `import "gate.computer/wag/wa"`)
 		fmt.Fprintln(b)
 		fmt.Fprintf(b, "const libraryChecksum uint64 = 0x%016x\n", checksum)
+		fmt.Fprintln(b)
+		fmt.Fprintf(b, "//go:embed %s\n", path.Base(output))
+		fmt.Fprintln(b, "var libraryWASM []byte")
 		fmt.Fprintln(b)
 		fmt.Fprintln(b, "var (")
 
@@ -190,25 +197,10 @@ func Link(output, ld, objdump, gopkg string, objects ...string) error {
 		}
 
 		fmt.Fprintln(b, ")")
-		fmt.Fprintln(b)
-		fmt.Fprint(b, "var libraryWASM = [...]byte{")
 
-		for i, n := range data {
-			if i%12 == 0 {
-				fmt.Fprintf(b, "\n\t")
-			} else {
-				fmt.Fprintf(b, " ")
-			}
-			fmt.Fprintf(b, "0x%02x,", n)
+		if err := os.WriteFile(gosrc, b.Bytes(), 0o644); err != nil {
+			return err
 		}
-
-		fmt.Fprintln(b, "\n}")
-
-		data = b.Bytes()
-	}
-
-	if err := os.WriteFile(output, data, 0o644); err != nil {
-		return err
 	}
 
 	return nil

@@ -8,14 +8,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 
 	"gate.computer/internal/librarian"
 )
 
-const usage = `Usage: %s [options] filename [-- command... [-- command...] ...]
+const usage = `Usage: %s [options] wasm-file [-- command... [-- command...] ...]
 
 WebAssembly module is read from stdin, or from the stdout of command(s).
-WebAssembly or Go code (depending on options) is written to filename.
+WebAssembly and Go code (depending on options) is written to filename.
 Multiple objects can be linked by specifying multiple commands.
 
 Options:
@@ -32,7 +33,10 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	var gopkg string
+	var (
+		gosrc string
+		gopkg = "main"
+	)
 
 	ld := os.Getenv("WASM_LD")
 	if ld == "" {
@@ -44,7 +48,8 @@ func main() {
 		objdump = "wasm-objdump"
 	}
 
-	flag.StringVar(&gopkg, "go", gopkg, "generate Go code for given package")
+	flag.StringVar(&gosrc, "go", gosrc, "generate Go source file which embeds the WASM file")
+	flag.StringVar(&gopkg, "pkg", gopkg, "set package name for generated Go source")
 	flag.StringVar(&ld, "ld", ld, "wasm-ld command to use")
 	flag.StringVar(&objdump, "objdump", objdump, "wasm-objdump command to use")
 	flag.Parse()
@@ -78,7 +83,12 @@ func main() {
 		commands = append(commands, cmd)
 	}
 
-	if err := librarian.Build(output, ld, objdump, gopkg, commands); err != nil {
+	if gosrc != "" && path.Dir(gosrc) != path.Dir(output) {
+		fmt.Fprintln(os.Stderr, "Go and WASM files must be in same directory")
+		os.Exit(2)
+	}
+
+	if err := librarian.Build(output, ld, objdump, gosrc, gopkg, commands); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

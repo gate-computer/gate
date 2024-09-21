@@ -252,17 +252,18 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 			"-std=c++17",
 		)
 
-		source = "gate/runtime/abi/library/library.cpp"
-		object = Join(O, "obj", ReplaceSuffix(source, ".wasm"))
-		gen    = "gate/runtime/abi/library.gen.go"
+		source  = "gate/runtime/abi/library/library.cpp"
+		object  = Join(O, "obj", ReplaceSuffix(source, ".wasm"))
+		genGo   = "gate/runtime/abi/library.gen.go"
+		genWASM = "gate/runtime/abi/library.wasm"
 	)
 
-	return If(Outdated(gen, deps),
+	return If(Any(Outdated(genGo, deps), Outdated(genWASM, deps)),
 		DirectoryOf(object),
 		CommandWrap(CCACHE, WASMCXX, flags, "-c", "-o", object, source),
 		Func(func() error {
-			Println("Making", gen)
-			return librarian.Link(gen, WASMLD, WASMOBJDUMP, "abi", object)
+			Println("Making", genWASM)
+			return librarian.Link(genWASM, WASMLD, WASMOBJDUMP, genGo, "abi", object)
 		}),
 	)
 }
