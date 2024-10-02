@@ -6,12 +6,13 @@ package catalog
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"sort"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -38,11 +39,11 @@ func (c catalog) Properties() service.Properties {
 	}
 }
 
-func (c catalog) Discoverable(context.Context) bool {
+func (c catalog) Discoverable(Context) bool {
 	return true
 }
 
-func (c catalog) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (c catalog) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	return newInstance(c.r, config.Service), nil
 }
 
@@ -60,7 +61,7 @@ func newInstance(r *service.Registry, config packet.Service) *instance {
 	}
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() != packet.DomainCall {
 		return nil, nil
 	}

@@ -6,7 +6,6 @@ package web
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"strings"
@@ -16,9 +15,11 @@ import (
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
 	"gate.computer/internal/principal"
+
+	. "import.name/type/context"
 )
 
-func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, str string, require bool) context.Context {
+func mustParseAuthorization(ctx Context, ew errorWriter, s *webserver, str string, require bool) Context {
 	if str == "" && !require {
 		return ctx
 	}
@@ -27,7 +28,7 @@ func mustParseAuthorization(ctx context.Context, ew errorWriter, s *webserver, s
 	return mustParseJWT(ctx, ew, s, []byte(token))
 }
 
-func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str string) string {
+func mustParseBearerToken(ctx Context, ew errorWriter, s *webserver, str string) string {
 	const bearer = api.AuthorizationTypeBearer
 
 	str = strings.Trim(str, " ")
@@ -41,7 +42,7 @@ func mustParseBearerToken(ctx context.Context, ew errorWriter, s *webserver, str
 	panic(responded)
 }
 
-func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byte) context.Context {
+func mustParseJWT(ctx Context, ew errorWriter, s *webserver, token []byte) Context {
 	parts := mustSplitJWS(ctx, ew, s, token)
 	signedData := token[:len(parts[0])+1+len(parts[1])]
 
@@ -94,7 +95,7 @@ func mustParseJWT(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	return scope.Context(ctx, mustValidateScope(ctx, ew, s, claims.Scope))
 }
 
-func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byte) [][]byte {
+func mustSplitJWS(ctx Context, ew errorWriter, s *webserver, token []byte) [][]byte {
 	if parts := bytes.SplitN(token, []byte{'.'}, 3); len(parts) == 3 {
 		return parts
 	}
@@ -103,7 +104,7 @@ func mustSplitJWS(ctx context.Context, ew errorWriter, s *webserver, token []byt
 	panic(responded)
 }
 
-func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, dest, src []byte) {
+func mustDecodeJWTComponent(ctx Context, ew errorWriter, s *webserver, dest, src []byte) {
 	n, err := base64.RawURLEncoding.Decode(dest, src)
 	if err == nil && n == len(dest) {
 		return
@@ -113,7 +114,7 @@ func mustDecodeJWTComponent(ctx context.Context, ew errorWriter, s *webserver, d
 	panic(responded)
 }
 
-func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, serialized []byte) api.TokenHeader {
+func mustUnmarshalJWTHeader(ctx Context, ew errorWriter, s *webserver, serialized []byte) api.TokenHeader {
 	var header api.TokenHeader
 	if err := json.Unmarshal(serialized, &header); err == nil {
 		return header
@@ -123,7 +124,7 @@ func mustUnmarshalJWTHeader(ctx context.Context, ew errorWriter, s *webserver, s
 	panic(responded)
 }
 
-func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, serialized []byte) api.Claims {
+func mustUnmarshalJWTPayload(ctx Context, ew errorWriter, s *webserver, serialized []byte) api.Claims {
 	var claims api.Claims
 	if err := json.Unmarshal(serialized, &claims); err == nil {
 		return claims
@@ -133,7 +134,7 @@ func mustUnmarshalJWTPayload(ctx context.Context, ew errorWriter, s *webserver, 
 	panic(responded)
 }
 
-func mustParseJWTHeader(ctx context.Context, ew errorWriter, s *webserver, header api.TokenHeader) *principal.Key {
+func mustParseJWTHeader(ctx Context, ew errorWriter, s *webserver, header api.TokenHeader) *principal.Key {
 	switch header.Alg {
 	case api.SignAlgEdDSA:
 		k := header.JWK

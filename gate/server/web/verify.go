@@ -5,7 +5,6 @@
 package web
 
 import (
-	"context"
 	"crypto/ed25519"
 	"strings"
 	"time"
@@ -13,6 +12,8 @@ import (
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
 	"gate.computer/internal/principal"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 	maxScopeLength  = 10
 )
 
-func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, expires int64) {
+func mustVerifyExpiration(ctx Context, ew errorWriter, s *webserver, expires int64) {
 	if expires == 0 && s.localAuthorization {
 		return
 	}
@@ -36,7 +37,7 @@ func mustVerifyExpiration(ctx context.Context, ew errorWriter, s *webserver, exp
 	}
 }
 
-func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, audience []string) {
+func mustVerifyAudience(ctx Context, ew errorWriter, s *webserver, audience []string) {
 	if len(audience) == 0 {
 		return
 	}
@@ -51,7 +52,7 @@ func mustVerifyAudience(ctx context.Context, ew errorWriter, s *webserver, audie
 	panic(responded)
 }
 
-func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, alg string, signedData, signature []byte) {
+func mustVerifySignature(ctx Context, ew errorWriter, s *webserver, pri *principal.Key, alg string, signedData, signature []byte) {
 	switch alg {
 	case api.SignAlgEdDSA:
 		if ed25519.Verify(pri.PublicKey(), signedData, signature) {
@@ -74,7 +75,7 @@ func mustVerifySignature(ctx context.Context, ew errorWriter, s *webserver, pri 
 	panic(responded)
 }
 
-func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *principal.Key, nonce string, expires int64) {
+func mustVerifyNonce(ctx Context, ew errorWriter, s *webserver, pri *principal.Key, nonce string, expires int64) {
 	if nonce == "" {
 		return
 	}
@@ -90,7 +91,7 @@ func mustVerifyNonce(ctx context.Context, ew errorWriter, s *webserver, pri *pri
 	}
 }
 
-func mustValidateScope(ctx context.Context, ew errorWriter, s *webserver, scope string) []string {
+func mustValidateScope(ctx Context, ew errorWriter, s *webserver, scope string) []string {
 	array := strings.SplitN(scope, " ", maxScopeLength)
 	if len(array) == maxScopeLength && strings.Contains(array[maxScopeLength-1], " ") {
 		respondUnauthorizedErrorDesc(ctx, ew, s, "invalid_token", "scope has too many tokens", event.FailScopeTooLarge, nil)

@@ -6,7 +6,6 @@ package executable
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"io"
 	"log"
@@ -18,6 +17,8 @@ import (
 	"gate.computer/grpc/client"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	. "import.name/type/context"
 )
 
 // Conn is a connection to a process.
@@ -29,7 +30,7 @@ type Conn struct {
 }
 
 // Execute a program.  Args includes the command name.
-func Execute(ctx context.Context, path string, args []string) (*Conn, error) {
+func Execute(ctx Context, path string, args []string) (*Conn, error) {
 	sock1, sock2, err := socketFilePair(0)
 	if err != nil {
 		return nil, err
@@ -93,10 +94,10 @@ func (c *Conn) Close() error {
 	return errWait
 }
 
-func dialerFor(conn *os.File) func(context.Context, string) (net.Conn, error) {
+func dialerFor(conn *os.File) func(Context, string) (net.Conn, error) {
 	dialed := false
 
-	return func(context.Context, string) (net.Conn, error) {
+	return func(Context, string) (net.Conn, error) {
 		if dialed {
 			return nil, errors.New("reconnection not supported")
 		}
@@ -119,7 +120,7 @@ func logErrorOutput(r io.ReadCloser, name string, done chan<- struct{}) {
 	}
 }
 
-func terminateWhenDone(ctx context.Context, p *os.Process) {
+func terminateWhenDone(ctx Context, p *os.Process) {
 	defer p.Signal(syscall.SIGTERM)
 	<-ctx.Done()
 }

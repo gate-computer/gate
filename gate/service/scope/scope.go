@@ -5,12 +5,13 @@
 package scope
 
 import (
-	"context"
 	"errors"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/scope/program"
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -31,11 +32,11 @@ func (scope) Properties() service.Properties {
 	}
 }
 
-func (scope) Discoverable(context.Context) bool {
+func (scope) Discoverable(Context) bool {
 	return true
 }
 
-func (scope) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (scope) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	if err := restore(ctx, snapshot); err != nil {
 		return nil, err
 	}
@@ -43,7 +44,7 @@ func (scope) CreateInstance(ctx context.Context, config service.InstanceConfig, 
 	return instance{}, nil
 }
 
-func restore(ctx context.Context, snapshot []byte) error {
+func restore(ctx Context, snapshot []byte) error {
 	if len(snapshot) == 0 {
 		return nil
 	}
@@ -62,7 +63,7 @@ const (
 
 type instance struct{ service.InstanceBase }
 
-func (instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() != packet.DomainCall {
 		return nil, nil
 	}
@@ -77,7 +78,7 @@ func (instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.B
 	return packet.MakeCall(p.Code(), 0), nil
 }
 
-func handleRestrict(ctx context.Context, code packet.Code, buf []byte) (packet.Buf, error) {
+func handleRestrict(ctx Context, code packet.Code, buf []byte) (packet.Buf, error) {
 	scope, err := parseScope(buf)
 	if err != nil {
 		return nil, err
@@ -91,7 +92,7 @@ func handleRestrict(ctx context.Context, code packet.Code, buf []byte) (packet.B
 	return packet.MakeCall(code, errorSize), nil
 }
 
-func (instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
+func (instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	if !suspend {
 		return nil, nil
 	}

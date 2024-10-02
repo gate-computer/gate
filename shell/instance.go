@@ -5,7 +5,6 @@
 package shell
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -17,6 +16,8 @@ import (
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/service"
 	"import.name/flux"
+
+	. "import.name/type/context"
 )
 
 type errorCode int16
@@ -68,14 +69,14 @@ func (inst *instance) restore(snapshot []byte) {
 	}
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
+func (inst *instance) Start(ctx Context, send chan<- packet.Thunk, abort func(error)) error {
 	if inst.running != nil {
 		go inst.io(ctx, nil, nil, send, inst.flow)
 	}
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if !inst.refreshRunning() {
 		return nil, nil
 	}
@@ -94,7 +95,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	return nil, nil
 }
 
-func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) handleCall(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	errno := errorQuota
 	streamID := int32(-1)
 
@@ -118,7 +119,7 @@ func (inst *instance) handleCall(ctx context.Context, send chan<- packet.Thunk, 
 	return p, nil
 }
 
-func (inst *instance) handleFlow(ctx context.Context, p packet.FlowBuf) error {
+func (inst *instance) handleFlow(ctx Context, p packet.FlowBuf) error {
 	for i := 0; i < p.Len(); i++ {
 		flow := p.At(i)
 		if inst.flow == nil || flow.ID != 0 {
@@ -138,7 +139,7 @@ func (inst *instance) handleFlow(ctx context.Context, p packet.FlowBuf) error {
 	return nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
+func (inst *instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	var flags uint8
 	if inst.running != nil {
 		if _, exited := <-inst.running; !exited {
@@ -175,7 +176,7 @@ func (inst *instance) refreshRunning() (ok bool) {
 	}
 }
 
-func (inst *instance) startProcess(ctx context.Context, send chan<- packet.Thunk, argv []string) (errorCode, error) {
+func (inst *instance) startProcess(ctx Context, send chan<- packet.Thunk, argv []string) (errorCode, error) {
 	if !program.ContextContains(ctx, system.Scope) {
 		return errorScope, nil
 	}
@@ -212,7 +213,7 @@ func (inst *instance) startProcess(ctx context.Context, send chan<- packet.Thunk
 	return 0, nil
 }
 
-func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *flux.Uint32) {
+func (inst *instance) io(ctx Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *flux.Uint32) {
 	var exited bool
 	defer func() {
 		if exited {
@@ -253,7 +254,7 @@ func (inst *instance) io(ctx context.Context, cmd *exec.Cmd, stdout io.ReadClose
 	}
 }
 
-func (inst *instance) ioCopy(ctx context.Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *flux.Uint32) (cmderr error, ok bool) {
+func (inst *instance) ioCopy(ctx Context, cmd *exec.Cmd, stdout io.ReadCloser, send chan<- packet.Thunk, flow *flux.Uint32) (cmderr error, ok bool) {
 	defer func() {
 		cmderr = cmd.Wait()
 	}()

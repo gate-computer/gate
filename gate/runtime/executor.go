@@ -20,6 +20,8 @@ import (
 	"gate.computer/internal/defaultlog"
 	"gate.computer/internal/file"
 	"import.name/lock"
+
+	. "import.name/type/context"
 )
 
 var errExecutorDead = errors.New("executor died unexpectedly")
@@ -113,13 +115,13 @@ func NewExecutor(config *Config) (*Executor, error) {
 }
 
 // NewProcess creates a process into the default group.
-func (e *Executor) NewProcess(ctx context.Context) (*Process, error) {
+func (e *Executor) NewProcess(ctx Context) (*Process, error) {
 	return newProcess(ctx, e, file.Ref{})
 }
 
 // NewGroupProcess creates a process into the specified group.  If group is
 // nil, the default group will be used.
-func (e *Executor) NewGroupProcess(ctx context.Context, group *ProcessGroup) (*Process, error) {
+func (e *Executor) NewGroupProcess(ctx Context, group *ProcessGroup) (*Process, error) {
 	if group == nil {
 		return e.NewProcess(ctx)
 	}
@@ -132,7 +134,7 @@ func (e *Executor) Group(group *ProcessGroup) GroupExecutor {
 	return GroupExecutor{e, group}
 }
 
-func (e *Executor) execute(ctx context.Context, proc *execProcess, input file.Ref, output *file.File, group file.Ref) error {
+func (e *Executor) execute(ctx Context, proc *execProcess, input file.Ref, output *file.File, group file.Ref) error {
 	select {
 	case id, ok := <-e.ids:
 		if !ok {
@@ -412,13 +414,13 @@ type GroupExecutor struct {
 }
 
 // NewProcess creates a process into ge.ProcessGroup.
-func (ge GroupExecutor) NewProcess(ctx context.Context) (*Process, error) {
+func (ge GroupExecutor) NewProcess(ctx Context) (*Process, error) {
 	return ge.Executor.NewGroupProcess(ctx, ge.ProcessGroup)
 }
 
 // NewGroupProcess creates a process into the specified group.  If group is
 // nil, ge.ProcessGroup will be used.
-func (ge GroupExecutor) NewGroupProcess(ctx context.Context, group *ProcessGroup) (*Process, error) {
+func (ge GroupExecutor) NewGroupProcess(ctx Context, group *ProcessGroup) (*Process, error) {
 	if group == nil {
 		group = ge.ProcessGroup
 	}

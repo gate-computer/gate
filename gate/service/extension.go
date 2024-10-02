@@ -5,15 +5,16 @@
 package service
 
 import (
-	"context"
 	"log"
+
+	. "import.name/type/context"
 )
 
 // Extension declaration.
 type Extension struct {
 	Name   string // Can be overridden to avoid conflicts.
 	Config any    // Pointer to a custom struct type, or nil.
-	Init   func(context.Context, *Registry) error
+	Init   func(Context, *Registry) error
 }
 
 func (e *Extension) zeroconf() bool {
@@ -34,7 +35,7 @@ var Extensions []*Extension
 func Extend(
 	name string,
 	config any,
-	init func(context.Context, *Registry) error,
+	init func(Context, *Registry) error,
 ) *Extension {
 	e := &Extension{name, config, init}
 	Extensions = append(Extensions, e)
@@ -66,7 +67,7 @@ func Config() map[string]any {
 }
 
 // Init global services (including Extensions).
-func Init(ctx context.Context, r *Registry) error {
+func Init(ctx Context, r *Registry) error {
 	for _, e := range Extensions {
 		if err := e.Init(ctx, r); err != nil {
 			return err

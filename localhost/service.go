@@ -5,7 +5,6 @@
 package localhost
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -14,6 +13,8 @@ import (
 	"time"
 
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -74,7 +75,7 @@ func New(config *Config) (l *Localhost, err error) {
 
 		client := &http.Client{
 			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				DialContext: func(ctx Context, network, addr string) (net.Conn, error) {
 					return dialer.DialContext(ctx, "unix", u.Path)
 				},
 				DisableCompression:    true,
@@ -114,11 +115,11 @@ func (*Localhost) Properties() service.Properties {
 	}
 }
 
-func (*Localhost) Discoverable(context.Context) bool {
+func (*Localhost) Discoverable(Context) bool {
 	return true
 }
 
-func (l *Localhost) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte,
+func (l *Localhost) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte,
 ) (service.Instance, error) {
 	inst := newInstance(l, config)
 	if err := inst.restore(snapshot); err != nil {

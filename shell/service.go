@@ -5,10 +5,10 @@
 package shell
 
 import (
-	"context"
-
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -28,11 +28,11 @@ func (shell) Properties() service.Properties {
 	}
 }
 
-func (shell) Discoverable(ctx context.Context) bool {
+func (shell) Discoverable(ctx Context) bool {
 	return system.ContextUserID(ctx) != ""
 }
 
-func (shell) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (shell) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	inst := newInstance(config)
 	inst.restore(snapshot)
 	return inst, nil

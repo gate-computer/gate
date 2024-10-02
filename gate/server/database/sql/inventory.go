@@ -5,7 +5,7 @@
 package sql
 
 import (
-	"context"
+	. "import.name/type/context"
 )
 
 const InventorySchema = `
@@ -17,12 +17,12 @@ CREATE TABLE IF NOT EXISTS module_source (
 );
 `
 
-func (x *Endpoint) InitInventory(ctx context.Context) error {
+func (x *Endpoint) InitInventory(ctx Context) error {
 	_, err := x.db.ExecContext(ctx, InventorySchema)
 	return err
 }
 
-func (x *Endpoint) GetSourceModule(ctx context.Context, source string) (string, error) {
+func (x *Endpoint) GetSourceModule(ctx Context, source string) (string, error) {
 	conn, err := x.db.Conn(ctx)
 	if err != nil {
 		return "", err
@@ -39,7 +39,7 @@ func (x *Endpoint) GetSourceModule(ctx context.Context, source string) (string, 
 	return module, nil
 }
 
-func (x *Endpoint) AddModuleSource(ctx context.Context, module, source string) error {
+func (x *Endpoint) AddModuleSource(ctx Context, module, source string) error {
 	conn, err := x.db.Conn(ctx)
 	if err != nil {
 		return err

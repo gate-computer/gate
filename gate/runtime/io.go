@@ -16,6 +16,8 @@ import (
 	"gate.computer/gate/snapshot"
 	"gate.computer/internal/error/badprogram"
 	"gate.computer/internal/file"
+
+	. "import.name/type/context"
 )
 
 func popServiceBuffers(frozen *snapshot.Buffers) []snapshot.Service {
@@ -54,7 +56,7 @@ type read struct {
 }
 
 // ioLoop mutates Process and Buffers (if any).
-func ioLoop(ctx context.Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers) error {
+func ioLoop(ctx Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers) error {
 	if frozen == nil {
 		subject.writerOut.Unref()
 	}
@@ -336,7 +338,7 @@ func initMessagePacket(p packet.Buf) packet.Buf {
 	return p
 }
 
-func handlePacket(ctx context.Context, p packet.Buf, discoverer *serviceDiscoverer) (msg, reply packet.Buf, err error) {
+func handlePacket(ctx Context, p packet.Buf, discoverer *serviceDiscoverer) (msg, reply packet.Buf, err error) {
 	switch code := p.Code(); {
 	case code >= 0:
 		msg, err = discoverer.checkPacket(p)

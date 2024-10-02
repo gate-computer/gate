@@ -5,7 +5,6 @@
 package origin
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -17,6 +16,8 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/internal/varint"
 	"import.name/lock"
+
+	. "import.name/type/context"
 )
 
 type instance struct {
@@ -103,7 +104,7 @@ func (inst *instance) restore(input []byte) error {
 	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
+func (inst *instance) Start(ctx Context, send chan<- packet.Thunk, abort func(error)) error {
 	inst.send = send
 
 	// All streams at this point are restored ones.
@@ -119,7 +120,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	switch p.Domain() {
 	case packet.DomainCall:
 		var ok bool
@@ -181,7 +182,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	return nil, nil
 }
 
-func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct{}) func(context.Context, io.Reader, io.WriteCloser) error {
+func (inst *instance) connect(ctx Context, connectorClosed <-chan struct{}) func(Context, io.Reader, io.WriteCloser) error {
 	var (
 		id int32
 		s  *stream
@@ -254,7 +255,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 		return nil
 	}
 
-	return func(ctx context.Context, r io.Reader, w io.WriteCloser) error {
+	return func(ctx Context, r io.Reader, w io.WriteCloser) error {
 		err := s.transfer(ctx, inst.Service, id, r, w, inst.send)
 
 		if !s.Live() {
@@ -271,7 +272,7 @@ func (inst *instance) connect(ctx context.Context, connectorClosed <-chan struct
 
 // drainRestored streams (without associated connections) one after another
 // until they are fully closed.
-func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
+func (inst *instance) drainRestored(ctx Context, restored []int32) {
 	// If context gets done, it will cause also the remaining transfer calls to
 	// exit immediately, so just loop through and collect the states.
 
@@ -292,7 +293,7 @@ func (inst *instance) drainRestored(ctx context.Context, restored []int32) {
 	}
 }
 
-func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
+func (inst *instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	lock.Guard(&inst.mu, func() {
 		inst.shutting = true
 		for inst.replying {

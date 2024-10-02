@@ -5,15 +5,15 @@
 package runtime
 
 import (
-	"context"
-
 	"gate.computer/internal/container"
 	"gate.computer/internal/file"
+
+	. "import.name/type/context"
 )
 
 type GroupProcessFactory interface {
 	ProcessFactory
-	NewGroupProcess(context.Context, *ProcessGroup) (*Process, error)
+	NewGroupProcess(Context, *ProcessGroup) (*Process, error)
 }
 
 type ProcessGroup struct {

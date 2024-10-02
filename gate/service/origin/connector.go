@@ -5,10 +5,11 @@
 package origin
 
 import (
-	"context"
 	"io"
 
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -58,7 +59,7 @@ func New(config *Config) *Connector {
 // Connect allocates a new I/O stream.  The returned function is to be used to
 // transfer data between a connection and the program instance.  If it's
 // non-nil, a connection was established.
-func (cr *Connector) Connect(ctx context.Context) func(context.Context, io.Reader, io.WriteCloser) error {
+func (cr *Connector) Connect(ctx Context) func(Context, io.Reader, io.WriteCloser) error {
 	return cr.inst.connect(ctx, cr.closed)
 }
 
@@ -79,11 +80,11 @@ func (cr *Connector) Properties() service.Properties {
 	}
 }
 
-func (cr *Connector) Discoverable(context.Context) bool {
+func (cr *Connector) Discoverable(Context) bool {
 	return true
 }
 
-func (cr *Connector) CreateInstance(ctx context.Context, config service.InstanceConfig, state []byte) (service.Instance, error) {
+func (cr *Connector) CreateInstance(ctx Context, config service.InstanceConfig, state []byte) (service.Instance, error) {
 	cr.inst.init(config.Service)
 	if err := cr.inst.restore(state); err != nil {
 		return nil, err

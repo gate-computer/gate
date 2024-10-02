@@ -5,8 +5,9 @@
 package server
 
 import (
-	"context"
 	"io"
+
+	. "import.name/type/context"
 )
 
 // Source of immutable data.
@@ -33,7 +34,7 @@ type Source interface {
 	// length.  Content-too-long condition can be signaled by returning nil
 	// content with nonzero length (doesn't have to be actual content length).
 	OpenURI(
-		ctx context.Context,
+		ctx Context,
 		uri string,
 		maxSize int,
 	) (

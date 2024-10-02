@@ -20,6 +20,8 @@ import (
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/trap"
 	"gate.computer/wag/object"
+
+	. "import.name/type/context"
 )
 
 const benchPrepareCount = 32
@@ -67,7 +69,7 @@ func init() {
 	}
 }
 
-func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime.ProgramState) (runtime.Result, trap.ID, error) {
+func executeInstance(ctx Context, prog runtime.ProgramCode, inst runtime.ProgramState) (runtime.Result, trap.ID, error) {
 	proc, err := getBenchExecutor().NewProcess(ctx)
 	if err != nil {
 		return runtime.Result{}, trap.InternalError, err
@@ -85,7 +87,7 @@ func executeInstance(ctx context.Context, prog runtime.ProgramCode, inst runtime
 	return proc.Serve(ctx, benchRegistry, nil)
 }
 
-func executeProgram(ctx context.Context, prog *image.Program) (runtime.Result, trap.ID, error) {
+func executeProgram(ctx Context, prog *image.Program) (runtime.Result, trap.ID, error) {
 	proc, err := getBenchExecutor().NewProcess(ctx)
 	if err != nil {
 		return runtime.Result{}, trap.InternalError, err

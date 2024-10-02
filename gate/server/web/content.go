@@ -6,12 +6,13 @@ package web
 
 import (
 	"compress/gzip"
-	"context"
 	"io"
 	"net/http"
+
+	. "import.name/type/context"
 )
 
-func mustDecodeContent(ctx context.Context, wr *requestResponseWriter, s *webserver) io.ReadCloser {
+func mustDecodeContent(ctx Context, wr *requestResponseWriter, s *webserver) io.ReadCloser {
 	var encoding string
 
 	switch fields := wr.request.Header["Content-Encoding"]; len(fields) {

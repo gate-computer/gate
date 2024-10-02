@@ -35,6 +35,8 @@ import (
 	"gate.computer/wag/section"
 	"github.com/google/uuid"
 	_ "modernc.org/sqlite"
+
+	. "import.name/type/context"
 )
 
 type principalKey struct {
@@ -68,7 +70,7 @@ func (helloSource) CanonicalURI(uri string) (string, error) {
 	return uri, nil
 }
 
-func (helloSource) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
+func (helloSource) OpenURI(ctx Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	switch uri {
 	case "/test/hello":
 		return io.NopCloser(bytes.NewReader(wasmHello)), int64(len(wasmHello)), nil
@@ -103,14 +105,14 @@ func init() {
 	}
 }
 
-func newServices() func(context.Context) server.InstanceServices {
+func newServices() func(Context) server.InstanceServices {
 	registry := new(service.Registry)
 
 	if err := service.Init(context.Background(), registry); err != nil {
 		panic(err)
 	}
 
-	return func(ctx context.Context) server.InstanceServices {
+	return func(ctx Context) server.InstanceServices {
 		connector := origin.New(nil)
 		r := registry.Clone()
 		r.MustRegister(connector)

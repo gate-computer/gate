@@ -24,6 +24,7 @@ require (
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
 	import.name/make v0.0.0-20220104073727-8e6e5ea95bef
 	import.name/pan v0.2.0
+	import.name/type v1.0.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.66
 	modernc.org/sqlite v1.20.0
 )

@@ -24,6 +24,8 @@ import (
 	"gate.computer/internal/executable"
 	"gate.computer/internal/file"
 	"gate.computer/wag/object/abi"
+
+	. "import.name/type/context"
 )
 
 const imageInfoSize = 104
@@ -76,7 +78,7 @@ type ProcessPolicy struct {
 }
 
 type ProcessFactory interface {
-	NewProcess(context.Context) (*Process, error)
+	NewProcess(Context) (*Process, error)
 }
 
 type Result struct {
@@ -125,7 +127,7 @@ type Process struct {
 	debugging <-chan struct{}
 }
 
-func newProcess(ctx context.Context, e *Executor, group file.Ref) (*Process, error) {
+func newProcess(ctx Context, e *Executor, group file.Ref) (*Process, error) {
 	inputR, inputW, err := socketPipe()
 	if err != nil {
 		return nil, err
@@ -265,7 +267,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 //
 // A meaningful trap id is returned also when an error is returned.  The result
 // is meaningful when trap is Exit.
-func (p *Process) Serve(ctx context.Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, error) {
+func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, error) {
 	if err := ioLoop(contextWithProcess(ctx, p), services, p, buffers); err != nil {
 		trapID := trap.InternalError
 		if badprogram.Is(err) {
@@ -375,12 +377,12 @@ func (p *Process) Close() error {
 
 type contextProcessValueKey struct{}
 
-func contextWithProcess(ctx context.Context, p *Process) context.Context {
+func contextWithProcess(ctx Context, p *Process) Context {
 	return context.WithValue(ctx, contextProcessValueKey{}, p)
 }
 
 // ContextWithDummyProcessKey for testing.
-func ContextWithDummyProcessKey(ctx context.Context) context.Context {
+func ContextWithDummyProcessKey(ctx Context) Context {
 	invalid := new(Process)
 	return context.WithValue(ctx, contextProcessValueKey{}, invalid)
 }
@@ -401,7 +403,7 @@ func (key ProcessKey) Compare(other ProcessKey) int {
 	return 0
 }
 
-func MustContextProcessKey(ctx context.Context) ProcessKey {
+func MustContextProcessKey(ctx Context) ProcessKey {
 	return ProcessKey{ctx.Value(contextProcessValueKey{}).(*Process)}
 }
 

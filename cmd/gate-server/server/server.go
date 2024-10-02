@@ -47,6 +47,8 @@ import (
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 	"import.name/confi"
+
+	. "import.name/type/context"
 )
 
 const serverHeaderValue = "gate"
@@ -269,7 +271,7 @@ func Main() {
 	critLog.Fatal(main2(ctx, critLog))
 }
 
-func main2(ctx context.Context, critLog *log.Logger) error {
+func main2(ctx Context, critLog *log.Logger) error {
 	var err error
 
 	var (

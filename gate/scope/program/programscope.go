@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	parent "gate.computer/gate/scope"
+
+	. "import.name/type/context"
 )
 
 // Scope is dynamic program scope filter.  It is unrestricted by default.
@@ -84,12 +86,12 @@ func (x *Scope) Scope() (scope []string, restricted bool) {
 type contextKey struct{}
 
 // ContextWithScope adds program scope.
-func ContextWithScope(ctx context.Context) context.Context {
+func ContextWithScope(ctx Context) Context {
 	return context.WithValue(ctx, contextKey{}, new(Scope))
 }
 
 // ContextScope returns the contextual program scope or nil.
-func ContextScope(ctx context.Context) *Scope {
+func ContextScope(ctx Context) *Scope {
 	x := ctx.Value(contextKey{})
 	if x == nil {
 		return nil
@@ -101,7 +103,7 @@ func ContextScope(ctx context.Context) *Scope {
 // ContextContains returns true if the argument is encompassed in general scope
 // and current program scope.  If the context doesn't have a Scope, this
 // function behaves like gate/scope.ContextContains.
-func ContextContains(ctx context.Context, scope string) bool {
+func ContextContains(ctx Context, scope string) bool {
 	if !parent.ContextContains(ctx, scope) {
 		return false
 	}

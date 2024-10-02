@@ -5,8 +5,9 @@
 package runtime
 
 import (
-	"context"
 	"math/rand"
+
+	. "import.name/type/context"
 )
 
 // DistributeProcesses among multiple executors.
@@ -41,7 +42,7 @@ type sharder struct {
 	factories []ProcessFactory
 }
 
-func (s sharder) NewProcess(ctx context.Context) (*Process, error) {
+func (s sharder) NewProcess(ctx Context) (*Process, error) {
 	return s.factories[rand.Intn(len(s.factories))].NewProcess(ctx)
 }
 
@@ -49,11 +50,11 @@ type groupSharder struct {
 	factories []GroupProcessFactory
 }
 
-func (s groupSharder) NewProcess(ctx context.Context) (*Process, error) {
+func (s groupSharder) NewProcess(ctx Context) (*Process, error) {
 	return s.NewGroupProcess(ctx, nil)
 }
 
-func (s groupSharder) NewGroupProcess(ctx context.Context, g *ProcessGroup) (*Process, error) {
+func (s groupSharder) NewGroupProcess(ctx Context, g *ProcessGroup) (*Process, error) {
 	return s.factories[rand.Intn(len(s.factories))].NewGroupProcess(ctx, g)
 }
 
@@ -61,7 +62,7 @@ type chanSharder struct {
 	channels []<-chan ResultProcess
 }
 
-func (cs chanSharder) NewProcess(ctx context.Context) (*Process, error) {
+func (cs chanSharder) NewProcess(ctx Context) (*Process, error) {
 	var firstChoice int
 	var unseen []int
 

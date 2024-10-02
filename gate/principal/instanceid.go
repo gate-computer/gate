@@ -6,19 +6,21 @@ package principal
 
 import (
 	"context"
+
+	. "import.name/type/context"
 )
 
 type contextInstanceUUIDValueKey struct{}
 
-func ContextWithInstanceUUID(ctx context.Context, id [16]byte) context.Context {
+func ContextWithInstanceUUID(ctx Context, id [16]byte) Context {
 	return context.WithValue(ctx, contextInstanceUUIDValueKey{}, id)
 }
 
-func ContextInstanceUUID(ctx context.Context) (id [16]byte, ok bool) {
+func ContextInstanceUUID(ctx Context) (id [16]byte, ok bool) {
 	id, ok = ctx.Value(contextInstanceUUIDValueKey{}).([16]byte)
 	return
 }
 
-func MustContextInstanceUUID(ctx context.Context) [16]byte {
+func MustContextInstanceUUID(ctx Context) [16]byte {
 	return ctx.Value(contextInstanceUUIDValueKey{}).([16]byte)
 }

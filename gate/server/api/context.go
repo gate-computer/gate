@@ -9,6 +9,8 @@ import (
 
 	"gate.computer/gate/server/api/pb"
 	"gate.computer/internal/principal"
+
+	. "import.name/type/context"
 )
 
 type contextKey int
@@ -26,7 +28,7 @@ type (
 	Meta  = pb.Meta
 )
 
-func ContextWithMeta(ctx context.Context, m *Meta) (context.Context, error) {
+func ContextWithMeta(ctx Context, m *Meta) (Context, error) {
 	if m.Iface != 0 {
 		ctx = ContextWithIface(ctx, m.Iface)
 	}
@@ -54,31 +56,31 @@ func ContextWithMeta(ctx context.Context, m *Meta) (context.Context, error) {
 	return ctx, nil
 }
 
-func ContextWithIface(ctx context.Context, iface Iface) context.Context {
+func ContextWithIface(ctx Context, iface Iface) Context {
 	return context.WithValue(ctx, contextKeyIface, iface)
 }
 
-func ContextWithRequest(ctx context.Context, req uint64) context.Context {
+func ContextWithRequest(ctx Context, req uint64) Context {
 	return context.WithValue(ctx, contextKeyReq, req)
 }
 
-func ContextWithAddress(ctx context.Context, addr string) context.Context {
+func ContextWithAddress(ctx Context, addr string) Context {
 	return context.WithValue(ctx, contextKeyAddr, addr)
 }
 
-func ContextWithOp(ctx context.Context, op Op) context.Context {
+func ContextWithOp(ctx Context, op Op) Context {
 	return context.WithValue(ctx, contextKeyOp, op)
 }
 
 // ContextOp returns the server operation type.
-func ContextOp(ctx context.Context) (op Op) {
+func ContextOp(ctx Context) (op Op) {
 	if x := ctx.Value(contextKeyOp); x != nil {
 		op = x.(Op)
 	}
 	return
 }
 
-func ContextMeta(ctx context.Context) *Meta {
+func ContextMeta(ctx Context) *Meta {
 	m := new(Meta)
 
 	if x := ctx.Value(contextKeyIface); x != nil {

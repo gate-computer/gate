@@ -5,12 +5,13 @@
 package runtime
 
 import (
-	"context"
 	"encoding/binary"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/snapshot"
 	"gate.computer/internal/error/badprogram"
+
+	. "import.name/type/context"
 )
 
 const maxServices = 256
@@ -48,14 +49,14 @@ type ServiceConfig struct {
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
-	CreateServer(context.Context, ServiceConfig, []snapshot.Service, chan<- packet.Thunk) (InstanceServer, []ServiceState, <-chan error, error)
+	CreateServer(Context, ServiceConfig, []snapshot.Service, chan<- packet.Thunk) (InstanceServer, []ServiceState, <-chan error, error)
 }
 
 type InstanceServer interface {
-	Start(context.Context, chan<- packet.Thunk) error
-	Discover(ctx context.Context, newNames []string) (all []ServiceState, err error)
-	Handle(context.Context, chan<- packet.Thunk, packet.Buf) (packet.Buf, error)
-	Shutdown(ctx context.Context, suspend bool) ([]snapshot.Service, error)
+	Start(Context, chan<- packet.Thunk) error
+	Discover(ctx Context, newNames []string) (all []ServiceState, err error)
+	Handle(Context, chan<- packet.Thunk, packet.Buf) (packet.Buf, error)
+	Shutdown(ctx Context, suspend bool) ([]snapshot.Service, error)
 }
 
 type serviceDiscoverer struct {
@@ -63,7 +64,7 @@ type serviceDiscoverer struct {
 	numServices int
 }
 
-func (discoverer *serviceDiscoverer) handlePacket(ctx context.Context, req packet.Buf) (resp packet.Buf, err error) {
+func (discoverer *serviceDiscoverer) handlePacket(ctx Context, req packet.Buf) (resp packet.Buf, err error) {
 	if d := req.Domain(); d != packet.DomainCall {
 		err = badprogram.Errorf("service discovery packet has wrong domain: %d", d)
 		return

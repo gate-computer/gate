@@ -5,7 +5,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -23,6 +22,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"import.name/lock"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -151,7 +152,7 @@ type rootServer struct {
 	api.UnimplementedRootServer
 }
 
-func (s *rootServer) Init(ctx context.Context, req *api.InitRequest) (*api.InitResponse, error) {
+func (s *rootServer) Init(ctx Context, req *api.InitRequest) (*api.InitResponse, error) {
 	return &api.InitResponse{
 		Services: []*api.Service{
 			{
@@ -204,7 +205,7 @@ func (s *instanceServer) lookupInstance(id []byte, remove bool) (inst *instance,
 	return
 }
 
-func (s *instanceServer) Create(ctx context.Context, req *api.CreateRequest) (*api.CreateResponse, error) {
+func (s *instanceServer) Create(ctx Context, req *api.CreateRequest) (*api.CreateResponse, error) {
 	inst := newInstance()
 	if err := inst.restore(req.Snapshot); err != nil {
 		return &api.CreateResponse{RestorationError: err.Error()}, nil
@@ -223,7 +224,7 @@ func (s *instanceServer) Receive(req *api.ReceiveRequest, stream api.Instance_Re
 	return inst.sendTo(stream)
 }
 
-func (s *instanceServer) Handle(ctx context.Context, req *api.HandleRequest) (*emptypb.Empty, error) {
+func (s *instanceServer) Handle(ctx Context, req *api.HandleRequest) (*emptypb.Empty, error) {
 	inst, err := s.getInstance(req.Id)
 	if err != nil {
 		return nil, err
@@ -233,7 +234,7 @@ func (s *instanceServer) Handle(ctx context.Context, req *api.HandleRequest) (*e
 	return new(emptypb.Empty), nil
 }
 
-func (s *instanceServer) Shutdown(ctx context.Context, req *api.ShutdownRequest) (*emptypb.Empty, error) {
+func (s *instanceServer) Shutdown(ctx Context, req *api.ShutdownRequest) (*emptypb.Empty, error) {
 	inst, _ := s.removeInstance(req.Id)
 	if inst != nil {
 		inst.shutdown()
@@ -243,7 +244,7 @@ func (s *instanceServer) Shutdown(ctx context.Context, req *api.ShutdownRequest)
 	return new(emptypb.Empty), nil
 }
 
-func (s *instanceServer) Suspend(ctx context.Context, req *api.SuspendRequest) (*emptypb.Empty, error) {
+func (s *instanceServer) Suspend(ctx Context, req *api.SuspendRequest) (*emptypb.Empty, error) {
 	inst, err := s.getInstance(req.Id)
 	if err != nil {
 		return nil, err
@@ -253,7 +254,7 @@ func (s *instanceServer) Suspend(ctx context.Context, req *api.SuspendRequest) (
 	return new(emptypb.Empty), nil
 }
 
-func (s *instanceServer) Snapshot(ctx context.Context, req *api.SnapshotRequest) (*wrapperspb.BytesValue, error) {
+func (s *instanceServer) Snapshot(ctx Context, req *api.SnapshotRequest) (*wrapperspb.BytesValue, error) {
 	inst, err := s.removeInstance(req.Id)
 	if err != nil {
 		return nil, err
@@ -352,7 +353,7 @@ func (inst *instance) sendTo(stream api.Instance_ReceiveServer) error {
 	return nil
 }
 
-func (inst *instance) handle(ctx context.Context, p packet.Buf) {
+func (inst *instance) handle(ctx Context, p packet.Buf) {
 	var loopback chan<- packet.Buf
 	lock.Guard(&inst.mu, func() {
 		if len(inst.incoming) == 0 && inst.loopback != nil {
@@ -388,7 +389,7 @@ func (inst *instance) suspend() {
 	inst.shutdown()
 }
 
-func (inst *instance) snapshot(ctx context.Context, outgoing, incoming []byte) ([]byte, error) {
+func (inst *instance) snapshot(ctx Context, outgoing, incoming []byte) ([]byte, error) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 

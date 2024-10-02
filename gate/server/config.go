@@ -5,20 +5,21 @@
 package server
 
 import (
-	"context"
 	"io"
 
 	"gate.computer/gate/image"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
+
+	. "import.name/type/context"
 )
 
 type InstanceConnector interface {
 	// Connect allocates a new I/O stream.  The returned function is to be used
 	// to transfer data between a network connection and the instance.  If it's
 	// non-nil, a connection was established.
-	Connect(context.Context) func(context.Context, io.Reader, io.WriteCloser) error
+	Connect(Context) func(Context, io.Reader, io.WriteCloser) error
 
 	// Close causes currently blocked and future Connect calls to return nil.
 	// Established connections will not be closed.
@@ -38,8 +39,8 @@ func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) Instanc
 }
 
 type Inventory interface {
-	GetSourceModule(ctx context.Context, source string) (module string, err error)
-	AddModuleSource(ctx context.Context, module, source string) error
+	GetSourceModule(ctx Context, source string) (module string, err error)
+	AddModuleSource(ctx Context, module, source string) error
 }
 
 type Config struct {
@@ -56,14 +57,14 @@ func (c *Config) Configured() bool {
 	return c.ProcessFactory != nil && c.AccessPolicy != nil
 }
 
-func (c *Config) monitor(ctx context.Context, t event.Type) {
+func (c *Config) monitor(ctx Context, t event.Type) {
 	c.Monitor(&event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 	}, nil)
 }
 
-func (c *Config) monitorFail(ctx context.Context, t event.Type, info *event.Fail, err error) {
+func (c *Config) monitorFail(ctx Context, t event.Type, info *event.Fail, err error) {
 	c.Monitor(&event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
@@ -71,7 +72,7 @@ func (c *Config) monitorFail(ctx context.Context, t event.Type, info *event.Fail
 	}, err)
 }
 
-func (c *Config) monitorModule(ctx context.Context, t event.Type, info *event.Module) {
+func (c *Config) monitorModule(ctx Context, t event.Type, info *event.Module) {
 	c.Monitor(&event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
@@ -79,7 +80,7 @@ func (c *Config) monitorModule(ctx context.Context, t event.Type, info *event.Mo
 	}, nil)
 }
 
-func (c *Config) monitorInstance(ctx context.Context, t event.Type, info *event.Instance) {
+func (c *Config) monitorInstance(ctx Context, t event.Type, info *event.Instance) {
 	c.Monitor(&event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),

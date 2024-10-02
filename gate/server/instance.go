@@ -5,7 +5,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"path"
@@ -28,6 +27,8 @@ import (
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
 	"github.com/google/uuid"
+
+	. "import.name/type/context"
 )
 
 func makeInstanceID() string {
@@ -44,7 +45,7 @@ func validateInstanceID(pan icky, s string) {
 	pan.check(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
 }
 
-func instanceServingContext(ctx context.Context, id string) context.Context {
+func instanceServingContext(ctx Context, id string) Context {
 	ctx = pprincipal.ContextWithInstanceUUID(ctx, uuid.Must(uuid.Parse(id)))
 	ctx = programscope.ContextWithScope(ctx)
 	return ctx
@@ -204,7 +205,7 @@ func (inst *Instance) stop(lock instanceLock) {
 	}
 }
 
-func (inst *Instance) Status(ctx context.Context) *api.Status {
+func (inst *Instance) Status(ctx Context) *api.Status {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
@@ -230,7 +231,7 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 	}
 }
 
-func (inst *Instance) Wait(ctx context.Context) (status *api.Status) {
+func (inst *Instance) Wait(ctx Context) (status *api.Status) {
 	var stopped <-chan struct{}
 	inst.mu.Guard(func(lock instanceLock) {
 		status = api.CloneStatus(inst.status)
@@ -249,7 +250,7 @@ func (inst *Instance) Wait(ctx context.Context) (status *api.Status) {
 	return inst.Status(ctx)
 }
 
-func (inst *Instance) Kill(ctx context.Context) error {
+func (inst *Instance) Kill(ctx Context) error {
 	inst.kill()
 	return nil
 }
@@ -264,7 +265,7 @@ func (inst *Instance) kill() {
 }
 
 // Suspend the instance and make it non-transient.
-func (inst *Instance) Suspend(ctx context.Context) error {
+func (inst *Instance) Suspend(ctx Context) error {
 	inst.suspend_()
 	return nil
 }
@@ -355,7 +356,7 @@ func (inst *Instance) doResume(pan icky, function string, proc *runtime.Process,
 
 // Connect to a running instance.  Disconnection happens when context is
 // canceled, the instance stops running, or the program closes the connection.
-func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.WriteCloser) error {
+func (inst *Instance) Connect(ctx Context, r io.Reader, w io.WriteCloser) error {
 	wrote := false
 	defer func() {
 		if !wrote {
@@ -372,7 +373,7 @@ func (inst *Instance) Connect(ctx context.Context, r io.Reader, w io.WriteCloser
 	return conn(ctx, r, w)
 }
 
-func (inst *Instance) connect(ctx context.Context) func(context.Context, io.Reader, io.WriteCloser) error {
+func (inst *Instance) connect(ctx Context) func(Context, io.Reader, io.WriteCloser) error {
 	var s InstanceServices
 	inst.mu.Guard(func(lock instanceLock) {
 		s = inst.services
@@ -424,7 +425,7 @@ func (inst *Instance) doAnnihilate(lock instanceLock) {
 	inst.image = nil
 }
 
-func (inst *Instance) drive(ctx context.Context, prog *program, function string, config *Config) (nonexistent bool) {
+func (inst *Instance) drive(ctx Context, prog *program, function string, config *Config) (nonexistent bool) {
 	trapID := trap.InternalError
 	res := &api.Status{
 		State: api.StateKilled,
@@ -544,7 +545,7 @@ func (inst *Instance) update(update *api.InstanceUpdate) (modified bool) {
 	return
 }
 
-func (inst *Instance) debug(ctx context.Context, pan icky, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
+func (inst *Instance) debug(ctx Context, pan icky, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 

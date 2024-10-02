@@ -5,12 +5,13 @@
 package localhost
 
 import (
-	"context"
 	"encoding/binary"
 	"sync"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const maxRequests = 10 // Cannot be greater than 256.
@@ -44,14 +45,14 @@ func (inst *instance) restore(snapshot []byte) error {
 	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
+func (inst *instance) Start(ctx Context, send chan<- packet.Thunk, abort func(error)) error {
 	c := make(chan handled)
 	inst.unsent = inst.s.start(send, c)
 	inst.handled = c
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() != packet.DomainCall {
 		return nil, nil
 	}
@@ -69,7 +70,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	return nil, nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
+func (inst *instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	inst.handlers.Wait()
 
 	if inst.handled != nil {

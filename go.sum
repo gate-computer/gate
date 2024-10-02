@@ -1502,6 +1502,8 @@ import.name/make v0.0.0-20220104073727-8e6e5ea95bef/go.mod h1:lJxYlYvf7VgXqrXO0X
 import.name/pan v0.1.1/go.mod h1:snP0jwjUyxGNm7n8LD3QF/uG7HNg8lg22zwC3wm0h9M=
 import.name/pan v0.2.0 h1:wSKQfOXNKHhol1Hf3gyo6kmoAmFe0vp3Y0jsSpykPqQ=
 import.name/pan v0.2.0/go.mod h1:jzAC3o4KYbMoLWPgtxfDXjtZxa+JikGUdbQGgaDqf7U=
+import.name/type v1.0.0 h1:BVzwym9NTPSwlazSsGsFhZxzmL1WvUuFtp8jDfOg9wo=
+import.name/type v1.0.0/go.mod h1:EaX0pjNdK+nB33MXG0HwWRlRqRVHYoKgrWkbmWgr5qY=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.63 h1:qDJqBXzcE/Yg9pdUCwfNKdqtljiIIfPBCCErh85OhJg=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.63/go.mod h1:JlNivsKtS3oDnPX1ejKaDNEcKX/OKMxBI+KMpWxrMRM=
 kernel.org/pub/linux/libs/security/libcap/cap v1.2.66 h1:3P0DgIuplTGQ4dQdbBSVN0bALFZ4KtE1PndMh1SyEIM=

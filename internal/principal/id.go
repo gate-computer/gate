@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	. "import.name/type/context"
 )
 
 type Type string
@@ -77,11 +79,11 @@ func Raw(id *ID) RawKey {
 
 type contextIDValueKey struct{}
 
-func ContextWithID(ctx context.Context, id *ID) context.Context {
+func ContextWithID(ctx Context, id *ID) Context {
 	return context.WithValue(ctx, contextIDValueKey{}, id)
 }
 
-func ContextID(ctx context.Context) *ID {
+func ContextID(ctx Context) *ID {
 	id, _ := ctx.Value(contextIDValueKey{}).(*ID)
 	return id
 }

@@ -5,12 +5,13 @@
 package test
 
 import (
-	"context"
 	"log"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/principal"
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -23,7 +24,7 @@ var testConfig struct {
 	MOTD string
 }
 
-var Ext = service.Extend(extName, &testConfig, func(ctx context.Context, r *service.Registry) error {
+var Ext = service.Extend(extName, &testConfig, func(ctx Context, r *service.Registry) error {
 	return r.Register(testService{})
 })
 
@@ -38,11 +39,11 @@ func (testService) Properties() service.Properties {
 	}
 }
 
-func (testService) Discoverable(ctx context.Context) bool {
+func (testService) Discoverable(ctx Context) bool {
 	return principal.ContextID(ctx) != nil
 }
 
-func (testService) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (testService) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	if snapshot == nil {
 		log.Print(testConfig.MOTD)
 	} else {
@@ -56,7 +57,7 @@ type testInstance struct {
 	service.InstanceBase
 }
 
-func (testInstance) Handle(ctx context.Context, replies chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (testInstance) Handle(ctx Context, replies chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() == packet.DomainCall {
 		return p, nil
 	}
@@ -64,6 +65,6 @@ func (testInstance) Handle(ctx context.Context, replies chan<- packet.Thunk, p p
 	return nil, nil
 }
 
-func (testInstance) Suspend(ctx context.Context) ([]byte, error) {
+func (testInstance) Suspend(ctx Context) ([]byte, error) {
 	return []byte{0x73, 0x57}, nil
 }

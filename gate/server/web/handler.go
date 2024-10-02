@@ -22,6 +22,8 @@ import (
 	"gate.computer/gate/server/web/internal/protojson"
 	"gate.computer/internal/principal"
 	"github.com/gorilla/websocket"
+
+	. "import.name/type/context"
 )
 
 const maxWebsocketRequestSize = 4096
@@ -36,24 +38,24 @@ type errorWriter interface {
 }
 
 type (
-	instanceMethod       func(ctx context.Context, s server.Server, instance string) error
-	instanceStatusMethod func(ctx context.Context, s server.Server, instance string) (*server.Status, error)
-	instanceWaiterMethod func(ctx context.Context, s server.Server, instance string) (server.Instance, error)
+	instanceMethod       func(ctx Context, s server.Server, instance string) error
+	instanceStatusMethod func(ctx Context, s server.Server, instance string) (*server.Status, error)
+	instanceWaiterMethod func(ctx Context, s server.Server, instance string) (server.Instance, error)
 )
 
-func deleteInstance(ctx context.Context, s server.Server, instance string) error {
+func deleteInstance(ctx Context, s server.Server, instance string) error {
 	return s.DeleteInstance(ctx, instance)
 }
 
-func killInstance(ctx context.Context, s server.Server, instance string) (server.Instance, error) {
+func killInstance(ctx Context, s server.Server, instance string) (server.Instance, error) {
 	return s.KillInstance(ctx, instance)
 }
 
-func suspendInstance(ctx context.Context, s server.Server, instance string) (server.Instance, error) {
+func suspendInstance(ctx Context, s server.Server, instance string) (server.Instance, error) {
 	return s.SuspendInstance(ctx, instance)
 }
 
-func waitInstance(ctx context.Context, s server.Server, instance string) (*server.Status, error) {
+func waitInstance(ctx Context, s server.Server, instance string) (*server.Status, error) {
 	return s.WaitInstance(ctx, instance)
 }
 

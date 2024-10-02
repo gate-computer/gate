@@ -6,7 +6,6 @@ package localhost
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -14,6 +13,8 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/localhost/internal/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
+
+	. "import.name/type/context"
 )
 
 // Any encoded flat.Response (just the table) must not be larger than this,
@@ -25,7 +26,7 @@ type handled struct {
 	res packet.Buf
 }
 
-func handle(ctx context.Context, local *Localhost, config packet.Service, req packet.Buf) handled {
+func handle(ctx Context, local *Localhost, config packet.Service, req packet.Buf) handled {
 	var b []byte
 
 	tab := new(flatbuffers.Table)
@@ -42,7 +43,7 @@ func handle(ctx context.Context, local *Localhost, config packet.Service, req pa
 	return handled{req, res}
 }
 
-func handleRequest(ctx context.Context, local *Localhost, config packet.Service, call flat.Request) []byte {
+func handleRequest(ctx Context, local *Localhost, config packet.Service, call flat.Request) []byte {
 	b := flatbuffers.NewBuilder(0)
 
 	req := http.Request{

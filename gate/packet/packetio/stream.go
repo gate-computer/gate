@@ -9,10 +9,11 @@
 package packetio
 
 import (
-	"context"
 	"io"
 
 	"gate.computer/gate/packet"
+
+	. "import.name/type/context"
 )
 
 // Stream is a bidirectional stream between a connection and a channel.
@@ -86,7 +87,7 @@ func (s *Stream) StopTransfer() {
 // program's stream.  Read buffer size is limited by config.MaxSendSize.
 //
 // I/O or context errors are returned, excluding EOF.
-func (s *Stream) Transfer(ctx context.Context, config packet.Service, streamID int32, r io.Reader, w io.WriteCloser, send chan<- packet.Thunk) error {
+func (s *Stream) Transfer(ctx Context, config packet.Service, streamID int32, r io.Reader, w io.WriteCloser, send chan<- packet.Thunk) error {
 	var (
 		readDone   = make(chan any, 1)
 		readErr    error

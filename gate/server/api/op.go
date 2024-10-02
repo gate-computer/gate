@@ -8,7 +8,7 @@ import (
 	"gate.computer/gate/server/api/pb"
 )
 
-// Server operation types.  Returned by ContextOp(context.Context) function.
+// Server operation types.  Returned by ContextOp(Context) function.
 const (
 	OpModuleList       = pb.Op_MODULE_LIST
 	OpModuleInfo       = pb.Op_MODULE_INFO

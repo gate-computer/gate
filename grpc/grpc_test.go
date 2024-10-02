@@ -24,6 +24,8 @@ import (
 	"gate.computer/grpc/executable"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	. "import.name/type/context"
 )
 
 var binary = path.Join("../lib", goruntime.GOARCH, "test-grpc-service")
@@ -111,7 +113,7 @@ func testServiceRepeat(t *testing.T, c io.Closer, services []*client.Service, pa
 	}()
 
 	t.Run("#", func(t *testing.T) {
-		ctxs := []context.Context{
+		ctxs := []Context{
 			runtime.ContextWithDummyProcessKey(context.Background()),
 			runtime.ContextWithDummyProcessKey(context.Background()),
 			runtime.ContextWithDummyProcessKey(context.Background()),
@@ -133,7 +135,7 @@ func testServiceRepeat(t *testing.T, c io.Closer, services []*client.Service, pa
 	})
 }
 
-func testService(ctx context.Context, t *testing.T, s *client.Service, restore, suspend bool) {
+func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend bool) {
 	if x := s.Properties().Service.Name; x != "test" {
 		t.Error(x)
 	}

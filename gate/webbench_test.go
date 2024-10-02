@@ -16,6 +16,8 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/web"
 	"gate.computer/gate/server/web/api"
+
+	. "import.name/type/context"
 )
 
 func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
@@ -71,7 +73,7 @@ func benchCallExecutors(b *testing.B, count int) {
 	benchCall(ctx, b, runtime.DistributeProcesses(executors...))
 }
 
-func benchCall(ctx context.Context, b *testing.B, factory runtime.ProcessFactory) {
+func benchCall(ctx Context, b *testing.B, factory runtime.ProcessFactory) {
 	server, err := newBenchServer(factory)
 	if err != nil {
 		b.Fatal(err)

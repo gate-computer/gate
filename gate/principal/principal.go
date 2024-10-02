@@ -5,9 +5,9 @@
 package principal
 
 import (
-	"context"
-
 	internal "gate.computer/internal/principal"
+
+	. "import.name/type/context"
 )
 
 type (
@@ -21,11 +21,11 @@ const (
 )
 
 // ContextWithLocalID returns a context for local access.
-func ContextWithLocalID(ctx context.Context) context.Context {
+func ContextWithLocalID(ctx Context) Context {
 	return internal.ContextWithID(ctx, internal.LocalID)
 }
 
 // ContextID returns the principal id, if any.
-func ContextID(ctx context.Context) *ID {
+func ContextID(ctx Context) *ID {
 	return internal.ContextID(ctx)
 }

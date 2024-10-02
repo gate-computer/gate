@@ -5,7 +5,6 @@
 package packetio
 
 import (
-	"context"
 	"errors"
 	"io"
 	"sync/atomic"
@@ -13,6 +12,8 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/internal/error/badprogram"
 	"import.name/flux"
+
+	. "import.name/type/context"
 )
 
 var errNegativeSubscription = badprogram.Error("stream flow increment is negative")
@@ -100,7 +101,7 @@ func (s *ReadStream) StopTransfer() {
 // subscription.  Buffer size is limited by config.MaxSendSize.
 //
 // Read or context error is returned, excluding EOF.
-func (s *ReadStream) Transfer(ctx context.Context, config packet.Service, streamID int32, send chan<- packet.Thunk, r io.Reader) error {
+func (s *ReadStream) Transfer(ctx Context, config packet.Service, streamID int32, send chan<- packet.Thunk, r io.Reader) error {
 	var (
 		err     error
 		done    = ctx.Done() // Read side cancellation.

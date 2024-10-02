@@ -5,7 +5,6 @@
 package grpc
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -16,6 +15,8 @@ import (
 	"gate.computer/grpc/executable"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	. "import.name/type/context"
 )
 
 type conn interface {
@@ -41,7 +42,7 @@ type Config struct {
 }
 
 // Init configured services.
-func (conf *Config) Init(ctx context.Context) error {
+func (conf *Config) Init(ctx Context) error {
 	var conns []conn
 	defer func() {
 		for _, c := range conns {

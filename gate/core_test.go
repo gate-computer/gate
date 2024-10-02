@@ -38,6 +38,8 @@ import (
 	"gate.computer/wag/object/stack/stacktrace"
 	"gate.computer/wag/wa"
 	"import.name/lock"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -90,7 +92,7 @@ type serviceRegistry struct {
 	originMu *sync.Mutex
 }
 
-func (services serviceRegistry) CreateServer(ctx context.Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
+func (services serviceRegistry) CreateServer(ctx Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
 	d := &serviceDiscoverer{
 		registry: services,
 		config:   config,
@@ -108,11 +110,11 @@ type serviceDiscoverer struct {
 	origin service.Instance
 }
 
-func (*serviceDiscoverer) Start(context.Context, chan<- packet.Thunk) error {
+func (*serviceDiscoverer) Start(Context, chan<- packet.Thunk) error {
 	return nil
 }
 
-func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]runtime.ServiceState, error) {
+func (d *serviceDiscoverer) Discover(ctx Context, names []string) ([]runtime.ServiceState, error) {
 	for _, name := range names {
 		var s runtime.ServiceState
 
@@ -131,7 +133,7 @@ func (d *serviceDiscoverer) Discover(ctx context.Context, names []string) ([]run
 	return d.services, nil
 }
 
-func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (d *serviceDiscoverer) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	var name string
 	lock.Guard(&d.nameMu, func() {
 		name = d.names[p.Code()]
@@ -179,7 +181,7 @@ func (d *serviceDiscoverer) Handle(ctx context.Context, send chan<- packet.Thunk
 	return nil, nil
 }
 
-func (d *serviceDiscoverer) Shutdown(ctx context.Context, suspend bool) ([]snapshot.Service, error) {
+func (d *serviceDiscoverer) Shutdown(ctx Context, suspend bool) ([]snapshot.Service, error) {
 	if d.origin == nil {
 		return nil, nil
 	}
@@ -323,7 +325,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 	return prog, inst, mod
 }
 
-func startInstance(ctx context.Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer) (*executor, *image.Program, *image.Instance, *runtime.Process, *object.CallMap, compile.Module) {
+func startInstance(ctx Context, t *testing.T, storage image.Storage, wasm []byte, function string, debugOut io.Writer) (*executor, *image.Program, *image.Instance, *runtime.Process, *object.CallMap, compile.Module) {
 	var ok bool
 
 	executor := newExecutor()

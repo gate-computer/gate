@@ -5,13 +5,14 @@
 package random
 
 import (
-	"context"
 	"crypto/rand"
 	"math"
 	"time"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -50,11 +51,11 @@ func (s *Service) Properties() service.Properties {
 	}
 }
 
-func (s *Service) Discoverable(context.Context) bool {
+func (s *Service) Discoverable(Context) bool {
 	return s.config.BitsPerMinute > 0
 }
 
-func (s *Service) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (s *Service) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	inst := newInstance(s.config, config)
 	inst.restore(snapshot)
 	return inst, nil
@@ -92,7 +93,7 @@ func (inst *instance) restore(snapshot []byte) {
 	}
 }
 
-func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error {
+func (inst *instance) Start(ctx Context, send chan<- packet.Thunk, abort func(error)) error {
 	if inst.waiting != nil {
 		go inst.wait(ctx, inst.waiting, send, 0, 1)
 	}
@@ -100,7 +101,7 @@ func (inst *instance) Start(ctx context.Context, send chan<- packet.Thunk, abort
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() != packet.DomainCall {
 		return nil, nil
 	}
@@ -154,7 +155,7 @@ func (inst *instance) Handle(ctx context.Context, send chan<- packet.Thunk, p pa
 	return reply, nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
+func (inst *instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	if suspend && inst.waiting != nil {
 		if sentAt := <-inst.waiting; sentAt.IsZero() {
 			return []byte{1}, nil
@@ -163,7 +164,7 @@ func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error
 	return nil, nil
 }
 
-func (inst *instance) wait(ctx context.Context, waited chan<- time.Time, send chan<- packet.Thunk, delay time.Duration, count int) {
+func (inst *instance) wait(ctx Context, waited chan<- time.Time, send chan<- packet.Thunk, delay time.Duration, count int) {
 	var sentAt time.Time
 	defer func() {
 		waited <- sentAt

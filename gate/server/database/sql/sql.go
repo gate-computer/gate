@@ -9,10 +9,11 @@
 package sql
 
 import (
-	"context"
 	"database/sql"
 
 	"gate.computer/gate/server/database"
+
+	. "import.name/type/context"
 )
 
 type Config struct {
@@ -75,7 +76,7 @@ var Adapter = database.Register(&database.Adapter{
 		return x, err
 	},
 
-	InitInventory: func(ctx context.Context, endpoint database.Endpoint) (database.Inventory, error) {
+	InitInventory: func(ctx Context, endpoint database.Endpoint) (database.Inventory, error) {
 		x := endpoint.(*Endpoint)
 		if err := x.InitInventory(ctx); err != nil {
 			return nil, err
@@ -83,7 +84,7 @@ var Adapter = database.Register(&database.Adapter{
 		return x, nil
 	},
 
-	InitNonceChecker: func(ctx context.Context, endpoint database.Endpoint) (database.NonceChecker, error) {
+	InitNonceChecker: func(ctx Context, endpoint database.Endpoint) (database.NonceChecker, error) {
 		x := endpoint.(*Endpoint)
 		if err := x.InitNonceChecker(ctx); err != nil {
 			return nil, err

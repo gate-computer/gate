@@ -50,6 +50,7 @@ import (
 	"import.name/pan"
 
 	. "import.name/pan/mustcheck"
+	. "import.name/type/context"
 )
 
 const (
@@ -296,7 +297,7 @@ func verifyLoopbackHost(errorDesc, host string) {
 	}
 }
 
-func methods(ctx context.Context, inited <-chan api.Server) map[string]any {
+func methods(ctx Context, inited <-chan api.Server) map[string]any {
 	var initedServer api.Server
 	s := func() api.Server {
 		if initedServer != nil {
@@ -542,7 +543,7 @@ func methods(ctx context.Context, inited <-chan api.Server) map[string]any {
 	return methods
 }
 
-func listModules(ctx context.Context, s api.Server) []string {
+func listModules(ctx Context, s api.Server) []string {
 	refs := Must(s.Modules(ctx))
 	sort.Sort(api.SortableModules(refs))
 	ids := make([]string, 0, len(refs.Modules))
@@ -552,13 +553,13 @@ func listModules(ctx context.Context, s api.Server) []string {
 	return ids
 }
 
-func downloadModule(ctx context.Context, s api.Server, moduleID string) (io.ReadCloser, int64) {
+func downloadModule(ctx Context, s api.Server, moduleID string) (io.ReadCloser, int64) {
 	stream, length, err := s.ModuleContent(ctx, moduleID)
 	Check(err)
 	return stream, length
 }
 
-func uploadModule(ctx context.Context, s api.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
+func uploadModule(ctx Context, s api.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
 	upload := &api.ModuleUpload{
 		Stream: file,
 		Length: length,
@@ -571,7 +572,7 @@ func uploadModule(ctx context.Context, s api.Server, file *os.File, length int64
 
 // doCall module id or file.  Module options apply only to module file.
 func doCall(
-	ctx context.Context,
+	ctx Context,
 	s api.Server,
 	moduleID string,
 	moduleFile *os.File,
@@ -629,7 +630,7 @@ func doCall(
 
 // doLaunch module id or file.  Module options apply only to module file.
 func doLaunch(
-	ctx context.Context,
+	ctx Context,
 	s api.Server,
 	moduleID string,
 	moduleFile *os.File,
@@ -655,7 +656,7 @@ func doLaunch(
 	}
 }
 
-func listInstances(ctx context.Context, s api.Server) []string {
+func listInstances(ctx Context, s api.Server) []string {
 	instances := Must(s.Instances(ctx))
 	sort.Sort(api.SortableInstances(instances))
 	ids := make([]string, 0, len(instances.Instances))
@@ -665,17 +666,17 @@ func listInstances(ctx context.Context, s api.Server) []string {
 	return ids
 }
 
-func getInstanceInfo(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
+func getInstanceInfo(ctx Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
 	info := Must(s.InstanceInfo(ctx, instanceID))
 	return info.Status.State, info.Status.Cause, info.Status.Result, info.Tags
 }
 
-func waitInstance(ctx context.Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
+func waitInstance(ctx Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
 	status := Must(s.WaitInstance(ctx, instanceID))
 	return status.State, status.Cause, status.Result
 }
 
-func resumeInstance(ctx context.Context, s api.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
+func resumeInstance(ctx Context, s api.Server, instance string, resume *api.ResumeOptions, debugFD dbus.UnixFD, debugLogging bool) {
 	invoke, cancel := invokeOptions(debugFD, debugLogging)
 	defer cancel()
 
@@ -684,7 +685,7 @@ func resumeInstance(ctx context.Context, s api.Server, instance string, resume *
 	Must(s.ResumeInstance(ctx, instance, resume))
 }
 
-func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
+func connectInstance(ctx Context, s api.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
 	var err error
 	if err == nil {
 		err = syscall.SetNonblock(int(rFD), true)
@@ -717,7 +718,7 @@ func connectInstance(ctx context.Context, s api.Server, instanceID string, rFD, 
 	return true
 }
 
-func debugInstance(ctx context.Context, s api.Server, instanceID string, reqBuf []byte) []byte {
+func debugInstance(ctx Context, s api.Server, instanceID string, reqBuf []byte) []byte {
 	req := new(api.DebugRequest)
 	Check(proto.Unmarshal(reqBuf, req))
 
@@ -730,7 +731,7 @@ type access struct {
 	server.PublicAccess
 }
 
-func (a *access) AuthorizeInstance(ctx context.Context, res *server.ResourcePolicy, inst *server.InstancePolicy) (context.Context, error) {
+func (a *access) AuthorizeInstance(ctx Context, res *server.ResourcePolicy, inst *server.InstancePolicy) (Context, error) {
 	ctx, err := a.PublicAccess.AuthorizeInstance(ctx, res, inst)
 	if err != nil {
 		return ctx, err
@@ -739,7 +740,7 @@ func (a *access) AuthorizeInstance(ctx context.Context, res *server.ResourcePoli
 	return authorizeScope(ctx)
 }
 
-func (a *access) AuthorizeProgramInstance(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy) (context.Context, error) {
+func (a *access) AuthorizeProgramInstance(ctx Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy) (Context, error) {
 	ctx, err := a.PublicAccess.AuthorizeProgramInstance(ctx, res, prog, inst)
 	if err != nil {
 		return ctx, err
@@ -748,7 +749,7 @@ func (a *access) AuthorizeProgramInstance(ctx context.Context, res *server.Resou
 	return authorizeScope(ctx)
 }
 
-func (a *access) AuthorizeProgramInstanceSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, src string) (context.Context, error) {
+func (a *access) AuthorizeProgramInstanceSource(ctx Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, src string) (Context, error) {
 	ctx, err := a.PublicAccess.AuthorizeProgramInstanceSource(ctx, res, prog, inst, src)
 	if err != nil {
 		return ctx, err
@@ -757,7 +758,7 @@ func (a *access) AuthorizeProgramInstanceSource(ctx context.Context, res *server
 	return authorizeScope(ctx)
 }
 
-func authorizeScope(ctx context.Context) (context.Context, error) {
+func authorizeScope(ctx Context) (Context, error) {
 	if gatescope.ContextContains(ctx, system.Scope) {
 		ctx = system.ContextWithUserID(ctx, userID)
 	}

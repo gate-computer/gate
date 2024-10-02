@@ -5,12 +5,13 @@
 package system
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/scope/program/system"
+
+	. "import.name/type/context"
 )
 
 // GroupUserProcesses returns a factory which creates authenticated users'
@@ -24,7 +25,7 @@ type userGrouper struct {
 	other runtime.ProcessFactory
 }
 
-func (x userGrouper) NewProcess(ctx context.Context) (*runtime.Process, error) {
+func (x userGrouper) NewProcess(ctx Context) (*runtime.Process, error) {
 	userID := system.ContextUserID(ctx)
 	if userID == "" {
 		return x.other.NewProcess(ctx)

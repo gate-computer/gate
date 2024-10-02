@@ -5,12 +5,12 @@
 package identity
 
 import (
-	"context"
-
 	"gate.computer/gate/packet"
 	"gate.computer/gate/principal"
 	"gate.computer/gate/service"
 	"github.com/google/uuid"
+
+	. "import.name/type/context"
 )
 
 const (
@@ -31,11 +31,11 @@ func (identity) Properties() service.Properties {
 	}
 }
 
-func (identity) Discoverable(context.Context) bool {
+func (identity) Discoverable(Context) bool {
 	return true
 }
 
-func (identity) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (identity) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	return instance{}, nil
 }
 
@@ -46,7 +46,7 @@ const (
 
 type instance struct{ service.InstanceBase }
 
-func (instance) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (instance) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if p.Domain() != packet.DomainCall {
 		return nil, nil
 	}

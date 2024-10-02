@@ -5,10 +5,11 @@
 package sql
 
 import (
-	"context"
 	"time"
 
 	"gate.computer/gate/server/database"
+
+	. "import.name/type/context"
 )
 
 const NonceSchema = `
@@ -23,12 +24,12 @@ CREATE TABLE IF NOT EXISTS nonce (
 CREATE INDEX IF NOT EXISTS nonce_expire ON nonce (expire);
 `
 
-func (x *Endpoint) InitNonceChecker(ctx context.Context) error {
+func (x *Endpoint) InitNonceChecker(ctx Context) error {
 	_, err := x.db.ExecContext(ctx, NonceSchema)
 	return err
 }
 
-func (x *Endpoint) CheckNonce(ctx context.Context, scope []byte, nonce string, expire time.Time) error {
+func (x *Endpoint) CheckNonce(ctx Context, scope []byte, nonce string, expire time.Time) error {
 	conn, err := x.db.Conn(ctx)
 	if err != nil {
 		return err

@@ -5,9 +5,9 @@
 package server
 
 import (
-	"context"
-
 	"import.name/pan"
+
+	. "import.name/type/context"
 )
 
 // icky instance is passed between functions which may propagate errors via
@@ -18,7 +18,7 @@ func (icky) check(err error)      { pan.Check(err) }
 func (icky) error(x any) error    { return pan.Error(x) }
 func (icky) wrap(err error) error { return pan.Wrap(err) }
 
-func (icky) mustContext(ctx context.Context, err error) context.Context {
+func (icky) mustContext(ctx Context, err error) Context {
 	pan.Check(err)
 	return ctx
 }

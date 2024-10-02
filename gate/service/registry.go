@@ -5,7 +5,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/snapshot"
 	"import.name/lock"
+
+	. "import.name/type/context"
 )
 
 const maxServiceStringLen = 127
@@ -44,18 +45,18 @@ type InstanceConfig struct {
 
 // Instance of a service.  Corresponds to a program instance.
 type Instance interface {
-	Ready(ctx context.Context) error
-	Start(ctx context.Context, send chan<- packet.Thunk, abort func(error)) error
-	Handle(ctx context.Context, send chan<- packet.Thunk, received packet.Buf) (packet.Buf, error)
-	Shutdown(ctx context.Context, suspend bool) (snapshot []byte, err error)
+	Ready(ctx Context) error
+	Start(ctx Context, send chan<- packet.Thunk, abort func(error)) error
+	Handle(ctx Context, send chan<- packet.Thunk, received packet.Buf) (packet.Buf, error)
+	Shutdown(ctx Context, suspend bool) (snapshot []byte, err error)
 }
 
 // InstanceBase provides default implementations for some Instance methods.
 type InstanceBase struct{}
 
-func (InstanceBase) Ready(context.Context) error                                   { return nil }
-func (InstanceBase) Start(context.Context, chan<- packet.Thunk, func(error)) error { return nil }
-func (InstanceBase) Shutdown(context.Context, bool) ([]byte, error)                { return nil, nil }
+func (InstanceBase) Ready(Context) error                                   { return nil }
+func (InstanceBase) Start(Context, chan<- packet.Thunk, func(error)) error { return nil }
+func (InstanceBase) Shutdown(Context, bool) ([]byte, error)                { return nil, nil }
 
 // Factory creates instances of a particular service implementation.
 //
@@ -63,8 +64,8 @@ func (InstanceBase) Shutdown(context.Context, bool) ([]byte, error)             
 // naming conventions.
 type Factory interface {
 	Properties() Properties
-	Discoverable(ctx context.Context) bool
-	CreateInstance(ctx context.Context, config InstanceConfig, snapshot []byte) (Instance, error)
+	Discoverable(ctx Context) bool
+	CreateInstance(ctx Context, config InstanceConfig, snapshot []byte) (Instance, error)
 }
 
 // Registry is a runtime.ServiceRegistry implementation.  It multiplexes
@@ -141,7 +142,7 @@ func (r *Registry) Clone() *Registry {
 
 // Catalog of service metadata.  Only the services which are discoverable in
 // this context are included.
-func (r *Registry) Catalog(ctx context.Context) []Service {
+func (r *Registry) Catalog(ctx Context) []Service {
 	m := make(map[string]string)
 	r.catalog(ctx, m)
 
@@ -156,7 +157,7 @@ func (r *Registry) Catalog(ctx context.Context) []Service {
 	return services
 }
 
-func (r *Registry) catalog(ctx context.Context, m map[string]string) {
+func (r *Registry) catalog(ctx Context, m map[string]string) {
 	if r.parent != nil {
 		r.parent.catalog(ctx, m)
 	}
@@ -183,7 +184,7 @@ func (r *Registry) lookup(name string) Factory {
 	}
 }
 
-func (r *Registry) CreateServer(ctx context.Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
+func (r *Registry) CreateServer(ctx Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
 	done := make(chan error, 1)
 	d := &discoverer{
 		registry:  r,
@@ -281,7 +282,7 @@ type discoverer struct {
 	services  []serverService
 }
 
-func (d *discoverer) Start(ctx context.Context, send chan<- packet.Thunk) error {
+func (d *discoverer) Start(ctx Context, send chan<- packet.Thunk) error {
 	for _, s := range d.services {
 		if s.instance != nil {
 			if err := s.instance.Start(ctx, send, d.abort); err != nil {
@@ -293,7 +294,7 @@ func (d *discoverer) Start(ctx context.Context, send chan<- packet.Thunk) error 
 	return nil
 }
 
-func (d *discoverer) Discover(ctx context.Context, newNames []string) ([]runtime.ServiceState, error) {
+func (d *discoverer) Discover(ctx Context, newNames []string) ([]runtime.ServiceState, error) {
 	for _, name := range newNames {
 		s := serverService{
 			Service: snapshot.Service{
@@ -322,7 +323,7 @@ func (d *discoverer) Discover(ctx context.Context, newNames []string) ([]runtime
 	return states, nil
 }
 
-func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (d *discoverer) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	code := p.Code()
 	s := d.services[code]
 
@@ -366,14 +367,14 @@ func (d *discoverer) Handle(ctx context.Context, send chan<- packet.Thunk, p pac
 }
 
 // Shutdown instances.
-func (d *discoverer) Shutdown(ctx context.Context, suspend bool) ([]snapshot.Service, error) {
+func (d *discoverer) Shutdown(ctx Context, suspend bool) ([]snapshot.Service, error) {
 	if suspend {
 		return d.suspend(ctx)
 	}
 	return nil, d.shutdown(ctx)
 }
 
-func (d *discoverer) shutdown(ctx context.Context) (err error) {
+func (d *discoverer) shutdown(ctx Context) (err error) {
 	for _, s := range d.services {
 		if s.instance != nil {
 			if _, e := s.instance.Shutdown(ctx, false); err == nil {
@@ -385,7 +386,7 @@ func (d *discoverer) shutdown(ctx context.Context) (err error) {
 	return
 }
 
-func (d *discoverer) suspend(ctx context.Context) (final []snapshot.Service, err error) {
+func (d *discoverer) suspend(ctx Context) (final []snapshot.Service, err error) {
 	final = make([]snapshot.Service, len(d.services))
 
 	for code, s := range d.services {

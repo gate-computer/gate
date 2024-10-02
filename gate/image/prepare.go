@@ -8,11 +8,13 @@ import (
 	"context"
 
 	"gate.computer/internal/file"
+
+	. "import.name/type/context"
 )
 
 // PreparePrograms wraps a ProgramStorage.  The wrapper creates program
 // resources in advance.
-func PreparePrograms(ctx context.Context, storage ProgramStorage, bufsize int) ProgramStorage {
+func PreparePrograms(ctx Context, storage ProgramStorage, bufsize int) ProgramStorage {
 	c := make(chan fileResult, bufsize-1)
 	go preparePrograms(ctx, c, storage)
 	return &preparedPrograms{storage, c}
@@ -32,7 +34,7 @@ func (pp *preparedPrograms) newProgramFile() (*file.File, error) {
 	return r.file, r.err
 }
 
-func preparePrograms(ctx context.Context, c chan fileResult, storage ProgramStorage) {
+func preparePrograms(ctx Context, c chan fileResult, storage ProgramStorage) {
 	defer func() {
 		close(c)
 		for r := range c {
@@ -59,7 +61,7 @@ func preparePrograms(ctx context.Context, c chan fileResult, storage ProgramStor
 
 // PrepareInstances wraps an InstanceStorage.  The wrapper creates instance
 // resources in advance.
-func PrepareInstances(ctx context.Context, storage InstanceStorage, bufsize int) InstanceStorage {
+func PrepareInstances(ctx Context, storage InstanceStorage, bufsize int) InstanceStorage {
 	if bufsize <= 0 {
 		bufsize = 1
 	}
@@ -82,7 +84,7 @@ func (pi *preparedInstances) newInstanceFile() (*file.File, error) {
 	return r.file, r.err
 }
 
-func prepareInstances(ctx context.Context, c chan fileResult, storage InstanceStorage) {
+func prepareInstances(ctx Context, c chan fileResult, storage InstanceStorage) {
 	defer func() {
 		close(c)
 		for r := range c {

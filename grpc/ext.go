@@ -5,16 +5,16 @@
 package grpc
 
 import (
-	"context"
-
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const extName = "grpc"
 
 var extConfig Config
 
-var Ext = service.Extend(extName, &extConfig, func(ctx context.Context, r *service.Registry) error {
+var Ext = service.Extend(extName, &extConfig, func(ctx Context, r *service.Registry) error {
 	if err := extConfig.Init(ctx); err != nil {
 		return err
 	}

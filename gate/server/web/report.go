@@ -5,13 +5,13 @@
 package web
 
 import (
-	"context"
-
 	"gate.computer/gate/server/event"
 	"gate.computer/internal/error/subsystem"
+
+	. "import.name/type/context"
 )
 
-func reportInternalError(ctx context.Context, s *webserver, sourceURI, progHash, function, instID string, err error) {
+func reportInternalError(ctx Context, s *webserver, sourceURI, progHash, function, instID string, err error) {
 	s.monitorFail(ctx, event.TypeFailInternal, &event.Fail{
 		Source:    sourceURI,
 		Module:    progHash,
@@ -21,15 +21,15 @@ func reportInternalError(ctx context.Context, s *webserver, sourceURI, progHash,
 	}, err)
 }
 
-func reportNetworkError(ctx context.Context, s *webserver, err error) {
+func reportNetworkError(ctx Context, s *webserver, err error) {
 	s.monitorError(ctx, event.TypeFailNetwork, err)
 }
 
-func reportProtocolError(ctx context.Context, s *webserver, err error) {
+func reportProtocolError(ctx Context, s *webserver, err error) {
 	s.monitorError(ctx, event.TypeFailProtocol, err)
 }
 
-func reportRequestError(ctx context.Context, s *webserver, failType event.FailType, sourceURI, progHash, function, instID string, err error) {
+func reportRequestError(ctx Context, s *webserver, failType event.FailType, sourceURI, progHash, function, instID string, err error) {
 	s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
 		Type:     failType,
 		Source:   sourceURI,
@@ -39,13 +39,13 @@ func reportRequestError(ctx context.Context, s *webserver, failType event.FailTy
 	}, err)
 }
 
-func reportRequestFailure(ctx context.Context, s *webserver, failType event.FailType) {
+func reportRequestFailure(ctx Context, s *webserver, failType event.FailType) {
 	s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
 		Type: failType,
 	}, nil)
 }
 
-func reportPayloadError(ctx context.Context, s *webserver, err error) {
+func reportPayloadError(ctx Context, s *webserver, err error) {
 	s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
 		Type: event.FailPayloadError,
 	}, err)

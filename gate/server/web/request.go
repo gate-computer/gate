@@ -5,7 +5,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +12,8 @@ import (
 	server "gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/web/api"
+
+	. "import.name/type/context"
 )
 
 func acceptsText(r *http.Request) bool {
@@ -270,7 +271,7 @@ func mustNotHaveContent(w http.ResponseWriter, r *http.Request, s *webserver) {
 	}
 }
 
-func mustParseAuthorizationHeader(ctx context.Context, wr *requestResponseWriter, s *webserver, require bool) context.Context {
+func mustParseAuthorizationHeader(ctx Context, wr *requestResponseWriter, s *webserver, require bool) Context {
 	switch values := wr.request.Header[api.HeaderAuthorization]; len(values) {
 	case 1:
 		return mustParseAuthorization(ctx, wr, s, values[0], true)

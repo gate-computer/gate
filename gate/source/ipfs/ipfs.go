@@ -6,13 +6,14 @@
 package ipfs
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+
+	. "import.name/type/context"
 )
 
 const Source = "/ipfs"
@@ -64,7 +65,7 @@ invalid:
 }
 
 // OpenURI implements gate/server.Source.OpenURI.
-func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
+func (c *Client) OpenURI(ctx Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	query := url.Values{
 		"arg":    []string{uri},
 		"length": []string{strconv.Itoa(maxSize + 1)},

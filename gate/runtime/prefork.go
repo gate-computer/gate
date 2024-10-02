@@ -5,8 +5,9 @@
 package runtime
 
 import (
-	"context"
 	"errors"
+
+	. "import.name/type/context"
 )
 
 var errProcessChanClosed = errors.New("process preparation loop terminated")
@@ -19,7 +20,7 @@ type ResultProcess struct {
 type ProcessChan <-chan ResultProcess
 
 // PrepareProcesses in advance.
-func PrepareProcesses(ctx context.Context, f ProcessFactory, bufsize int) ProcessChan {
+func PrepareProcesses(ctx Context, f ProcessFactory, bufsize int) ProcessChan {
 	c := make(chan ResultProcess, bufsize-1)
 
 	go func() {
@@ -50,7 +51,7 @@ func PrepareProcesses(ctx context.Context, f ProcessFactory, bufsize int) Proces
 	return ProcessChan(c)
 }
 
-func (c ProcessChan) NewProcess(ctx context.Context) (*Process, error) {
+func (c ProcessChan) NewProcess(ctx Context) (*Process, error) {
 	select {
 	case x, ok := <-c:
 		if !ok {

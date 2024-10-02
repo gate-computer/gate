@@ -8,6 +8,8 @@ import (
 	"context"
 
 	"gate.computer/gate/scope"
+
+	. "import.name/type/context"
 )
 
 const Scope = "program:system"
@@ -22,11 +24,11 @@ const (
 	contextUID contextKey = iota
 )
 
-func ContextWithUserID(ctx context.Context, uid string) context.Context {
+func ContextWithUserID(ctx Context, uid string) Context {
 	return context.WithValue(ctx, contextUID, uid)
 }
 
-func ContextUserID(ctx context.Context) string {
+func ContextUserID(ctx Context) string {
 	s, _ := ctx.Value(contextUID).(string)
 	return s
 }

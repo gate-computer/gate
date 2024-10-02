@@ -5,7 +5,6 @@
 package sshkeys
 
 import (
-	"context"
 	"crypto/ed25519"
 	"fmt"
 	"os"
@@ -15,6 +14,8 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/internal/principal"
 	"golang.org/x/crypto/ssh"
+
+	. "import.name/type/context"
 )
 
 var (
@@ -79,7 +80,7 @@ func (ak *AuthorizedKeys) Parse(uid string, text []byte) error {
 	return nil
 }
 
-func (ak *AuthorizedKeys) Authorize(ctx context.Context) (context.Context, error) {
+func (ak *AuthorizedKeys) Authorize(ctx Context) (Context, error) {
 	pri := principal.ContextID(ctx)
 	if pri == nil {
 		return ctx, errUnauthenticated
@@ -96,29 +97,29 @@ func (ak *AuthorizedKeys) Authorize(ctx context.Context) (context.Context, error
 	return ctx, nil
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgram(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeProgram(ctx Context, res *server.ResourcePolicy, prog *server.ProgramPolicy) (Context, error) {
 	ak.ConfigureResource(res)
 	ak.ConfigureProgram(prog)
 	return ak.Authorize(ctx)
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, _ string) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeProgramSource(ctx Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, _ string) (Context, error) {
 	return ak.AuthorizeProgram(ctx, res, prog)
 }
 
-func (ak *AuthorizedKeys) AuthorizeInstance(ctx context.Context, res *server.ResourcePolicy, inst *server.InstancePolicy) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeInstance(ctx Context, res *server.ResourcePolicy, inst *server.InstancePolicy) (Context, error) {
 	ak.ConfigureResource(res)
 	ak.ConfigureInstance(inst)
 	return ak.Authorize(ctx)
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramInstance(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeProgramInstance(ctx Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy) (Context, error) {
 	ak.ConfigureResource(res)
 	ak.ConfigureProgram(prog)
 	ak.ConfigureInstance(inst)
 	return ak.Authorize(ctx)
 }
 
-func (ak *AuthorizedKeys) AuthorizeProgramInstanceSource(ctx context.Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, _ string) (context.Context, error) {
+func (ak *AuthorizedKeys) AuthorizeProgramInstanceSource(ctx Context, res *server.ResourcePolicy, prog *server.ProgramPolicy, inst *server.InstancePolicy, _ string) (Context, error) {
 	return ak.AuthorizeProgramInstance(ctx, res, prog, inst)
 }

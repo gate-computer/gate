@@ -5,7 +5,6 @@
 package packetio
 
 import (
-	"context"
 	"errors"
 	"io"
 	"math/bits"
@@ -14,6 +13,8 @@ import (
 	"gate.computer/gate/packet"
 	"gate.computer/internal/error/badprogram"
 	"import.name/flux"
+
+	. "import.name/type/context"
 )
 
 var errWriteBufferOverflow = badprogram.Error("write stream buffer overflow")
@@ -121,7 +122,7 @@ func (s *WriteStream) StopTransfer() {
 // Transfer data from a service's data stream while managing its flow.
 //
 // Write or context error is returned, excluding EOF.
-func (s *WriteStream) Transfer(ctx context.Context, config packet.Service, streamID int32, w io.WriteCloser, send chan<- packet.Thunk) error {
+func (s *WriteStream) Transfer(ctx Context, config packet.Service, streamID int32, w io.WriteCloser, send chan<- packet.Thunk) error {
 	var (
 		err  error
 		done = ctx.Done()

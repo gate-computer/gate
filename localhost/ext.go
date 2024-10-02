@@ -5,16 +5,16 @@
 package localhost
 
 import (
-	"context"
-
 	"gate.computer/gate/service"
+
+	. "import.name/type/context"
 )
 
 const extName = "localhost"
 
 var extConfig Config
 
-var Ext = service.Extend(extName, &extConfig, func(ctx context.Context, r *service.Registry) error {
+var Ext = service.Extend(extName, &extConfig, func(ctx Context, r *service.Registry) error {
 	if extConfig.Addr == "" {
 		return nil
 	}

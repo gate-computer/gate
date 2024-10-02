@@ -6,12 +6,13 @@
 package http
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	. "import.name/type/context"
 )
 
 type Config struct {
@@ -61,7 +62,7 @@ invalid:
 }
 
 // OpenURI implements gate/server.Source.OpenURI.
-func (c *Client) OpenURI(ctx context.Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
+func (c *Client) OpenURI(ctx Context, uri string, maxSize int) (io.ReadCloser, int64, error) {
 	url := c.config.Addr + uri
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {

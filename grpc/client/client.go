@@ -5,7 +5,6 @@
 package client
 
 import (
-	"context"
 	"errors"
 	"io"
 	"sync"
@@ -18,6 +17,8 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"import.name/lock"
+
+	. "import.name/type/context"
 )
 
 type procKey struct {
@@ -30,7 +31,7 @@ var (
 	procKeys = make(map[runtime.ProcessKey]procKey)
 )
 
-func getProcKey(ctx context.Context) (key []byte) {
+func getProcKey(ctx Context) (key []byte) {
 	opaque := runtime.MustContextProcessKey(ctx)
 
 	lock.Guard(&procMu, func() {
@@ -58,7 +59,7 @@ func getProcKey(ctx context.Context) (key []byte) {
 	return
 }
 
-func putProcKey(ctx context.Context) {
+func putProcKey(ctx Context) {
 	opaque := runtime.MustContextProcessKey(ctx)
 
 	procMu.Lock()
@@ -81,7 +82,7 @@ type Conn struct {
 }
 
 // New takes ownership of conn.
-func New(ctx context.Context, conn *grpc.ClientConn) (*Conn, error) {
+func New(ctx Context, conn *grpc.ClientConn) (*Conn, error) {
 	defer func() {
 		if conn != nil {
 			conn.Close()
@@ -108,7 +109,7 @@ func New(ctx context.Context, conn *grpc.ClientConn) (*Conn, error) {
 }
 
 // NewClient connection to a gRPC server.
-func NewClient(ctx context.Context, target string, opts ...grpc.DialOption) (*Conn, error) {
+func NewClient(ctx Context, target string, opts ...grpc.DialOption) (*Conn, error) {
 	conn, err := grpc.NewClient(target, opts...)
 	if err != nil {
 		return nil, err
@@ -167,7 +168,7 @@ func (s *Service) Properties() service.Properties {
 	}
 }
 
-func (s *Service) Discoverable(ctx context.Context) bool {
+func (s *Service) Discoverable(ctx Context) bool {
 	if s.info.RequirePrincipal && principal.ContextID(ctx) == nil {
 		return false
 	}
@@ -175,7 +176,7 @@ func (s *Service) Discoverable(ctx context.Context) bool {
 	return true
 }
 
-func (s *Service) CreateInstance(ctx context.Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (s *Service) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	key := getProcKey(ctx)
 	defer func() {
 		if key != nil {
@@ -200,7 +201,7 @@ func (s *Service) CreateInstance(ctx context.Context, config service.InstanceCon
 	return newInstance(ctx, s.c, r.Id, config), nil
 }
 
-func newInstanceConfig(ctx context.Context, config service.InstanceConfig, key []byte) *api.InstanceConfig {
+func newInstanceConfig(ctx Context, config service.InstanceConfig, key []byte) *api.InstanceConfig {
 	r := &api.InstanceConfig{
 		MaxSendSize: int32(config.MaxSendSize),
 		ProcessKey:  key,
@@ -229,7 +230,7 @@ type instance struct {
 	incoming []byte
 }
 
-func newInstance(ctx context.Context, c api.InstanceClient, id []byte, config service.InstanceConfig) *instance {
+func newInstance(ctx Context, c api.InstanceClient, id []byte, config service.InstanceConfig) *instance {
 	return &instance{
 		c:    c,
 		id:   id,
@@ -237,7 +238,7 @@ func newInstance(ctx context.Context, c api.InstanceClient, id []byte, config se
 	}
 }
 
-func (inst *instance) Ready(ctx context.Context) error {
+func (inst *instance) Ready(ctx Context) error {
 	stream, err := inst.c.Receive(ctx, &api.ReceiveRequest{
 		Id: inst.id,
 	})
@@ -249,7 +250,7 @@ func (inst *instance) Ready(ctx context.Context) error {
 	return nil
 }
 
-func (inst *instance) Start(ctx context.Context, out chan<- packet.Thunk, abort func(error)) error {
+func (inst *instance) Start(ctx Context, out chan<- packet.Thunk, abort func(error)) error {
 	c := make(chan []byte, 1)
 	go receiveForward(ctx, inst.code, out, inst.stream, c, abort)
 	inst.leftout = c
@@ -257,7 +258,7 @@ func (inst *instance) Start(ctx context.Context, out chan<- packet.Thunk, abort 
 	return nil
 }
 
-func (inst *instance) Handle(ctx context.Context, out chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
+func (inst *instance) Handle(ctx Context, out chan<- packet.Thunk, p packet.Buf) (packet.Buf, error) {
 	if len(inst.incoming) == 0 {
 		_, err := inst.c.Handle(ctx, &api.HandleRequest{
 			Id:   inst.id,
@@ -280,7 +281,7 @@ func (inst *instance) Handle(ctx context.Context, out chan<- packet.Thunk, p pac
 	return nil, nil
 }
 
-func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error) {
+func (inst *instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	putProcKey(ctx)
 
 	if !suspend {
@@ -314,7 +315,7 @@ func (inst *instance) Shutdown(ctx context.Context, suspend bool) ([]byte, error
 	return r.Value, nil
 }
 
-func receiveForward(ctx context.Context, code packet.Code, out chan<- packet.Thunk, stream api.Instance_ReceiveClient, leftout chan<- []byte, abort func(error)) {
+func receiveForward(ctx Context, code packet.Code, out chan<- packet.Thunk, stream api.Instance_ReceiveClient, leftout chan<- []byte, abort func(error)) {
 	defer close(leftout)
 
 	for {

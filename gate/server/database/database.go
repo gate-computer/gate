@@ -5,22 +5,23 @@
 package database
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
 	"time"
+
+	. "import.name/type/context"
 )
 
 type Inventory interface {
-	GetSourceModule(ctx context.Context, source string) (module string, err error)
-	AddModuleSource(ctx context.Context, module, source string) error
+	GetSourceModule(ctx Context, source string) (module string, err error)
+	AddModuleSource(ctx Context, module, source string) error
 }
 
 var ErrNonceReused = errors.New("nonce reused")
 
 type NonceChecker interface {
-	CheckNonce(ctx context.Context, scope []byte, nonce string, expires time.Time) error
+	CheckNonce(ctx Context, scope []byte, nonce string, expires time.Time) error
 }
 
 type Config interface {
@@ -36,8 +37,8 @@ type Adapter struct {
 	Name             string
 	NewConfig        func() Config
 	Open             func(Config) (Endpoint, error)
-	InitInventory    func(context.Context, Endpoint) (Inventory, error)
-	InitNonceChecker func(context.Context, Endpoint) (NonceChecker, error)
+	InitInventory    func(Context, Endpoint) (Inventory, error)
+	InitNonceChecker func(Context, Endpoint) (NonceChecker, error)
 }
 
 func (a *Adapter) String() string {
@@ -174,7 +175,7 @@ func (db *DB) Close() error {
 	return x.Close()
 }
 
-func (db *DB) InitInventory(ctx context.Context) (Inventory, error) {
+func (db *DB) InitInventory(ctx Context) (Inventory, error) {
 	x, err := db.get()
 	if err != nil {
 		return nil, err
@@ -183,7 +184,7 @@ func (db *DB) InitInventory(ctx context.Context) (Inventory, error) {
 	return db.Adapter.InitInventory(ctx, x)
 }
 
-func (db *DB) InitNonceChecker(ctx context.Context) (NonceChecker, error) {
+func (db *DB) InitNonceChecker(ctx Context) (NonceChecker, error) {
 	x, err := db.get()
 	if err != nil {
 		return nil, err

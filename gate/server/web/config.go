@@ -5,16 +5,17 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"time"
 
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
+
+	. "import.name/type/context"
 )
 
 type NonceChecker interface {
-	CheckNonce(ctx context.Context, scope []byte, nonce string, expires time.Time) error
+	CheckNonce(ctx Context, scope []byte, nonce string, expires time.Time) error
 }
 
 // Config for a web server.
@@ -31,14 +32,14 @@ func (c *Config) Configured() bool {
 	return c.Server != nil && c.Authority != "" && len(c.Origins) != 0
 }
 
-func (c *Config) monitorError(ctx context.Context, t event.Type, err error) {
+func (c *Config) monitorError(ctx Context, t event.Type, err error) {
 	c.Monitor(&event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 	}, err)
 }
 
-func (c *Config) monitorFail(ctx context.Context, t event.Type, info *event.Fail, err error) {
+func (c *Config) monitorFail(ctx Context, t event.Type, info *event.Fail, err error) {
 	c.Monitor(&event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),

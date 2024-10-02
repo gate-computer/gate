@@ -5,8 +5,6 @@
 package services
 
 import (
-	"context"
-
 	"gate.computer/gate/server"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/catalog"
@@ -14,10 +12,12 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
 	"gate.computer/gate/service/scope"
+
+	. "import.name/type/context"
 )
 
-func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random.Config) (
-	func(context.Context) server.InstanceServices,
+func Init(ctx Context, originConfig *origin.Config, randomConfig *random.Config) (
+	func(Context) server.InstanceServices,
 	error,
 ) {
 	registry := new(service.Registry)
@@ -26,7 +26,7 @@ func Init(ctx context.Context, originConfig *origin.Config, randomConfig *random
 		return nil, err
 	}
 
-	services := func(ctx context.Context) server.InstanceServices {
+	services := func(ctx Context) server.InstanceServices {
 		o := origin.New(originConfig)
 
 		r := registry.Clone()
