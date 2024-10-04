@@ -1,3 +1,6 @@
 [submodule "testdata/wasi-libc"]
 	path = testdata/wasi-libc
 	url = https://github.com/WebAssembly/wasi-libc.git
+[submodule "alpine-chroot-install"]
+	path = alpine-chroot-install
+	url = https://github.com/alpinelinux/alpine-chroot-install.git

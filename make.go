@@ -14,6 +14,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -61,6 +63,10 @@ func targets() (targets Tasks) {
 		LDFLAGS  = Getvar("LDFLAGS", "")
 
 		WASMCXX = Getvar("WASMCXX", "clang++")
+
+		CHROOTPREFIX = Getvar("CHROOTPREFIX", "../gate-prebuild")
+		CHROOTAMD64  = Getvar("CHROOTAMD64", Join(CHROOTPREFIX, "x86_64"))
+		CHROOTARM64  = Getvar("CHROOTARM64", Join(CHROOTPREFIX, "aarch64"))
 	)
 
 	testdata := targets.Add(Target("testdata",
@@ -77,13 +83,18 @@ func targets() (targets Tasks) {
 		runtimeerrors.Task(GOFMT),
 	)
 
+	var ccache []string
+	if CCACHE != "" {
+		ccache = []string{CCACHE}
+	}
+
 	executor := targets.Add(Target("executor",
 		sources,
-		executorTask(Join(O, "lib", ARCH, "gate"), CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		executorTask(ccache, Join(O, "lib", ARCH, "gate"), CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	loader := targets.Add(Target("loader",
 		sources,
-		loaderTask(Join(O, "lib", ARCH, "gate"), Join(O, "obj", ARCH), ARCH, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
+		loaderTask(ccache, Join(O, "lib", ARCH, "gate"), Join(O, "obj", ARCH), ARCH, OS, GO, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS),
 	))
 	lib := targets.Add(TargetDefault("lib",
 		executor,
@@ -124,21 +135,28 @@ func targets() (targets Tasks) {
 			benchmarkTask(O, GO, TAGS),
 		))
 
-		if ARCH == "amd64" && OS == "linux" {
-			prebuild := prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS)
-			targets.Add(Target("prebuild",
-				prebuild,
-				goTestBinaries,
-				Command(GO, "test", "-count=1", goPackages), // No gateexecdir tag.
-			))
+		targets.Add(Target("generate",
+			testdata,
+			library,
+			sources,
+		))
 
-			targets.Add(Target("generate",
-				testdata,
-				library,
-				sources,
-				prebuild,
-			))
-		}
+		prebuildChrootAMD64 := targets.Add(Target("prebuild-chroot-amd64",
+			prebuildChrootTask(CHROOTAMD64, "x86_64"),
+		))
+		prebuildChrootARM64 := targets.Add(Target("prebuild-chroot-arm64",
+			prebuildChrootTask(CHROOTARM64, "aarch64"),
+		))
+		targets.Add(Target("prebuild-chroot",
+			prebuildChrootAMD64,
+			prebuildChrootARM64,
+		))
+
+		targets.Add(Target("prebuild",
+			prebuildTask(O, GO, CPPFLAGS, CXXFLAGS, LDFLAGS, CHROOTAMD64, CHROOTARM64),
+			goTestBinaries,
+			Command(GO, "test", "-count=1", goPackages), // No gateexecdir tag.
+		))
 	}
 
 	targets.Add(TargetDefault("installer",
@@ -306,7 +324,7 @@ func eventTypesTask(GO, GOFMT string) Task {
 	)
 }
 
-func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func executorTask(cxxWrap []string, bindir, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
 		deps = Globber(
 			"gate/runtime/executor/*.cpp",
@@ -337,11 +355,11 @@ func executorTask(bindir, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task 
 
 	return If(Outdated(binary, deps),
 		DirectoryOf(binary),
-		Command(CXX, cppflags, cxxflags, ldflags, "-o", binary, "gate/runtime/executor/executor.cpp"),
+		Command(cxxWrap, CXX, cppflags, cxxflags, ldflags, "-o", binary, "gate/runtime/executor/executor.cpp"),
 	)
 }
 
-func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func loaderTask(cxxWrap []string, bindir, objdir, arch, OS, GO, CXX, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 	var (
 		deps = Globber(
 			"gate/runtime/include/*.hpp",
@@ -405,7 +423,7 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 		objects = append(objects, object)
 
 		tasks.Add(DirectoryOf(object))
-		tasks.Add(CommandWrap(CCACHE, CXX, flags, "-c", "-o", object, source))
+		tasks.Add(Command(cxxWrap, CXX, flags, "-c", "-o", object, source))
 	}
 
 	addCompilation(Join("gate/runtime/loader", arch, "start.S"), cppflags)
@@ -413,7 +431,7 @@ func loaderTask(bindir, objdir, arch, OS, GO, CCACHE, CXX, CPPFLAGS, CXXFLAGS, L
 	addCompilation(Join("gate/runtime/loader", arch, "rt.S"), cppflags) // Link as last.
 
 	tasks.Add(DirectoryOf(binary))
-	tasks.Add(CommandWrap(CCACHE, CXX, cxxflags, ldflags, "-o", binary, objects))
+	tasks.Add(Command(cxxWrap, CXX, cxxflags, ldflags, "-o", binary, objects))
 
 	return If(Outdated(binary, deps), tasks...)
 }
@@ -575,27 +593,51 @@ func benchmarkTask(O, GO, TAGS string) Task {
 	})
 }
 
-func prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
+func prebuildChrootTask(chroot, arch string) Task {
 	var (
-		muslccVersion = "10.2.1"
-		muslccURL     = "https://more.musl.cc/" + muslccVersion + "/x86_64-linux-musl/"
-
-		CURL      = Getvar("CURL", "curl")
-		SHA512SUM = Getvar("SHA512SUM", "sha512sum")
-		TAR       = Getvar("TAR", "tar")
-		GZIP      = Getvar("GZIP", "zopfli")
+		scriptdir = "alpine-chroot-install"
+		script    = Join(scriptdir, "alpine-chroot-install")
 	)
 
-	archTask := func(arch, triplet string) Task {
+	chroot, err := filepath.Abs(chroot)
+	if err != nil {
+		panic(err)
+	}
+
+	srcdir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	return Group(
+		If(Missing(script),
+			Func(func() error {
+				return fmt.Errorf("git submodule %s has not been checked out", scriptdir)
+			}),
+		),
+
+		Command("sudo", script,
+			"-a", arch,
+			"-d", chroot,
+			"-i", srcdir,
+			"-p", "build-base",
+			"-p", "g++",
+			"-p", "linux-headers",
+			"-p", "zopfli",
+		),
+	)
+}
+
+func prebuildTask(O, GO, CPPFLAGS, CXXFLAGS, LDFLAGS, CHROOTAMD64, CHROOTARM64 string) Task {
+	u, err := user.Current()
+	if err != nil {
+		panic(err)
+	}
+
+	archTask := func(arch, chroot string) Task {
 		var (
-			muslccdir = Join(O, "muslcc", muslccVersion)
-			tarname   = fmt.Sprintf("%s-cross.tgz", triplet)
-			tarpath   = Join(muslccdir, tarname)
-			toolchain = fmt.Sprintf("%s/%s-cross/bin/%s-", muslccdir, triplet, triplet)
-			cxx       = toolchain + "c++"
-			objcopy   = toolchain + "objcopy"
-			strip     = toolchain + "strip"
-			objdir    = Join(O, "obj", arch, "prebuild")
+			wrap   = []string{Join(chroot, "enter-chroot"), "-u", u.Username}
+			objdir = Join(O, "obj", arch, "prebuild")
 		)
 
 		packTask := func(name, fullname string) Task {
@@ -606,31 +648,23 @@ func prebuildTask(O, GO, CCACHE, CPPFLAGS, CXXFLAGS, LDFLAGS string) Task {
 			)
 
 			return If(Outdated(packed, Thunk(compiled)),
-				Command(objcopy, "-R", ".comment", "-R", ".eh_frame", "-R", ".note.gnu.property", compiled, temp),
-				Command(strip, temp),
-				Command(GZIP, temp),
+				Command(wrap, "objcopy", "-R", ".comment", "-R", ".eh_frame", "-R", ".note.gnu.property", compiled, temp),
+				Command(wrap, "strip", temp),
+				Command(wrap, "zopfli", temp),
 				Installation(packed, temp+".gz", false),
 			)
 		}
 
 		return Group(
-			If(Missing(cxx),
-				If(Missing(tarpath),
-					Directory(muslccdir),
-					Command(CURL, "-o", tarpath, muslccURL+tarname),
-				),
-				Command(SHA512SUM, "-c", fmt.Sprintf("muslcc.%s.sha512sum", arch)),
-				Command(TAR, "xf", tarpath, "-C", muslccdir),
-			),
-			executorTask(objdir, CCACHE, cxx, CPPFLAGS, CXXFLAGS, LDFLAGS),
-			loaderTask(objdir, objdir, arch, GOOS, GO, CCACHE, cxx, CPPFLAGS, CXXFLAGS, LDFLAGS),
+			executorTask(wrap, objdir, "c++", CPPFLAGS, CXXFLAGS, LDFLAGS),
+			loaderTask(wrap, objdir, objdir, arch, GOOS, GO, "c++", CPPFLAGS, CXXFLAGS, LDFLAGS),
 			packTask("executor", common.ExecutorFilename),
 			packTask("loader", common.LoaderFilename),
 		)
 	}
 
 	return Group(
-		archTask("amd64", "x86_64-linux-musl"),
-		archTask("arm64", "aarch64-linux-musl"),
+		archTask("amd64", CHROOTAMD64),
+		archTask("arm64", CHROOTARM64),
 	)
 }

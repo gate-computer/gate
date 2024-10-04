@@ -1,6 +1,5 @@
 bench-*.txt
 bin
 lib
-muslcc
 obj
 testdata/filesystem
