@@ -434,7 +434,7 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 		config.monitorInstance(ctx, event.TypeInstanceStop, &event.Instance{
 			Instance: inst.id,
 			Status:   api.CloneStatus(inst.status),
-		})
+		}, nil)
 
 		if inst.transient {
 			inst.doAnnihilate(lock)
@@ -442,7 +442,7 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 
 			config.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
 				Instance: inst.id,
-			})
+			}, nil)
 		}
 	}
 	defer func() {

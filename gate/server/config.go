@@ -80,12 +80,12 @@ func (c *Config) monitorModule(ctx Context, t event.Type, info *event.Module) {
 	}, nil)
 }
 
-func (c *Config) monitorInstance(ctx Context, t event.Type, info *event.Instance) {
+func (c *Config) monitorInstance(ctx Context, t event.Type, info *event.Instance, err error) {
 	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 		Info: &event.EventInstance{Instance: info},
-	}, nil)
+	}, err)
 }
 
 func (c *Config) openDebugLog(opt *api.InvokeOptions) io.WriteCloser {

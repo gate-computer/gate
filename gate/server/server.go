@@ -368,7 +368,7 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 	s.mustRunOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, module, launch))
+	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, module, launch), nil)
 
 	return inst, nil
 }
@@ -487,7 +487,7 @@ func (s *Server) mustLoadKnownModuleInstance(ctx Context, acc *account, policy *
 	s.mustRunOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, progID, launch))
+	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, progID, launch), nil)
 
 	return inst
 }
@@ -530,7 +530,7 @@ func (s *Server) mustLoadUnknownModuleInstance(ctx Context, acc *account, policy
 	s.mustRunOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceCreateStream, newInstanceCreateInfo(inst.id, progID, launch))
+	s.monitorInstance(ctx, event.TypeInstanceCreateStream, newInstanceCreateInfo(inst.id, progID, launch), nil)
 
 	return progID, inst
 }
@@ -785,14 +785,13 @@ func (s *Server) InstanceConnection(ctx Context, instance string) (_ api.Instanc
 	iofunc := func(ctx Context, r io.Reader, w io.WriteCloser) error {
 		s.monitorInstance(ctx, event.TypeInstanceConnect, &event.Instance{
 			Instance: inst.id,
-		})
+		}, nil)
 
 		err := conn(ctx, r, w)
-		// TODO: monitor error
 
 		s.monitorInstance(ctx, event.TypeInstanceDisconnect, &event.Instance{
 			Instance: inst.id,
-		})
+		}, err)
 
 		return err
 	}
@@ -815,7 +814,7 @@ func (s *Server) InstanceInfo(ctx Context, instance string) (_ *api.InstanceInfo
 
 	s.monitorInstance(ctx, event.TypeInstanceInfo, &event.Instance{
 		Instance: inst.id,
-	})
+	}, nil)
 
 	return info, nil
 }
@@ -832,7 +831,7 @@ func (s *Server) WaitInstance(ctx Context, instID string) (_ *api.Status, err er
 
 	s.monitorInstance(ctx, event.TypeInstanceWait, &event.Instance{
 		Instance: inst.id,
-	})
+	}, nil)
 
 	return status, err
 }
@@ -849,7 +848,7 @@ func (s *Server) KillInstance(ctx Context, instance string) (_ api.Instance, err
 
 	s.monitorInstance(ctx, event.TypeInstanceKill, &event.Instance{
 		Instance: inst.id,
-	})
+	}, nil)
 
 	return inst, nil
 }
@@ -870,7 +869,7 @@ func (s *Server) SuspendInstance(ctx Context, instance string) (_ api.Instance, 
 
 	s.monitorInstance(ctx, event.TypeInstanceSuspend, &event.Instance{
 		Instance: inst.id,
-	})
+	}, nil)
 
 	return inst, nil
 }
@@ -903,7 +902,7 @@ func (s *Server) ResumeInstance(ctx Context, instance string, resume *api.Resume
 	s.monitorInstance(ctx, event.TypeInstanceResume, &event.Instance{
 		Instance: inst.id,
 		Function: resume.Function,
-	})
+	}, nil)
 
 	return inst, nil
 }
@@ -921,7 +920,7 @@ func (s *Server) DeleteInstance(ctx Context, instance string) (err error) {
 
 	s.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
 		Instance: inst.id,
-	})
+	}, nil)
 
 	return
 }
@@ -983,7 +982,7 @@ func (s *Server) mustSnapshot(ctx Context, instance string, know *api.ModuleOpti
 	s.monitorInstance(ctx, event.TypeInstanceSnapshot, &event.Instance{
 		Instance: inst.id,
 		Module:   progID,
-	})
+	}, nil)
 
 	return progID
 }
@@ -1003,7 +1002,7 @@ func (s *Server) UpdateInstance(ctx Context, instance string, update *api.Instan
 			Instance: inst.id,
 			Persist:  update.Persist,
 			TagCount: int32(len(update.Tags)),
-		})
+		}, nil)
 	}
 
 	info := inst.info(progID)
@@ -1051,7 +1050,7 @@ func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugReque
 	s.monitorInstance(ctx, event.TypeInstanceDebug, &event.Instance{
 		Instance: inst.id,
 		Compiled: rebuild != nil,
-	})
+	}, nil)
 
 	return res, nil
 }
