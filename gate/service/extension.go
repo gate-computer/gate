@@ -34,11 +34,7 @@ var Extensions []*Extension
 // Extend Gate with configurable services.  Name should be the extension
 // package's identifier: if full the package name is example.net/foo, it should
 // be foo.
-func Extend(
-	name string,
-	config any,
-	init func(Context, *Registry) error,
-) *Extension {
+func Extend(name string, config any, init func(Context, *Registry) error) *Extension {
 	e := &Extension{name, config, init}
 	Extensions = append(Extensions, e)
 	return e

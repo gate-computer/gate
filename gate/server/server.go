@@ -789,11 +789,7 @@ func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 	return
 }
 
-func (s *Server) InstanceConnection(ctx Context, instance string) (
-	_ api.Instance,
-	_ func(Context, io.Reader, io.WriteCloser) error,
-	err error,
-) {
+func (s *Server) InstanceConnection(ctx Context, instance string) (_ api.Instance, _ func(Context, io.Reader, io.WriteCloser) error, err error) {
 	var pan icky
 	if internal.DontPanic() {
 		defer func() { err = pan.error(recover()) }()

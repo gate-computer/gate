@@ -19,10 +19,7 @@ import (
 	. "import.name/type/context"
 )
 
-func Init(ctx Context, originConfig *origin.Config, randomConfig *random.Config, log *slog.Logger) (
-	func(Context) server.InstanceServices,
-	error,
-) {
+func Init(ctx Context, originConfig *origin.Config, randomConfig *random.Config, log *slog.Logger) (func(Context) server.InstanceServices, error) {
 	registry := new(service.Registry)
 
 	if err := service.Init(internal.ContextWithLogger(ctx, log), registry); err != nil {

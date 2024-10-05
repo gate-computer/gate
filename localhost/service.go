@@ -119,8 +119,7 @@ func (*Localhost) Discoverable(Context) bool {
 	return true
 }
 
-func (l *Localhost) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte,
-) (service.Instance, error) {
+func (l *Localhost) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	inst := newInstance(l, config)
 	if err := inst.restore(snapshot); err != nil {
 		return nil, err

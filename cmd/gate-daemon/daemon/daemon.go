@@ -588,19 +588,7 @@ func uploadModule(ctx Context, s api.Server, file *os.File, length int64, hash s
 }
 
 // doCall module id or file.  Module options apply only to module file.
-func doCall(
-	ctx Context,
-	s api.Server,
-	moduleID string,
-	moduleFile *os.File,
-	moduleOpt *api.ModuleOptions,
-	launch *api.LaunchOptions,
-	suspendFD dbus.UnixFD,
-	rFD dbus.UnixFD,
-	wFD dbus.UnixFD,
-	debugFD dbus.UnixFD,
-	debugLogging bool,
-) (string, api.State, api.Cause, int32) {
+func doCall(ctx Context, s api.Server, moduleID string, moduleFile *os.File, moduleOpt *api.ModuleOptions, launch *api.LaunchOptions, suspendFD dbus.UnixFD, rFD dbus.UnixFD, wFD dbus.UnixFD, debugFD dbus.UnixFD, debugLogging bool) (string, api.State, api.Cause, int32) {
 	syscall.SetNonblock(int(suspendFD), true)
 	suspend := os.NewFile(uintptr(suspendFD), "suspend")
 	defer func() {
@@ -646,16 +634,7 @@ func doCall(
 }
 
 // doLaunch module id or file.  Module options apply only to module file.
-func doLaunch(
-	ctx Context,
-	s api.Server,
-	moduleID string,
-	moduleFile *os.File,
-	moduleOpt *api.ModuleOptions,
-	launch *api.LaunchOptions,
-	debugFD dbus.UnixFD,
-	debugLogging bool,
-) api.Instance {
+func doLaunch(ctx Context, s api.Server, moduleID string, moduleFile *os.File, moduleOpt *api.ModuleOptions, launch *api.LaunchOptions, debugFD dbus.UnixFD, debugLogging bool) api.Instance {
 	invoke, cancel := invokeOptions(debugFD, debugLogging)
 	defer cancel()
 
