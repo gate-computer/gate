@@ -393,7 +393,7 @@ func (inst *Instance) mustSnapshot(prog *program) (*image.Program, snapshot.Buff
 	return progImage, buffers
 }
 
-// mustAnnihilate a stopped instance into nonexistence.
+// mustAnnihilate fails unless instance is stopped.
 func (inst *Instance) mustAnnihilate() {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
@@ -405,10 +405,10 @@ func (inst *Instance) mustAnnihilate() {
 		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
-	inst.doAnnihilate(lock)
+	inst.annihilate(lock)
 }
 
-func (inst *Instance) doAnnihilate(lock instanceLock) {
+func (inst *Instance) annihilate(lock instanceLock) {
 	inst.exists = false
 	inst.image.Unstore()
 	inst.image.Close()
@@ -437,7 +437,7 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 		}, nil)
 
 		if inst.transient {
-			inst.doAnnihilate(lock)
+			inst.annihilate(lock)
 			nonexistent = true
 
 			config.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
