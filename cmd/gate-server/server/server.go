@@ -51,7 +51,7 @@ import (
 	. "import.name/type/context"
 )
 
-const serverHeaderValue = "gate"
+const DefaultServerName = "gate"
 
 const shutdownTimeout = 15 * time.Second
 
@@ -565,16 +565,23 @@ func wrapWithHandlerFunc(next http.Handler) http.Handler {
 	})
 }
 
+func setServerHeader(w http.ResponseWriter) {
+	h := w.Header()
+	if h.Get("Server") == "" {
+		h.Set("Server", DefaultServerName)
+	}
+}
+
 func newWebHandler(mux *http.ServeMux) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", serverHeaderValue)
+		setServerHeader(w)
 		mux.ServeHTTP(w, r)
 	})
 }
 
 func newACMEHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Server", serverHeaderValue)
+		setServerHeader(w)
 		writeResponse(w, r, http.StatusMisdirectedRequest, "http not supported")
 	})
 }
