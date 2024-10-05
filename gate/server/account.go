@@ -10,6 +10,7 @@ import (
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/internal/principal"
+	"import.name/pan"
 )
 
 type accountProgram struct {
@@ -86,8 +87,9 @@ func (acc *account) unrefProgram(lock serverLock, prog *program) (found bool) {
 	return
 }
 
-func (acc *account) checkUniqueInstanceID(pan icky, lock serverLock, id string) {
-	if _, found := acc.instances[id]; found {
-		pan.check(failrequest.Error(event.FailInstanceIDExists, "duplicate instance id"))
+func (acc *account) mustCheckUniqueInstanceID(lock serverLock, id string) {
+	if _, found := acc.instances[id]; !found {
+		return
 	}
+	pan.Panic(failrequest.Error(event.FailInstanceIDExists, "duplicate instance id"))
 }

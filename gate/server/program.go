@@ -24,6 +24,9 @@ import (
 	"gate.computer/internal/error/badmodule"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
+	"import.name/pan"
+
+	. "import.name/pan/mustcheck"
 )
 
 var errModuleSizeMismatch = &badmodule.Dual{
@@ -31,13 +34,11 @@ var errModuleSizeMismatch = &badmodule.Dual{
 	Public:  "invalid module content",
 }
 
-func validateHashBytes(pan icky, hash1 string, digest2 []byte) {
-	digest1, err := hex.DecodeString(hash1)
-	pan.check(err)
-
-	if subtle.ConstantTimeCompare(digest1, digest2) != 1 {
-		pan.check(failrequest.Error(event.FailModuleHashMismatch, "module hash does not match content"))
+func mustValidateHashBytes(hash1 string, digest2 []byte) {
+	if subtle.ConstantTimeCompare(Must(hex.DecodeString(hash1)), digest2) == 1 {
+		return
 	}
+	pan.Panic(failrequest.Error(event.FailModuleHashMismatch, "module hash does not match content"))
 }
 
 type program struct {
@@ -52,9 +53,9 @@ type program struct {
 	refCount int
 }
 
-// buildProgram returns an instance if instance policy is defined.  Entry name
-// can be provided only when building an instance.
-func buildProgram(pan icky, storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *api.ModuleUpload, entryName string) (*program, *image.Instance) {
+// mustBuildProgram returns an instance if instance policy is defined.  Entry
+// name can be provided only when building an instance.
+func mustBuildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPolicy *InstancePolicy, mod *api.ModuleUpload, entryName string) (*program, *image.Instance) {
 	content := mod.TakeStream()
 	defer func() {
 		if content != nil {
@@ -64,64 +65,50 @@ func buildProgram(pan icky, storage image.Storage, progPolicy *ProgramPolicy, in
 
 	var codeMap object.CallMap
 
-	b, err := build.New(storage, int(mod.Length), progPolicy.MaxTextSize, &codeMap, instPolicy != nil)
-	pan.check(err)
+	b := Must(build.New(storage, int(mod.Length), progPolicy.MaxTextSize, &codeMap, instPolicy != nil))
 	defer b.Close()
 
 	hasher := api.KnownModuleHash.New()
 	r := compile.NewLoader(bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher)))
 
 	b.InstallEarlySnapshotLoaders()
-
-	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), r)
-	pan.check(err)
+	b.Module = Must(compile.LoadInitialSections(b.ModuleConfig(), r))
 
 	b.StackSize = progPolicy.MaxStackSize
 	if instPolicy != nil {
 		if b.StackSize > instPolicy.StackSize {
 			b.StackSize = instPolicy.StackSize
 		}
-		pan.check(b.SetMaxMemorySize(instPolicy.MaxMemorySize))
+		Check(b.SetMaxMemorySize(instPolicy.MaxMemorySize))
 	}
 
-	pan.check(b.BindFunctions(entryName))
-
-	pan.check(compile.LoadCodeSection(b.CodeConfig(&codeMap), r, b.Module, abi.Library()))
-
-	pan.check(b.VerifyBreakpoints())
-
+	Check(b.BindFunctions(entryName))
+	Check(compile.LoadCodeSection(b.CodeConfig(&codeMap), r, b.Module, abi.Library()))
+	Check(b.VerifyBreakpoints())
 	b.InstallSnapshotDataLoaders()
-
-	pan.check(compile.LoadCustomSections(&b.Config, r))
-
-	pan.check(b.FinishImageText())
-
+	Check(compile.LoadCustomSections(&b.Config, r))
+	Check(b.FinishImageText())
 	b.InstallLateSnapshotLoaders()
+	Check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
+	Check(compile.LoadCustomSections(&b.Config, r))
 
-	pan.check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
-	pan.check(compile.LoadCustomSections(&b.Config, r))
-
-	err = content.Close()
+	c := content
 	content = nil
-	if err != nil {
-		pan.check(wrapContentError(err))
+	if err := c.Close(); err != nil {
+		pan.Panic(wrapContentError(err))
 	}
 
 	actualHash := hasher.Sum(nil)
-
 	if mod.Hash != "" {
-		validateHashBytes(pan, mod.Hash, actualHash)
+		mustValidateHashBytes(mod.Hash, actualHash)
 	}
 
-	progImage, err := b.FinishProgramImage()
-	pan.check(err)
+	progImage := Must(b.FinishProgramImage())
 	defer closeProgramImage(&progImage)
 
 	var inst *image.Instance
-
 	if instPolicy != nil {
-		inst, err = b.FinishInstanceImage(progImage)
-		pan.check(err)
+		inst = Must(b.FinishInstanceImage(progImage))
 	}
 
 	prog := newProgram(api.EncodeKnownModule(actualHash), progImage, b.Buffers, false)
@@ -176,57 +163,42 @@ func (prog *program) unref(lock serverLock) {
 	}
 }
 
-func (prog *program) ensureStorage(pan icky) {
+func (prog *program) mustEnsureStorage() {
 	prog.storeMu.Lock()
 	defer prog.storeMu.Unlock()
 
 	if prog.stored {
 		return
 	}
-
-	pan.check(prog.image.Store(prog.id))
+	Check(prog.image.Store(prog.id))
 	prog.stored = true
 }
 
-func rebuildProgramImage(pan icky, storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, breakpoints []uint64) (*image.Program, *object.CallMap) {
+func mustRebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, breakpoints []uint64) (*image.Program, *object.CallMap) {
 	callMap := new(object.CallMap)
 
-	b, err := build.New(storage, 0, progPolicy.MaxTextSize, callMap, false)
-	pan.check(err)
+	b := Must(build.New(storage, 0, progPolicy.MaxTextSize, callMap, false))
 	defer b.Close()
 
 	r := compile.NewLoader(bufio.NewReader(content))
-
 	b.InstallEarlySnapshotLoaders()
-
-	b.Module, err = compile.LoadInitialSections(b.ModuleConfig(), r)
-	pan.check(err)
-
+	b.Module = Must(compile.LoadInitialSections(b.ModuleConfig(), r))
 	b.StackSize = progPolicy.MaxStackSize
-
-	pan.check(b.BindFunctions(""))
+	Check(b.BindFunctions(""))
 
 	if b.Snapshot == nil {
 		b.Snapshot = new(snapshot.Snapshot)
 	}
 	b.Snapshot.Breakpoints = append([]uint64(nil), breakpoints...)
 
-	pan.check(compile.LoadCodeSection(b.CodeConfig(callMap), r, b.Module, abi.Library()))
-
-	pan.check(b.VerifyBreakpoints())
-
+	Check(compile.LoadCodeSection(b.CodeConfig(callMap), r, b.Module, abi.Library()))
+	Check(b.VerifyBreakpoints())
 	b.InstallSnapshotDataLoaders()
-
-	pan.check(compile.LoadCustomSections(&b.Config, r))
-
-	pan.check(b.FinishImageText())
-
+	Check(compile.LoadCustomSections(&b.Config, r))
+	Check(b.FinishImageText())
 	b.InstallLateSnapshotLoaders()
-
-	pan.check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
-
-	progImage, err := b.FinishProgramImage()
-	pan.check(err)
+	Check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
+	progImage := Must(b.FinishProgramImage())
 
 	return progImage, callMap
 }

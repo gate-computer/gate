@@ -27,7 +27,9 @@ import (
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
 	"github.com/google/uuid"
+	"import.name/pan"
 
+	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -35,14 +37,14 @@ func makeInstanceID() string {
 	return uuid.New().String()
 }
 
-func validateInstanceID(pan icky, s string) {
+func mustValidateInstanceID(s string) {
 	if x, err := uuid.Parse(s); err == nil {
 		if x.Version() == 4 && x.Variant() == uuid.RFC4122 {
 			return
 		}
 	}
 
-	pan.check(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
+	pan.Panic(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
 }
 
 func instanceServingContext(ctx Context, id string) Context {
@@ -55,17 +57,15 @@ func instanceStorageKey(pri *principal.ID, instID string) string {
 	return fmt.Sprintf("%s.%s", pri.String(), instID)
 }
 
-func parseInstanceStorageKey(pan icky, key string) (*principal.ID, string) {
+func mustParseInstanceStorageKey(key string) (*principal.ID, string) {
 	i := strings.LastIndexByte(key, '.')
 	if i < 0 {
-		pan.check(fmt.Errorf("invalid instance storage key: %q", key))
+		pan.Panic(fmt.Errorf("invalid instance storage key: %q", key))
 	}
 
-	pri, err := principal.ParseID(key[:i])
-	pan.check(err)
-
+	pri := Must(principal.ParseID(key[:i]))
 	instID := key[i+1:]
-	validateInstanceID(pan, instID)
+	mustValidateInstanceID(instID)
 	return pri, instID
 }
 
@@ -301,36 +301,36 @@ func (inst *Instance) getProcess() *runtime.Process {
 	return inst.process
 }
 
-func (inst *Instance) checkResume(pan icky, function string) {
+func (inst *Instance) mustCheckResume(function string) {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	inst.resumeCheck(pan, lock, function)
+	inst.mustCheckResumeWithLock(lock, function)
 }
 
-func (inst *Instance) resumeCheck(pan icky, lock instanceLock, function string) {
+func (inst *Instance) mustCheckResumeWithLock(lock instanceLock, function string) {
 	if !inst.exists {
-		pan.check(notfound.ErrInstance)
+		pan.Panic(notfound.ErrInstance)
 	}
 
 	switch inst.status.State {
 	case api.StateSuspended:
 		if function != "" {
-			pan.check(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
+			pan.Panic(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
 		}
 
 	case api.StateHalted:
 		if function == "" {
-			pan.check(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
+			pan.Panic(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
 		}
 
 	default:
-		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
+		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
 	}
 }
 
-// doResume steals proc, services and debugLog.
-func (inst *Instance) doResume(pan icky, function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) {
+// mustResume steals proc, services and debugLog.
+func (inst *Instance) mustResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) {
 	var ok bool
 	defer func() {
 		if !ok {
@@ -342,7 +342,7 @@ func (inst *Instance) doResume(pan icky, function string, proc *runtime.Process,
 	defer inst.mu.Unlock()
 
 	// Check again in case of a race condition.
-	inst.resumeCheck(pan, lock, function)
+	inst.mustCheckResumeWithLock(lock, function)
 
 	inst.status = &api.Status{State: api.StateRunning}
 	inst.process = proc
@@ -385,34 +385,33 @@ func (inst *Instance) connect(ctx Context) func(Context, io.Reader, io.WriteClos
 	return s.Connect(ctx)
 }
 
-func (inst *Instance) snapshot(pan icky, prog *program) (*image.Program, snapshot.Buffers) {
+func (inst *Instance) mustSnapshot(prog *program) (*image.Program, snapshot.Buffers) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		pan.check(notfound.ErrInstance)
+		pan.Panic(notfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
+		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	buffers := inst.buffers
-	progImage, err := image.Snapshot(prog.image, inst.image, buffers, inst.status.State == api.StateSuspended)
-	pan.check(err)
+	progImage := Must(image.Snapshot(prog.image, inst.image, buffers, inst.status.State == api.StateSuspended))
 
 	return progImage, buffers
 }
 
-// annihilate a stopped instance into nonexistence.
-func (inst *Instance) annihilate(pan icky) {
+// mustAnnihilate a stopped instance into nonexistence.
+func (inst *Instance) mustAnnihilate() {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if !inst.exists {
-		pan.check(notfound.ErrInstance)
+		pan.Panic(notfound.ErrInstance)
 	}
 	if inst.status.State == api.StateRunning {
-		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
+		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	inst.doAnnihilate(lock)
@@ -545,29 +544,28 @@ func (inst *Instance) update(update *api.InstanceUpdate) (modified bool) {
 	return
 }
 
-func (inst *Instance) debug(ctx Context, pan icky, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
+func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		pan.check(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
+		pan.Panic(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
-		pan.check(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
+		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
 	breaks := inst.image.Breakpoints()
 	modified := false
 	var data []byte
-	var err error
 
 	switch req.Op {
 	case api.DebugOpConfigSet:
 		config := req.GetConfig()
 
 		if len(config.Breakpoints) > manifest.MaxBreakpoints {
-			pan.check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
+			pan.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		breaks = manifest.SortDedupUint64(config.Breakpoints)
@@ -579,7 +577,7 @@ func (inst *Instance) debug(ctx Context, pan icky, prog *program, req *api.Debug
 		config := req.GetConfig()
 
 		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
-			pan.check(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
+			pan.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		breaks = append([]uint64{}, breaks...)
@@ -612,9 +610,7 @@ func (inst *Instance) debug(ctx Context, pan icky, prog *program, req *api.Debug
 		if inst.altProgImage == nil {
 			callMap = &prog.image.Map
 		}
-
-		data, err = inst.image.ExportStack(callMap)
-		pan.check(err)
+		data = Must(inst.image.ExportStack(callMap))
 	}
 
 	var (
