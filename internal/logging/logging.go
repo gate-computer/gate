@@ -12,24 +12,25 @@ import (
 )
 
 // Init returns some kind of logger on error.
-func Init(journal bool) (log *slog.Logger, err error) {
-	log = slog.Default()
-
-	if journal {
-		opts := &sjournal.HandlerOptions{
-			Delimiter:  sjournal.ColonDelimiter,
-			TimeFormat: time.RFC3339Nano,
-		}
-
-		var h slog.Handler
-
-		h, err = sjournal.NewHandler(opts)
-		if err == nil {
-			log = slog.New(h)
-		}
+func Init(journal bool) (*slog.Logger, error) {
+	if !journal {
+		return slog.Default(), nil
 	}
 
+	opts := &sjournal.HandlerOptions{
+		Delimiter:  sjournal.ColonDelimiter,
+		TimeFormat: time.RFC3339Nano,
+	}
+
+	h, err := sjournal.NewHandler(opts)
+	if err != nil {
+		return slog.Default(), err
+	}
+
+	log := slog.New(h)
+
 	slog.SetDefault(log)
-	slog.SetLogLoggerLevel(slog.LevelError)
-	return
+	slog.SetLogLoggerLevel(slog.LevelInfo)
+
+	return log, nil
 }
