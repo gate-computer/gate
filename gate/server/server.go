@@ -175,7 +175,7 @@ func (s *Server) Shutdown(ctx Context) error {
 	})
 
 	for _, inst := range accInsts {
-		inst.suspend()
+		inst.suspend(false)
 	}
 	for inst := range anonInsts {
 		inst.kill()
@@ -866,7 +866,7 @@ func (s *Server) SuspendInstance(ctx Context, instance string) (_ api.Instance, 
 	defer s.unrefProgram(&prog)
 
 	prog.mustEnsureStorage()
-	inst.suspend_()
+	inst.suspend(true)
 
 	s.monitorInstance(ctx, event.TypeInstanceSuspend, &event.Instance{
 		Instance: inst.id,
@@ -941,7 +941,7 @@ func (s *Server) Snapshot(ctx Context, instance string, know *api.ModuleOptions)
 	// TODO: implement suspend-snapshot-resume at a lower level
 
 	if inst.Status(ctx).State == api.StateRunning {
-		inst.suspend()
+		inst.suspend(false)
 		if inst.Wait(context.Background()).State == api.StateSuspended {
 			defer func() {
 				_, e := s.ResumeInstance(ctx, instance, nil)

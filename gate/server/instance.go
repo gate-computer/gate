@@ -266,27 +266,18 @@ func (inst *Instance) kill() {
 
 // Suspend the instance and make it non-transient.
 func (inst *Instance) Suspend(ctx Context) error {
-	inst.suspend_()
+	inst.suspend(true)
 	return nil
 }
 
-func (inst *Instance) suspend_() {
+func (inst *Instance) suspend(setNonTransient bool) {
 	var proc *runtime.Process
 	inst.mu.Guard(func(lock instanceLock) {
-		if inst.status.State == api.StateRunning {
+		if setNonTransient && inst.status.State == api.StateRunning {
 			inst.transient = false
 		}
 		proc = inst.process
 	})
-	if proc == nil {
-		return
-	}
-
-	proc.Suspend()
-}
-
-func (inst *Instance) suspend() {
-	proc := inst.getProcess()
 	if proc == nil {
 		return
 	}
