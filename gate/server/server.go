@@ -280,7 +280,12 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 	module = s.loadUnknownModule(ctx, pan, policy, upload, know)
 
 	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
-		slog.ErrorContext(ctx, "server: inventory error", "error", err) // TODO: error event
+		s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+			Type:      event.FailInternal,
+			Source:    uri,
+			Module:    module,
+			Subsystem: "inventory",
+		}, err)
 	}
 
 	return
@@ -440,7 +445,12 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 	module, inst := s.loadModuleInstance(ctx, pan, acc, policy, upload, know, launch)
 
 	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
-		slog.ErrorContext(ctx, "server: inventory error", "error", err) // TODO: error event
+		s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+			Type:      event.FailInternal,
+			Source:    uri,
+			Module:    module,
+			Subsystem: "inventory",
+		}, err)
 	}
 
 	return module, inst, nil
