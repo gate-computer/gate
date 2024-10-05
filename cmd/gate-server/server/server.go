@@ -151,6 +151,17 @@ type Config struct {
 
 var c = new(Config)
 
+var handlerFunc func(http.ResponseWriter, *http.Request, http.Handler)
+
+// SetHandlerFunc replaces the function which is invoked for every HTTP
+// request.  The registered function should call the next handler's ServeHTTP
+// method to pass the control to the server.
+//
+// This function has no effect if called after during Main.
+func SetHandlerFunc(f func(w http.ResponseWriter, r *http.Request, next http.Handler)) {
+	handlerFunc = f
+}
+
 var extMux = http.NewServeMux()
 
 // Router can be used to register additional URLs to serve via HTTP.
@@ -403,7 +414,9 @@ func main2(ctx Context, log *slog.Logger) error {
 		handler = handlers.LoggingHandler(f, handler)
 	}
 
-	webServer := &http.Server{Handler: handler}
+	webServer := &http.Server{
+		Handler: wrapWithHandlerFunc(handler),
+	}
 
 	webListener, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
@@ -436,7 +449,9 @@ func main2(ctx Context, log *slog.Logger) error {
 		}
 		webListener = tls.NewListener(webListener, webServer.TLSConfig)
 
-		acmeServer = &http.Server{Handler: m.HTTPHandler(newACMEHandler())}
+		acmeServer = &http.Server{
+			Handler: wrapWithHandlerFunc(m.HTTPHandler(newACMEHandler())),
+		}
 
 		if c.HTTP.TLS.HTTPNet == "" {
 			c.HTTP.TLS.HTTPNet = c.HTTP.Net
@@ -538,6 +553,16 @@ func main2(ctx Context, log *slog.Logger) error {
 	}
 
 	return err
+}
+
+func wrapWithHandlerFunc(next http.Handler) http.Handler {
+	f := handlerFunc
+	if f == nil {
+		return next
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f(w, r, next)
+	})
 }
 
 func newWebHandler(mux *http.ServeMux) http.Handler {
