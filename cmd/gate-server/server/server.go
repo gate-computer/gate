@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"log/syslog"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -29,7 +29,6 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/database"
 	"gate.computer/gate/server/database/sql"
-	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/sshkeys"
 	"gate.computer/gate/server/web"
 	webapi "gate.computer/gate/server/web/api"
@@ -40,6 +39,7 @@ import (
 	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
 	"gate.computer/internal/cmdconf"
+	"gate.computer/internal/logging"
 	"gate.computer/internal/services"
 	"gate.computer/internal/sys"
 	"github.com/coreos/go-systemd/v22/daemon"
@@ -145,8 +145,7 @@ type Config struct {
 	}
 
 	Log struct {
-		Syslog  bool
-		Verbose bool
+		Journal bool
 	}
 }
 
@@ -161,8 +160,6 @@ func Router() router.Router {
 
 // Main will not return.
 func Main() {
-	log.SetFlags(0)
-
 	drivers := stdsql.Drivers()
 	defaultDB := len(drivers) == 1 && drivers[0] == DefaultDatabaseDriver && sql.DefaultConfig == (sql.Config{})
 	if defaultDB {
@@ -214,64 +211,33 @@ func Main() {
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
-	var (
-		critLog *log.Logger
-		errLog  *log.Logger
-		infoLog *log.Logger
-	)
-	if c.Log.Syslog {
-		tag := path.Base(os.Args[0])
-
-		w, err := syslog.New(syslog.LOG_CRIT, tag)
-		if err != nil {
-			log.Fatal(err)
-		}
-		critLog = log.New(w, "", 0)
-
-		w, err = syslog.New(syslog.LOG_ERR, tag)
-		if err != nil {
-			critLog.Fatal(err)
-		}
-		errLog = log.New(w, "", 0)
-
-		if c.Log.Verbose {
-			w, err = syslog.New(syslog.LOG_INFO, tag)
-			if err != nil {
-				critLog.Fatal(err)
-			}
-			infoLog = log.New(w, "", 0)
-		}
-	} else {
-		critLog = log.New(os.Stderr, "", 0)
-		errLog = critLog
-
-		if c.Log.Verbose {
-			infoLog = critLog
-		}
+	if c.Log.Journal {
+		log.SetFlags(0)
 	}
-	c.Runtime.ErrorLog = errLog
-
-	var monitor func(*event.Event, error)
-	if infoLog != nil {
-		monitor = server.ErrorEventLogger(errLog, infoLog)
-	} else {
-		monitor = server.ErrorLogger(errLog)
+	log, err := logging.Init(c.Log.Journal)
+	if err != nil {
+		log.Error("journal initialization failed", "error", err)
+		os.Exit(1)
 	}
+	c.Runtime.Log = log
+
+	monitor := server.NewLogger(log)
 	c.Server.Monitor = monitor
 	c.HTTP.Monitor = monitor
 
 	ctx := context.Background()
 
-	var err error
-	c.Principal.Services, err = services.Init(router.Context(ctx, extMux), &originConfig, &randomConfig)
+	c.Principal.Services, err = services.Init(router.Context(ctx, extMux), &originConfig, &randomConfig, log)
 	if err != nil {
-		critLog.Fatal(err)
+		log.ErrorContext(ctx, "service initialization failed", "error", err)
+		os.Exit(1)
 	}
 
-	critLog.Fatal(main2(ctx, critLog))
+	log.ErrorContext(ctx, "fatal error", "error", main2(ctx, log))
+	os.Exit(1)
 }
 
-func main2(ctx Context, critLog *log.Logger) error {
+func main2(ctx Context, log *slog.Logger) error {
 	var err error
 
 	var (
@@ -538,17 +504,17 @@ func main2(ctx Context, critLog *log.Logger) error {
 		defer cancel()
 
 		if err := webServer.Shutdown(ctx); err != nil {
-			critLog.Printf("shutdown: %v", err)
+			log.ErrorContext(ctx, "web server shutdown failed", "error", err)
 		}
 
 		if acmeServer != nil {
 			if err := acmeServer.Shutdown(ctx); err != nil {
-				critLog.Printf("shutdown: %v", err)
+				log.ErrorContext(ctx, "acme server shutdown failed", "error", err)
 			}
 		}
 
 		if err := serverImpl.Shutdown(ctx); err != nil {
-			critLog.Printf("shutdown: %v", err)
+			log.ErrorContext(ctx, "server shutdown failed", "error", err)
 		}
 	}()
 
@@ -556,7 +522,7 @@ func main2(ctx Context, critLog *log.Logger) error {
 		e := e
 		go func() {
 			<-e.Dead()
-			critLog.Print("executor died")
+			log.ErrorContext(ctx, "executor died")
 			select {
 			case dead <- struct{}{}:
 			default:

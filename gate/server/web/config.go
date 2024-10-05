@@ -25,7 +25,7 @@ type Config struct {
 	Origins      []string // Value "*" causes Origin header to be ignored.
 	NonceStorage NonceChecker
 	NewRequestID func(*http.Request) uint64
-	Monitor      func(*event.Event, error)
+	Monitor      func(Context, *event.Event, error)
 }
 
 func (c *Config) Configured() bool {
@@ -33,14 +33,14 @@ func (c *Config) Configured() bool {
 }
 
 func (c *Config) monitorError(ctx Context, t event.Type, err error) {
-	c.Monitor(&event.Event{
+	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 	}, err)
 }
 
 func (c *Config) monitorFail(ctx Context, t event.Type, info *event.Fail, err error) {
-	c.Monitor(&event.Event{
+	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 		Info: &event.EventFail{Fail: info},

@@ -8,7 +8,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -30,7 +30,11 @@ type Conn struct {
 }
 
 // Execute a program.  Args includes the command name.
-func Execute(ctx Context, path string, args []string) (*Conn, error) {
+func Execute(ctx Context, path string, args []string, log *slog.Logger) (*Conn, error) {
+	if log == nil {
+		log = slog.Default()
+	}
+
 	sock1, sock2, err := socketFilePair(0)
 	if err != nil {
 		return nil, err
@@ -70,7 +74,7 @@ func Execute(ctx Context, path string, args []string) (*Conn, error) {
 
 	done := make(chan struct{})
 
-	go logErrorOutput(stderr, args[0], done)
+	go logErrorOutput(ctx, stderr, done, log)
 	stderr = nil
 
 	go terminateWhenDone(ctx, cmd.Process)
@@ -106,7 +110,7 @@ func dialerFor(conn *os.File) func(Context, string) (net.Conn, error) {
 	}
 }
 
-func logErrorOutput(r io.ReadCloser, name string, done chan<- struct{}) {
+func logErrorOutput(ctx Context, r io.ReadCloser, done chan<- struct{}, log *slog.Logger) {
 	defer close(done)
 	defer r.Close()
 
@@ -116,7 +120,7 @@ func logErrorOutput(r io.ReadCloser, name string, done chan<- struct{}) {
 		if err != nil {
 			break
 		}
-		log.Printf("%s: %s", name, s)
+		log.ErrorContext(ctx, s)
 	}
 }
 

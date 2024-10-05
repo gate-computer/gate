@@ -7,7 +7,7 @@ package grpc
 import (
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 
 	"gate.computer/gate/service"
@@ -42,7 +42,7 @@ type Config struct {
 }
 
 // Init configured services.
-func (conf *Config) Init(ctx Context) error {
+func (conf *Config) Init(ctx Context, log *slog.Logger) error {
 	var conns []conn
 	defer func() {
 		for _, c := range conns {
@@ -58,7 +58,7 @@ func (conf *Config) Init(ctx Context) error {
 			args = args[1:]
 		}
 
-		c, err := executable.Execute(ctx, path, args)
+		c, err := executable.Execute(ctx, path, args, log.With("program", args[0]))
 		if err != nil {
 			return err
 		}
@@ -89,7 +89,7 @@ func (conf *Config) Init(ctx Context) error {
 		c, err := client.NewClient(ctx, args[0], opts...)
 		if err != nil {
 			if optional {
-				log.Print(err)
+				log.InfoContext(ctx, "optional connection failed", "addr", args[0], "error", err)
 				continue
 			}
 			return err

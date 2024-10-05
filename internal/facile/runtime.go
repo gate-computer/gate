@@ -7,7 +7,7 @@ package facile
 import (
 	"bytes"
 	"context"
-	"log"
+	"log/slog"
 	"os"
 
 	"gate.computer/gate/runtime"
@@ -15,7 +15,6 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/trap"
 	"gate.computer/internal/container"
-	"gate.computer/internal/defaultlog"
 	"gate.computer/internal/sys"
 	"gate.computer/wag/object/stack/stacktrace"
 	"golang.org/x/sys/unix"
@@ -68,7 +67,7 @@ func NewRuntimeContainer(binary string, config *RuntimeConfig) (*RuntimeContaine
 
 	go func() {
 		if err := container.Wait(cmd, nil); err != nil {
-			defaultlog.StandardLogger{}.Printf("%v", err)
+			slog.Error("container wait failed", "error", err)
 		}
 	}()
 
@@ -145,7 +144,7 @@ func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) e
 		}
 
 		if err := conn(context.Background(), bytes.NewReader(nil), os.Stdout); err != nil {
-			log.Print(err)
+			slog.Error("origin connection failed", "error", err)
 		}
 	}()
 
@@ -167,7 +166,7 @@ func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) e
 		err = stacktrace.Fprint(os.Stdout, trace, code.funcTypes, nil, nil)
 	}
 	if err != nil {
-		log.Printf("stacktrace: %v", err)
+		slog.Error("stacktrace failed", "error", err)
 	}
 
 	return nil

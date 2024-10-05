@@ -5,11 +5,12 @@
 package test
 
 import (
-	"log"
+	"log/slog"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/principal"
 	"gate.computer/gate/service"
+	"gate.computer/gate/service/logger"
 
 	. "import.name/type/context"
 )
@@ -25,10 +26,12 @@ var testConfig struct {
 }
 
 var Ext = service.Extend(extName, &testConfig, func(ctx Context, r *service.Registry) error {
-	return r.Register(testService{})
+	return r.Register(testService{logger.MustContextual(ctx)})
 })
 
-type testService struct{}
+type testService struct {
+	log *slog.Logger
+}
 
 func (testService) Properties() service.Properties {
 	return service.Properties{
@@ -43,11 +46,11 @@ func (testService) Discoverable(ctx Context) bool {
 	return principal.ContextID(ctx) != nil
 }
 
-func (testService) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
+func (s testService) CreateInstance(ctx Context, config service.InstanceConfig, snapshot []byte) (service.Instance, error) {
 	if snapshot == nil {
-		log.Print(testConfig.MOTD)
+		s.log.InfoContext(ctx, testConfig.MOTD)
 	} else {
-		log.Print(testConfig.MOTD, "again")
+		s.log.InfoContext(ctx, testConfig.MOTD, "snapshot", true)
 	}
 
 	return testInstance{}, nil

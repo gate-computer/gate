@@ -49,7 +49,7 @@ type Config struct {
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
 	ModuleSources  map[string]Source
-	Monitor        func(*event.Event, error)
+	Monitor        func(Context, *event.Event, error)
 	OpenDebugLog   func(string) io.WriteCloser
 }
 
@@ -58,14 +58,14 @@ func (c *Config) Configured() bool {
 }
 
 func (c *Config) monitor(ctx Context, t event.Type) {
-	c.Monitor(&event.Event{
+	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 	}, nil)
 }
 
 func (c *Config) monitorFail(ctx Context, t event.Type, info *event.Fail, err error) {
-	c.Monitor(&event.Event{
+	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 		Info: &event.EventFail{Fail: info},
@@ -73,7 +73,7 @@ func (c *Config) monitorFail(ctx Context, t event.Type, info *event.Fail, err er
 }
 
 func (c *Config) monitorModule(ctx Context, t event.Type, info *event.Module) {
-	c.Monitor(&event.Event{
+	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 		Info: &event.EventModule{Module: info},
@@ -81,7 +81,7 @@ func (c *Config) monitorModule(ctx Context, t event.Type, info *event.Module) {
 }
 
 func (c *Config) monitorInstance(ctx Context, t event.Type, info *event.Instance) {
-	c.Monitor(&event.Event{
+	c.Monitor(ctx, &event.Event{
 		Type: t,
 		Meta: api.ContextMeta(ctx),
 		Info: &event.EventInstance{Instance: info},

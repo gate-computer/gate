@@ -5,7 +5,7 @@
 package file
 
 import (
-	"log"
+	"log/slog"
 	"runtime"
 	"sync/atomic"
 )
@@ -17,7 +17,7 @@ type countedFile struct {
 
 func (f *countedFile) finalize() {
 	if f.count != 0 {
-		log.Printf("unreachable file descriptor %d with reference count %d", f.fd, f.count)
+		slog.Error("file: unreachable file descriptor", "fd", f.fd, "refcount", f.count)
 	}
 	f.File.finalize()
 }
@@ -29,7 +29,7 @@ type Ref struct {
 func Own(fd int) Ref {
 	_, file, line, ok := runtime.Caller(2)
 	if !ok {
-		log.Print("failed to discover caller of file.Own")
+		slog.Error("file: failed to discover caller of Own")
 	}
 	f := &countedFile{
 		File:  File{fd, file, line},

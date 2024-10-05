@@ -5,18 +5,21 @@
 package monitor
 
 import (
-	"log"
+	"log/slog"
 
 	"gate.computer/gate/server/event"
+
+	. "import.name/type/context"
 )
 
-// Default monitor prints internal errors to default log.
-func Default(ev *event.Event, err error) {
-	if ev.Type == event.TypeFailInternal {
-		if err == nil {
-			log.Printf("%v", ev)
-		} else {
-			log.Printf("%v  error:%q", ev.Type, err.Error())
-		}
+// Log internal errors using default [slog.Logger].
+func LogFailInternal(ctx Context, ev *event.Event, err error) {
+	if ev.Type != event.TypeFailInternal {
+		return
 	}
+	logger := slog.Default()
+	if !logger.Enabled(ctx, slog.LevelError) {
+		return
+	}
+	_ = logger.Handler().Handle(ctx, event.NewRecord(ev, err))
 }

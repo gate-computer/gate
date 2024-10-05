@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 
 	"gate.computer/internal/manifest"
@@ -55,10 +55,8 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 		panic(n)
 	}
 
-	var level int
-	if false {
-		log.Printf("exportStack: textAddr=0x%x", textAddr)
-	}
+	slog.Debug("image: stack export", "textAddr", textAddr)
+	level := 0
 
 	var initStackOffset int32
 
@@ -70,9 +68,7 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 		absRetAddr := binary.LittleEndian.Uint64(native)
 		native = native[8:]
 
-		if false {
-			log.Printf("exportStack: level=%d absRetAddr=0x%x", level, absRetAddr)
-		}
+		slog.Debug("image: stack export", "level", level, "absRetAddr", absRetAddr)
 
 		retAddr := absRetAddr - textAddr
 		if retAddr > math.MaxUint32 {
@@ -87,10 +83,8 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 		binary.LittleEndian.PutUint64(portable, uint64(stackOffset)<<32|uint64(callIndex))
 		portable = portable[8:]
 
-		if false {
-			log.Printf("exportStack: level=%d callIndex=%d stackOffset=%d", level, callIndex, stackOffset)
-			level++
-		}
+		slog.Debug("image: stack export", "level", level, "callIndex", callIndex, "stackOffset", stackOffset)
+		level++
 
 		if init {
 			initStackOffset = stackOffset
@@ -113,9 +107,7 @@ func exportStack(portable, native []byte, textAddr uint64, textMap stack.TextMap
 		funcAddr := binary.LittleEndian.Uint64(native)
 		native = native[8:]
 
-		if false {
-			log.Printf("exportStack: level=%d entry funcAddr=0x%x", level, funcAddr)
-		}
+		slog.Debug("image: stack export", "level", level, "funcAddr", funcAddr)
 
 		funcIndex := uint32(math.MaxUint32) // No entry function.
 
@@ -176,10 +168,8 @@ func importStack(buf []byte, textAddr uint64, codeMap object.CallMap, types []wa
 		binary.LittleEndian.PutUint64(buf, textAddr+uint64(call.RetAddr))
 		buf = buf[8:]
 
-		if false {
-			log.Printf("importStack: level=%d callIndex=%d call.RetAddr=0x%x call.StackOffset=%d", level, callIndex, call.RetAddr, call.StackOffset)
-			level++
-		}
+		slog.Debug("image: stack import", "level", level, "callIndex", callIndex, "callRetAddr", call.RetAddr, "callStackOffset", call.StackOffset)
+		level++
 
 		if len(codeMap.FuncAddrs) == 0 || call.RetAddr < codeMap.FuncAddrs[0] {
 			break

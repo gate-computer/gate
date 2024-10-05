@@ -7,13 +7,13 @@ package runtime
 import (
 	"flag"
 	"log"
-	"log/syslog"
+	"log/slog"
 	"net"
 	"os"
-	"path"
 
 	"gate.computer/gate/runtime/container"
 	internal "gate.computer/internal/container"
+	"gate.computer/internal/logging"
 	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"import.name/confi"
@@ -26,7 +26,7 @@ type Config struct {
 	}
 
 	Log struct {
-		Syslog bool
+		Journal bool
 	}
 }
 
@@ -40,45 +40,25 @@ func Main() {
 	flag.Usage = confi.FlagUsage(nil, c)
 	flag.Parse()
 
-	var (
-		critLog *log.Logger
-		errLog  *log.Logger
-		infoLog *log.Logger
-	)
-	if c.Log.Syslog {
-		tag := path.Base(os.Args[0])
-
-		w, err := syslog.New(syslog.LOG_CRIT, tag)
-		if err != nil {
-			log.Fatal(err)
-		}
-		critLog = log.New(w, "", 0)
-
-		w, err = syslog.New(syslog.LOG_ERR, tag)
-		if err != nil {
-			critLog.Fatal(err)
-		}
-		errLog = log.New(w, "", 0)
-
-		w, err = syslog.New(syslog.LOG_INFO, tag)
-		if err != nil {
-			critLog.Fatal(err)
-		}
-		infoLog = log.New(w, "", 0)
-	} else {
-		critLog = log.New(os.Stderr, "", 0)
-		errLog = critLog
-		infoLog = critLog
+	if c.Log.Journal {
+		log.SetFlags(0)
+	}
+	log, err := logging.Init(c.Log.Journal)
+	if err != nil {
+		log.Error("journal initialization failed", "error", err)
+		os.Exit(1)
 	}
 
 	creds, err := internal.ParseCreds(&c.Runtime.Container.Namespace)
 	if err != nil {
-		critLog.Fatal(err)
+		log.Error("credentials parsing failed", "error", err)
+		os.Exit(1)
 	}
 
 	listeners, err := activation.Listeners()
 	if err != nil {
-		critLog.Fatal(err)
+		log.Error("listener discovery failed", "error", err)
+		os.Exit(1)
 	}
 
 	var listener *net.UnixListener
@@ -87,7 +67,8 @@ func Main() {
 	case len(listeners) == 0 && c.Runtime.DaemonSocket != "":
 		addr, err := net.ResolveUnixAddr("unix", c.Runtime.DaemonSocket)
 		if err != nil {
-			critLog.Fatal(err)
+			log.Error("daemon socket resolution failed", "error", err)
+			os.Exit(1)
 		}
 
 		if info, err := os.Lstat(addr.Name); err == nil {
@@ -98,21 +79,25 @@ func Main() {
 
 		listener, err = net.ListenUnix(addr.Net, addr)
 		if err != nil {
-			critLog.Fatal(err)
+			log.Error("daemon socket listening failed", "error", err)
+			os.Exit(1)
 		}
 
 	case len(listeners) == 1 && c.Runtime.DaemonSocket == "":
 		listener = listeners[0].(*net.UnixListener)
 
 	case len(listeners) > 1:
-		critLog.Fatal("too many sockets to activate")
+		log.Error("too many sockets to activate")
+		os.Exit(1)
 
 	default:
-		critLog.Fatal("need either runtime.daemonsocket setting or socket activation")
+		log.Error("need either runtime.daemonsocket setting or socket activation")
+		os.Exit(1)
 	}
 
 	if _, err := daemon.SdNotify(true, daemon.SdNotifyReady); err != nil {
-		critLog.Fatal(err)
+		log.Error("systemd notification failed", "error", err)
+		os.Exit(1)
 	}
 
 	var client uint64
@@ -122,25 +107,25 @@ func Main() {
 
 		conn, err := listener.AcceptUnix()
 		if err == nil {
-			go handle(client, conn, creds, errLog, infoLog)
+			go handle(conn, creds, log.With("client", client))
 		} else {
-			errLog.Print(err)
+			log.Error("accept error", "error", err)
 		}
 	}
 }
 
-func handle(client uint64, conn *net.UnixConn, creds *internal.NamespaceCreds, errLog, infoLog *log.Logger) {
+func handle(conn *net.UnixConn, creds *internal.NamespaceCreds, log *slog.Logger) {
 	defer func() {
 		if conn != nil {
 			conn.Close()
 		}
 	}()
 
-	infoLog.Printf("%d: connection", client)
+	log.Info("connection")
 
 	connFile, err := conn.File()
 	if err != nil {
-		errLog.Printf("%d: %v", client, err)
+		log.Error("connection file error", "error", err)
 		return
 	}
 	defer func() {
@@ -154,7 +139,7 @@ func handle(client uint64, conn *net.UnixConn, creds *internal.NamespaceCreds, e
 
 	cmd, err := internal.Start(connFile, &c.Runtime.Container, creds)
 	if err != nil {
-		errLog.Printf("%d: %v", client, err)
+		log.Error("container start failed", "error", err)
 		return
 	}
 
@@ -162,8 +147,8 @@ func handle(client uint64, conn *net.UnixConn, creds *internal.NamespaceCreds, e
 	connFile = nil
 
 	if err := internal.Wait(cmd, nil); err == nil {
-		infoLog.Printf("%d: container terminated", client)
+		log.Info("container terminated")
 	} else {
-		errLog.Printf("%d: %v", client, err)
+		log.Error("container wait failed", "error", err)
 	}
 }

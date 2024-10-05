@@ -40,6 +40,7 @@ import (
 	"gate.computer/gate/service/random"
 	"gate.computer/internal/bus"
 	"gate.computer/internal/cmdconf"
+	"gate.computer/internal/logging"
 	"gate.computer/internal/services"
 	"gate.computer/internal/sys"
 	"gate.computer/wag/compile"
@@ -92,6 +93,10 @@ type Config struct {
 			Path string
 		}
 	}
+
+	Log struct {
+		Journal bool
+	}
 }
 
 var c = new(Config)
@@ -106,8 +111,6 @@ var (
 )
 
 func Main() {
-	log.SetFlags(0)
-
 	defer func() {
 		pan.Fatal(recover())
 	}()
@@ -180,7 +183,20 @@ func mainResult() int {
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
 
-	c.Principal.Services = Must(services.Init(context.Background(), &originConfig, &randomConfig))
+	if c.Log.Journal {
+		log.SetFlags(0)
+	}
+	log, err := logging.Init(c.Log.Journal)
+	if err != nil {
+		log.Error("journal initialization failed", "error", err)
+		os.Exit(1)
+	}
+	c.Runtime.Log = log
+
+	monitor := server.NewLogger(log)
+	c.HTTP.Monitor = monitor
+
+	c.Principal.Services = Must(services.Init(context.Background(), &originConfig, &randomConfig, log))
 
 	exec := Must(gateruntime.NewExecutor(&c.Runtime.Config))
 	defer exec.Close()
@@ -229,6 +245,7 @@ func mainResult() int {
 		Inventory:      inventory,
 		ProcessFactory: exec,
 		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
+		Monitor:        monitor,
 		OpenDebugLog:   openDebugLog,
 	}
 	if n := c.Runtime.PrepareProcesses; n > 0 {

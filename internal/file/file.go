@@ -7,7 +7,7 @@ package file
 import (
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"runtime"
 	"syscall"
 	"unsafe"
@@ -24,7 +24,7 @@ type File struct {
 func New(fd int) *File {
 	_, file, line, ok := runtime.Caller(2)
 	if !ok {
-		log.Print("failed to discover caller of file.New")
+		slog.Error("file: failed to discover caller of New")
 	}
 	f := &File{fd, file, line}
 	runtime.SetFinalizer(f, (*File).finalize)
@@ -33,7 +33,7 @@ func New(fd int) *File {
 
 func (f *File) finalize() {
 	if f.fd >= 0 {
-		log.Printf("closing unreachable file descriptor %d created at %s:%d", f.fd, f.file, f.line)
+		slog.Error("file: closing unreachable file descriptor", "fd", f.fd, slog.Group("creator", "file", f.file, "line", f.line))
 		f.Close()
 	}
 }

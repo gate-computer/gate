@@ -10,7 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	goruntime "runtime"
 	"sync"
 
@@ -145,11 +145,11 @@ func newProgram(id string, image *image.Program, buffers snapshot.Buffers, store
 func finalizeProgram(prog *program) {
 	if prog.refCount != 0 {
 		if prog.refCount > 0 {
-			log.Printf("closing unreachable program %q with reference count %d", prog.id, prog.refCount)
+			slog.Error("server: closing unreachable program", "module", prog.id, "refcount", prog.refCount)
 			prog.image.Close()
 			prog.image = nil
 		} else {
-			log.Printf("unreachable program %q with reference count %d", prog.id, prog.refCount)
+			slog.Error("server: unreachable program with negative reference count", "module", prog.id, "refcount", prog.refCount)
 		}
 	}
 }

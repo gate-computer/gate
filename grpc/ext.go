@@ -6,6 +6,7 @@ package grpc
 
 import (
 	"gate.computer/gate/service"
+	"gate.computer/gate/service/logger"
 
 	. "import.name/type/context"
 )
@@ -15,7 +16,7 @@ const extName = "grpc"
 var extConfig Config
 
 var Ext = service.Extend(extName, &extConfig, func(ctx Context, r *service.Registry) error {
-	if err := extConfig.Init(ctx); err != nil {
+	if err := extConfig.Init(ctx, logger.MustContextual(ctx)); err != nil {
 		return err
 	}
 

@@ -5,6 +5,8 @@
 package services
 
 import (
+	"log/slog"
+
 	"gate.computer/gate/server"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/catalog"
@@ -12,17 +14,18 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
 	"gate.computer/gate/service/scope"
+	internal "gate.computer/internal/service"
 
 	. "import.name/type/context"
 )
 
-func Init(ctx Context, originConfig *origin.Config, randomConfig *random.Config) (
+func Init(ctx Context, originConfig *origin.Config, randomConfig *random.Config, log *slog.Logger) (
 	func(Context) server.InstanceServices,
 	error,
 ) {
 	registry := new(service.Registry)
 
-	if err := service.Init(ctx, registry); err != nil {
+	if err := service.Init(internal.ContextWithLogger(ctx, log), registry); err != nil {
 		return nil, err
 	}
 

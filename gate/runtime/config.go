@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"log/slog"
 	"os"
 
 	"gate.computer/gate/runtime/container"
@@ -17,7 +18,7 @@ type Config struct {
 	ConnFile     *os.File
 	DaemonSocket string           // Applicable if ConnFile is not set.
 	Container    container.Config // Applicable if ConnFile and DaemonSocket are not set.
-	ErrorLog     Logger
+	Log          *slog.Logger
 }
 
 var DefaultConfig = Config{

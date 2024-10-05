@@ -5,44 +5,37 @@
 package server
 
 import (
+	"log/slog"
+
 	"gate.computer/gate/server/event"
+
+	. "import.name/type/context"
 )
 
 // MultiMonitor combines multiple event monitors.
-func MultiMonitor(monitors ...func(*event.Event, error)) func(*event.Event, error) {
-	return func(ev *event.Event, err error) {
+func MultiMonitor(monitors ...func(Context, *event.Event, error)) func(Context, *event.Event, error) {
+	return func(ctx Context, ev *event.Event, err error) {
 		for _, f := range monitors {
-			f(ev, err)
+			f(ctx, ev, err)
 		}
 	}
 }
 
-// ErrorEventLogger creates an event monitor which prints log messages.
-// Internal errors are printed to errorLog and other events to eventLog.
-func ErrorEventLogger(errorLog, eventLog Logger) func(*event.Event, error) {
-	return func(ev *event.Event, err error) {
+// NewLogger creates an event monitor which logs structured messages.  Internal
+// errors are logged at error level and other events at info level.
+func NewLogger(logger *slog.Logger) func(Context, *event.Event, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	return func(ctx Context, ev *event.Event, err error) {
+		level := slog.LevelInfo
 		if ev.Type == event.TypeFailInternal {
-			printToLogger(errorLog, ev, err)
-		} else {
-			printToLogger(eventLog, ev, err)
+			level = slog.LevelError
 		}
-	}
-}
-
-// ErrorLogger creates an event monitor which prints log messages.  Internal
-// errors are printed to errorLog and other events are ignored.
-func ErrorLogger(errorLog Logger) func(*event.Event, error) {
-	return func(ev *event.Event, err error) {
-		if ev.Type == event.TypeFailInternal {
-			printToLogger(errorLog, ev, err)
+		if !logger.Enabled(ctx, level) {
+			return
 		}
-	}
-}
-
-func printToLogger(l Logger, ev *event.Event, err error) {
-	if err == nil {
-		l.Printf("%v", ev)
-	} else {
-		l.Printf("%v  error:%q", ev, err.Error())
+		_ = logger.Handler().Handle(ctx, event.NewRecord(ev, err))
 	}
 }

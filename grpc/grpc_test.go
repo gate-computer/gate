@@ -97,7 +97,7 @@ func testExecutable(t *testing.T, parallel, restore, suspend bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	c, err := executable.Execute(ctx, binary, []string{"service"})
+	c, err := executable.Execute(ctx, binary, []string{"service"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

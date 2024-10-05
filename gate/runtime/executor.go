@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 	"math"
 	"net"
 	"os/exec"
@@ -17,7 +18,6 @@ import (
 	"syscall"
 
 	"gate.computer/internal/container"
-	"gate.computer/internal/defaultlog"
 	"gate.computer/internal/file"
 	"import.name/lock"
 
@@ -54,9 +54,9 @@ func NewExecutor(config *Config) (*Executor, error) {
 		return nil, errors.New("executor process limit is too high")
 	}
 
-	errorLog := config.ErrorLog
-	if errorLog == nil {
-		errorLog = defaultlog.StandardLogger{}
+	log := config.Log
+	if log == nil {
+		log = slog.Default()
 	}
 
 	var (
@@ -100,13 +100,13 @@ func NewExecutor(config *Config) (*Executor, error) {
 		e.ids <- int16(i)
 	}
 
-	go e.sender(errorLog)
-	go e.receiver(errorLog)
+	go e.sender(log)
+	go e.receiver(log)
 
 	if cmd != nil {
 		go func() {
 			if err := container.Wait(cmd, e.doneSending); err != nil {
-				errorLog.Printf("%v", err)
+				log.Error("runtime: container wait error", "error", err)
 			}
 		}()
 	}
@@ -189,7 +189,7 @@ func (e *Executor) Close() error {
 	return e.conn.Close()
 }
 
-func (e *Executor) sender(errorLog Logger) {
+func (e *Executor) sender(log *slog.Logger) {
 	var closed bool
 	defer func() {
 		if !closed {
@@ -224,7 +224,7 @@ func (e *Executor) sender(errorLog Logger) {
 				closed = true
 
 				if err := e.conn.CloseWrite(); err != nil {
-					errorLog.Printf("executor socket: %v", err)
+					log.Error("runtime: executor socket write-half shutdown failed", "error", err)
 				}
 				return
 			}
@@ -243,13 +243,13 @@ func (e *Executor) sender(errorLog Logger) {
 		_, _, err := e.conn.WriteMsgUnix(buf, cmsg, nil)
 		req.release()
 		if err != nil {
-			errorLog.Printf("executor socket: %v", err)
+			log.Error("runtime: executor socket send failed", "error", err)
 			return
 		}
 	}
 }
 
-func (e *Executor) receiver(errorLog Logger) {
+func (e *Executor) receiver(log *slog.Logger) {
 	defer close(e.doneReceiving)
 
 	buf := make([]byte, 512*8) // N * sizeof(ExecStatus)
@@ -259,7 +259,7 @@ func (e *Executor) receiver(errorLog Logger) {
 		n, err := e.conn.Read(buf[buffered:])
 		if err != nil {
 			if err != io.EOF {
-				errorLog.Printf("executor socket: %v", err)
+				log.Error("runtime: executor socket read failed", "error", err)
 			}
 			return
 		}

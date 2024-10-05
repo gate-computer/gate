@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log"
+	"log/slog"
 	"strings"
 
 	"gate.computer/gate/image"
@@ -79,7 +79,7 @@ func New(ctx Context, config *Config) (_ *Server, err error) {
 		s.ImageStorage = image.Memory
 	}
 	if s.Monitor == nil {
-		s.Monitor = monitor.Default
+		s.Monitor = monitor.LogFailInternal
 	}
 	if !s.Configured() {
 		panic("incomplete server configuration")
@@ -152,7 +152,7 @@ func (s *Server) loadInstanceDuringInit(pan icky, lock serverLock, key string) {
 	acc := s.ensureAccount(lock, pri)
 
 	// TODO: restore instance
-	log.Printf("TODO: load account %s instance %s (%s)", acc.ID, instID, image.Trap())
+	slog.Debug("server: instance loading not implemented", "account", acc.ID, "instance", instID, "trap", image.Trap())
 }
 
 func (s *Server) Shutdown(ctx Context) error {
@@ -258,7 +258,7 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 	pan.check(err)
 
 	if m, err := s.Inventory.GetSourceModule(ctx, uri); err == nil {
-		log.Printf("server: source %s module is known: %s", uri, m)
+		slog.DebugContext(ctx, "server: source module is known", "uri", uri, "module", m)
 		// TODO
 	}
 
@@ -280,7 +280,7 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 	module = s.loadUnknownModule(ctx, pan, policy, upload, know)
 
 	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
-		log.Println("server: inventory: error:", err) // TODO: error event
+		slog.ErrorContext(ctx, "server: inventory error", "error", err) // TODO: error event
 	}
 
 	return
@@ -418,7 +418,7 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 	pan.check(err)
 
 	if m, err := s.Inventory.GetSourceModule(ctx, uri); err == nil {
-		log.Printf("server: source %s module is known: %s", uri, m)
+		slog.DebugContext(ctx, "server: source module is known", "uri", uri, "module", m)
 		// TODO
 	}
 
@@ -440,7 +440,7 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 	module, inst := s.loadModuleInstance(ctx, pan, acc, policy, upload, know, launch)
 
 	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
-		log.Println("server: inventory: error:", err) // TODO: error event
+		slog.ErrorContext(ctx, "server: inventory error", "error", err) // TODO: error event
 	}
 
 	return module, inst, nil

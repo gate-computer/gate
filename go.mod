@@ -14,7 +14,7 @@ require (
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.5.0
 	golang.org/x/crypto v0.27.0
-	golang.org/x/sys v0.25.0
+	golang.org/x/sys v0.26.0
 	golang.org/x/term v0.24.0
 	google.golang.org/grpc v1.66.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
@@ -24,6 +24,7 @@ require (
 	import.name/lock v0.0.0-20211205191324-f24933776f0b
 	import.name/make v0.0.0-20220104073727-8e6e5ea95bef
 	import.name/pan v0.2.0
+	import.name/sjournal v1.0.0
 	import.name/type v1.0.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.66
 	modernc.org/sqlite v1.20.0

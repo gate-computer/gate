@@ -5,7 +5,9 @@
 package service
 
 import (
-	"log"
+	"log/slog"
+
+	internal "gate.computer/internal/service"
 
 	. "import.name/type/context"
 )
@@ -51,7 +53,7 @@ func Config() map[string]any {
 	for _, e := range Extensions {
 		if !e.zeroconf() {
 			if _, found := m[e.Name]; found {
-				log.Printf("duplicate extension name: %s", e.Name)
+				slog.Info("duplicate extension", "name", e.Name)
 				dupes = append(dupes, e.Name)
 			} else {
 				m[e.Name] = e.Config
@@ -68,6 +70,10 @@ func Config() map[string]any {
 
 // Init global services (including Extensions).
 func Init(ctx Context, r *Registry) error {
+	if internal.ContextLogger(ctx) == nil {
+		ctx = internal.ContextWithLogger(ctx, slog.Default())
+	}
+
 	for _, e := range Extensions {
 		if err := e.Init(ctx, r); err != nil {
 			return err

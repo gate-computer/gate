@@ -4,4 +4,4 @@ Description=Gate daemon
 [Service]
 Type=dbus
 BusName=computer.gate.Daemon
-ExecStart=/usr/local/bin/gate-daemon -o runtime.container.cgroup.executor=gate-executor.scope
+ExecStart=/usr/local/bin/gate-daemon -o runtime.container.cgroup.executor=gate-executor.scope -o log.journal=true

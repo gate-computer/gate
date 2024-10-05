@@ -107,7 +107,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		s.NewRequestID = defaultNewRequestID
 	}
 	if s.Monitor == nil {
-		s.Monitor = monitor.Default
+		s.Monitor = monitor.LogFailInternal
 	}
 	if !s.Configured() {
 		panic("incomplete webserver configuration")
@@ -179,7 +179,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		ctx = server.ContextWithAddress(ctx, r.RemoteAddr)
 		r = r.WithContext(ctx)
 
-		s.Monitor(&event.Event{
+		s.Monitor(ctx, &event.Event{
 			Type: event.TypeIfaceAccess,
 			Meta: server.ContextMeta(ctx),
 		}, nil)
