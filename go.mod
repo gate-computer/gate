@@ -21,7 +21,7 @@ require (
 	google.golang.org/protobuf v1.34.2
 	import.name/confi v1.6.0
 	import.name/flux v1.0.0
-	import.name/lock v1.0.0
+	import.name/lock v1.1.0
 	import.name/make v0.1.0
 	import.name/pan v0.2.0
 	import.name/sjournal v1.0.0

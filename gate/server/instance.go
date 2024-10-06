@@ -27,6 +27,7 @@ import (
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
 	"github.com/google/uuid"
+	"import.name/lock"
 	"import.name/pan"
 
 	. "import.name/pan/mustcheck"
@@ -86,11 +87,13 @@ func trapStatus(id trap.ID) (api.State, api.Cause) {
 	}
 }
 
+type instanceLock struct{}
+
 type Instance struct {
 	id  string
 	acc *account
 
-	mu           instanceMutex // Guards the fields below.
+	mu           lock.TagMutex[instanceLock] // Guards the fields below.
 	exists       bool
 	transient    bool
 	status       *api.Status
@@ -233,7 +236,7 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 
 func (inst *Instance) Wait(ctx Context) (status *api.Status) {
 	var stopped <-chan struct{}
-	inst.mu.Guard(func(lock instanceLock) {
+	lock.GuardTag(&inst.mu, func(instanceLock) {
 		status = api.CloneStatus(inst.status)
 		stopped = inst.stopped
 	})
@@ -271,12 +274,11 @@ func (inst *Instance) Suspend(ctx Context) error {
 }
 
 func (inst *Instance) suspend(setNonTransient bool) {
-	var proc *runtime.Process
-	inst.mu.Guard(func(lock instanceLock) {
+	proc := lock.GuardTagged(&inst.mu, func(instanceLock) *runtime.Process {
 		if setNonTransient && inst.status.State == api.StateRunning {
 			inst.transient = false
 		}
-		proc = inst.process
+		return inst.process
 	})
 	if proc == nil {
 		return
@@ -365,9 +367,8 @@ func (inst *Instance) Connect(ctx Context, r io.Reader, w io.WriteCloser) error 
 }
 
 func (inst *Instance) connect(ctx Context) func(Context, io.Reader, io.WriteCloser) error {
-	var s InstanceServices
-	inst.mu.Guard(func(lock instanceLock) {
-		s = inst.services
+	s := lock.GuardTagged(&inst.mu, func(instanceLock) InstanceServices {
+		return inst.services
 	})
 	if s == nil {
 		return nil

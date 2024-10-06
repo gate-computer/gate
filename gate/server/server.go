@@ -23,8 +23,9 @@ import (
 	"gate.computer/internal/error/resourcelimit"
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
-
+	"import.name/lock"
 	"import.name/pan"
+
 	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
@@ -53,10 +54,12 @@ type privateConfig struct {
 	Config
 }
 
+type serverLock struct{}
+
 type Server struct {
 	privateConfig
 
-	mu        serverMutex
+	mu        lock.TagMutex[serverLock]
 	programs  map[string]*program
 	accounts  map[principal.RawKey]*account
 	anonymous map[*Instance]struct{}
@@ -152,7 +155,7 @@ func (s *Server) Shutdown(ctx Context) error {
 		accInsts  []*Instance
 		anonInsts map[*Instance]struct{}
 	)
-	s.mu.Guard(func(lock serverLock) {
+	lock.GuardTag(&s.mu, func(lock serverLock) {
 		progs := s.programs
 		s.programs = nil
 
@@ -341,7 +344,7 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 		pan.Panic(errAnonymous)
 	}
 
-	prog := s.mu.GuardProgram(func(lock serverLock) *program {
+	prog := lock.GuardTagged(&s.mu, func(lock serverLock) *program {
 		prog := s.programs[module]
 		if prog == nil {
 			return nil
@@ -626,7 +629,7 @@ func (s *Server) ModuleContent(ctx Context, module string) (stream io.ReadCloser
 		pan.Panic(errAnonymous)
 	}
 
-	prog := s.mu.GuardProgram(func(lock serverLock) *program {
+	prog := lock.GuardTagged(&s.mu, func(lock serverLock) *program {
 		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
 			return nil
@@ -690,7 +693,7 @@ func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) 
 		pan.Panic(errAnonymous)
 	}
 
-	modified := s.mu.GuardBool(func(lock serverLock) bool {
+	modified := lock.GuardTagged(&s.mu, func(lock serverLock) bool {
 		if s.programs == nil {
 			pan.Panic(ErrServerClosed)
 		}
@@ -741,7 +744,7 @@ func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 		pan.Panic(errAnonymous)
 	}
 
-	found := s.mu.GuardBool(func(lock serverLock) bool {
+	found := lock.GuardTagged(&s.mu, func(lock serverLock) bool {
 		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
 			return false
@@ -1076,7 +1079,7 @@ func (s *Server) Instances(ctx Context) (_ *api.Instances, err error) {
 
 	// Get instance references while holding server lock.
 	var insts []instProgID
-	s.mu.Guard(func(lock serverLock) {
+	lock.GuardTag(&s.mu, func(serverLock) {
 		if acc := s.accounts[principal.Raw(pri)]; acc != nil {
 			insts = make([]instProgID, 0, len(acc.instances))
 			for _, x := range acc.instances {
@@ -1131,7 +1134,7 @@ func (s *Server) unrefProgram(p **program) {
 		return
 	}
 
-	s.mu.Guard(prog.unref)
+	lock.GuardTag(&s.mu, prog.unref)
 }
 
 // mustRegisterProgramRef with the server and an account.  Caller's program
