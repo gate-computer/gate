@@ -153,7 +153,12 @@ func (process *RuntimeProcess) Serve(code *ProgramImage, state *InstanceImage) e
 		return err
 	}
 
-	_, trapID, err := process.p.Serve(context.Background(), &services, &state.buffers)
+	var (
+		trapID trap.ID
+		err    error
+	)
+
+	_, trapID, state.buffers, err = process.p.Serve(context.Background(), &services, state.buffers)
 	if err != nil {
 		return err
 	}

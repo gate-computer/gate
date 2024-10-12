@@ -31,7 +31,6 @@ func main() { Main(targets, "make.go", "buf.gen.yaml") }
 var goPackages = []string{
 	"./cmd/...",
 	"./gate/...",
-	"./grpc/...",
 	"./internal/...",
 	"./localhost/...",
 	"./shell/...",
@@ -288,11 +287,9 @@ func libraryTask(O, CCACHE, WASMCXX string) Task {
 
 func protoTask(O, GO string) Task {
 	protos := Globber(
-		"gate/server/api/pb/*.proto",
-		"gate/server/event/pb/*.proto",
-		"gate/server/web/internal/api/*.proto",
-		"grpc/api/*.proto",
-		"internal/manifest/*.proto",
+		"gate/pb/*/*.proto",
+		"gate/pb/*/*/*.proto",
+		"internal/pb/*/*.proto",
 	)
 
 	tasks := Tasks{
@@ -312,8 +309,8 @@ func protoTask(O, GO string) Task {
 func eventTypesTask(GO, GOFMT string) Task {
 	var (
 		deps = Globber(
+			"gate/pb/server/event/*.go",
 			"gate/server/event/*.go",
-			"gate/server/event/pb/*.go",
 		)
 
 		output = "gate/server/event/event.gen.go"

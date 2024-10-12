@@ -18,9 +18,9 @@ import (
 	"gate.computer/gate/trap"
 	"gate.computer/internal/error/notfound"
 	"gate.computer/internal/error/resourcelimit"
-	internal "gate.computer/internal/executable"
+	"gate.computer/internal/executable"
 	"gate.computer/internal/file"
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/wag/object/abi"
 	"gate.computer/wag/object/stack"
 	"gate.computer/wag/wa"
@@ -60,7 +60,7 @@ type InstanceStorage interface {
 
 // Instance is a program state.  It may be undergoing mutation.
 type Instance struct {
-	man      *manifest.Instance
+	man      *pb.InstanceManifest
 	manDirty bool // Manifest needs to be written to file.
 	coherent bool // File is not being mutated and looks okay.
 	file     *file.File
@@ -89,7 +89,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int)
 		instTextAddr = prog.man.TextAddr
 	}
 
-	if instStackUsage > instStackSize-internal.StackUsageOffset {
+	if instStackUsage > instStackSize-executable.StackUsageOffset {
 		return nil, resourcelimit.Error("call stack size limit exceeded")
 	}
 
@@ -131,7 +131,7 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int)
 	}
 
 	inst := &Instance{
-		man: &manifest.Instance{
+		man: &pb.InstanceManifest{
 			TextAddr:      instTextAddr,
 			StackSize:     uint32(instStackSize),
 			StackUsage:    uint32(instStackUsage),
@@ -139,8 +139,8 @@ func NewInstance(prog *Program, maxMemorySize, maxStackSize, entryFuncIndex int)
 			MemorySize:    prog.man.MemorySize,
 			MaxMemorySize: uint32(maxMemorySize),
 			StartFunc:     prog.man.StartFunc,
-			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
-			Snapshot:      prog.man.Snapshot.Clone(),
+			EntryFunc:     programEntryFunc(prog.man, entryFuncIndex),
+			Snapshot:      snapshot.Clone(prog.man.Snapshot),
 		},
 		manDirty: true,
 		coherent: true,
@@ -158,7 +158,7 @@ func (inst *Instance) SetEntryFunc(prog *Program, index int) error {
 		return notfound.ErrSuspended
 	}
 
-	inst.man.EntryFunc = prog.man.EntryFunc(index)
+	inst.man.EntryFunc = programEntryFunc(prog.man, index)
 	inst.manDirty = true
 	return nil
 }
@@ -219,8 +219,7 @@ func (inst *Instance) MemorySize() int       { return int(inst.man.MemorySize) }
 func (inst *Instance) MaxMemorySize() int    { return int(inst.man.MaxMemorySize) }
 func (inst *Instance) StartAddr() uint32     { return inst.man.StartFunc.GetAddr() }
 func (inst *Instance) EntryAddr() uint32     { return inst.man.EntryFunc.GetAddr() }
-func (inst *Instance) Flags() snapshot.Flags { return snapshot.Flags(inst.man.Snapshot.GetFlags()) }
-func (inst *Instance) Final() bool           { return inst.Flags().Final() }
+func (inst *Instance) Final() bool           { return inst.man.Snapshot.GetFinal() }
 func (inst *Instance) Trap() trap.ID         { return trap.ID(inst.man.Snapshot.GetTrap()) }
 func (inst *Instance) Result() int32         { return inst.man.Snapshot.GetResult() }
 func (inst *Instance) MonotonicTime() uint64 { return inst.man.Snapshot.GetMonotonicTime() }
@@ -239,19 +238,18 @@ func (inst *Instance) Breakpoints() []uint64 {
 }
 
 func (inst *Instance) SetFinal() {
-	flags := uint64(inst.Flags() | snapshot.FlagFinal)
-	if inst.man.Snapshot.GetFlags() == flags {
+	if inst.man.Snapshot.GetFinal() {
 		return
 	}
-	manifest.InflateSnapshot(&inst.man.Snapshot).Flags = flags
+	inflate(&inst.man.Snapshot).Final = true
 	inst.manDirty = true
 }
 
 func (inst *Instance) SetTrap(id trap.ID) {
-	if inst.man.Snapshot.GetTrap() == int32(id) {
+	if inst.man.Snapshot.GetTrap() == id {
 		return
 	}
-	manifest.InflateSnapshot(&inst.man.Snapshot).Trap = int32(id)
+	inflate(&inst.man.Snapshot).Trap = id
 	inst.manDirty = true
 }
 
@@ -259,7 +257,7 @@ func (inst *Instance) SetResult(n int32) {
 	if inst.man.Snapshot.GetResult() == n {
 		return
 	}
-	manifest.InflateSnapshot(&inst.man.Snapshot).Result = n
+	inflate(&inst.man.Snapshot).Result = n
 	inst.manDirty = true
 }
 
@@ -274,7 +272,7 @@ func (inst *Instance) SetBreakpoints(a []uint64) {
 		return
 	}
 changed:
-	manifest.InflateSnapshot(&inst.man.Snapshot).Breakpoints = a
+	inflate(&inst.man.Snapshot).Breakpoints = a
 	inst.manDirty = true
 }
 
@@ -322,7 +320,7 @@ func (inst *Instance) checkMutation() (vars stackVars, err error) {
 		return
 	}
 
-	b := make([]byte, internal.StackVarsSize)
+	b := make([]byte, executable.StackVarsSize)
 
 	_, err = inst.file.ReadAt(b, 0)
 	if err != nil {
@@ -346,7 +344,7 @@ func (inst *Instance) checkMutation() (vars stackVars, err error) {
 		inst.man.MemorySize = vars.CurrentMemoryPages << wa.PageBits
 		inst.man.StartFunc = nil
 		inst.man.EntryFunc = nil
-		manifest.InflateSnapshot(&inst.man.Snapshot).MonotonicTime = vars.MonotonicTimeSnapshot
+		inflate(&inst.man.Snapshot).MonotonicTime = vars.MonotonicTimeSnapshot
 		inst.manDirty = true
 	}
 
@@ -391,7 +389,7 @@ func (inst *Instance) ReplaceCallStack(funcAddr uint32, funcArgs []uint64) error
 		if _, err := rand.Read(b); err != nil {
 			return err
 		}
-		textAddr = internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b)
+		textAddr = executable.RandAddr(executable.MinTextAddr, executable.MaxTextAddr, b)
 	}
 
 	count := 1 + 1 + len(funcArgs) // Resume address, link address and params.
@@ -474,7 +472,7 @@ func checkStack(b []byte, stackSize uint32) (vars stackVars, ok bool) {
 
 	switch {
 	case vars.StackUnused == math.MaxUint32: // Execution was suspended by force.
-	case vars.StackUnused < internal.StackUsageOffset || vars.StackUnused > stackSize || vars.StackUnused&7 != 0:
+	case vars.StackUnused < executable.StackUsageOffset || vars.StackUnused > stackSize || vars.StackUnused&7 != 0:
 	case vars.CurrentMemoryPages > math.MaxInt32/wa.PageSize:
 	case vars.RandomAvail > 16:
 	case !checkStackMagic(vars.Magic[:]):
@@ -507,10 +505,17 @@ func maxInstanceMemory(prog *Program, n int) (int, error) {
 	return n, nil
 }
 
-var pageMask = int64(internal.PageSize - 1)
+var pageMask = int64(executable.PageSize - 1)
 
 func align8(n int64) int64             { return (n + 7) &^ 7 }
 func alignPageSize(n int) int          { return int(alignPageOffset(int64(n))) }
 func alignPageSize32(n uint32) int     { return int(alignPageOffset(int64(n))) }
 func alignPageOffset(n int64) int64    { return (n + pageMask) &^ pageMask }
 func alignPageOffset32(n uint32) int64 { return alignPageOffset(int64(n)) }
+
+func inflate(p **snapshot.Snapshot) *snapshot.Snapshot {
+	if *p == nil {
+		*p = new(snapshot.Snapshot)
+	}
+	return *p
+}

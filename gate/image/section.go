@@ -5,7 +5,7 @@
 package image
 
 import (
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/wag/section"
 )
 
@@ -18,16 +18,16 @@ type SectionMap struct {
 	Stack      section.ByteRange
 }
 
-func (mappings *SectionMap) manifestSections() (sections []*manifest.ByteRange) {
-	sections = make([]*manifest.ByteRange, len(mappings.Sections))
+func (mappings *SectionMap) manifestSections() (sections []*pb.ByteRange) {
+	sections = make([]*pb.ByteRange, len(mappings.Sections))
 	for i, mapping := range mappings.Sections {
 		sections[i] = manifestByteRange(mapping)
 	}
 	return
 }
 
-func manifestByteRange(mapping section.ByteRange) *manifest.ByteRange {
-	return &manifest.ByteRange{
+func manifestByteRange(mapping section.ByteRange) *pb.ByteRange {
+	return &pb.ByteRange{
 		Start: mapping.Start,
 		Size:  mapping.Size,
 	}

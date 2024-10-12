@@ -29,7 +29,7 @@ import (
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
-	internalbuild "gate.computer/internal/build"
+	"gate.computer/internal/build"
 	"gate.computer/wag/binding"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
@@ -92,7 +92,7 @@ type serviceRegistry struct {
 	originMu *sync.Mutex
 }
 
-func (services serviceRegistry) CreateServer(ctx Context, config runtime.ServiceConfig, _ []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
+func (services serviceRegistry) CreateServer(ctx Context, config runtime.ServiceConfig, _ []*snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
 	d := &serviceDiscoverer{
 		registry: services,
 		config:   config,
@@ -181,13 +181,13 @@ func (d *serviceDiscoverer) Handle(ctx Context, send chan<- packet.Thunk, p pack
 	return nil, nil
 }
 
-func (d *serviceDiscoverer) Shutdown(ctx Context, suspend bool) ([]snapshot.Service, error) {
+func (d *serviceDiscoverer) Shutdown(ctx Context, suspend bool) ([]*snapshot.Service, error) {
 	if d.origin == nil {
 		return nil, nil
 	}
 
 	b, err := d.origin.Shutdown(ctx, suspend)
-	return []snapshot.Service{{Name: "origin", Buffer: b}}, err
+	return []*snapshot.Service{&snapshot.Service{Name: "origin", Buffer: b}}, err
 }
 
 var testFS *image.Filesystem
@@ -226,16 +226,16 @@ func prepareBuild(exec *executor, storage image.Storage, config compile.Config, 
 		panic(err)
 	}
 
-	build, err := image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
+	b, err := image.NewBuild(storage, moduleSize, maxTextSize, codeMap, true)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := binding.BindImports(&mod, build.ImportResolver()); err != nil {
+	if err := binding.BindImports(&mod, b.ImportResolver()); err != nil {
 		panic(err)
 	}
 
-	return r, mod, build
+	return r, mod, b
 }
 
 func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMap, wasm []byte, moduleSize int, function string, persistent bool) (*image.Program, *image.Instance, compile.Module) {
@@ -246,17 +246,17 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		config.ModuleMapper = &sectionMap
 	}
 
-	r, mod, build := prepareBuild(exec, storage, config, wasm, moduleSize, codeMap)
-	defer build.Close()
+	r, mod, b := prepareBuild(exec, storage, config, wasm, moduleSize, codeMap)
+	defer b.Close()
 
 	if persistent {
-		if _, err := build.ModuleWriter().Write(wasm); err != nil {
+		if _, err := b.ModuleWriter().Write(wasm); err != nil {
 			panic(err)
 		}
 	}
 
 	codeConfig := &compile.CodeConfig{
-		Text:   build.TextBuffer(),
+		Text:   b.TextBuffer(),
 		Mapper: codeMap,
 		Config: config,
 	}
@@ -271,18 +271,18 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		textDump = append([]byte(nil), codeConfig.Text.Bytes()...)
 	}
 
-	entryIndex, err := internalbuild.ResolveEntryFunc(mod, function, false)
+	entryIndex, err := build.ResolveEntryFunc(mod, function, false)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := build.FinishText(stackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize()); err != nil {
+	if err := b.FinishText(stackSize, 0, mod.GlobalsSize(), mod.InitialMemorySize()); err != nil {
 		panic(err)
 	}
 
 	dataConfig := &compile.DataConfig{
-		GlobalsMemory:   build.GlobalsMemoryBuffer(),
-		MemoryAlignment: build.MemoryAlignment(),
+		GlobalsMemory:   b.GlobalsMemoryBuffer(),
+		MemoryAlignment: b.MemoryAlignment(),
 		Config:          config,
 	}
 
@@ -307,7 +307,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		startIndex = int(index)
 	}
 
-	prog, err := build.FinishProgram(sectionMap, mod, startIndex, true, nil, 0)
+	prog, err := b.FinishProgram(sectionMap, mod, startIndex, true, nil, 0)
 	if err != nil {
 		panic(err)
 	}
@@ -317,7 +317,7 @@ func buildInstance(exec *executor, storage image.Storage, codeMap *object.CallMa
 		memLimit = memorySizeLimit
 	}
 
-	inst, err := build.FinishInstance(prog, memLimit, entryIndex)
+	inst, err := b.FinishInstance(prog, memLimit, entryIndex)
 	if err != nil {
 		panic(err)
 	}
@@ -386,7 +386,7 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	var output bytes.Buffer
 	var outputMu sync.Mutex
 
-	result, trapID, err := proc.Serve(ctx, serviceRegistry{nopCloser{&output}, &outputMu}, nil)
+	result, trapID, _, err := proc.Serve(ctx, serviceRegistry{nopCloser{&output}, &outputMu}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else {
@@ -525,9 +525,7 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	var buffers snapshot.Buffers
-
-	exit, trapID, err := proc.Serve(ctx, serviceRegistry{}, &buffers)
+	exit, trapID, buffers, err := proc.Serve(ctx, serviceRegistry{}, nil)
 	if err != nil {
 		t.Errorf("run error: %v", err)
 	} else if trapID == 0 {

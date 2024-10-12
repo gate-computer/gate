@@ -1,8 +1,8 @@
 # Service implementation
 
 See
-[ServiceRegistry](https://godoc.org/gate.computer/gate/runtime#ServiceRegistry),
-[service package](https://godoc.org/gate.computer/gate/service) and
+[ServiceRegistry](https://pkg.go.dev/gate.computer/gate/runtime#ServiceRegistry),
+[service package](https://pkg.go.dev/gate.computer/gate/service) and
 [C API](c-api.md#packet-header) documentation.
 
 

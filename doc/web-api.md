@@ -2,7 +2,8 @@
 
 This document is very much unfinished.
 
-The [Go server/web/api package](https://godoc.org/gate.computer/gate/server/web/api)
+The
+[Go package gate.computer/gate/web](https://pkg.go.dev/gate.computer/gate/web)
 has definitions useful for clients.
 
 
@@ -14,9 +15,8 @@ if server configuration allows anonymous access to a module action.
 
 The JWT must identify a principal by specifying an Ed25519 public key via the
 `jwk` header.  See the
-[PublicKey](https://godoc.org/gate.computer/gate/server/web/api#PublicKey)
-struct for details.  The JWT must be signed using the EdDSA algorithm (`alg`
-header).
+[PublicKey](https://pkg.go.dev/gate.computer/gate/web#PublicKey) struct for
+details.  The JWT must be signed using the EdDSA algorithm (`alg` header).
 
 Expiration time (`exp` claim) is checked by the server so that it won't be too
 far in the future.  The limit is 15 minutes.

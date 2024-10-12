@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	goruntime "runtime"
+	"runtime"
 	"sync"
 
 	"gate.computer/gate/build"
@@ -34,8 +34,25 @@ var errModuleSizeMismatch = &badmodule.Dual{
 	Public:  "invalid module content",
 }
 
+func ValidateModuleSHA256Form(s string) error {
+	_, err := validateModuleSHA256Form(s)
+	return err
+}
+
+func validateModuleSHA256Form(s string) ([]byte, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, failrequest.Error(event.FailModuleHashMismatch, "module hash must be hex-encoded")
+	}
+	if hex.EncodeToString(b) != s {
+		return nil, failrequest.Error(event.FailModuleHashMismatch, "module hash must use lower-case hex encoding")
+	}
+	return b, nil
+}
+
 func mustValidateHashBytes(hash1 string, digest2 []byte) {
-	if subtle.ConstantTimeCompare(Must(hex.DecodeString(hash1)), digest2) == 1 {
+	digest1 := Must(validateModuleSHA256Form(hash1))
+	if subtle.ConstantTimeCompare(digest1, digest2) == 1 {
 		return
 	}
 	pan.Panic(failrequest.Error(event.FailModuleHashMismatch, "module hash does not match content"))
@@ -44,7 +61,7 @@ func mustValidateHashBytes(hash1 string, digest2 []byte) {
 type program struct {
 	id      string
 	image   *image.Program
-	buffers snapshot.Buffers
+	buffers *snapshot.Buffers
 
 	storeMu sync.Mutex
 	stored  bool
@@ -117,7 +134,7 @@ func mustBuildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPoli
 	return prog, inst
 }
 
-func newProgram(id string, image *image.Program, buffers snapshot.Buffers, stored bool) *program {
+func newProgram(id string, image *image.Program, buffers *snapshot.Buffers, stored bool) *program {
 	prog := &program{
 		id:       id,
 		image:    image,
@@ -125,7 +142,7 @@ func newProgram(id string, image *image.Program, buffers snapshot.Buffers, store
 		stored:   stored,
 		refCount: 1,
 	}
-	goruntime.SetFinalizer(prog, finalizeProgram)
+	runtime.SetFinalizer(prog, finalizeProgram)
 	return prog
 }
 
@@ -159,7 +176,7 @@ func (prog *program) unref(lock serverLock) {
 	if prog.refCount == 0 {
 		prog.image.Close()
 		prog.image = nil
-		goruntime.KeepAlive(prog)
+		runtime.KeepAlive(prog)
 	}
 }
 

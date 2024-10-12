@@ -1,0 +1,37 @@
+// Copyright (c) 2018 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package gate.server;
+
+option go_package = "gate.computer/gate/pb/server";
+
+enum Op {
+  UNSPECIFIED = 0;
+  MODULE_LIST = 1;
+  MODULE_INFO = 2;
+  MODULE_DOWNLOAD = 3;
+  MODULE_UPLOAD = 4;
+  MODULE_SOURCE = 5;
+  MODULE_PIN = 6;
+  MODULE_UNPIN = 7;
+  CALL_EXTANT = 8;
+  CALL_UPLOAD = 9;
+  CALL_SOURCE = 10;
+  LAUNCH_EXTANT = 11;
+  LAUNCH_UPLOAD = 12;
+  LAUNCH_SOURCE = 13;
+  INSTANCE_LIST = 14;
+  INSTANCE_INFO = 15;
+  INSTANCE_CONNECT = 16;
+  INSTANCE_WAIT = 17;
+  INSTANCE_KILL = 18;
+  INSTANCE_SUSPEND = 19;
+  INSTANCE_RESUME = 20;
+  INSTANCE_SNAPSHOT = 21;
+  INSTANCE_DELETE = 22;
+  INSTANCE_UPDATE = 23;
+  INSTANCE_DEBUG = 24;
+}

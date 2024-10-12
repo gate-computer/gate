@@ -49,14 +49,14 @@ type ServiceConfig struct {
 //
 // The service package contains an implementation of this interface.
 type ServiceRegistry interface {
-	CreateServer(Context, ServiceConfig, []snapshot.Service, chan<- packet.Thunk) (InstanceServer, []ServiceState, <-chan error, error)
+	CreateServer(Context, ServiceConfig, []*snapshot.Service, chan<- packet.Thunk) (InstanceServer, []ServiceState, <-chan error, error)
 }
 
 type InstanceServer interface {
 	Start(Context, chan<- packet.Thunk) error
 	Discover(ctx Context, newNames []string) (all []ServiceState, err error)
 	Handle(Context, chan<- packet.Thunk, packet.Buf) (packet.Buf, error)
-	Shutdown(ctx Context, suspend bool) ([]snapshot.Service, error)
+	Shutdown(ctx Context, suspend bool) ([]*snapshot.Service, error)
 }
 
 type serviceDiscoverer struct {

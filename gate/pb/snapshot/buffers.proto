@@ -1,0 +1,26 @@
+// Copyright (c) 2024 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package gate.snapshot;
+
+option go_package = "gate.computer/gate/pb/snapshot";
+
+// Buffers of a suspended, halted or terminated program.  Contents are
+// undefined while the program is running.
+//
+// Services, Input, and Output array contents are not mutated, but the arrays
+// may be replaced.  Buffers can be reused by making shallow copies.
+message Buffers {
+  repeated Service services = 1;
+  bytes input = 2;
+  bytes output = 3;
+}
+
+// Service state representation.
+message Service {
+  string name = 1;
+  bytes buffer = 2;
+}

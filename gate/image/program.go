@@ -11,9 +11,9 @@ import (
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/internal/error/notfound"
-	internal "gate.computer/internal/executable"
+	"gate.computer/internal/executable"
 	"gate.computer/internal/file"
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/wag/object"
 )
 
@@ -21,11 +21,11 @@ type Program struct {
 	Map object.CallMap
 
 	storage Storage
-	man     *manifest.Program
+	man     *pb.ProgramManifest
 	file    *file.File
 }
 
-func (prog *Program) PageSize() int     { return internal.PageSize }
+func (prog *Program) PageSize() int     { return executable.PageSize }
 func (prog *Program) TextSize() int     { return alignPageSize32(prog.man.TextSize) }
 func (prog *Program) ModuleSize() int64 { return prog.man.ModuleSize }
 func (prog *Program) Random() bool      { return prog.man.Random }
@@ -78,7 +78,7 @@ func (prog *Program) NewModuleReader() io.Reader {
 	return io.NewSectionReader(prog.file, progModuleOffset, prog.man.ModuleSize)
 }
 
-func (prog *Program) LoadBuffers() (bs snapshot.Buffers, err error) {
+func (prog *Program) LoadBuffers() (bs *snapshot.Buffers, err error) {
 	if prog.man.BufferSection.Size == 0 {
 		return
 	}

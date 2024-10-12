@@ -14,9 +14,10 @@ import (
 	"sort"
 	"strings"
 
-	gatescope "gate.computer/gate/scope"
+	"gate.computer/gate/scope"
 	"gate.computer/internal"
 	"gate.computer/internal/cmdconf"
+	"gate.computer/internal/logging"
 	"golang.org/x/term"
 	"import.name/confi"
 	"import.name/pan"
@@ -25,16 +26,15 @@ import (
 )
 
 const (
-	DefaultIdentityFile = ".ssh/id_ed25519" // Relative to home directory.
+	DefaultIdentityFile = "${HOME}/.ssh/id_ed25519"
 	DefaultPin          = true
 	DefaultWait         = true
 	ShortcutDebugLog    = "/dev/stderr"
 )
 
-// Defaults are relative to home directory.
-var Defaults = []string{
-	".config/gate/client.toml",
-	".config/gate/client.d/*.toml",
+var DefaultConfigFiles = []string{
+	"${XDG_CONFIG_HOME}/gate/client.toml",
+	"${XDG_CONFIG_HOME}/gate/client.d/*.toml",
 }
 
 type Config struct {
@@ -110,8 +110,8 @@ Default configuration is read from ~/.config/gate/client.toml and/or
 `
 
 func registerRunFlags() {
-	flag.Func("s", "extend scope (comma-separated; may be specified multiple times)", func(scope string) error {
-		for _, s := range strings.Split(scope, ",") {
+	flag.Func("s", "extend scope (comma-separated; may be specified multiple times)", func(scop string) error {
+		for _, s := range strings.Split(scop, ",") {
 			c.Scope = append(c.Scope, strings.TrimSpace(s))
 		}
 		return nil
@@ -133,6 +133,7 @@ type command struct {
 
 func main() {
 	log.SetFlags(0)
+	logging.Init(true)
 
 	if internal.CmdPanic == "" {
 		defer func() {
@@ -140,15 +141,13 @@ func main() {
 		}()
 	}
 
-	defaultIdentityFile := Must(cmdconf.JoinHome(DefaultIdentityFile))
-
-	c.IdentityFile = defaultIdentityFile
+	c.IdentityFile = cmdconf.ExpandEnv(DefaultIdentityFile)
 	c.Pin = DefaultPin
 	c.Wait = DefaultWait
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	cmdconf.Parse(c, flags, true, Defaults...)
+	cmdconf.Parse(c, flags, true, DefaultConfigFiles...)
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), mainUsageHead, flag.CommandLine.Name())
@@ -156,7 +155,7 @@ func main() {
 		fmt.Fprint(flag.CommandLine.Output(), mainUsageTail)
 	}
 	flag.Usage = confi.FlagUsage(nil, c)
-	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
+	cmdconf.Parse(c, flag.CommandLine, false, DefaultConfigFiles...)
 
 	if flag.NArg() < 1 {
 		flag.Usage()
@@ -251,19 +250,19 @@ func main() {
 	os.Exit(0)
 }
 
-func printScope(w io.Writer, scope []string) {
-	if len(scope) == 0 {
+func printScope(w io.Writer, scop []string) {
+	if len(scop) == 0 {
 		return
 	}
 
 	var (
-		aliases = gatescope.ComputeAliases(scope)
+		aliases = scope.ComputeAliases(scop)
 		short   []string
 		long    []string
 	)
 
-	for _, s := range scope {
-		alias := gatescope.MatchAlias(s)
+	for _, s := range scop {
+		alias := scope.MatchAlias(s)
 		if _, found := aliases[alias]; !found {
 			alias = ""
 		}

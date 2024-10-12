@@ -4,19 +4,11 @@
 
 package snapshot
 
-// Service state representation.
-type Service struct {
-	Name   string
-	Buffer []byte
-}
+import (
+	pb "gate.computer/gate/pb/snapshot"
+)
 
-// Buffers of a suspended, halted or terminated program.  Contents are
-// undefined while the program is running.
-//
-// Services, Input, and Output array contents are not mutated, but the arrays
-// may be replaced.  Buffers can be reused by making shallow copies.
-type Buffers struct {
-	Services []Service
-	Input    []byte // Buffered data which the program hasn't received yet.
-	Output   []byte // Buffered data which the program has already sent.
-}
+type (
+	Service = pb.Service
+	Buffers = pb.Buffers
+)

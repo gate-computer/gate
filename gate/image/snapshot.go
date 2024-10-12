@@ -11,7 +11,7 @@ import (
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/snapshot/wasm"
 	"gate.computer/internal/file"
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/internal/varint"
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa"
@@ -28,7 +28,7 @@ const (
 
 // Snapshot creates a new program from an instance.  The instance must not be
 // running.
-func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspended bool) (newProg *Program, err error) {
+func Snapshot(oldProg *Program, inst *Instance, buffers *snapshot.Buffers, suspended bool) (newProg *Program, err error) {
 	err = pan.Recover(func() {
 		s := mustNewState(oldProg, inst, buffers, suspended)
 		defer s.mustClose()
@@ -42,7 +42,7 @@ func Snapshot(oldProg *Program, inst *Instance, buffers snapshot.Buffers, suspen
 type state struct {
 	prog    *Program
 	inst    *Instance
-	buffers snapshot.Buffers
+	buffers *snapshot.Buffers
 
 	initStack bool
 	textAddr  uint64
@@ -53,7 +53,7 @@ type state struct {
 	memory  []byte
 }
 
-func mustNewState(prog *Program, inst *Instance, buffers snapshot.Buffers, suspended bool) *state {
+func mustNewState(prog *Program, inst *Instance, buffers *snapshot.Buffers, suspended bool) *state {
 	s := &state{
 		prog:    prog,
 		inst:    inst,
@@ -124,18 +124,18 @@ type moduleState struct {
 	stackData  []byte
 	data       []byte
 
-	ranges          []*manifest.ByteRange
-	rangeSnapshot   *manifest.ByteRange
-	rangeExportWrap *manifest.ByteRange
-	rangeBuffer     *manifest.ByteRange
-	rangeStack      *manifest.ByteRange
+	ranges          []*pb.ByteRange
+	rangeSnapshot   *pb.ByteRange
+	rangeExportWrap *pb.ByteRange
+	rangeBuffer     *pb.ByteRange
+	rangeStack      *pb.ByteRange
 
 	size int64
 }
 
 func mustNewModuleState(s *state) *moduleState {
 	m := &moduleState{
-		ranges: make([]*manifest.ByteRange, section.Data+1),
+		ranges: make([]*pb.ByteRange, section.Data+1),
 	}
 
 	// Section contents
@@ -167,24 +167,24 @@ func mustNewModuleState(s *state) *moduleState {
 
 	for i := section.Type; i <= section.Data; i++ {
 		if i != section.Start {
-			m.ranges[i] = &manifest.ByteRange{Size: s.prog.man.Sections[i].GetSize()}
+			m.ranges[i] = &pb.ByteRange{Size: s.prog.man.Sections[i].GetSize()}
 		}
 	}
 
 	m.ranges[section.Memory].Size = uint32(len(m.memory))
 	m.ranges[section.Global].Size = uint32(len(m.global))
-	m.rangeSnapshot = &manifest.ByteRange{Size: uint32(len(m.snapshot))}
+	m.rangeSnapshot = &pb.ByteRange{Size: uint32(len(m.snapshot))}
 
 	if wrapLen := len(m.exportWrap); wrapLen > 0 {
-		m.rangeExportWrap = &manifest.ByteRange{Size: uint32(wrapLen) + exportSectionSize}
+		m.rangeExportWrap = &pb.ByteRange{Size: uint32(wrapLen) + exportSectionSize}
 	}
 
 	if len(m.bufferHead) > 0 {
-		m.rangeBuffer = &manifest.ByteRange{Size: m.bufferSize}
+		m.rangeBuffer = &pb.ByteRange{Size: m.bufferSize}
 	}
 
 	if headLen := len(m.stackHead); headLen > 0 {
-		m.rangeStack = &manifest.ByteRange{Size: uint32(headLen + len(m.stackData))}
+		m.rangeStack = &pb.ByteRange{Size: uint32(headLen + len(m.stackData))}
 	}
 
 	m.ranges[section.Data].Size = uint32(len(m.data)) // TODO: check size
@@ -245,7 +245,7 @@ func mustNewModuleState(s *state) *moduleState {
 
 	// Module size
 
-	m.size = offset + (s.prog.man.ModuleSize - s.prog.man.SectionsEnd())
+	m.size = offset + (s.prog.man.ModuleSize - programSectionsEnd(s.prog.man))
 	return m
 }
 
@@ -253,7 +253,7 @@ func mustSerializeState(s *state, m *moduleState) *Program {
 	prog := &Program{
 		Map:     s.prog.Map,
 		storage: s.prog.storage,
-		man: &manifest.Program{
+		man: &pb.ProgramManifest{
 			LibraryChecksum:         s.prog.man.LibraryChecksum,
 			TextRevision:            s.prog.man.TextRevision,
 			TextAddr:                s.textAddr,
@@ -277,7 +277,7 @@ func mustSerializeState(s *state, m *moduleState) *Program {
 			CallSitesSize:           s.prog.man.CallSitesSize,
 			FuncAddrsSize:           s.prog.man.FuncAddrsSize,
 			Random:                  s.prog.man.Random,
-			Snapshot:                s.prog.man.Snapshot.Clone(),
+			Snapshot:                snapshot.Clone(s.prog.man.Snapshot),
 		},
 	}
 
@@ -324,14 +324,14 @@ func mustWriteState(f *file.File, s *state) {
 func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
 	dest := progModuleOffset
 
-	copyFromModule := func(r *manifest.ByteRange) {
+	copyFromModule := func(r *pb.ByteRange) {
 		if r.GetSize() > 0 {
 			from := progModuleOffset + r.Start
 			Check(copyFileRange(s.prog.file, &from, f, &dest, int(r.Size)))
 		}
 	}
 
-	copyFromModule(&manifest.ByteRange{Start: 0, Size: wasmModuleHeaderSize})
+	copyFromModule(&pb.ByteRange{Start: 0, Size: wasmModuleHeaderSize})
 
 	for i := section.Type; i <= section.Table; i++ {
 		copyFromModule(s.prog.man.Sections[i])
@@ -362,8 +362,8 @@ func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
 	dest += int64(Must(f.WriteAt(m.data, dest)))
 
 	// Trailing custom sections
-	from := s.prog.man.SectionsEnd()
-	copyFromModule(&manifest.ByteRange{Start: from, Size: uint32(s.prog.man.ModuleSize - from)})
+	from := programSectionsEnd(s.prog.man)
+	copyFromModule(&pb.ByteRange{Start: from, Size: uint32(s.prog.man.ModuleSize - from)})
 }
 
 func makeMemorySection(memorySize uint32, memorySizeLimit int64) []byte {
@@ -466,9 +466,7 @@ func putGlobals(target, globalTypes, data []byte) (totalLen int) {
 	return
 }
 
-func makeSnapshotSection(snap *manifest.Snapshot) []byte {
-	manifest.InflateSnapshot(&snap)
-
+func makeSnapshotSection(snap *snapshot.Snapshot) []byte {
 	// Section id, payload size.
 	const maxSectionFrameSize = 1 + binary.MaxVarintLen32
 
@@ -476,12 +474,12 @@ func makeSnapshotSection(snap *manifest.Snapshot) []byte {
 		1 + // Name length
 		len(wasm.SectionSnapshot) + // Name string
 		1 + // Snapshot version
-		binary.MaxVarintLen64 + // Flags
+		1 + // Final flag
 		binary.MaxVarintLen32 + // Trap
 		binary.MaxVarintLen32 + // Result
 		binary.MaxVarintLen64 + // Monotonic time
 		binary.MaxVarintLen32 + // Breakpoint count
-		binary.MaxVarintLen64*len(snap.Breakpoints)) // Breakpoint array
+		binary.MaxVarintLen64*len(snap.GetBreakpoints())) // Breakpoint array
 
 	b := make([]byte, maxSectionFrameSize+maxPayloadLen)
 	i := maxSectionFrameSize
@@ -490,12 +488,15 @@ func makeSnapshotSection(snap *manifest.Snapshot) []byte {
 	i += copy(b[i:], wasm.SectionSnapshot)
 	b[i] = snapshotVersion
 	i++
-	i += binary.PutUvarint(b[i:], snap.Flags)
-	i += binary.PutUvarint(b[i:], uint64(snap.Trap))
-	i += binary.PutUvarint(b[i:], uint64(snap.Result))
-	i += binary.PutUvarint(b[i:], snap.MonotonicTime)
-	i += binary.PutUvarint(b[i:], uint64(len(snap.Breakpoints)))
-	for _, offset := range snap.Breakpoints {
+	if snap.GetFinal() {
+		b[i] = 1
+	}
+	i++
+	i += binary.PutUvarint(b[i:], uint64(snap.GetTrap()))
+	i += binary.PutUvarint(b[i:], uint64(snap.GetResult()))
+	i += binary.PutUvarint(b[i:], snap.GetMonotonicTime())
+	i += binary.PutUvarint(b[i:], uint64(len(snap.GetBreakpoints())))
+	for _, offset := range snap.GetBreakpoints() {
 		i += binary.PutUvarint(b[i:], uint64(offset))
 	}
 
@@ -528,8 +529,8 @@ func makeExportSectionWrapFrame(exportSectionSize uint32) []byte {
 	return b[maxSectionFrameSize-payloadSizeLen-1 : i]
 }
 
-func makeBufferSectionHeader(buffers snapshot.Buffers) ([]byte, uint32) {
-	if len(buffers.Services) == 0 && len(buffers.Input) == 0 && len(buffers.Output) == 0 {
+func makeBufferSectionHeader(buffers *snapshot.Buffers) ([]byte, uint32) {
+	if len(buffers.GetServices()) == 0 && len(buffers.GetInput()) == 0 && len(buffers.GetOutput()) == 0 {
 		return nil, 0
 	}
 
@@ -582,7 +583,7 @@ func makeBufferSectionHeader(buffers snapshot.Buffers) ([]byte, uint32) {
 	return header, uint32(sectionLen)
 }
 
-func writeBufferSectionDataAt(f *file.File, bs snapshot.Buffers, off int64) (int, error) {
+func writeBufferSectionDataAt(f *file.File, bs *snapshot.Buffers, off int64) (int, error) {
 	n, err := f.WriteAt(bs.Input, off)
 	total := n
 	if err != nil {

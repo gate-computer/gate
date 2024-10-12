@@ -11,13 +11,14 @@ import (
 	"syscall"
 	"unsafe"
 
-	runtimeabi "gate.computer/gate/runtime/abi"
+	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/snapshot"
+	"gate.computer/internal/dedup"
 	"gate.computer/internal/error/notfound"
 	"gate.computer/internal/error/resourcelimit"
-	internal "gate.computer/internal/executable"
+	"gate.computer/internal/executable"
 	"gate.computer/internal/file"
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/wag/buffer"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
@@ -56,7 +57,7 @@ type Build struct {
 	storage     Storage
 	prog        programBuild
 	inst        instanceBuild
-	imports     runtimeabi.ImportResolver
+	imports     abi.ImportResolver
 	compileMem  []byte
 	textAddr    uint64
 	stack       []byte
@@ -142,7 +143,7 @@ func (b *Build) TextBuffer() interface {
 
 // FinishText after TextBuffer has been populated.
 func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) error {
-	if stackSize < internal.StackUsageOffset+stackUsage {
+	if stackSize < executable.StackUsageOffset+stackUsage {
 		return resourcelimit.Error("call stack size limit exceeded")
 	}
 
@@ -240,7 +241,7 @@ func (b *Build) GlobalsMemoryBuffer() interface {
 
 // MemoryAlignment of GlobalsMemoryBuffer.
 func (b *Build) MemoryAlignment() int {
-	return internal.PageSize
+	return executable.PageSize
 }
 
 // FinishProgram after module, stack, globals and memory have been populated.
@@ -267,8 +268,8 @@ func (b *Build) FinishProgram(sectionMap SectionMap, mod compile.Module, startFu
 		return nil, err
 	}
 
-	man := &manifest.Program{
-		LibraryChecksum:         runtimeabi.LibraryChecksum(),
+	man := &pb.ProgramManifest{
+		LibraryChecksum:         abi.LibraryChecksum(),
 		TextRevision:            TextRevision,
 		TextAddr:                b.textAddr,
 		TextSize:                uint32(b.prog.textSize),
@@ -289,18 +290,18 @@ func (b *Build) FinishProgram(sectionMap SectionMap, mod compile.Module, startFu
 		Random:                  b.imports.Random,
 	}
 	if startFuncIndex >= 0 {
-		man.StartFunc = &manifest.Function{
+		man.StartFunc = &pb.Function{
 			Index: uint32(startFuncIndex),
 			Addr:  b.prog.objectMap.FuncAddrs[startFuncIndex],
 		}
 	}
 	if entryFuncs {
-		man.InitEntryFuncs(mod, b.prog.objectMap.FuncAddrs)
+		initProgramEntryFuncs(man, mod, b.prog.objectMap.FuncAddrs)
 	}
 	if snap != nil {
-		man.Snapshot = &manifest.Snapshot{
+		man.Snapshot = &snapshot.Snapshot{
 			MonotonicTime: snap.MonotonicTime,
-			Breakpoints:   manifest.SortDedupUint64(snap.Breakpoints),
+			Breakpoints:   dedup.SortUint64(snap.Breakpoints),
 		}
 	}
 
@@ -333,7 +334,7 @@ func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int)
 	}
 
 	inst := &Instance{
-		man: &manifest.Instance{
+		man: &pb.InstanceManifest{
 			TextAddr:      b.textAddr,
 			StackSize:     uint32(b.inst.stackSize),
 			StackUsage:    uint32(b.stackUsage),
@@ -341,8 +342,8 @@ func (b *Build) FinishInstance(prog *Program, maxMemorySize, entryFuncIndex int)
 			MemorySize:    uint32(b.memorySize),
 			MaxMemorySize: uint32(maxMemorySize),
 			StartFunc:     prog.man.StartFunc,
-			EntryFunc:     prog.man.EntryFunc(entryFuncIndex),
-			Snapshot:      prog.man.Snapshot.Clone(),
+			EntryFunc:     programEntryFunc(prog.man, entryFuncIndex),
+			Snapshot:      snapshot.Clone(prog.man.Snapshot),
 		},
 		file:     b.inst.file,
 		coherent: true,
@@ -422,5 +423,5 @@ func generateRandTextAddr() (uint64, error) {
 		return 0, err
 	}
 
-	return internal.RandAddr(internal.MinTextAddr, internal.MaxTextAddr, b), nil
+	return executable.RandAddr(executable.MinTextAddr, executable.MaxTextAddr, b), nil
 }

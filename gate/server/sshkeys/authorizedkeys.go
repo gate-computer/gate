@@ -27,7 +27,7 @@ var (
 // found in an SSH authorized_keys file.
 //
 // Request signatures must be verified separately by an API layer (e.g. package
-// server/web).
+// gate.computer/gate/server/webserver).
 type AuthorizedKeys struct {
 	server.NoAccess
 	server.AccessConfig

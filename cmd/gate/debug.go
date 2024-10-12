@@ -23,7 +23,7 @@ import (
 
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/server/api"
-	webapi "gate.computer/gate/server/web/api"
+	"gate.computer/gate/web"
 	"gate.computer/wag/binding"
 	"gate.computer/wag/compile"
 	objectdebug "gate.computer/wag/object/debug"
@@ -307,7 +307,7 @@ func debugBacktrace(res *api.DebugResponse) {
 
 func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
 	var modkey string
-	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == webapi.KnownModuleSource {
+	if x := strings.SplitN(res.Module, "/", 2); len(x) == 2 && x[0] == web.KnownModuleSource {
 		modkey = x[1]
 	} else {
 		fatal("unsupported module specification:", res.Module)

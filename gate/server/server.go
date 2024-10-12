@@ -19,7 +19,7 @@ import (
 	"gate.computer/gate/server/internal"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/notfound"
-	"gate.computer/gate/server/internal/monitor"
+	"gate.computer/gate/server/tracelog"
 	"gate.computer/internal/error/resourcelimit"
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
@@ -82,8 +82,11 @@ func New(ctx Context, config *Config) (_ *Server, err error) {
 	if s.ImageStorage == nil {
 		s.ImageStorage = image.Memory
 	}
-	if s.Monitor == nil {
-		s.Monitor = monitor.LogFailInternal
+	if s.StartSpan == nil {
+		s.StartSpan = tracelog.SpanStarter(nil, "server: ")
+	}
+	if s.AddEvent == nil {
+		s.AddEvent = tracelog.EventAdder(nil, "server: ", nil)
 	}
 	if !s.Configured() {
 		panic("incomplete server configuration")
@@ -147,7 +150,7 @@ func (s *Server) mustLoadInstanceDuringInit(lock serverLock, key string) {
 	acc := s.ensureAccount(lock, pri)
 
 	// TODO: restore instance
-	slog.Debug("server: instance loading not implemented", "account", acc.ID, "instance", instID, "trap", image.Trap())
+	slog.Debug("server: instance loading not implemented", "principal", acc.ID, "instance", instID, "trap", image.Trap())
 }
 
 func (s *Server) Shutdown(ctx Context) error {
@@ -218,6 +221,9 @@ func (s *Server) UploadModule(ctx Context, upload *api.ModuleUpload, know *api.M
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpModuleUpload)
+	defer end(ctx)
+
 	know = mustPrepareModuleOptions(know)
 
 	policy := new(progPolicy)
@@ -241,6 +247,9 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpModuleSource)
+	defer end(ctx)
+
 	source, prefix := s.mustGetSource(uri)
 	know = mustPrepareModuleOptions(know)
 
@@ -249,7 +258,7 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 
 	uri = Must(source.CanonicalURI(uri))
 
-	if m, err := s.Inventory.GetSourceModule(ctx, uri); err == nil {
+	if m, err := s.SourceCache.GetSourceSHA256(ctx, uri); err == nil && m != "" {
 		slog.DebugContext(ctx, "server: source module is known", "uri", uri, "module", m)
 		// TODO
 	}
@@ -271,12 +280,12 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 
 	module = s.mustLoadUnknownModule(ctx, policy, upload, know)
 
-	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
-		s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+	if err := s.SourceCache.PutSourceSHA256(ctx, uri, module); err != nil {
+		s.eventFail(ctx, event.TypeFailRequest, &event.Fail{
 			Type:      event.FailInternal,
 			Source:    uri,
 			Module:    module,
-			Subsystem: "inventory",
+			Subsystem: "source cache",
 		}, err)
 	}
 
@@ -300,7 +309,7 @@ func (s *Server) mustLoadKnownModule(ctx Context, policy *progPolicy, upload *ap
 	s.mustRegisterProgramRef(ctx, prog, know)
 	prog = nil
 
-	s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
+	s.eventModule(ctx, event.TypeModuleUploadExist, &event.Module{
 		Module: progID,
 	})
 
@@ -316,12 +325,12 @@ func (s *Server) mustLoadUnknownModule(ctx Context, policy *progPolicy, upload *
 	prog = nil
 
 	if redundant {
-		s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
+		s.eventModule(ctx, event.TypeModuleUploadExist, &event.Module{
 			Module:   progID,
 			Compiled: true,
 		})
 	} else {
-		s.monitorModule(ctx, event.TypeModuleUploadNew, &event.Module{
+		s.eventModule(ctx, event.TypeModuleUploadNew, &event.Module{
 			Module: progID,
 		})
 	}
@@ -333,6 +342,9 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpLaunchExtant)
+	defer end(ctx)
 
 	launch = mustPrepareLaunchOptions(launch)
 
@@ -371,7 +383,7 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 	s.mustRunOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, module, launch), nil)
+	s.eventInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, module, launch), nil)
 
 	return inst, nil
 }
@@ -380,6 +392,9 @@ func (s *Server) UploadModuleInstance(ctx Context, upload *api.ModuleUpload, kno
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpLaunchUpload)
+	defer end(ctx)
 
 	know = mustPrepareModuleOptions(know)
 	launch = mustPrepareLaunchOptions(launch)
@@ -397,6 +412,9 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpLaunchSource)
+	defer end(ctx)
+
 	source, prefix := s.mustGetSource(uri)
 	know = mustPrepareModuleOptions(know)
 	launch = mustPrepareLaunchOptions(launch)
@@ -408,7 +426,7 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 
 	uri = Must(source.CanonicalURI(uri))
 
-	if m, err := s.Inventory.GetSourceModule(ctx, uri); err == nil {
+	if m, err := s.SourceCache.GetSourceSHA256(ctx, uri); err == nil && m != "" {
 		slog.DebugContext(ctx, "server: source module is known", "uri", uri, "module", m)
 		// TODO
 	}
@@ -430,12 +448,12 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 
 	module, inst := s.mustLoadModuleInstance(ctx, acc, policy, upload, know, launch)
 
-	if err := s.Inventory.AddModuleSource(ctx, module, uri); err != nil {
-		s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+	if err := s.SourceCache.PutSourceSHA256(ctx, uri, module); err != nil {
+		s.eventFail(ctx, event.TypeFailRequest, &event.Fail{
 			Type:      event.FailInternal,
 			Source:    uri,
 			Module:    module,
-			Subsystem: "inventory",
+			Subsystem: "source cache",
 		}, err)
 	}
 
@@ -483,14 +501,14 @@ func (s *Server) mustLoadKnownModuleInstance(ctx Context, acc *account, policy *
 	inst, prog, _ := s.mustRegisterProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch)
 	instImage = nil
 
-	s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
+	s.eventModule(ctx, event.TypeModuleUploadExist, &event.Module{
 		Module: progID,
 	})
 
 	s.mustRunOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, progID, launch), nil)
+	s.eventInstance(ctx, event.TypeInstanceCreateKnown, newInstanceCreateInfo(inst.id, progID, launch), nil)
 
 	return inst
 }
@@ -506,24 +524,24 @@ func (s *Server) mustLoadUnknownModuleInstance(ctx Context, acc *account, policy
 
 	if upload.Hash != "" {
 		if redundantProg {
-			s.monitorModule(ctx, event.TypeModuleUploadExist, &event.Module{
+			s.eventModule(ctx, event.TypeModuleUploadExist, &event.Module{
 				Module:   progID,
 				Compiled: true,
 			})
 		} else {
-			s.monitorModule(ctx, event.TypeModuleUploadNew, &event.Module{
+			s.eventModule(ctx, event.TypeModuleUploadNew, &event.Module{
 				Module: progID,
 			})
 		}
 	} else {
 		if redundantProg {
-			s.monitorModule(ctx, event.TypeModuleSourceExist, &event.Module{
+			s.eventModule(ctx, event.TypeModuleSourceExist, &event.Module{
 				Module: progID,
 				// TODO: source URI
 				Compiled: true,
 			})
 		} else {
-			s.monitorModule(ctx, event.TypeModuleSourceNew, &event.Module{
+			s.eventModule(ctx, event.TypeModuleSourceNew, &event.Module{
 				Module: progID,
 				// TODO: source URI
 			})
@@ -533,7 +551,7 @@ func (s *Server) mustLoadUnknownModuleInstance(ctx Context, acc *account, policy
 	s.mustRunOrDeleteInstance(ctx, inst, prog, launch.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceCreateStream, newInstanceCreateInfo(inst.id, progID, launch), nil)
+	s.eventInstance(ctx, event.TypeInstanceCreateStream, newInstanceCreateInfo(inst.id, progID, launch), nil)
 
 	return progID, inst
 }
@@ -542,6 +560,9 @@ func (s *Server) ModuleInfo(ctx Context, module string) (_ *api.ModuleInfo, err 
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpModuleInfo)
+	defer end(ctx)
 
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
@@ -573,10 +594,10 @@ func (s *Server) ModuleInfo(ctx Context, module string) (_ *api.ModuleInfo, err 
 
 	info := &api.ModuleInfo{
 		Id:   prog.id,
-		Tags: append([]string(nil), x.tags...),
+		Tags: append([]string(nil), x.Tags...),
 	}
 
-	s.monitorModule(ctx, event.TypeModuleInfo, &event.Module{
+	s.eventModule(ctx, event.TypeModuleInfo, &event.Module{
 		Module: prog.id,
 	})
 
@@ -588,6 +609,9 @@ func (s *Server) Modules(ctx Context) (_ *api.Modules, err error) {
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpModuleList)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
@@ -595,7 +619,7 @@ func (s *Server) Modules(ctx Context) (_ *api.Modules, err error) {
 		pan.Panic(errAnonymous)
 	}
 
-	s.monitor(ctx, event.TypeModuleList)
+	s.event(ctx, event.TypeModuleList)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -611,7 +635,7 @@ func (s *Server) Modules(ctx Context) (_ *api.Modules, err error) {
 	for prog, x := range acc.programs {
 		infos.Modules = append(infos.Modules, &api.ModuleInfo{
 			Id:   prog.id,
-			Tags: append([]string(nil), x.tags...),
+			Tags: append([]string(nil), x.Tags...),
 		})
 	}
 	return infos, nil
@@ -621,6 +645,13 @@ func (s *Server) ModuleContent(ctx Context, module string) (stream io.ReadCloser
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, endSpan := s.startOp(ctx, api.OpModuleDownload)
+	defer func() {
+		if endSpan != nil {
+			endSpan(ctx)
+		}
+	}()
 
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
@@ -648,25 +679,30 @@ func (s *Server) ModuleContent(ctx Context, module string) (stream io.ReadCloser
 
 	length = prog.image.ModuleSize()
 	stream = &moduleContent{
-		Reader: prog.image.NewModuleReader(),
-		ctx:    ctx,
-		s:      s,
-		prog:   prog,
-		length: length,
+		Reader:  prog.image.NewModuleReader(),
+		ctx:     ctx,
+		endSpan: endSpan,
+		s:       s,
+		prog:    prog,
+		length:  length,
 	}
+	endSpan = nil
 	return stream, length, nil
 }
 
 type moduleContent struct {
 	io.Reader
-	ctx    Context
-	s      *Server
-	prog   *program
-	length int64
+	ctx     Context
+	endSpan func(Context)
+	s       *Server
+	prog    *program
+	length  int64
 }
 
 func (x *moduleContent) Close() error {
-	x.s.monitorModule(x.ctx, event.TypeModuleDownload, &event.Module{
+	defer x.endSpan(x.ctx)
+
+	x.s.eventModule(x.ctx, event.TypeModuleDownload, &event.Module{
 		Module: x.prog.id,
 		Length: x.length,
 	})
@@ -679,6 +715,9 @@ func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) 
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpModulePin)
+	defer end(ctx)
 
 	know = mustPrepareModuleOptions(know)
 	if !know.GetPin() {
@@ -723,7 +762,7 @@ func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) 
 	})
 
 	if modified {
-		s.monitorModule(ctx, event.TypeModulePin, &event.Module{
+		s.eventModule(ctx, event.TypeModulePin, &event.Module{
 			Module:   module,
 			TagCount: int32(len(know.Tags)),
 		})
@@ -736,6 +775,9 @@ func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpModuleUnpin)
+	defer end(ctx)
 
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
@@ -761,42 +803,45 @@ func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 		pan.Panic(notfound.ErrModule)
 	}
 
-	s.monitorModule(ctx, event.TypeModuleUnpin, &event.Module{
+	s.eventModule(ctx, event.TypeModuleUnpin, &event.Module{
 		Module: module,
 	})
 
 	return
 }
 
-func (s *Server) InstanceConnection(ctx Context, instance string) (_ api.Instance, _ func(Context, io.Reader, io.WriteCloser) error, err error) {
+func (s *Server) InstanceConnection(ctx Context, instance string) (_ api.Instance, _ func(Context, io.Reader, io.WriteCloser) *api.Status, err error) {
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpInstanceConnect)
+	defer end(ctx)
 
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instance)
 	conn := inst.connect(ctx)
 	if conn == nil {
-		s.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+		s.eventFail(ctx, event.TypeFailRequest, &event.Fail{
 			Type:     event.FailInstanceNoConnect,
 			Instance: inst.id,
 		}, nil)
 		return inst, nil, nil
 	}
 
-	iofunc := func(ctx Context, r io.Reader, w io.WriteCloser) error {
-		s.monitorInstance(ctx, event.TypeInstanceConnect, &event.Instance{
-			Instance: inst.id,
-		}, nil)
+	s.eventInstance(ctx, event.TypeInstanceConnect, &event.Instance{
+		Instance: inst.id,
+	}, nil)
 
+	iofunc := func(ctx Context, r io.Reader, w io.WriteCloser) *api.Status {
 		err := conn(ctx, r, w)
 
-		s.monitorInstance(ctx, event.TypeInstanceDisconnect, &event.Instance{
+		s.eventInstance(ctx, event.TypeInstanceDisconnect, &event.Instance{
 			Instance: inst.id,
 		}, err)
 
-		return err
+		return inst.Status()
 	}
 
 	return inst, iofunc, nil
@@ -807,6 +852,9 @@ func (s *Server) InstanceInfo(ctx Context, instance string) (_ *api.InstanceInfo
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceInfo)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	progID, inst := s.mustGetInstanceProgramID(ctx, instance)
@@ -815,7 +863,7 @@ func (s *Server) InstanceInfo(ctx Context, instance string) (_ *api.InstanceInfo
 		pan.Panic(notfound.ErrInstance)
 	}
 
-	s.monitorInstance(ctx, event.TypeInstanceInfo, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceInfo, &event.Instance{
 		Instance: inst.id,
 	}, nil)
 
@@ -827,12 +875,15 @@ func (s *Server) WaitInstance(ctx Context, instID string) (_ *api.Status, err er
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceWait)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instID)
 	status := inst.Wait(ctx)
 
-	s.monitorInstance(ctx, event.TypeInstanceWait, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceWait, &event.Instance{
 		Instance: inst.id,
 	}, nil)
 
@@ -844,12 +895,15 @@ func (s *Server) KillInstance(ctx Context, instance string) (_ api.Instance, err
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceKill)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instance)
 	inst.kill()
 
-	s.monitorInstance(ctx, event.TypeInstanceKill, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceKill, &event.Instance{
 		Instance: inst.id,
 	}, nil)
 
@@ -861,6 +915,9 @@ func (s *Server) SuspendInstance(ctx Context, instance string) (_ api.Instance, 
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceSuspend)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	// Store the program in case the instance becomes non-transient.
@@ -870,7 +927,7 @@ func (s *Server) SuspendInstance(ctx Context, instance string) (_ api.Instance, 
 	prog.mustEnsureStorage()
 	inst.suspend(true)
 
-	s.monitorInstance(ctx, event.TypeInstanceSuspend, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceSuspend, &event.Instance{
 		Instance: inst.id,
 	}, nil)
 
@@ -881,6 +938,9 @@ func (s *Server) ResumeInstance(ctx Context, instance string, resume *api.Resume
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpInstanceResume)
+	defer end(ctx)
 
 	resume = prepareResumeOptions(resume)
 	policy := new(instPolicy)
@@ -902,7 +962,7 @@ func (s *Server) ResumeInstance(ctx Context, instance string, resume *api.Resume
 	s.mustRunOrDeleteInstance(ctx, inst, prog, resume.Function)
 	prog = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceResume, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceResume, &event.Instance{
 		Instance: inst.id,
 		Function: resume.Function,
 	}, nil)
@@ -915,13 +975,16 @@ func (s *Server) DeleteInstance(ctx Context, instance string) (err error) {
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceDelete)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instance)
 	inst.mustAnnihilate()
 	s.deleteNonexistentInstance(inst)
 
-	s.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceDelete, &event.Instance{
 		Instance: inst.id,
 	}, nil)
 
@@ -933,6 +996,9 @@ func (s *Server) Snapshot(ctx Context, instance string, know *api.ModuleOptions)
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceSnapshot)
+	defer end(ctx)
+
 	know = mustPrepareModuleOptions(know)
 	if !know.GetPin() {
 		panic("Server.Snapshot called without ModuleOptions.Pin")
@@ -942,7 +1008,7 @@ func (s *Server) Snapshot(ctx Context, instance string, know *api.ModuleOptions)
 
 	// TODO: implement suspend-snapshot-resume at a lower level
 
-	if inst.Status(ctx).State == api.StateRunning {
+	if inst.Status().State == api.StateRunning {
 		inst.suspend(false)
 		if inst.Wait(context.Background()).State == api.StateSuspended {
 			defer func() {
@@ -982,7 +1048,7 @@ func (s *Server) mustSnapshot(ctx Context, instance string, know *api.ModuleOpti
 	s.mustRegisterProgramRef(ctx, newProg, know)
 	newProg = nil
 
-	s.monitorInstance(ctx, event.TypeInstanceSnapshot, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceSnapshot, &event.Instance{
 		Instance: inst.id,
 		Module:   progID,
 	}, nil)
@@ -995,13 +1061,16 @@ func (s *Server) UpdateInstance(ctx Context, instance string, update *api.Instan
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceUpdate)
+	defer end(ctx)
+
 	update = prepareInstanceUpdate(update)
 
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	progID, inst := s.mustGetInstanceProgramID(ctx, instance)
 	if inst.update(update) {
-		s.monitorInstance(ctx, event.TypeInstanceUpdate, &event.Instance{
+		s.eventInstance(ctx, event.TypeInstanceUpdate, &event.Instance{
 			Instance: inst.id,
 			Persist:  update.Persist,
 			TagCount: int32(len(update.Tags)),
@@ -1020,6 +1089,9 @@ func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugReque
 	if internal.DontPanic() {
 		defer func() { err = pan.Error(recover()) }()
 	}
+
+	ctx, end := s.startOp(ctx, api.OpInstanceDebug)
+	defer end(ctx)
 
 	policy := new(progPolicy)
 
@@ -1050,7 +1122,7 @@ func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugReque
 		progImage = nil
 	}
 
-	s.monitorInstance(ctx, event.TypeInstanceDebug, &event.Instance{
+	s.eventInstance(ctx, event.TypeInstanceDebug, &event.Instance{
 		Instance: inst.id,
 		Compiled: rebuild != nil,
 	}, nil)
@@ -1063,6 +1135,9 @@ func (s *Server) Instances(ctx Context) (_ *api.Instances, err error) {
 		defer func() { err = pan.Error(recover()) }()
 	}
 
+	ctx, end := s.startOp(ctx, api.OpInstanceList)
+	defer end(ctx)
+
 	ctx = Must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
@@ -1070,7 +1145,7 @@ func (s *Server) Instances(ctx Context) (_ *api.Instances, err error) {
 		pan.Panic(errAnonymous)
 	}
 
-	s.monitor(ctx, event.TypeInstanceList)
+	s.event(ctx, event.TypeInstanceList)
 
 	type instProgID struct {
 		inst   *Instance
@@ -1161,7 +1236,7 @@ func (s *Server) mustRegisterProgramRef(ctx Context, prog *program, know *api.Mo
 		// to call.
 		if s.ensureAccount(lock, pri).ensureProgramRef(lock, prog, know.Tags) {
 			// TODO: move outside of critical section
-			s.monitorModule(ctx, event.TypeModulePin, &event.Module{
+			s.eventModule(ctx, event.TypeModulePin, &event.Module{
 				Module:   prog.id,
 				TagCount: int32(len(know.Tags)),
 			})
@@ -1173,7 +1248,7 @@ func (s *Server) mustRegisterProgramRef(ctx Context, prog *program, know *api.Mo
 
 func (s *Server) mustCheckAccountInstanceID(ctx Context, instID string) *account {
 	if instID != "" {
-		mustValidateInstanceID(instID)
+		Check(ValidateInstanceUUIDForm(instID))
 	}
 
 	pri := principal.ContextID(ctx)
@@ -1208,7 +1283,7 @@ func (s *Server) mustRunOrDeleteInstance(ctx Context, inst *Instance, prog *prog
 	}
 
 	if drive {
-		go s.driveInstance(api.ContextWithAddress(ctx, ""), inst, prog, function)
+		go s.driveInstance(ctx, inst, prog, function)
 		prog = nil
 	}
 }
@@ -1333,7 +1408,7 @@ func (s *Server) mustRegisterProgramRefInstance(ctx Context, acc *account, prog 
 			// safe to call.
 			if acc.ensureProgramRef(lock, prog, know.Tags) {
 				// TODO: move outside of critical section
-				s.monitorModule(ctx, event.TypeModulePin, &event.Module{
+				s.eventModule(ctx, event.TypeModulePin, &event.Module{
 					Module:   prog.id,
 					TagCount: int32(len(know.Tags)),
 				})

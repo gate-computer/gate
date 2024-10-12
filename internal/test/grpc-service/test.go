@@ -16,7 +16,7 @@ import (
 	"syscall"
 
 	"gate.computer/gate/packet"
-	"gate.computer/grpc/api"
+	pb "gate.computer/gate/pb/service/grpc"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -60,8 +60,8 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	api.RegisterRootServer(s, new(rootServer))
-	api.RegisterInstanceServer(s, newInstanceServer())
+	pb.RegisterRootServer(s, new(rootServer))
+	pb.RegisterInstanceServer(s, newInstanceServer())
 
 	go func() {
 		<-signals
@@ -149,12 +149,12 @@ func (c *listenConn) Close() error {
 }
 
 type rootServer struct {
-	api.UnimplementedRootServer
+	pb.UnimplementedRootServer
 }
 
-func (s *rootServer) Init(ctx Context, req *api.InitRequest) (*api.InitResponse, error) {
-	return &api.InitResponse{
-		Services: []*api.Service{
+func (s *rootServer) Init(ctx Context, req *pb.InitRequest) (*pb.InitResponse, error) {
+	return &pb.InitResponse{
+		Services: []*pb.Service{
 			{
 				Name:     serviceName,
 				Revision: serviceRevision,
@@ -164,7 +164,7 @@ func (s *rootServer) Init(ctx Context, req *api.InitRequest) (*api.InitResponse,
 }
 
 type instanceServer struct {
-	api.UnimplementedInstanceServer
+	pb.UnimplementedInstanceServer
 
 	mu        sync.Mutex
 	instances map[string]*instance
@@ -205,17 +205,17 @@ func (s *instanceServer) lookupInstance(id []byte, remove bool) (inst *instance,
 	return
 }
 
-func (s *instanceServer) Create(ctx Context, req *api.CreateRequest) (*api.CreateResponse, error) {
+func (s *instanceServer) Create(ctx Context, req *pb.CreateRequest) (*pb.CreateResponse, error) {
 	inst := newInstance()
 	if err := inst.restore(req.Snapshot); err != nil {
-		return &api.CreateResponse{RestorationError: err.Error()}, nil
+		return &pb.CreateResponse{RestorationError: err.Error()}, nil
 	}
 
 	id := s.registerInstance(inst)
-	return &api.CreateResponse{Id: id}, nil
+	return &pb.CreateResponse{Id: id}, nil
 }
 
-func (s *instanceServer) Receive(req *api.ReceiveRequest, stream api.Instance_ReceiveServer) error {
+func (s *instanceServer) Receive(req *pb.ReceiveRequest, stream pb.Instance_ReceiveServer) error {
 	inst, err := s.getInstance(req.Id)
 	if err != nil {
 		return err
@@ -224,7 +224,7 @@ func (s *instanceServer) Receive(req *api.ReceiveRequest, stream api.Instance_Re
 	return inst.sendTo(stream)
 }
 
-func (s *instanceServer) Handle(ctx Context, req *api.HandleRequest) (*emptypb.Empty, error) {
+func (s *instanceServer) Handle(ctx Context, req *pb.HandleRequest) (*emptypb.Empty, error) {
 	inst, err := s.getInstance(req.Id)
 	if err != nil {
 		return nil, err
@@ -234,7 +234,7 @@ func (s *instanceServer) Handle(ctx Context, req *api.HandleRequest) (*emptypb.E
 	return new(emptypb.Empty), nil
 }
 
-func (s *instanceServer) Shutdown(ctx Context, req *api.ShutdownRequest) (*emptypb.Empty, error) {
+func (s *instanceServer) Shutdown(ctx Context, req *pb.ShutdownRequest) (*emptypb.Empty, error) {
 	inst, _ := s.removeInstance(req.Id)
 	if inst != nil {
 		inst.shutdown()
@@ -244,7 +244,7 @@ func (s *instanceServer) Shutdown(ctx Context, req *api.ShutdownRequest) (*empty
 	return new(emptypb.Empty), nil
 }
 
-func (s *instanceServer) Suspend(ctx Context, req *api.SuspendRequest) (*emptypb.Empty, error) {
+func (s *instanceServer) Suspend(ctx Context, req *pb.SuspendRequest) (*emptypb.Empty, error) {
 	inst, err := s.getInstance(req.Id)
 	if err != nil {
 		return nil, err
@@ -254,7 +254,7 @@ func (s *instanceServer) Suspend(ctx Context, req *api.SuspendRequest) (*emptypb
 	return new(emptypb.Empty), nil
 }
 
-func (s *instanceServer) Snapshot(ctx Context, req *api.SnapshotRequest) (*wrapperspb.BytesValue, error) {
+func (s *instanceServer) Snapshot(ctx Context, req *pb.SnapshotRequest) (*wrapperspb.BytesValue, error) {
 	inst, err := s.removeInstance(req.Id)
 	if err != nil {
 		return nil, err
@@ -306,7 +306,7 @@ func (inst *instance) restore(snapshot []byte) error {
 	return nil
 }
 
-func (inst *instance) sendTo(stream api.Instance_ReceiveServer) error {
+func (inst *instance) sendTo(stream pb.Instance_ReceiveServer) error {
 	done := make(chan struct{})
 	defer close(done)
 

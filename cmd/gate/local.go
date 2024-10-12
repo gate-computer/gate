@@ -8,28 +8,63 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
 	runtimedebug "runtime/debug"
+	"sort"
 	"strings"
 	"syscall"
 
 	"gate.computer/gate/server/api"
-	webapi "gate.computer/gate/server/web/api"
+	"gate.computer/gate/trace"
+	"gate.computer/gate/web"
 	"gate.computer/internal/bus"
-	dbus "github.com/godbus/dbus/v5"
+	"gate.computer/internal/traceid"
+	"github.com/godbus/dbus/v5"
 	"golang.org/x/term"
 	"google.golang.org/protobuf/proto"
 
 	. "import.name/pan/mustcheck"
 )
 
-var daemon dbus.BusObject
+func ptr[T any](x T) *T {
+	return &x
+}
+
+var (
+	traceID  *trace.TraceID
+	parentID *trace.SpanID
+	daemon   dbus.BusObject
+)
 
 func daemonCall(method string, args ...any) *dbus.Call {
+	if traceID == nil {
+		traceID = ptr(traceid.MakeTraceID())
+		spanID := traceid.MakeSpanID()
+
+		slog.Debug("trace",
+			"trace", traceID,
+			"span", spanID,
+		)
+
+		parentID = &spanID
+	}
+
+	spanID := traceid.MakeSpanID()
+
+	slog.Debug("call",
+		"trace", *traceID,
+		"span", spanID,
+		"method", method,
+		"parent", *parentID,
+	)
+
+	args = append([]any{(*traceID)[:], spanID[:]}, args...)
+
 	if daemon == nil {
 		conn := Must(dbus.SessionBus())
 		daemon = conn.Object(bus.DaemonIface, bus.DaemonPath)
@@ -223,6 +258,7 @@ var localCommands = map[string]command{
 			call := daemonCall("ListInstances")
 			var ids []string
 			Check(call.Store(&ids))
+			sort.Strings(ids)
 
 			for _, id := range ids {
 				fmt.Printf("%-36s %s\n", id, daemonCallGetInstanceInfo(id))
@@ -298,6 +334,7 @@ var localCommands = map[string]command{
 			call := daemonCall("ListModules")
 			var ids []string
 			Check(call.Store(&ids))
+			sort.Strings(ids)
 
 			for _, id := range ids {
 				call := daemonCall("GetModuleInfo", id)
@@ -325,7 +362,7 @@ var localCommands = map[string]command{
 		do: func() {
 			c.address = flag.Arg(0)
 
-			_, resp := doHTTP(nil, webapi.PathKnownModules+flag.Arg(1), nil)
+			_, resp := doHTTP(nil, web.PathKnownModules+flag.Arg(1), nil)
 			if resp.ContentLength < 0 {
 				fatal("server did not specify content length")
 			}
@@ -369,16 +406,16 @@ var localCommands = map[string]command{
 			req := &http.Request{
 				Method: http.MethodPut,
 				Header: http.Header{
-					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
+					web.HeaderContentType: []string{web.ContentTypeWebAssembly},
 				},
 				Body:          r,
 				ContentLength: moduleLen,
 			}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionPin},
+				web.ParamAction: []string{web.ActionPin},
 			}
 
-			doHTTP(req, webapi.PathKnownModules+flag.Arg(1), params)
+			doHTTP(req, web.PathKnownModules+flag.Arg(1), params)
 		},
 	},
 
@@ -654,7 +691,7 @@ func closeFiles(files ...*os.File) {
 }
 
 func statusString(s *api.Status) string {
-	t := webapi.Status{
+	t := web.Status{
 		State:  s.GetState().String(),
 		Cause:  s.GetCause().String(),
 		Result: int(s.GetResult()),

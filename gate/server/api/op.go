@@ -1,14 +1,19 @@
-// Copyright (c) 2019 Timo Savola. All rights reserved.
+// Copyright (c) 2018 Timo Savola. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package api
 
 import (
-	"gate.computer/gate/server/api/pb"
+	pb "gate.computer/gate/pb/server"
+	"gate.computer/internal/serverapi"
+
+	. "import.name/type/context"
 )
 
-// Server operation types.  Returned by ContextOp(Context) function.
+type Op = pb.Op
+
+// Op types.
 const (
 	OpModuleList       = pb.Op_MODULE_LIST
 	OpModuleInfo       = pb.Op_MODULE_INFO
@@ -35,3 +40,7 @@ const (
 	OpInstanceUpdate   = pb.Op_INSTANCE_UPDATE
 	OpInstanceDebug    = pb.Op_INSTANCE_DEBUG
 )
+
+func ContextOp(ctx Context) Op {
+	return serverapi.ContextOp(ctx)
+}

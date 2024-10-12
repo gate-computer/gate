@@ -15,7 +15,7 @@ import (
 	"strings"
 	"unicode"
 
-	"gate.computer/gate/server/event/pb"
+	pb "gate.computer/gate/pb/server/event"
 	m "import.name/make"
 )
 
@@ -31,7 +31,7 @@ func main() {
 	fmt.Fprintln(b)
 	fmt.Fprintln(b, "package event")
 	fmt.Fprintln(b)
-	fmt.Fprintln(b, `import "gate.computer/gate/server/event/pb"`)
+	fmt.Fprintln(b, `import pb "gate.computer/gate/pb/server/event"`)
 	fmt.Fprintln(b)
 
 	names := []string{}

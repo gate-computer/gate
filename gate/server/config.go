@@ -11,6 +11,9 @@ import (
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
+	"gate.computer/gate/server/model"
+	"gate.computer/gate/trace"
+	"gate.computer/internal/serverapi"
 
 	. "import.name/type/context"
 )
@@ -38,54 +41,26 @@ func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) Instanc
 	}{c, r}
 }
 
-type Inventory interface {
-	GetSourceModule(ctx Context, source string) (module string, err error)
-	AddModuleSource(ctx Context, module, source string) error
-}
-
 type Config struct {
 	ImageStorage   image.Storage
-	Inventory      Inventory
+	Inventory      model.Inventory
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
 	ModuleSources  map[string]Source
-	Monitor        func(Context, *event.Event, error)
+	SourceCache    model.SourceCache
 	OpenDebugLog   func(string) io.WriteCloser
+
+	// StartSpan within trace context, ending when endSpan is called.  Nil
+	// links must be ignored.  [trace.ContextAutoLinks] must also be respected.
+	StartSpan func(_ Context, op api.Op, links ...*trace.Link) (_ Context, endSpan func(Context))
+
+	// AddEvent to the current trace span, or outside of trace but in relation
+	// to [trace.ContextAutoLinks].
+	AddEvent func(Context, *event.Event, error)
 }
 
 func (c *Config) Configured() bool {
-	return c.ProcessFactory != nil && c.AccessPolicy != nil
-}
-
-func (c *Config) monitor(ctx Context, t event.Type) {
-	c.Monitor(ctx, &event.Event{
-		Type: t,
-		Meta: api.ContextMeta(ctx),
-	}, nil)
-}
-
-func (c *Config) monitorFail(ctx Context, t event.Type, info *event.Fail, err error) {
-	c.Monitor(ctx, &event.Event{
-		Type: t,
-		Meta: api.ContextMeta(ctx),
-		Info: &event.EventFail{Fail: info},
-	}, err)
-}
-
-func (c *Config) monitorModule(ctx Context, t event.Type, info *event.Module) {
-	c.Monitor(ctx, &event.Event{
-		Type: t,
-		Meta: api.ContextMeta(ctx),
-		Info: &event.EventModule{Module: info},
-	}, nil)
-}
-
-func (c *Config) monitorInstance(ctx Context, t event.Type, info *event.Instance, err error) {
-	c.Monitor(ctx, &event.Event{
-		Type: t,
-		Meta: api.ContextMeta(ctx),
-		Info: &event.EventInstance{Instance: info},
-	}, err)
+	return c.Inventory != nil && c.ProcessFactory != nil && c.AccessPolicy != nil
 }
 
 func (c *Config) openDebugLog(opt *api.InvokeOptions) io.WriteCloser {
@@ -93,4 +68,36 @@ func (c *Config) openDebugLog(opt *api.InvokeOptions) io.WriteCloser {
 		return c.OpenDebugLog(opt.DebugLog)
 	}
 	return nil
+}
+
+func (c *Config) startOp(ctx Context, op api.Op, links ...*trace.Link) (Context, func(Context)) {
+	ctx = serverapi.ContextWithOp(ctx, op)
+	return c.StartSpan(ctx, op, links...)
+}
+
+func (c *Config) event(ctx Context, t event.Type) {
+	c.AddEvent(ctx, &event.Event{
+		Type: t,
+	}, nil)
+}
+
+func (c *Config) eventFail(ctx Context, t event.Type, info *event.Fail, err error) {
+	c.AddEvent(ctx, &event.Event{
+		Type: t,
+		Info: &event.EventFail{Fail: info},
+	}, err)
+}
+
+func (c *Config) eventModule(ctx Context, t event.Type, info *event.Module) {
+	c.AddEvent(ctx, &event.Event{
+		Type: t,
+		Info: &event.EventModule{Module: info},
+	}, nil)
+}
+
+func (c *Config) eventInstance(ctx Context, t event.Type, info *event.Instance, err error) {
+	c.AddEvent(ctx, &event.Event{
+		Type: t,
+		Info: &event.EventInstance{Instance: info},
+	}, err)
 }

@@ -1,0 +1,30 @@
+// Copyright (c) 2024 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package gate.trap;
+
+option go_package = "gate.computer/gate/pb/trap";
+
+enum ID {
+  // These correspond to constants in Go package gate.computer/wag/trap:
+  EXIT = 0;
+  NO_FUNCTION = 1;
+  SUSPENDED = 2;
+  UNREACHABLE = 3;
+  CALL_STACK_EXHAUSTED = 4;
+  MEMORY_ACCESS_OUT_OF_BOUNDS = 5;
+  INDIRECT_CALL_INDEX_OUT_OF_BOUNDS = 6;
+  INDIRECT_CALL_SIGNATURE_MISMATCH = 7;
+  INTEGER_DIVIDE_BY_ZERO = 8;
+  INTEGER_OVERFLOW = 9;
+  BREAKPOINT = 10;
+
+  // Gate-specific:
+  ABI_DEFICIENCY = 27;
+  ABI_VIOLATION = 28;
+  INTERNAL_ERROR = 29;
+  KILLED = 30;
+}

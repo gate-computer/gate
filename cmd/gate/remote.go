@@ -20,11 +20,11 @@ import (
 	"strings"
 	"time"
 
-	"gate.computer/gate/server/api"
-	webapi "gate.computer/gate/server/web/api"
+	pb "gate.computer/gate/pb/server"
+	"gate.computer/gate/web"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	. "import.name/pan/mustcheck"
 )
@@ -41,44 +41,44 @@ var remoteCommands = map[string]command{
 			}
 
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionCall},
+				web.ParamAction: []string{web.ActionCall},
 			}
 			if c.Function != "" {
-				params.Set(webapi.ParamFunction, c.Function)
+				params.Set(web.ParamFunction, c.Function)
 			}
 			for _, t := range c.InstanceTags {
-				params.Add(webapi.ParamInstanceTag, t)
+				params.Add(web.ParamInstanceTag, t)
 			}
 			if c.DebugLog != "" {
-				params.Set(webapi.ParamLog, "*")
+				params.Set(web.ParamLog, "*")
 			}
 
-			var status webapi.Status
+			var status web.Status
 
 			switch arg := flag.Arg(0); {
 			case !(strings.Contains(arg, "/") || strings.Contains(arg, ".")):
-				status = callPost(webapi.PathKnownModules+arg, params)
+				status = callPost(web.PathKnownModules+arg, params)
 
 			case strings.HasPrefix(arg, "/ipfs/"):
 				if c.Pin {
-					params.Add(webapi.ParamAction, webapi.ActionPin)
+					params.Add(web.ParamAction, web.ActionPin)
 					for _, t := range c.ModuleTags {
-						params.Add(webapi.ParamModuleTag, t)
+						params.Add(web.ParamModuleTag, t)
 					}
 				}
-				status = callPost(webapi.PathModule+arg, params)
+				status = callPost(web.PathModule+arg, params)
 
 			default:
 				if c.Pin {
-					params.Add(webapi.ParamAction, webapi.ActionPin)
+					params.Add(web.ParamAction, web.ActionPin)
 					for _, t := range c.ModuleTags {
-						params.Add(webapi.ParamModuleTag, t)
+						params.Add(web.ParamModuleTag, t)
 					}
 				}
 				status = callWebsocket(arg, params)
 			}
 
-			if status.State != webapi.StateTerminated || status.Cause != "" {
+			if status.State != web.StateTerminated || status.Cause != "" {
 				fatal(status)
 			}
 			os.Exit(status.Result)
@@ -88,26 +88,26 @@ var remoteCommands = map[string]command{
 	"debug": {
 		usage: "instance [command [offset...]]",
 		do: func() {
-			debug(func(instID string, debug *api.DebugRequest) *api.DebugResponse {
-				debugJSON := Must(proto.Marshal(debug))
+			debug(func(instID string, debug *pb.DebugRequest) *pb.DebugResponse {
+				debugJSON := Must(protojson.Marshal(debug))
 
 				params := url.Values{
-					webapi.ParamAction: []string{webapi.ActionDebug},
+					web.ParamAction: []string{web.ActionDebug},
 				}
 
 				req := &http.Request{
 					Method: http.MethodPost,
 					Header: http.Header{
-						webapi.HeaderContentType: []string{webapi.ContentTypeJSON},
+						web.HeaderContentType: []string{web.ContentTypeJSON},
 					},
 					Body:          io.NopCloser(bytes.NewReader(debugJSON)),
 					ContentLength: int64(len(debugJSON)),
 				}
 
-				_, resp := doHTTP(req, webapi.PathInstances+instID, params)
+				_, resp := doHTTP(req, web.PathInstances+instID, params)
 
-				res := new(api.DebugResponse)
-				Check(proto.Unmarshal(Must(io.ReadAll(resp.Body)), res))
+				res := new(pb.DebugResponse)
+				Check(protojson.Unmarshal(Must(io.ReadAll(resp.Body)), res))
 				return res
 			})
 		},
@@ -116,7 +116,7 @@ var remoteCommands = map[string]command{
 	"delete": {
 		usage: "instance",
 		do: func() {
-			commandInstance(webapi.ActionDelete)
+			commandInstance(web.ActionDelete)
 		},
 	},
 
@@ -144,19 +144,19 @@ var remoteCommands = map[string]command{
 			req := &http.Request{
 				Method: http.MethodPut,
 				Header: http.Header{
-					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
+					web.HeaderContentType: []string{web.ContentTypeWebAssembly},
 				},
 				Body:          io.NopCloser(data),
 				ContentLength: int64(data.Len()),
 			}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionPin},
+				web.ParamAction: []string{web.ActionPin},
 			}
 			for _, t := range c.ModuleTags {
-				params.Add(webapi.ParamModuleTag, t)
+				params.Add(web.ParamModuleTag, t)
 			}
 
-			doHTTP(req, webapi.PathKnownModules+hash, params)
+			doHTTP(req, web.PathKnownModules+hash, params)
 			fmt.Println(hash)
 		},
 	},
@@ -164,10 +164,14 @@ var remoteCommands = map[string]command{
 	"instances": {
 		do: func() {
 			req := &http.Request{Method: http.MethodPost}
-			_, resp := doHTTP(req, webapi.PathInstances, nil)
+			_, resp := doHTTP(req, web.PathInstances, nil)
 
-			var is webapi.Instances
+			var is web.Instances
 			Check(json.NewDecoder(resp.Body).Decode(&is))
+
+			sort.SliceStable(is.Instances, func(i, j int) bool {
+				return is.Instances[i].Instance < is.Instances[j].Instance
+			})
 
 			for _, inst := range is.Instances {
 				fmt.Printf("%-36s %s %s\n", inst.Instance, inst.Status, inst.Tags)
@@ -183,10 +187,10 @@ var remoteCommands = map[string]command{
 				Body:   os.Stdin,
 			}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionIO},
+				web.ParamAction: []string{web.ActionIO},
 			}
 
-			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			_, resp := doHTTP(req, web.PathInstances+flag.Arg(0), params)
 			Must(io.Copy(os.Stdout, resp.Body))
 		},
 	},
@@ -194,7 +198,7 @@ var remoteCommands = map[string]command{
 	"kill": {
 		usage: "instance",
 		do: func() {
-			commandInstanceWaiter(webapi.ActionKill)
+			commandInstanceWaiter(web.ActionKill)
 		},
 	},
 
@@ -212,26 +216,26 @@ var remoteCommands = map[string]command{
 			}
 
 			actions := []string{
-				webapi.ActionLaunch,
+				web.ActionLaunch,
 			}
 			if c.Suspend {
-				actions = append(actions, webapi.ActionSuspend)
+				actions = append(actions, web.ActionSuspend)
 			}
 
 			params := url.Values{
-				webapi.ParamAction: actions,
+				web.ParamAction: actions,
 			}
 			if c.Function != "" {
-				params.Set(webapi.ParamFunction, c.Function)
+				params.Set(web.ParamFunction, c.Function)
 			}
 			if c.Instance != "" {
-				params.Set(webapi.ParamInstance, c.Instance)
+				params.Set(web.ParamInstance, c.Instance)
 			}
 			for _, t := range c.InstanceTags {
-				params.Add(webapi.ParamInstanceTag, t)
+				params.Add(web.ParamInstanceTag, t)
 			}
 			if c.DebugLog != "" {
-				params.Set(webapi.ParamLog, "*")
+				params.Set(web.ParamLog, "*")
 			}
 
 			var (
@@ -241,16 +245,16 @@ var remoteCommands = map[string]command{
 			switch arg := flag.Arg(0); {
 			case !(strings.Contains(arg, "/") || strings.Contains(arg, ".")):
 				req.Method = http.MethodPost
-				uri = webapi.PathKnownModules + arg
+				uri = web.PathKnownModules + arg
 
 			case strings.HasPrefix(arg, "/ipfs/"):
 				req.Method = http.MethodPut
-				uri = webapi.PathModule + arg
+				uri = web.PathModule + arg
 
 				if c.Pin {
-					params.Add(webapi.ParamAction, webapi.ActionPin)
+					params.Add(web.ParamAction, web.ActionPin)
 					for _, t := range c.ModuleTags {
-						params.Add(webapi.ParamModuleTag, t)
+						params.Add(web.ParamModuleTag, t)
 					}
 				}
 
@@ -258,34 +262,38 @@ var remoteCommands = map[string]command{
 				module, key := loadModule(arg)
 
 				req.Method = http.MethodPut
-				uri = webapi.PathKnownModules + key
+				uri = web.PathKnownModules + key
 
 				if c.Pin {
-					params.Add(webapi.ParamAction, webapi.ActionPin)
+					params.Add(web.ParamAction, web.ActionPin)
 					for _, t := range c.ModuleTags {
-						params.Add(webapi.ParamModuleTag, t)
+						params.Add(web.ParamModuleTag, t)
 					}
 				}
 
 				req.Header = http.Header{
-					webapi.HeaderContentType: []string{webapi.ContentTypeWebAssembly},
+					web.HeaderContentType: []string{web.ContentTypeWebAssembly},
 				}
 				req.Body = io.NopCloser(module)
 				req.ContentLength = int64(module.Len())
 			}
 
 			_, resp := doHTTP(req, uri, params)
-			fmt.Println(resp.Header.Get(webapi.HeaderInstance))
+			fmt.Println(resp.Header.Get(web.HeaderInstance))
 		},
 	},
 
 	"modules": {
 		do: func() {
 			req := &http.Request{Method: http.MethodPost}
-			_, resp := doHTTP(req, webapi.PathKnownModules, nil)
+			_, resp := doHTTP(req, web.PathKnownModules, nil)
 
-			var refs webapi.Modules
+			var refs web.Modules
 			Check(json.NewDecoder(resp.Body).Decode(&refs))
+
+			sort.SliceStable(refs.Modules, func(i, j int) bool {
+				return refs.Modules[i].ID < refs.Modules[j].ID
+			})
 
 			for _, m := range refs.Modules {
 				fmt.Println(m.ID, m.Tags)
@@ -302,13 +310,13 @@ var remoteCommands = map[string]command{
 
 			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionPin},
+				web.ParamAction: []string{web.ActionPin},
 			}
 			for _, t := range c.ModuleTags {
-				params.Add(webapi.ParamModuleTag, t)
+				params.Add(web.ParamModuleTag, t)
 			}
 
-			doHTTP(req, webapi.PathKnownModules+flag.Arg(0), params)
+			doHTTP(req, web.PathKnownModules+flag.Arg(0), params)
 		},
 	},
 
@@ -316,16 +324,16 @@ var remoteCommands = map[string]command{
 		usage: "instance",
 		do: func() {
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionIO},
+				web.ParamAction: []string{web.ActionIO},
 			}
 
 			var d websocket.Dialer
-			conn, _, err := d.Dial(makeWebsocketURL(webapi.PathInstances+flag.Arg(0), params), nil)
+			conn, _, err := d.Dial(makeWebsocketURL(web.PathInstances+flag.Arg(0), params), nil)
 			Check(err)
 
-			Check(conn.WriteJSON(webapi.IO{Authorization: makeAuthorization()}))
+			Check(conn.WriteJSON(web.IO{Authorization: makeAuthorization()}))
 
-			var reply webapi.IOConnection
+			var reply web.IOConnection
 			Check(conn.ReadJSON(&reply))
 			if !reply.Connected {
 				fatal("connection rejected")
@@ -340,13 +348,13 @@ var remoteCommands = map[string]command{
 		do: func() {
 			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionResume},
+				web.ParamAction: []string{web.ActionResume},
 			}
 			if c.DebugLog != "" {
-				params.Set(webapi.ParamLog, "*")
+				params.Set(web.ParamLog, "*")
 			}
 
-			doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			doHTTP(req, web.PathInstances+flag.Arg(0), params)
 		},
 	},
 
@@ -354,9 +362,9 @@ var remoteCommands = map[string]command{
 		usage: "module",
 		do: func() {
 			req := &http.Request{Method: http.MethodPost}
-			_, resp := doHTTP(req, webapi.PathKnownModules+flag.Arg(0), nil)
+			_, resp := doHTTP(req, web.PathKnownModules+flag.Arg(0), nil)
 
-			var info webapi.ModuleInfo
+			var info web.ModuleInfo
 			Check(json.NewDecoder(resp.Body).Decode(&info))
 
 			fmt.Println(info.Tags)
@@ -372,15 +380,15 @@ var remoteCommands = map[string]command{
 
 			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionSnapshot},
+				web.ParamAction: []string{web.ActionSnapshot},
 			}
 			for _, t := range c.ModuleTags {
-				params.Add(webapi.ParamModuleTag, t)
+				params.Add(web.ParamModuleTag, t)
 			}
 
-			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			_, resp := doHTTP(req, web.PathInstances+flag.Arg(0), params)
 
-			location := resp.Header.Get(webapi.HeaderLocation)
+			location := resp.Header.Get(web.HeaderLocation)
 			if location == "" {
 				fatal("no Location header in response")
 			}
@@ -394,12 +402,12 @@ var remoteCommands = map[string]command{
 		do: func() {
 			req := &http.Request{
 				Method: http.MethodPost,
-				Header: http.Header{webapi.HeaderAccept: []string{webapi.ContentTypeJSON}},
+				Header: http.Header{web.HeaderAccept: []string{web.ContentTypeJSON}},
 			}
 
-			_, resp := doHTTP(req, webapi.PathInstances+flag.Arg(0), nil)
+			_, resp := doHTTP(req, web.PathInstances+flag.Arg(0), nil)
 
-			info := new(webapi.InstanceInfo)
+			info := new(web.InstanceInfo)
 			Check(json.NewDecoder(resp.Body).Decode(info))
 
 			fmt.Printf("%s %s\n", info.Status, info.Tags)
@@ -409,7 +417,7 @@ var remoteCommands = map[string]command{
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			commandInstanceWaiter(webapi.ActionSuspend)
+			commandInstanceWaiter(web.ActionSuspend)
 		},
 	},
 
@@ -418,10 +426,10 @@ var remoteCommands = map[string]command{
 		do: func() {
 			req := &http.Request{Method: http.MethodPost}
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionUnpin},
+				web.ParamAction: []string{web.ActionUnpin},
 			}
 
-			doHTTP(req, webapi.PathKnownModules+flag.Arg(0), params)
+			doHTTP(req, web.PathKnownModules+flag.Arg(0), params)
 		},
 	},
 
@@ -433,9 +441,9 @@ var remoteCommands = map[string]command{
 			}
 
 			params := url.Values{
-				webapi.ParamAction: []string{webapi.ActionUpdate},
+				web.ParamAction: []string{web.ActionUpdate},
 			}
-			update := webapi.InstanceUpdate{
+			update := web.InstanceUpdate{
 				Persist: true,
 				Tags:    c.InstanceTags,
 			}
@@ -448,20 +456,20 @@ var remoteCommands = map[string]command{
 			req := &http.Request{
 				Method: http.MethodPost,
 				Header: http.Header{
-					webapi.HeaderContentType: []string{webapi.ContentTypeJSON},
+					web.HeaderContentType: []string{web.ContentTypeJSON},
 				},
 				Body:          io.NopCloser(bytes.NewReader(updateJSON)),
 				ContentLength: int64(len(updateJSON)),
 			}
 
-			doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+			doHTTP(req, web.PathInstances+flag.Arg(0), params)
 		},
 	},
 
 	"wait": {
 		usage: "instance",
 		do: func() {
-			fmt.Println(commandInstance(webapi.ActionWait))
+			fmt.Println(commandInstance(web.ActionWait))
 		},
 	},
 }
@@ -470,13 +478,13 @@ func discoverRemoteScope(w io.Writer) {
 	fmt.Fprintln(w)
 
 	params := url.Values{
-		webapi.ParamFeature: []string{webapi.FeatureScope},
+		web.ParamFeature: []string{web.FeatureScope},
 	}
 
 	req := &http.Request{Method: http.MethodGet}
-	_, resp := doHTTP(req, webapi.Path, params)
+	_, resp := doHTTP(req, web.Path, params)
 
-	var f webapi.Features
+	var f web.Features
 	Check(json.NewDecoder(resp.Body).Decode(&f))
 
 	printScope(w, f.Scope)
@@ -484,39 +492,39 @@ func discoverRemoteScope(w io.Writer) {
 
 func exportRemote(module, filename string) {
 	download(filename, func() (io.Reader, int64) {
-		_, resp := doHTTP(nil, webapi.PathKnownModules+module, nil)
+		_, resp := doHTTP(nil, web.PathKnownModules+module, nil)
 		return resp.Body, resp.ContentLength
 	})
 }
 
-func callPost(uri string, params url.Values) webapi.Status {
+func callPost(uri string, params url.Values) web.Status {
 	req := &http.Request{
 		Method: http.MethodPost,
-		Header: http.Header{webapi.HeaderTE: []string{webapi.TETrailers}},
+		Header: http.Header{web.HeaderTE: []string{web.TETrailers}},
 		Body:   os.Stdin,
 	}
 
 	_, resp := doHTTP(req, uri, params)
 	Must(io.Copy(os.Stdout, resp.Body))
-	return unmarshalStatus(resp.Trailer.Get(webapi.HeaderStatus))
+	return unmarshalStatus(resp.Trailer.Get(web.HeaderStatus))
 }
 
-func callWebsocket(filename string, params url.Values) webapi.Status {
+func callWebsocket(filename string, params url.Values) web.Status {
 	module, key := loadModule(filename)
 
-	url := makeWebsocketURL(webapi.PathKnownModules+key, params)
+	url := makeWebsocketURL(web.PathKnownModules+key, params)
 
 	conn, _, err := new(websocket.Dialer).Dial(url, nil)
 	Check(err)
 	defer conn.Close()
 
-	Check(conn.WriteJSON(webapi.Call{
+	Check(conn.WriteJSON(web.Call{
 		Authorization: makeAuthorization(),
-		ContentType:   webapi.ContentTypeWebAssembly,
+		ContentType:   web.ContentTypeWebAssembly,
 		ContentLength: int64(module.Len()),
 	}))
 	Check(conn.WriteMessage(websocket.BinaryMessage, module.Bytes()))
-	Check(conn.ReadJSON(new(webapi.CallConnection)))
+	Check(conn.ReadJSON(new(web.CallConnection)))
 
 	// TODO: input
 
@@ -529,27 +537,27 @@ func callWebsocket(filename string, params url.Values) webapi.Status {
 			os.Stdout.Write(data)
 
 		case websocket.TextMessage:
-			var status webapi.ConnectionStatus
+			var status web.ConnectionStatus
 			Check(json.Unmarshal(data, &status))
 			return status.Status
 		}
 	}
 }
 
-func commandInstance(actions ...string) webapi.Status {
+func commandInstance(actions ...string) web.Status {
 	req := &http.Request{Method: http.MethodPost}
 	params := url.Values{
-		webapi.ParamAction: actions,
+		web.ParamAction: actions,
 	}
 
-	status, _ := doHTTP(req, webapi.PathInstances+flag.Arg(0), params)
+	status, _ := doHTTP(req, web.PathInstances+flag.Arg(0), params)
 	return status
 }
 
 func commandInstanceWaiter(action string) {
 	actions := []string{action}
 	if c.Wait {
-		actions = append(actions, webapi.ActionWait)
+		actions = append(actions, web.ActionWait)
 	}
 
 	status := commandInstance(actions...)
@@ -563,13 +571,13 @@ func loadModule(filename string) (b *bytes.Buffer, key string) {
 	defer f.Close()
 
 	b = new(bytes.Buffer)
-	h := webapi.KnownModuleHash.New()
+	h := web.KnownModuleHash.New()
 	Must(io.Copy(h, io.TeeReader(f, b)))
-	key = webapi.EncodeKnownModule(h.Sum(nil))
+	key = web.EncodeKnownModule(h.Sum(nil))
 	return
 }
 
-func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Status, resp *http.Response) {
+func doHTTP(req *http.Request, uri string, params url.Values) (status web.Status, resp *http.Response) {
 	if req == nil {
 		req = new(http.Request)
 	}
@@ -582,7 +590,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 		if req.Header == nil {
 			req.Header = make(http.Header, 1)
 		}
-		req.Header.Set(webapi.HeaderAuthorization, auth)
+		req.Header.Set(web.HeaderAuthorization, auth)
 	}
 
 	resp = Must(http.DefaultClient.Do(req))
@@ -593,7 +601,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 
 	default:
 		msg := resp.Status
-		if x := strings.SplitN(resp.Header.Get(webapi.HeaderContentType), ";", 2); x[0] == "text/plain" {
+		if x := strings.SplitN(resp.Header.Get(web.HeaderContentType), ";", 2); x[0] == "text/plain" {
 			if text, _ := io.ReadAll(resp.Body); len(text) > 0 {
 				msg = string(text)
 			}
@@ -601,7 +609,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status webapi.Sta
 		fatal(msg)
 	}
 
-	if serialized := resp.Header.Get(webapi.HeaderStatus); serialized != "" {
+	if serialized := resp.Header.Get(web.HeaderStatus); serialized != "" {
 		status = unmarshalStatus(serialized)
 	}
 	return
@@ -616,11 +624,11 @@ func makeURL(uri string, params url.Values, prelocate bool) *url.URL {
 	var u *url.URL
 
 	if prelocate {
-		resp := Must(http.Head(addr + webapi.Path))
+		resp := Must(http.Head(addr + web.Path))
 		resp.Body.Close()
 
 		u = resp.Request.URL
-		u.Path = u.Path + strings.Replace(uri, webapi.Path, "", 1)
+		u.Path = u.Path + strings.Replace(uri, web.Path, "", 1)
 	} else {
 		u = Must(url.Parse(addr + uri))
 	}
@@ -656,12 +664,12 @@ func makeAuthorization() string {
 	if aud.Scheme == "" {
 		aud.Scheme = "https"
 	}
-	aud.Path += webapi.Path
+	aud.Path += web.Path
 
 	sort.Strings(c.Scope)
 	scope := strings.Join(c.Scope, " ")
 
-	claims := &webapi.Claims{
+	claims := &web.Claims{
 		Exp:   time.Now().Unix() + 60,
 		Aud:   []string{aud.String()},
 		Scope: scope,
@@ -676,9 +684,9 @@ func makeAuthorization() string {
 			fatalf("%s: not an Ed25519 private key", c.IdentityFile)
 		}
 
-		publicJWK := webapi.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
-		jwtHeader := webapi.TokenHeaderEdDSA(publicJWK)
-		return Must(webapi.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims))
+		publicJWK := web.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
+		jwtHeader := web.TokenHeaderEdDSA(publicJWK)
+		return Must(web.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims))
 	} else {
 		if aud.Scheme != "http" {
 			fatalf("%s scheme with empty identity", aud.Scheme)
@@ -690,11 +698,11 @@ func makeAuthorization() string {
 			}
 		}
 
-		return Must(webapi.AuthorizationBearerLocal(claims))
+		return Must(web.AuthorizationBearerLocal(claims))
 	}
 }
 
-func unmarshalStatus(serialized string) (status webapi.Status) {
+func unmarshalStatus(serialized string) (status web.Status) {
 	Check(json.Unmarshal([]byte(serialized), &status))
 	if status.Error != "" {
 		fatal(status.String())

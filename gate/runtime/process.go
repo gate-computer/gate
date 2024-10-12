@@ -263,22 +263,21 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 //
 // Start must have been called before this.
 //
-// Buffers will be mutated (unless nil).
-//
 // A meaningful trap id is returned also when an error is returned.  The result
 // is meaningful when trap is Exit.
-func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, error) {
-	if err := ioLoop(contextWithProcess(ctx, p), services, p, buffers); err != nil {
+func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, *snapshot.Buffers, error) {
+	buffers, err := ioLoop(contextWithProcess(ctx, p), services, p, buffers)
+	if err != nil {
 		trapID := trap.InternalError
 		if badprogram.Is(err) {
 			trapID = trap.ABIViolation
 		}
-		return Result{}, trapID, err
+		return Result{}, trapID, buffers, err
 	}
 
 	status, err := p.execution.finalize()
 	if err != nil {
-		return Result{}, trap.InternalError, err
+		return Result{}, trap.InternalError, buffers, err
 	}
 
 	if p.debugging != nil {
@@ -299,7 +298,7 @@ func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot
 			trapID = trap.ID(n - 100)
 
 		default:
-			return Result{}, trap.InternalError, internal.ProcessError(n)
+			return Result{}, trap.InternalError, buffers, internal.ProcessError(n)
 		}
 
 		if p.execution.killRequested() {
@@ -309,23 +308,23 @@ func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot
 			}
 		}
 
-		return result, trapID, nil
+		return result, trapID, buffers, nil
 
 	case status.Signaled():
 		switch s := status.Signal(); {
 		case s == os.Kill && p.execution.killRequested():
-			return Result{}, trap.Killed, nil
+			return Result{}, trap.Killed, buffers, nil
 
 		case s == syscall.SIGXCPU:
 			// During initialization (ok) or by force (instance stack is dirty).
-			return Result{}, trap.Suspended, nil
+			return Result{}, trap.Suspended, buffers, nil
 
 		default:
-			return Result{}, trap.InternalError, fmt.Errorf("process termination signal: %s", s)
+			return Result{}, trap.InternalError, buffers, fmt.Errorf("process termination signal: %s", s)
 		}
 
 	default:
-		return Result{}, trap.InternalError, fmt.Errorf("unknown process status: %d", status)
+		return Result{}, trap.InternalError, buffers, fmt.Errorf("unknown process status: %d", status)
 	}
 }
 

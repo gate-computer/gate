@@ -14,7 +14,7 @@ import (
 
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/internal/file"
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/wag/object"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/proto"
@@ -149,7 +149,7 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (*Program, error
 
 	prog := &Program{
 		storage: storage,
-		man:     new(manifest.Program),
+		man:     new(pb.ProgramManifest),
 	}
 
 	if err := unmarshalManifest(f, prog.man, progManifestOffset, programFileTag); err != nil {
@@ -245,7 +245,7 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 	}()
 
 	inst = &Instance{
-		man:      new(manifest.Instance),
+		man:      new(pb.InstanceManifest),
 		coherent: true,
 		file:     f,
 		dir:      fs.instDir,
@@ -297,8 +297,8 @@ func marshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) 
 }
 
 func unmarshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) error {
-	b := make([]byte, manifest.MaxSize)
-	if _, err := io.ReadFull(io.NewSectionReader(f, offset, manifest.MaxSize), b); err != nil {
+	b := make([]byte, maxManifestSize)
+	if _, err := io.ReadFull(io.NewSectionReader(f, offset, maxManifestSize), b); err != nil {
 		return err
 	}
 
@@ -307,7 +307,7 @@ func unmarshalManifest(f *file.File, man proto.Message, offset int64, tag uint32
 	}
 
 	size := binary.LittleEndian.Uint32(b[4:])
-	if size < manifestHeaderSize || size > manifest.MaxSize {
+	if size < manifestHeaderSize || size > maxManifestSize {
 		return fmt.Errorf("manifest size out of bounds: %d", size)
 	}
 

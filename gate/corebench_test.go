@@ -84,7 +84,8 @@ func executeInstance(ctx Context, prog runtime.ProgramCode, inst runtime.Program
 		return runtime.Result{}, trap.InternalError, err
 	}
 
-	return proc.Serve(ctx, benchRegistry, nil)
+	result, trapID, _, err := proc.Serve(ctx, benchRegistry, nil)
+	return result, trapID, err
 }
 
 func executeProgram(ctx Context, prog *image.Program) (runtime.Result, trap.ID, error) {
@@ -104,7 +105,8 @@ func executeProgram(ctx Context, prog *image.Program) (runtime.Result, trap.ID, 
 		return runtime.Result{}, trap.InternalError, err
 	}
 
-	return proc.Serve(ctx, benchRegistry, nil)
+	result, trapID, _, err := proc.Serve(ctx, benchRegistry, nil)
+	return result, trapID, err
 }
 
 func BenchmarkBuildMem(b *testing.B) {

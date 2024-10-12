@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"gate.computer/gate/image"
-	pprincipal "gate.computer/gate/principal"
+	"gate.computer/gate/principal"
 	"gate.computer/gate/runtime"
 	programscope "gate.computer/gate/scope/program"
 	"gate.computer/gate/server/api"
@@ -22,11 +22,13 @@ import (
 	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
+	"gate.computer/internal/dedup"
 	"gate.computer/internal/error/subsystem"
-	"gate.computer/internal/manifest"
-	"gate.computer/internal/principal"
+	pb "gate.computer/internal/pb/server"
+	internal "gate.computer/internal/principal"
 	"gate.computer/wag/object"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"import.name/lock"
 	"import.name/pan"
 
@@ -38,35 +40,48 @@ func makeInstanceID() string {
 	return uuid.New().String()
 }
 
-func mustValidateInstanceID(s string) {
-	if x, err := uuid.Parse(s); err == nil {
-		if x.Version() == 4 && x.Variant() == uuid.RFC4122 {
-			return
-		}
+func ValidateInstanceUUIDForm(s string) error {
+	u, err := uuid.Parse(s)
+	if err != nil {
+		return failrequest.Error(event.FailInstanceIDInvalid, "instance id must be a UUID")
 	}
-
-	pan.Panic(failrequest.Error(event.FailInstanceIDInvalid, "instance id must be an RFC 4122 UUID version 4"))
+	if u.Version() != 4 {
+		return failrequest.Error(event.FailInstanceIDInvalid, "instance UUID version must be 4")
+	}
+	if u.Variant() != uuid.RFC4122 {
+		return failrequest.Error(event.FailInstanceIDInvalid, "instance UUID variant must be RFC 4122")
+	}
+	if u.String() == s {
+		return nil
+	}
+	if s[0] == '{' {
+		return failrequest.Error(event.FailInstanceIDInvalid, "instance UUID must not be surrounded by brackets")
+	}
+	if strings.Contains(s, ":") {
+		return failrequest.Error(event.FailInstanceIDInvalid, "instance UUID must not have namespace prefix")
+	}
+	return failrequest.Error(event.FailInstanceIDInvalid, "instance UUID must use lower-case hex encoding")
 }
 
 func instanceServingContext(ctx Context, id string) Context {
-	ctx = pprincipal.ContextWithInstanceUUID(ctx, uuid.Must(uuid.Parse(id)))
+	ctx = principal.ContextWithInstanceUUID(ctx, uuid.Must(uuid.Parse(id)))
 	ctx = programscope.ContextWithScope(ctx)
 	return ctx
 }
 
-func instanceStorageKey(pri *principal.ID, instID string) string {
+func instanceStorageKey(pri *internal.ID, instID string) string {
 	return fmt.Sprintf("%s.%s", pri.String(), instID)
 }
 
-func mustParseInstanceStorageKey(key string) (*principal.ID, string) {
+func mustParseInstanceStorageKey(key string) (*internal.ID, string) {
 	i := strings.LastIndexByte(key, '.')
 	if i < 0 {
 		pan.Panic(fmt.Errorf("invalid instance storage key: %q", key))
 	}
 
-	pri := Must(principal.ParseID(key[:i]))
+	pri := Must(internal.ParseID(key[:i]))
 	instID := key[i+1:]
-	mustValidateInstanceID(instID)
+	Check(ValidateInstanceUUIDForm(instID))
 	return pri, instID
 }
 
@@ -94,36 +109,33 @@ type Instance struct {
 	acc *account
 
 	mu           lock.TagMutex[instanceLock] // Guards the fields below.
-	exists       bool
-	transient    bool
-	status       *api.Status
+	model        *pb.Instance
 	altProgImage *image.Program
 	altCallMap   *object.CallMap
 	image        *image.Instance
-	buffers      snapshot.Buffers
 	process      *runtime.Process
 	services     InstanceServices
-	timeReso     time.Duration
-	tags         []string
 	debugLog     io.WriteCloser
 	stopped      chan struct{}
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, transient bool, image *image.Instance, buffers snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeReso time.Duration, tags []string, debugLog io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, transient bool, image *image.Instance, buffers *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeResolution time.Duration, tags []string, debugLog io.WriteCloser) *Instance {
 	return &Instance{
-		id:        id,
-		acc:       acc,
-		transient: transient,
-		status:    new(api.Status),
-		image:     image,
-		buffers:   buffers,
-		process:   proc,
-		services:  services,
-		timeReso:  timeReso,
-		tags:      tags,
-		debugLog:  debugLog,
-		stopped:   make(chan struct{}),
+		id:  id,
+		acc: acc,
+		model: &pb.Instance{
+			Transient:      transient,
+			Status:         new(api.Status),
+			Buffers:        buffers,
+			TimeResolution: durationpb.New(timeResolution),
+			Tags:           tags,
+		},
+		image:    image,
+		process:  proc,
+		services: services,
+		debugLog: debugLog,
+		stopped:  make(chan struct{}),
 	}
 }
 
@@ -148,26 +160,26 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 
 		if inst.image.Final() {
 			if trapID != trap.Exit {
-				inst.status.State = api.StateKilled
+				inst.model.Status.State = api.StateKilled
 				if trapID != trap.Killed {
-					inst.status.Cause = api.Cause(trapID)
+					inst.model.Status.Cause = api.Cause(trapID)
 				}
 			} else {
-				inst.status.State = api.StateTerminated
-				inst.status.Result = inst.image.Result()
+				inst.model.Status.State = api.StateTerminated
+				inst.model.Status.Result = inst.image.Result()
 			}
 		} else {
 			if trapID != trap.Exit {
-				inst.status.State, inst.status.Cause = trapStatus(trapID)
+				inst.model.Status.State, inst.model.Status.Cause = trapStatus(trapID)
 			} else if inst.image.EntryAddr() == 0 {
-				inst.status.State = api.StateHalted
-				inst.status.Result = inst.image.Result()
+				inst.model.Status.State = api.StateHalted
+				inst.model.Status.Result = inst.image.Result()
 			} else {
-				inst.status.State = api.StateSuspended
+				inst.model.Status.State = api.StateSuspended
 			}
 		}
 
-		inst.exists = true
+		inst.model.Exists = true
 		close(inst.stopped)
 		return false, nil
 	}
@@ -178,7 +190,7 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 	}
 
 	policy := runtime.ProcessPolicy{
-		TimeResolution: inst.timeReso,
+		TimeResolution: inst.model.TimeResolution.AsDuration(),
 		DebugLog:       inst.debugLog,
 	}
 
@@ -189,8 +201,8 @@ func (inst *Instance) startOrAnnihilate(prog *program) (drive bool, err error) {
 		return false, err
 	}
 
-	inst.status.State = api.StateRunning
-	inst.exists = true
+	inst.model.Status.State = api.StateRunning
+	inst.model.Exists = true
 	return true, nil
 }
 
@@ -208,11 +220,11 @@ func (inst *Instance) stop(lock instanceLock) {
 	}
 }
 
-func (inst *Instance) Status(ctx Context) *api.Status {
+func (inst *Instance) Status() *api.Status {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	return api.CloneStatus(inst.status)
+	return cloneStatus(inst.model.Status)
 }
 
 // info may return nil.
@@ -220,24 +232,24 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	if !inst.exists {
+	if !inst.model.Exists {
 		return nil
 	}
 
 	return &api.InstanceInfo{
 		Instance:  inst.id,
 		Module:    module,
-		Status:    api.CloneStatus(inst.status),
-		Transient: inst.transient,
+		Status:    cloneStatus(inst.model.Status),
+		Transient: inst.model.Transient,
 		Debugging: len(inst.image.Breakpoints()) > 0,
-		Tags:      inst.tags,
+		Tags:      inst.model.Tags,
 	}
 }
 
 func (inst *Instance) Wait(ctx Context) (status *api.Status) {
 	var stopped <-chan struct{}
 	lock.GuardTag(&inst.mu, func(instanceLock) {
-		status = api.CloneStatus(inst.status)
+		status = cloneStatus(inst.model.Status)
 		stopped = inst.stopped
 	})
 
@@ -250,7 +262,7 @@ func (inst *Instance) Wait(ctx Context) (status *api.Status) {
 	case <-ctx.Done():
 	}
 
-	return inst.Status(ctx)
+	return inst.Status()
 }
 
 func (inst *Instance) Kill(ctx Context) error {
@@ -275,8 +287,8 @@ func (inst *Instance) Suspend(ctx Context) error {
 
 func (inst *Instance) suspend(setNonTransient bool) {
 	proc := lock.GuardTagged(&inst.mu, func(instanceLock) *runtime.Process {
-		if setNonTransient && inst.status.State == api.StateRunning {
-			inst.transient = false
+		if setNonTransient && inst.model.Status.State == api.StateRunning {
+			inst.model.Transient = false
 		}
 		return inst.process
 	})
@@ -302,11 +314,11 @@ func (inst *Instance) mustCheckResume(function string) {
 }
 
 func (inst *Instance) mustCheckResumeWithLock(lock instanceLock, function string) {
-	if !inst.exists {
+	if !inst.model.Exists {
 		pan.Panic(notfound.ErrInstance)
 	}
 
-	switch inst.status.State {
+	switch inst.model.Status.State {
 	case api.StateSuspended:
 		if function != "" {
 			pan.Panic(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
@@ -323,7 +335,7 @@ func (inst *Instance) mustCheckResumeWithLock(lock instanceLock, function string
 }
 
 // mustResume steals proc, services and debugLog.
-func (inst *Instance) mustResume(function string, proc *runtime.Process, services InstanceServices, timeReso time.Duration, debugLog io.WriteCloser) {
+func (inst *Instance) mustResume(function string, proc *runtime.Process, services InstanceServices, timeResolution time.Duration, debugLog io.WriteCloser) {
 	var ok bool
 	defer func() {
 		if !ok {
@@ -337,10 +349,10 @@ func (inst *Instance) mustResume(function string, proc *runtime.Process, service
 	// Check again in case of a race condition.
 	inst.mustCheckResumeWithLock(lock, function)
 
-	inst.status = &api.Status{State: api.StateRunning}
+	inst.model.Status = &api.Status{State: api.StateRunning}
 	inst.process = proc
 	inst.services = services
-	inst.timeReso = timeReso
+	inst.model.TimeResolution = durationpb.New(timeResolution)
 	inst.debugLog = debugLog
 	inst.stopped = make(chan struct{})
 
@@ -377,19 +389,19 @@ func (inst *Instance) connect(ctx Context) func(Context, io.Reader, io.WriteClos
 	return s.Connect(ctx)
 }
 
-func (inst *Instance) mustSnapshot(prog *program) (*image.Program, snapshot.Buffers) {
+func (inst *Instance) mustSnapshot(prog *program) (*image.Program, *snapshot.Buffers) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	if !inst.exists {
+	if !inst.model.Exists {
 		pan.Panic(notfound.ErrInstance)
 	}
-	if inst.status.State == api.StateRunning {
+	if inst.model.Status.State == api.StateRunning {
 		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
-	buffers := inst.buffers
-	progImage := Must(image.Snapshot(prog.image, inst.image, buffers, inst.status.State == api.StateSuspended))
+	buffers := inst.model.Buffers
+	progImage := Must(image.Snapshot(prog.image, inst.image, buffers, inst.model.Status.State == api.StateSuspended))
 
 	return progImage, buffers
 }
@@ -399,10 +411,10 @@ func (inst *Instance) mustAnnihilate() {
 	lock := inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	if !inst.exists {
+	if !inst.model.Exists {
 		pan.Panic(notfound.ErrInstance)
 	}
-	if inst.status.State == api.StateRunning {
+	if inst.model.Status.State == api.StateRunning {
 		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
@@ -410,7 +422,7 @@ func (inst *Instance) mustAnnihilate() {
 }
 
 func (inst *Instance) annihilate(lock instanceLock) {
-	inst.exists = false
+	inst.model.Exists = false
 	inst.image.Unstore()
 	inst.image.Close()
 	inst.image = nil
@@ -429,19 +441,19 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 		}
 		inst.image.SetTrap(trapID)
 		inst.image.SetResult(res.Result)
-		inst.status = res
+		inst.model.Status = res
 		inst.stop(lock)
 
-		config.monitorInstance(ctx, event.TypeInstanceStop, &event.Instance{
+		config.eventInstance(ctx, event.TypeInstanceStop, &event.Instance{
 			Instance: inst.id,
-			Status:   api.CloneStatus(inst.status),
+			Status:   cloneStatus(inst.model.Status),
 		}, nil)
 
-		if inst.transient {
+		if inst.model.Transient {
 			inst.annihilate(lock)
 			nonexistent = true
 
-			config.monitorInstance(ctx, event.TypeInstanceDelete, &event.Instance{
+			config.eventInstance(ctx, event.TypeInstanceDelete, &event.Instance{
 				Instance: inst.id,
 			}, nil)
 		}
@@ -454,19 +466,24 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 		}
 	}()
 
-	result, trapID, err := inst.process.Serve(instanceServingContext(ctx, inst.id), inst.services, &inst.buffers)
+	var (
+		result runtime.Result
+		err    error
+	)
+
+	result, trapID, inst.model.Buffers, err = inst.process.Serve(instanceServingContext(ctx, inst.id), inst.services, inst.model.Buffers)
 	if err != nil {
 		res.Error = api.PublicErrorString(err, res.Error)
 		if trapID == trap.ABIViolation {
 			res.Cause = api.CauseABIViolation
-			config.monitorFail(ctx, event.TypeFailRequest, &event.Fail{
+			config.eventFail(ctx, event.TypeFailRequest, &event.Fail{
 				Type:     event.FailProgramError,
 				Module:   prog.id,
 				Function: function,
 				Instance: inst.id,
 			}, err)
 		} else {
-			config.monitorFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "service io", err), err)
+			config.eventFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "service io", err), err)
 		}
 		return
 	}
@@ -482,21 +499,21 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 	mutErr := inst.image.CheckMutation()
 	if mutErr != nil && trapID != trap.Killed {
 		res.Error = api.PublicErrorString(mutErr, res.Error)
-		config.monitorFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image state", mutErr), mutErr)
+		config.eventFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image state", mutErr), mutErr)
 		return
 	}
 
-	if mutErr == nil && !inst.transient {
+	if mutErr == nil && !inst.model.Transient {
 		err = inst.store(lock, prog)
 		if err != nil {
 			res.Error = api.PublicErrorString(err, res.Error)
-			config.monitorFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image storage", err), err)
+			config.eventFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image storage", err), err)
 			return
 		}
 	}
 
 	if trapID == trap.Exit {
-		if inst.transient || result.Terminated() {
+		if inst.model.Transient || result.Terminated() {
 			res.State = api.StateTerminated
 		} else {
 			res.State = api.StateHalted
@@ -515,19 +532,19 @@ func (inst *Instance) update(update *api.InstanceUpdate) (modified bool) {
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
-	if !inst.exists {
+	if !inst.model.Exists {
 		return
 	}
 
-	if update.Persist && inst.transient {
-		inst.transient = false
+	if update.Persist && inst.model.Transient {
+		inst.model.Transient = false
 		modified = true
 	} else {
 		update.Persist = false
 	}
 
-	if len(update.Tags) != 0 && !reflect.DeepEqual(inst.tags, update.Tags) {
-		inst.tags = append([]string(nil), update.Tags...)
+	if len(update.Tags) != 0 && !reflect.DeepEqual(inst.model.Tags, update.Tags) {
+		inst.model.Tags = append([]string(nil), update.Tags...)
 		modified = true
 	} else {
 		update.Tags = nil
@@ -544,7 +561,7 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 		pan.Panic(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
 	}
 
-	if req.Op != api.DebugOpConfigGet && inst.status.State == api.StateRunning {
+	if req.Op != api.DebugOpConfigGet && inst.model.Status.State == api.StateRunning {
 		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
@@ -556,11 +573,11 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 	case api.DebugOpConfigSet:
 		config := req.GetConfig()
 
-		if len(config.Breakpoints) > manifest.MaxBreakpoints {
+		if len(config.Breakpoints) > snapshot.MaxBreakpoints {
 			pan.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
-		breaks = manifest.SortDedupUint64(config.Breakpoints)
+		breaks = dedup.SortUint64(config.Breakpoints)
 		if !reflect.DeepEqual(breaks, inst.image.Breakpoints()) {
 			modified = true
 		}
@@ -568,7 +585,7 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 	case api.DebugOpConfigUnion:
 		config := req.GetConfig()
 
-		if len(breaks)+len(config.Breakpoints) > manifest.MaxBreakpoints {
+		if len(breaks)+len(config.Breakpoints) > snapshot.MaxBreakpoints {
 			pan.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
@@ -635,7 +652,7 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 
 	res := &api.DebugResponse{
 		Module: path.Join(api.KnownModuleSource, prog.id),
-		Status: api.CloneStatus(inst.status),
+		Status: cloneStatus(inst.model.Status),
 		Config: &api.DebugConfig{
 			Breakpoints: inst.image.Breakpoints(),
 		},
@@ -671,7 +688,7 @@ func (rebuild *instanceRebuild) apply(progImage *image.Program, newConfig *api.D
 
 	res = &api.DebugResponse{
 		Module: path.Join(api.KnownModuleSource, rebuild.origProgID),
-		Status: api.CloneStatus(inst.status),
+		Status: cloneStatus(inst.model.Status),
 		Config: &api.DebugConfig{
 			Breakpoints: inst.image.Breakpoints(),
 		},
@@ -689,5 +706,17 @@ func internalFail(module, function, instance, subsys string, err error) *event.F
 		Function:  function,
 		Instance:  instance,
 		Subsystem: subsys,
+	}
+}
+
+func cloneStatus(s *api.Status) *api.Status {
+	if s == nil {
+		return nil
+	}
+	return &api.Status{
+		State:  s.State,
+		Cause:  s.Cause,
+		Result: s.Result,
+		Error:  s.Error,
 	}
 }

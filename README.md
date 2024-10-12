@@ -47,7 +47,7 @@ Important Go packages:
   - [**gate/build**](https://pkg.go.dev/gate.computer/gate/build):
     High-level executable building and snapshot restoration.
 
-  - [**gate/server/web**](https://pkg.go.dev/gate.computer/gate/server/web):
+  - [**gate/server/webserver**](https://pkg.go.dev/gate.computer/gate/server/webserver):
     HTTP server component which executes your code on purpose.  It has a
     [RESTful API](doc/web-api.md), but some actions can be invoked also via websocket.
 

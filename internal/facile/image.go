@@ -37,7 +37,7 @@ func (filesystem *Filesystem) Close() error {
 type ProgramImage struct {
 	image           *image.Program
 	memorySizeLimit int
-	buffers         snapshot.Buffers
+	buffers         *snapshot.Buffers
 	funcTypes       []wa.FuncType
 	objectMap       object.CallMap
 }
@@ -112,7 +112,7 @@ func (prog *ProgramImage) Close() error {
 
 type InstanceImage struct {
 	image   *image.Instance
-	buffers snapshot.Buffers
+	buffers *snapshot.Buffers
 }
 
 func NewInstanceImage(prog *ProgramImage, entryFunction string) (*InstanceImage, error) {

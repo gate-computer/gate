@@ -2,14 +2,13 @@
 
 package event
 
-import "gate.computer/gate/server/event/pb"
+import pb "gate.computer/gate/pb/server/event"
 
 const (
 	TypeFailInternal         = pb.Type_FAIL_INTERNAL
 	TypeFailNetwork          = pb.Type_FAIL_NETWORK
 	TypeFailProtocol         = pb.Type_FAIL_PROTOCOL
 	TypeFailRequest          = pb.Type_FAIL_REQUEST
-	TypeIfaceAccess          = pb.Type_IFACE_ACCESS
 	TypeInstanceConnect      = pb.Type_INSTANCE_CONNECT
 	TypeInstanceCreateKnown  = pb.Type_INSTANCE_CREATE_KNOWN
 	TypeInstanceCreateStream = pb.Type_INSTANCE_CREATE_STREAM
@@ -34,6 +33,7 @@ const (
 	TypeModuleUnpin          = pb.Type_MODULE_UNPIN
 	TypeModuleUploadExist    = pb.Type_MODULE_UPLOAD_EXIST
 	TypeModuleUploadNew      = pb.Type_MODULE_UPLOAD_NEW
+	TypeUnspecified          = pb.Type_UNSPECIFIED
 )
 
 const (

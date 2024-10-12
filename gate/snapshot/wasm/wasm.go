@@ -12,7 +12,6 @@ import (
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
 	"gate.computer/internal/error/badprogram"
-	"gate.computer/internal/manifest"
 	"gate.computer/wag/binary"
 	"gate.computer/wag/section"
 )
@@ -47,7 +46,7 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 		return
 	}
 	readLen += n
-	snap.Flags = snapshot.Flags(flags)
+	snap.Final = flags&1 != 0
 
 	trapID, n, err := binary.Varuint32(r)
 	if err != nil {
@@ -74,7 +73,7 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 		return
 	}
 	readLen += n
-	if numBreakpoints > manifest.MaxBreakpoints {
+	if numBreakpoints > snapshot.MaxBreakpoints {
 		err = errors.New("snapshot has too many breakpoints")
 		return
 	}
@@ -91,7 +90,7 @@ func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int,
 	return
 }
 
-func ReadBufferSectionHeader(r section.Reader, length uint32) (bs snapshot.Buffers, readLen int, dataBuf []byte, err error) {
+func ReadBufferSectionHeader(r section.Reader, length uint32) (bs *snapshot.Buffers, readLen int, dataBuf []byte, err error) {
 	// TODO: limit sizes and count
 
 	inputSize, n, err := binary.Varuint32(r)
@@ -114,7 +113,9 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs snapshot.Buffe
 
 	dataSize := int64(inputSize) + int64(outputSize)
 
-	bs.Services = make([]snapshot.Service, serviceCount)
+	bs = &snapshot.Buffers{
+		Services: make([]*snapshot.Service, serviceCount),
+	}
 	serviceSizes := make([]uint32, serviceCount)
 
 	for i := range bs.Services {
@@ -137,7 +138,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs snapshot.Buffe
 			return
 		}
 		readLen += n
-		bs.Services[i].Name = string(b)
+		bs.Services[i] = &snapshot.Service{Name: string(b)}
 
 		serviceSizes[i], n, err = binary.Varuint32(r)
 		if err != nil {

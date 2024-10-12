@@ -1,0 +1,60 @@
+// Copyright (c) 2019 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package gate.internal.image;
+
+import "gate/pb/snapshot/snapshot.proto";
+
+option go_package = "gate.computer/internal/pb/image";
+
+message ProgramManifest {
+  fixed64 library_checksum = 1;
+  int32 text_revision = 2;
+  uint64 text_addr = 3;
+  uint32 text_size = 4;
+  uint32 stack_usage = 5;
+  uint32 globals_size = 6;
+  uint32 memory_size = 7;
+  sint64 memory_size_limit = 8;
+  uint32 memory_data_size = 9;
+  int64 module_size = 10;
+  repeated ByteRange sections = 11;
+  ByteRange snapshot_section = 12;
+  ByteRange export_section_wrap = 13;
+  ByteRange buffer_section = 14;
+  uint32 buffer_section_header_size = 15;
+  ByteRange stack_section = 16;
+  bytes global_types = 17; // Limited by wag's maxGlobals check.
+  Function start_func = 18;
+  map<string, uint32> entry_indexes = 19; // Limited by func name len and wag's maxExports check.
+  map<uint32, uint32> entry_addrs = 20;
+  uint32 call_sites_size = 21;
+  uint32 func_addrs_size = 22;
+  bool random = 23;
+  gate.snapshot.Snapshot snapshot = 24;
+}
+
+message InstanceManifest {
+  uint64 text_addr = 1;
+  uint32 stack_size = 2;
+  uint32 stack_usage = 3;
+  uint32 globals_size = 4;
+  uint32 memory_size = 5;
+  uint32 max_memory_size = 6;
+  Function start_func = 7;
+  Function entry_func = 8;
+  gate.snapshot.Snapshot snapshot = 9;
+}
+
+message Function {
+  uint32 index = 1;
+  uint32 addr = 2;
+}
+
+message ByteRange {
+  int64 start = 1;
+  uint32 size = 2;
+}

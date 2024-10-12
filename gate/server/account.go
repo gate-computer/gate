@@ -9,13 +9,10 @@ import (
 
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/internal/error/failrequest"
+	pb "gate.computer/internal/pb/server"
 	"gate.computer/internal/principal"
 	"import.name/pan"
 )
-
-type accountProgram struct {
-	tags []string
-}
 
 type accountInstance struct {
 	inst *Instance
@@ -26,14 +23,14 @@ type account struct {
 	*principal.ID
 
 	// Protected by server mutex:
-	programs  map[*program]accountProgram
+	programs  map[*program]*pb.Module
 	instances map[string]accountInstance
 }
 
 func newAccount(pri *principal.ID) *account {
 	return &account{
 		ID:        pri,
-		programs:  make(map[*program]accountProgram),
+		programs:  make(map[*program]*pb.Module),
 		instances: make(map[string]accountInstance),
 	}
 }
@@ -57,10 +54,11 @@ func (acc *account) ensureProgramRef(lock serverLock, prog *program, tags []stri
 	x, found := acc.programs[prog]
 	if !found {
 		prog.ref(lock)
+		x = new(pb.Module)
 		modified = true
 	}
-	if len(tags) != 0 && !reflect.DeepEqual(x.tags, tags) {
-		x.tags = append([]string(nil), tags...)
+	if len(tags) != 0 && !reflect.DeepEqual(x.Tags, tags) {
+		x.Tags = append([]string(nil), tags...)
 		modified = true
 	}
 	if modified {

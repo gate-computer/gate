@@ -1,0 +1,19 @@
+// Copyright (c) 2024 Timo Savola. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+syntax = "proto3";
+
+package gate.snapshot;
+
+import "gate/pb/trap/trap.proto";
+
+option go_package = "gate.computer/gate/pb/snapshot";
+
+message Snapshot {
+  bool final = 1; // Indicates that the instance shouldn't be resumed.
+  trap.ID trap = 2;
+  int32 result = 3; // Meaningful when trap is EXIT.
+  uint64 monotonic_time = 4;
+  repeated uint64 breakpoints = 5;
+}

@@ -8,51 +8,47 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path"
 
 	"import.name/confi"
 )
 
-var (
-	homeDir string
-	homeErr error
-)
+var xdgEnvInited bool
 
-func init() {
-	homeDir, homeErr = os.UserHomeDir()
-}
+func initEnvXDG() {
+	if xdgEnvInited {
+		return
+	}
 
-func JoinHome(dir string) (string, error) {
-	if dir == "" {
-		return "", nil
-	}
-	if path.IsAbs(dir) {
-		return dir, nil
-	}
-	if homeErr != nil {
-		return "", homeErr
-	}
-	return path.Join(homeDir, dir), nil
-}
-
-func JoinHomeFallback(dir, alternative string) string {
-	if s, err := JoinHome(dir); err == nil {
-		return s
-	}
-	return alternative
-}
-
-// Parse command-line flags into the configuration object.  The default
-// filename patterns can be absolute, or relative to home directory.
-func Parse(config any, flags *flag.FlagSet, lenient bool, defaults ...string) {
-	var absDefaults []string
-	for _, p := range defaults {
-		if p, err := JoinHome(p); err == nil {
-			absDefaults = append(absDefaults, p)
+	ensure := func(name, value string) {
+		if os.Getenv(name) == "" {
+			os.Setenv(name, os.ExpandEnv(value))
 		}
 	}
 
-	b := confi.NewBuffer(absDefaults...)
+	ensure("XDG_CACHE_HOME", "${HOME}/.cache")
+	ensure("XDG_CONFIG_HOME", "${HOME}/.config")
+	ensure("XDG_DATA_HOME", "${HOME}/.local/share")
+	ensure("XDG_STATE_HOME", "${HOME}/.local/state")
+
+	xdgEnvInited = true
+}
+
+// ExpandEnv ensures that HOME and XDG_*_HOME variables are available, and then
+// calls [os.ExpandEnv].
+func ExpandEnv(s string) string {
+	initEnvXDG()
+	return os.ExpandEnv(s)
+}
+
+// Parse command-line flags into the configuration object.  The default
+// filenames are expanded with ExpandEnv.
+func Parse(config any, flags *flag.FlagSet, lenient bool, defaults ...string) {
+	var expanded []string
+	for _, p := range defaults {
+		expanded = append(expanded, ExpandEnv(p))
+	}
+
+	b := confi.NewBuffer(expanded...)
 
 	flags.Var(b.FileReplacer(), "F", "replace previous configuration with this file")
 	flags.Var(b.FileReader(), "f", "read a configuration file")

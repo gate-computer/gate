@@ -5,25 +5,22 @@
 package snapshot
 
 import (
-	"gate.computer/gate/trap"
+	pb "gate.computer/gate/pb/snapshot"
 )
 
-type Flags uint64
+const MaxBreakpoints = 100
 
-const (
-	FlagFinal Flags = 1 << iota
-)
+type Snapshot = pb.Snapshot
 
-// Final indicates that the instance should not be resumed - it should only be
-// inspected for debugging purposes.
-func (f Flags) Final() bool {
-	return f&FlagFinal != 0
-}
-
-type Snapshot struct {
-	Flags
-	Trap          trap.ID
-	Result        int32 // Meaningful when Trap is Exit.
-	MonotonicTime uint64
-	Breakpoints   []uint64
+func Clone(s *Snapshot) *Snapshot {
+	if s == nil {
+		return nil
+	}
+	return &Snapshot{
+		Final:         s.Final,
+		Trap:          s.Trap,
+		Result:        s.Result,
+		MonotonicTime: s.MonotonicTime,
+		Breakpoints:   append([]uint64(nil), s.Breakpoints...),
+	}
 }

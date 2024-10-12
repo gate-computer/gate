@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"math"
 
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 	"gate.computer/wag/binding"
 	"gate.computer/wag/object"
 	"gate.computer/wag/object/stack"
@@ -21,7 +21,7 @@ import (
 const initStackSize = 24
 
 // makeInitStack synthesizes portable initial stack contents.
-func makeInitStack(start, entry *manifest.Function) []byte {
+func makeInitStack(start, entry *pb.Function) []byte {
 	var (
 		startIndex uint64 = math.MaxUint64
 		entryIndex uint64 = math.MaxUint64

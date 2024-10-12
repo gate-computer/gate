@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"gate.computer/internal/file"
-	"gate.computer/internal/manifest"
+	pb "gate.computer/internal/pb/image"
 )
 
 const (
@@ -155,7 +155,7 @@ func (pmem persistMem) LoadInstance(name string) (inst *Instance, err error) {
 	return
 }
 
-func copyInstance(dest, src *file.File, man *manifest.Instance) error {
+func copyInstance(dest, src *file.File, man *pb.InstanceManifest) error {
 	o := int64(man.StackSize - man.StackUsage)
 	l := int64(man.StackUsage)
 

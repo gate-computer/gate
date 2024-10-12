@@ -5,43 +5,28 @@
 package api
 
 import (
-	"crypto"
-	"encoding/hex"
-
-	"gate.computer/gate/server/api/pb"
+	pb "gate.computer/gate/pb/server"
 )
-
-type Sortable interface {
-	Len() int
-	Swap(i, j int)
-	Less(i, j int) bool
-}
-
-const (
-	KnownModuleSource = "sha256"
-	KnownModuleHash   = crypto.SHA256
-)
-
-func EncodeKnownModule(hashSum []byte) string {
-	return hex.EncodeToString(hashSum)
-}
 
 type (
-	ModuleInfo = pb.ModuleInfo
-	Modules    = pb.Modules
+	Cause          = pb.Cause
+	DebugConfig    = pb.DebugConfig
+	DebugOp        = pb.DebugOp
+	DebugRequest   = pb.DebugRequest
+	DebugResponse  = pb.DebugResponse
+	Features       = pb.Features
+	InstanceInfo   = pb.InstanceInfo
+	InstanceUpdate = pb.InstanceUpdate
+	Instances      = pb.Instances
+	InvokeOptions  = pb.InvokeOptions
+	LaunchOptions  = pb.LaunchOptions
+	ModuleInfo     = pb.ModuleInfo
+	ModuleOptions  = pb.ModuleOptions
+	Modules        = pb.Modules
+	ResumeOptions  = pb.ResumeOptions
+	State          = pb.State
+	Status         = pb.Status
 )
-
-func SortableModules(x *Modules) Sortable {
-	return sortableModules{x.Modules}
-}
-
-type sortableModules struct {
-	a []*ModuleInfo
-}
-
-func (x sortableModules) Len() int           { return len(x.a) }
-func (x sortableModules) Swap(i, j int)      { x.a[i], x.a[j] = x.a[j], x.a[i] }
-func (x sortableModules) Less(i, j int) bool { return x.a[i].Id < x.a[j].Id }
 
 const (
 	StateRunning    = pb.State_RUNNING
@@ -65,41 +50,6 @@ const (
 	CauseABIViolation                  = pb.Cause_ABI_VIOLATION
 	CauseInternal                      = pb.Cause_INTERNAL
 )
-
-type (
-	State  = pb.State
-	Cause  = pb.Cause
-	Status = pb.Status
-)
-
-func CloneStatus(s *Status) *Status {
-	if s == nil {
-		return nil
-	}
-	return &Status{
-		State:  s.State,
-		Cause:  s.Cause,
-		Result: s.Result,
-		Error:  s.Error,
-	}
-}
-
-type (
-	InstanceInfo = pb.InstanceInfo
-	Instances    = pb.Instances
-)
-
-func SortableInstances(x *Instances) Sortable {
-	return sortableInstances{x.Instances}
-}
-
-type sortableInstances struct {
-	a []*InstanceInfo
-}
-
-func (x sortableInstances) Len() int           { return len(x.a) }
-func (x sortableInstances) Swap(i, j int)      { x.a[i], x.a[j] = x.a[j], x.a[i] }
-func (x sortableInstances) Less(i, j int) bool { return x.a[i].Instance < x.a[j].Instance }
 
 const (
 	DebugOpConfigGet        = pb.DebugOp_CONFIG_GET

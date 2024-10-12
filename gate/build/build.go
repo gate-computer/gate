@@ -11,7 +11,7 @@ import (
 	"gate.computer/gate/image"
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/snapshot/wasm"
-	internal "gate.computer/internal/build"
+	"gate.computer/internal/build"
 	"gate.computer/internal/error/badprogram"
 	"gate.computer/internal/error/notfound"
 	"gate.computer/internal/error/resourcelimit"
@@ -34,7 +34,7 @@ type Build struct {
 	entryIndex                int
 	Snapshot                  *snapshot.Snapshot
 	breakpoints               map[uint32]compile.Breakpoint
-	Buffers                   snapshot.Buffers
+	Buffers                   *snapshot.Buffers
 	bufferSectionHeaderLength int
 }
 
@@ -143,7 +143,7 @@ func (b *Build) BindFunctions(entryName string) error {
 			return notfound.ErrSuspended
 		}
 	} else {
-		index, err := internal.ResolveEntryFunc(b.Module, entryName, b.Snapshot != nil)
+		index, err := build.ResolveEntryFunc(b.Module, entryName, b.Snapshot != nil)
 		if err != nil {
 			return err
 		}

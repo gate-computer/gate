@@ -7,28 +7,14 @@ package api
 import (
 	"io"
 
-	"gate.computer/gate/server/api/pb"
-
 	. "import.name/type/context"
-)
-
-type (
-	DebugConfig    = pb.DebugConfig
-	DebugRequest   = pb.DebugRequest
-	DebugResponse  = pb.DebugResponse
-	Features       = pb.Features
-	InstanceUpdate = pb.InstanceUpdate
-	InvokeOptions  = pb.InvokeOptions
-	LaunchOptions  = pb.LaunchOptions
-	ModuleOptions  = pb.ModuleOptions
-	ResumeOptions  = pb.ResumeOptions
 )
 
 type Server interface {
 	DebugInstance(Context, string, *DebugRequest) (*DebugResponse, error)
 	DeleteInstance(Context, string) error
 	Features() *Features
-	InstanceConnection(Context, string) (Instance, func(Context, io.Reader, io.WriteCloser) error, error)
+	InstanceConnection(Context, string) (Instance, func(Context, io.Reader, io.WriteCloser) *Status, error)
 	InstanceInfo(Context, string) (*InstanceInfo, error)
 	Instances(Context) (*Instances, error)
 	KillInstance(Context, string) (Instance, error)
@@ -53,7 +39,7 @@ type Instance interface {
 	Connect(Context, io.Reader, io.WriteCloser) error
 	ID() string
 	Kill(Context) error
-	Status(Context) *Status
+	Status() *Status
 	Suspend(Context) error
 	Wait(Context) *Status
 }

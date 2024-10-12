@@ -23,21 +23,22 @@ import (
 	"syscall"
 	"time"
 
+	"gate.computer/gate/database"
+	"gate.computer/gate/database/sql"
 	"gate.computer/gate/image"
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/runtime/system"
 	"gate.computer/gate/server"
-	"gate.computer/gate/server/database"
-	"gate.computer/gate/server/database/sql"
 	"gate.computer/gate/server/sshkeys"
-	"gate.computer/gate/server/web"
-	webapi "gate.computer/gate/server/web/api"
-	"gate.computer/gate/server/web/router"
+	"gate.computer/gate/server/tracelog"
+	"gate.computer/gate/server/webserver"
+	"gate.computer/gate/server/webserver/router"
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
 	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
+	"gate.computer/gate/web"
 	"gate.computer/internal/cmdconf"
 	"gate.computer/internal/logging"
 	"gate.computer/internal/services"
@@ -48,6 +49,7 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 	"import.name/confi"
 
+	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -58,15 +60,16 @@ const shutdownTimeout = 15 * time.Second
 const (
 	DefaultExecutorCount  = 1
 	DefaultImageStorage   = "filesystem"
-	DefaultImageVarDir    = "/var/lib/gate/image"
+	DefaultImageStateDir  = "/var/lib/gate/image"
 	DefaultDatabaseDriver = "sqlite"
-	DefaultInventoryDSN   = "file:/var/lib/gate/inventory.sqlite?cache=shared"
+	DefaultInventoryDSN   = "file:/var/lib/gate/inventory/inventory.sqlite?cache=shared"
+	DefaultSourceCacheDSN = "file:/var/cache/gate/source/source.sqlite?cache=shared"
 	DefaultNet            = "tcp"
 	DefaultHTTPAddr       = "localhost:8080"
 	DefaultACMECacheDir   = "/var/cache/gate/acme"
 )
 
-var Defaults = []string{
+var DefaultConfigFiles = []string{
 	"/etc/gate/server.toml",
 	"/etc/gate/server.d/*.toml",
 }
@@ -83,7 +86,7 @@ type Config struct {
 		PreparePrograms  int
 		InstanceStorage  string
 		PrepareInstances int
-		VarDir           string
+		StateDir         string
 	}
 
 	Inventory map[string]database.Config
@@ -110,6 +113,8 @@ type Config struct {
 	Principal server.AccessConfig
 
 	Source struct {
+		Cache map[string]database.Config
+
 		HTTP []struct {
 			Name string
 			httpsource.Config
@@ -123,7 +128,7 @@ type Config struct {
 	HTTP struct {
 		Net  string
 		Addr string
-		web.Config
+		webserver.Config
 		AccessDB  map[string]database.Config
 		AccessLog string
 
@@ -183,10 +188,11 @@ func Main() {
 	c.Runtime.ExecutorCount = DefaultExecutorCount
 	c.Image.ProgramStorage = DefaultImageStorage
 	c.Image.InstanceStorage = DefaultImageStorage
-	c.Image.VarDir = DefaultImageVarDir
+	c.Image.StateDir = DefaultImageStateDir
 	c.Inventory = database.NewInventoryConfigs()
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
+	c.Source.Cache = database.NewSourceCacheConfigs()
 	c.HTTP.Net = DefaultNet
 	c.HTTP.Addr = DefaultHTTPAddr
 	c.HTTP.AccessDB = database.NewNonceCheckerConfigs()
@@ -195,21 +201,14 @@ func Main() {
 
 	flags := flag.NewFlagSet("", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	cmdconf.Parse(c, flags, true, Defaults...)
+	cmdconf.Parse(c, flags, true, DefaultConfigFiles...)
 
-	if defaultDB && len(c.Inventory) == 1 {
-		driver, err := confi.Get(c, "inventory.sql.driver")
-		if err != nil {
-			panic(err)
+	if defaultDB {
+		if len(c.Inventory) == 1 && Must(confi.Get(c, "inventory.sql.driver")) == DefaultDatabaseDriver && Must(confi.Get(c, "inventory.sql.dsn")) == "" {
+			confi.MustSet(c, "inventory.sql.dsn", DefaultInventoryDSN)
 		}
-		if driver == DefaultDatabaseDriver {
-			dsn, err := confi.Get(c, "inventory.sql.dsn")
-			if err != nil {
-				panic(err)
-			}
-			if dsn == "" {
-				confi.MustSet(c, "inventory.sql.dsn", DefaultInventoryDSN)
-			}
+		if len(c.Source.Cache) == 1 && Must(confi.Get(c, "source.cache.sql.driver")) == DefaultDatabaseDriver && Must(confi.Get(c, "source.cache.sql.dsn")) == "" {
+			confi.MustSet(c, "source.cache.sql.dsn", DefaultSourceCacheDSN)
 		}
 	}
 
@@ -220,7 +219,7 @@ func Main() {
 	c.Service["random"] = &randomConfig
 
 	flag.Usage = confi.FlagUsage(nil, c)
-	cmdconf.Parse(c, flag.CommandLine, false, Defaults...)
+	cmdconf.Parse(c, flag.CommandLine, false, DefaultConfigFiles...)
 
 	if c.Log.Journal {
 		log.SetFlags(0)
@@ -232,9 +231,10 @@ func Main() {
 	}
 	c.Runtime.Log = log
 
-	monitor := server.NewLogger(log)
-	c.Server.Monitor = monitor
-	c.HTTP.Monitor = monitor
+	c.HTTP.StartSpan = tracelog.HTTPSpanStarter(log, "webserver: ")
+	c.HTTP.AddEvent = tracelog.EventAdder(log, "webserver: ", nil)
+	c.Server.StartSpan = tracelog.SpanStarter(log, "server: ")
+	c.Server.AddEvent = tracelog.EventAdder(log, "server: ", nil)
 
 	ctx := context.Background()
 
@@ -287,7 +287,7 @@ func main2(ctx Context, log *slog.Logger) error {
 			gid = c.Server.GID
 		}
 
-		fs, err = image.NewFilesystemWithOwnership(c.Image.VarDir, uid, gid)
+		fs, err = image.NewFilesystemWithOwnership(c.Image.StateDir, uid, gid)
 		if err != nil {
 			return fmt.Errorf("filesystem: %w", err)
 		}
@@ -344,10 +344,7 @@ func main2(ctx Context, log *slog.Logger) error {
 
 		filename := c.Access.SSH.AuthorizedKeys
 		if filename == "" {
-			filename, err = cmdconf.JoinHome(".ssh/authorized_keys")
-			if err != nil {
-				return fmt.Errorf("access.ssh.authorizedkeys option required (%w)", err)
-			}
+			filename = cmdconf.ExpandEnv("${HOME}/.ssh/authorized_keys")
 		}
 
 		if err := accessKeys.ParseFile(uid, filename); err != nil {
@@ -373,6 +370,16 @@ func main2(ctx Context, log *slog.Logger) error {
 		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
 	}
 
+	sourceCacheDB, err := database.Resolve(c.Source.Cache)
+	if err != nil {
+		return err
+	}
+	defer sourceCacheDB.Close()
+	c.Server.SourceCache, err = sourceCacheDB.InitSourceCache(ctx)
+	if err != nil {
+		return err
+	}
+
 	serverImpl, err := server.New(ctx, &c.Server.Config)
 	if err != nil {
 		return err
@@ -392,14 +399,14 @@ func main2(ctx Context, log *slog.Logger) error {
 	}
 	if accessDB != nil {
 		defer accessDB.Close()
-		c.HTTP.NonceStorage, err = accessDB.InitNonceChecker(ctx)
+		c.HTTP.NonceChecker, err = accessDB.InitNonceChecker(ctx)
 		if err != nil {
 			return err
 		}
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(webapi.Path, web.NewHandler("/", &c.HTTP.Config))
+	mux.Handle(web.Path, webserver.NewHandler("/", &c.HTTP.Config))
 	mux.Handle("/", extMux)
 
 	handler := newWebHandler(mux)
@@ -592,13 +599,13 @@ func writeResponse(w http.ResponseWriter, r *http.Request, status int, message s
 		return
 	}
 
-	w.Header().Set(webapi.HeaderContentType, "text/plain")
+	w.Header().Set(web.HeaderContentType, "text/plain")
 	w.WriteHeader(status)
 	fmt.Fprintln(w, message)
 }
 
 func acceptsText(r *http.Request) bool {
-	headers := r.Header[webapi.HeaderAccept]
+	headers := r.Header[web.HeaderAccept]
 	if len(headers) == 0 {
 		return true
 	}

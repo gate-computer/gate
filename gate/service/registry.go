@@ -184,7 +184,7 @@ func (r *Registry) lookup(name string) Factory {
 	}
 }
 
-func (r *Registry) CreateServer(ctx Context, serviceConfig runtime.ServiceConfig, initial []snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
+func (r *Registry) CreateServer(ctx Context, serviceConfig runtime.ServiceConfig, initial []*snapshot.Service, send chan<- packet.Thunk) (runtime.InstanceServer, []runtime.ServiceState, <-chan error, error) {
 	done := make(chan error, 1)
 	d := &discoverer{
 		registry:  r,
@@ -268,7 +268,7 @@ func (a *aborter) abort(err error) {
 }
 
 type serverService struct {
-	snapshot.Service
+	*snapshot.Service
 	factory   Factory
 	instance  Instance
 	maxDomain packet.Domain
@@ -297,7 +297,7 @@ func (d *discoverer) Start(ctx Context, send chan<- packet.Thunk) error {
 func (d *discoverer) Discover(ctx Context, newNames []string) ([]runtime.ServiceState, error) {
 	for _, name := range newNames {
 		s := serverService{
-			Service: snapshot.Service{
+			Service: &snapshot.Service{
 				Name: name,
 			},
 		}
@@ -367,7 +367,7 @@ func (d *discoverer) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf)
 }
 
 // Shutdown instances.
-func (d *discoverer) Shutdown(ctx Context, suspend bool) ([]snapshot.Service, error) {
+func (d *discoverer) Shutdown(ctx Context, suspend bool) ([]*snapshot.Service, error) {
 	if suspend {
 		return d.suspend(ctx)
 	}
@@ -386,8 +386,8 @@ func (d *discoverer) shutdown(ctx Context) (err error) {
 	return
 }
 
-func (d *discoverer) suspend(ctx Context) (final []snapshot.Service, err error) {
-	final = make([]snapshot.Service, len(d.services))
+func (d *discoverer) suspend(ctx Context) (final []*snapshot.Service, err error) {
+	final = make([]*snapshot.Service, len(d.services))
 
 	for code, s := range d.services {
 		final[code] = s.Service

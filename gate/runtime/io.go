@@ -20,32 +20,20 @@ import (
 	. "import.name/type/context"
 )
 
-func popServiceBuffers(frozen *snapshot.Buffers) []snapshot.Service {
-	if frozen == nil {
-		return nil
-	}
-
-	ss := frozen.Services
+func popServiceBuffers(frozen *snapshot.Buffers) []*snapshot.Service {
+	ss := frozen.GetServices()
 	frozen.Services = nil
 	return ss
 }
 
 func popInputBuffer(frozen *snapshot.Buffers) []byte {
-	if frozen == nil {
-		return nil
-	}
-
-	b := frozen.Input
+	b := frozen.GetInput()
 	frozen.Input = nil
 	return b
 }
 
 func popOutputBuffer(frozen *snapshot.Buffers) []byte {
-	if frozen == nil {
-		return nil
-	}
-
-	b := frozen.Output
+	b := frozen.GetOutput()
 	frozen.Output = nil
 	return b
 }
@@ -55,12 +43,18 @@ type read struct {
 	err error
 }
 
-// ioLoop mutates Process and Buffers (if any).
-func ioLoop(ctx Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers) error {
-	if frozen == nil {
-		subject.writerOut.Unref()
+// ioLoop mutates Process and replaces Buffers.
+func ioLoop(ctx Context, services ServiceRegistry, subject *Process, buffers *snapshot.Buffers) (*snapshot.Buffers, error) {
+	buffers = &snapshot.Buffers{
+		Services: buffers.GetServices(),
+		Input:    buffers.GetInput(),
+		Output:   buffers.GetOutput(),
 	}
 
+	return buffers, ioLoop2(ctx, services, subject, buffers)
+}
+
+func ioLoop2(ctx Context, services ServiceRegistry, subject *Process, frozen *snapshot.Buffers) (retErr error) {
 	var (
 		dead      = subject.execution.dead
 		suspended = subject.suspended
@@ -73,15 +67,11 @@ func ioLoop(ctx Context, services ServiceRegistry, subject *Process, frozen *sna
 		return err
 	}
 	defer func() {
-		snapshot, e := server.Shutdown(ctx, frozen != nil && err == nil)
-		if e != nil {
-			snapshot = nil
-			if err == nil {
-				err = e
-			}
-		}
-		if frozen != nil {
+		switch snapshot, err := server.Shutdown(ctx, retErr == nil); {
+		case err == nil:
 			frozen.Services = snapshot
+		case retErr == nil:
+			retErr = err
 		}
 	}()
 
@@ -182,30 +172,27 @@ func ioLoop(ctx Context, services ServiceRegistry, subject *Process, frozen *sna
 					subjectOutput = nil
 				}
 
-				if frozen != nil {
-					// Messages may be part of the original Buffers.Output
-					// array, so don't mutate them.
-					for _, msg := range pendingMsgs {
-						frozen.Output = append(frozen.Output, msg...)
-					}
-					frozen.Output = append(frozen.Output, read.buf...)
+				// Messages may be part of the original Buffers.Output array,
+				// so don't mutate them.
+				for _, msg := range pendingMsgs {
+					frozen.Output = append(frozen.Output, msg...)
+				}
+				frozen.Output = append(frozen.Output, read.buf...)
 
-					frozen.Input, err = io.ReadAll(subject.writerOut.File())
-					subject.writerOut.Unref()
-					if err != nil {
-						return err
-					}
+				frozen.Input, err = io.ReadAll(subject.writerOut.File())
+				if err != nil {
+					return err
+				}
 
-					var pendingLen int
-					for _, ev := range pendingEvs {
-						pendingLen += len(ev)
-					}
-					if n := len(frozen.Input) + pendingLen; cap(frozen.Input) < n {
-						frozen.Input = append(make([]byte, 0, n), frozen.Input...)
-					}
-					for _, ev := range pendingEvs {
-						frozen.Input = append(frozen.Input, ev...)
-					}
+				var pendingLen int
+				for _, ev := range pendingEvs {
+					pendingLen += len(ev)
+				}
+				if n := len(frozen.Input) + pendingLen; cap(frozen.Input) < n {
+					frozen.Input = append(make([]byte, 0, n), frozen.Input...)
+				}
+				for _, ev := range pendingEvs {
+					frozen.Input = append(frozen.Input, ev...)
 				}
 
 				if read.err != io.EOF {
