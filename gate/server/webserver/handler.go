@@ -131,8 +131,8 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	patternAPI := p + web.Path                                              // host/path/api/
 	patternModule := p + web.PathModule                                     // host/path/api/module
 	patternModules := p + web.PathModuleSources                             // host/path/api/module/
-	patternKnownModule := p + web.PathModuleSources + web.KnownModuleSource // host/path/api/module/hash
-	patternKnownModules := p + web.PathKnownModules                         // host/path/api/module/hash/
+	patternKnownModule := p + web.PathModuleSources + web.KnownModuleSource // host/path/api/module/source
+	patternKnownModules := p + web.PathKnownModules                         // host/path/api/module/source/
 	patternInstances := p + web.PathInstances                               // host/path/api/instance/
 	patternInstance := patternInstances[:len(patternInstances)-1]           // host/path/api/instance
 
@@ -140,8 +140,8 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	pathAPI := p + web.Path                                              // /path/api/
 	pathModule := p + web.PathModule                                     // /path/api/module
 	pathModules := p + web.PathModuleSources                             // /path/api/module/
-	pathKnownModule := p + web.PathModuleSources + web.KnownModuleSource // /path/api/module/hash
-	s.pathKnownModules = p + web.PathKnownModules                        // /path/api/module/hash/
+	pathKnownModule := p + web.PathModuleSources + web.KnownModuleSource // /path/api/module/source
+	s.pathKnownModules = p + web.PathKnownModules                        // /path/api/module/source/
 	pathInstances := p + web.PathInstances                               // /path/api/instance/
 	pathInstance := pathInstances[:len(pathInstances)-1]                 // /path/api/instance
 

@@ -6,6 +6,9 @@
 // APIs.  See https://github.com/gate-computer/gate/blob/main/doc/web-api.md
 // for general documentation.
 //
+// OpenAPI definition:
+// https://github.com/gate-computer/gate/blob/main/openapi.yaml
+//
 // DebugRequest and DebugResponse are omitted; the protobuf message types in
 // package gate.computer/gate/pb/server can be used with Marshal and Unmarshal
 // implemented in package google.golang.org/protobuf/encoding/protojson.

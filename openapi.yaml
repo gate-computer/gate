@@ -1,0 +1,678 @@
+openapi: 3.1.0
+
+info:
+  title: Gate API
+  version: "0"
+  license:
+    name: BSD 3-Clause "New" or "Revised" License
+    identifier: BSD-3-Clause
+
+paths:
+  /:
+    get:
+      parameters:
+        - name: feature
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+              - scope
+      responses:
+        "200":
+          description: |
+            Features supported by this server, filtered by query parameters.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scope:
+                    type: array
+                    items:
+                      type: string
+      security:
+        - {}
+
+  /module/:
+    get:
+      responses:
+        "200":
+          description: |
+            The module source names supported by this server.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+      security:
+        - {}
+
+  /module/sha256/:
+    get:
+      responses:
+        "204":
+          description: |
+            Module source exists.
+      security:
+        - {}
+
+    post:
+      responses:
+        "200":
+          description: |
+            Pinned modules.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  modules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        tags:
+                          type: array
+                          items:
+                            type: string
+
+  /module/sha256/{key}:
+    parameters:
+      - name: key
+        in: path
+        description: |
+          Lower case hex encoded SHA-256 hash of WebAssembly module content.
+        required: true
+        schema:
+          type: string
+
+    get:
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - call
+                - pin
+        - name: function
+          in: query
+          schema:
+            type: string
+        - name: instance-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: log
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+        - name: module-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "101":
+          description: |
+            WebSocket connection (action parameter specified call).
+        "200":
+          description: |
+            WebAssembly module content (no query parameters).
+          content:
+            application/wasm: {}
+
+    put:
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - call
+                - launch
+                - pin
+                - suspend
+        - name: function
+          in: query
+          schema:
+            type: string
+        - name: instance
+          in: query
+          schema:
+            type: string
+        - name: instance-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: log
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+        - name: module-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      requestBody:
+        content:
+          application/wasm: {}
+        required: true
+      responses:
+        "200":
+          description: |
+            Function was called without pinning module.  Content is program
+            output.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+            Trailer:
+              schema:
+                type: string
+        "201":
+          description: |
+            WebAssembly module was pinned (possibly in addition to other
+            actions).  If function was called, content is program output.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+            Location:
+              schema:
+                type: string
+            Trailer:
+              schema:
+                type: array
+                items:
+                  type: string
+        "204":
+          description: |
+            Instance was launched without pinning module.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+
+    post:
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - call
+                - launch
+                - pin
+                - suspend
+                - unpin
+        - name: function
+          in: query
+          schema:
+            type: string
+        - name: instance
+          in: query
+          schema:
+            type: string
+        - name: instance-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: log
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+        - name: module-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "200":
+          description: |
+            Module information (no query parameters) or program output (action
+            parameter specified call).
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+            Trailer:
+              schema:
+                type: string
+          content:
+            "": {}
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  tags:
+                    type: array
+                    items:
+                      type: string
+        "204":
+          description: |
+            Instance was launched, or module was pinned or unpinned.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+
+  /module/{source}/:
+    parameters:
+      - name: source
+        in: path
+        description: |
+          Module source name.
+        required: true
+        schema:
+          type: string
+
+    get:
+      responses:
+        "204":
+          description: |
+            Module source exists.
+      security:
+        - {}
+
+  /module/{source}/{key}:
+    parameters:
+      - name: source
+        in: path
+        description: |
+          Module source name.
+        required: true
+        schema:
+          type: string
+      - name: key
+        in: path
+        description: |
+          Source-specific module identifier.
+        required: true
+        schema:
+          type: string
+
+    get:
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - call
+                - pin
+        - name: function
+          in: query
+          schema:
+            type: string
+        - name: instance-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: log
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+        - name: module-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "101":
+          description: |
+            WebSocket connection.
+
+    post:
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - call
+                - launch
+                - pin
+                - suspend
+        - name: function
+          in: query
+          schema:
+            type: string
+        - name: instance
+          in: query
+          schema:
+            type: string
+        - name: instance-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+        - name: log
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+        - name: module-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      responses:
+        "200":
+          description: |
+            Function was called without pinning module.  Content is program
+            output.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+            Trailer:
+              schema:
+                type: string
+          content:
+            "": {}
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  tags:
+                    type: array
+                    items:
+                      type: string
+        "201":
+          description: |
+            WebAssembly module was pinned (possibly in addition to other
+            actions).  If function was called, content is program output.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+            Location:
+              schema:
+                type: string
+            Trailer:
+              schema:
+                type: array
+                items:
+                  type: string
+        "204":
+          description: |
+            Instance was launched without pinning module.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+
+  /instance/:
+    post:
+      responses:
+        "200":
+          description: |
+            Instances.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instances:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: string
+                        module:
+                          type: string
+                        status:
+                          type: object
+                          properties:
+                            state:
+                              type: string
+                              enum:
+                                - RUNNING
+                                - SUSPENDED
+                                - HALTED
+                                - TERMINATED
+                                - KILLED
+                            cause:
+                              type: string
+                              enum:
+                                - UNREACHABLE
+                                - CALL_STACK_EXHAUSTED
+                                - MEMORY_ACCESS_OUT_OF_BOUNDS
+                                - INDIRECT_CALL_INDEX_OUT_OF_BOUNDS
+                                - INDIRECT_CALL_SIGNATURE_MISMATCH
+                                - INTEGER_DIVIDE_BY_ZERO
+                                - INTEGER_OVERFLOW
+                                - BREAKPOINT
+                                - ABI_DEFICIENCY
+                                - ABI_VIOLATION
+                                - INTERNAL
+                            result:
+                              type: integer
+                              format: int32
+                            error:
+                              type: string
+                        transient:
+                          type: boolean
+                        debugging:
+                          type: boolean
+                        tags:
+                          type: array
+                          items:
+                            type: string
+
+  /instance/{id}:
+    parameters:
+      - name: id
+        in: path
+        description: |
+          Instance UUID.
+        required: true
+        schema:
+          type: string
+
+    get:
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - io
+      responses:
+        "101":
+          description: |
+            WebSocket connection.
+
+    post:
+      parameters:
+        - name: action
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              enum:
+                - debug
+                - delete
+                - io
+                - kill
+                - resume
+                - snapshot
+                - suspend
+                - update
+                - wait
+        - name: function
+          in: query
+          schema:
+            type: string
+        - name: log
+          in: query
+          schema:
+            type: string
+            enum:
+              - "*"
+        - name: module-tag
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+      requestBody:
+        content:
+          "": {}
+          application/json:
+            schema:
+              type: object
+              properties:
+                persist:
+                  description: For update action.
+                  type: boolean
+                tags:
+                  description: For update action.
+                  type: array
+                  items:
+                    type: string
+                op:
+                  description: For debug action.
+                  type: string
+                  enum:
+                    - CONFIG_GET
+                    - CONFIG_SET
+                    - CONFIG_UNION
+                    - CONFIG_COMPLEMENT
+                    - READ_GLOBALS
+                    - READ_MEMORY
+                    - READ_STACK
+                config:
+                  description: For debug action.
+                  type: object
+                  properties:
+                    breakpoints:
+                      type: array
+                      items:
+                        type: integer
+                        format: uint64
+                addr:
+                  description: For debug action.
+                  type: integer
+                  format: uint64
+                size:
+                  description: For debug action.
+                  type: integer
+                  format: uint64
+      responses:
+        "200":
+          description: |
+            Instance information (no query parameters, or action parameter
+            specified update), debug response (action parameter specified
+            debug), or program output (action parameter specified io).
+          content:
+            "": {}
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instance:
+                    type: string
+                  module:
+                    type: string
+                  status:
+                    type: object
+                    properties:
+                      state:
+                        type: string
+                        enum:
+                          - RUNNING
+                          - SUSPENDED
+                          - HALTED
+                          - TERMINATED
+                          - KILLED
+                      cause:
+                        type: string
+                        enum:
+                          - UNREACHABLE
+                          - CALL_STACK_EXHAUSTED
+                          - MEMORY_ACCESS_OUT_OF_BOUNDS
+                          - INDIRECT_CALL_INDEX_OUT_OF_BOUNDS
+                          - INDIRECT_CALL_SIGNATURE_MISMATCH
+                          - INTEGER_DIVIDE_BY_ZERO
+                          - INTEGER_OVERFLOW
+                          - BREAKPOINT
+                          - ABI_DEFICIENCY
+                          - ABI_VIOLATION
+                          - INTERNAL
+                      result:
+                        type: integer
+                        format: int32
+                      error:
+                        type: string
+                  transient:
+                    type: boolean
+                  debugging:
+                    type: boolean
+                  tags:
+                    type: array
+                    items:
+                      type: string
+        "201":
+          description: |
+            Snapshot was created.
+          headers:
+            Location:
+              schema:
+                type: string
+        "204":
+          description: |
+            Instance was resumed, deleted, killed or suspended, or its status
+            changed (wait).
+          headers:
+            Gate-Status:
+              schema:
+                type: string

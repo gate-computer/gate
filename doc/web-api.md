@@ -2,9 +2,12 @@
 
 This document is very much unfinished.
 
+OpenAPI definition:
+https://github.com/gate-computer/gate/blob/main/openapi.yaml
+
 The
 [Go package gate.computer/gate/web](https://pkg.go.dev/gate.computer/gate/web)
-has definitions useful for clients.
+has definitions useful for Go clients.
 
 
 ## Authorization header
