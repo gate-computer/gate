@@ -593,8 +593,8 @@ func (s *Server) ModuleInfo(ctx Context, module string) (_ *api.ModuleInfo, err 
 	}
 
 	info := &api.ModuleInfo{
-		Id:   prog.id,
-		Tags: append([]string(nil), x.Tags...),
+		Module: prog.id,
+		Tags:   append([]string(nil), x.Tags...),
 	}
 
 	s.eventModule(ctx, event.TypeModuleInfo, &event.Module{
@@ -634,8 +634,8 @@ func (s *Server) Modules(ctx Context) (_ *api.Modules, err error) {
 	}
 	for prog, x := range acc.programs {
 		infos.Modules = append(infos.Modules, &api.ModuleInfo{
-			Id:   prog.id,
-			Tags: append([]string(nil), x.Tags...),
+			Module: prog.id,
+			Tags:   append([]string(nil), x.Tags...),
 		})
 	}
 	return infos, nil

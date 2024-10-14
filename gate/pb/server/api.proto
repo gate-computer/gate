@@ -19,7 +19,7 @@ message ModuleOptions {
 }
 
 message ModuleInfo {
-  string id = 1;
+  string module = 1;
   repeated string tags = 2;
 }
 

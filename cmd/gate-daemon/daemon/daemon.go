@@ -534,7 +534,7 @@ func listModules(ctx Context, s api.Server) []string {
 	refs := Must(s.Modules(ctx))
 	ids := make([]string, 0, len(refs.Modules))
 	for _, ref := range refs.Modules {
-		ids = append(ids, ref.Id)
+		ids = append(ids, ref.Module)
 	}
 	return ids
 }

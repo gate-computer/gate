@@ -367,7 +367,7 @@ func TestKnownModule(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
 				map[string]any{
-					"id": hashHello,
+					"module": hashHello,
 				},
 			},
 		})
@@ -383,7 +383,7 @@ func TestKnownModule(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
 				map[string]any{
-					"id": hashHello,
+					"module": hashHello,
 				},
 			},
 		})
@@ -548,7 +548,7 @@ func TestKnownModule(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
 				map[string]any{
-					"id": hashHello,
+					"module": hashHello,
 				},
 			},
 		})
@@ -600,7 +600,7 @@ func TestKnownModule(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
 				map[string]any{
-					"id": hashHello,
+					"module": hashHello,
 				},
 			},
 		})
@@ -699,7 +699,7 @@ func TestModuleSource(t *testing.T) {
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
 				map[string]any{
-					"id": hashHello,
+					"module": hashHello,
 				},
 			},
 		})
