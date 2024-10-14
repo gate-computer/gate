@@ -50,6 +50,8 @@ func targets() (targets Tasks) {
 		)),
 
 		targets.Add(Target("systemd",
+			installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "systemd/system/gate-runtime.service"),
+			installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "systemd/system/gate-runtime.socket"),
 			installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "systemd/system/gate-server.service"),
 			installRewriteTask(DESTDIR, BINDIR, SHAREDIR, "share", "systemd/user/gate-daemon.service"),
 

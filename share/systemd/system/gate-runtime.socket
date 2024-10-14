@@ -1,0 +1,8 @@
+[Unit]
+Description=Gate runtime socket
+
+[Socket]
+ListenStream=/run/gate/runtime.sock
+
+[Install]
+WantedBy=multi-user.target

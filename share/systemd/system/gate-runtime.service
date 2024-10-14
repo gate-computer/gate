@@ -1,0 +1,11 @@
+[Unit]
+Description=Gate runtime service
+
+[Service]
+Type=notify
+NotifyAccess=main
+LimitNOFILE=1048576
+AmbientCapabilities=CAP_DAC_OVERRIDE CAP_SETGID CAP_SETUID CAP_SYS_ADMIN
+User=gate-runtime
+Group=gate-runtime
+ExecStart=/usr/local/bin/gate-runtime -o log.journal=true
