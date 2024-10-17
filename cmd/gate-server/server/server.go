@@ -39,6 +39,7 @@ import (
 	"gate.computer/gate/source"
 	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
+	"gate.computer/gate/trace/httptrace"
 	"gate.computer/gate/web"
 	"gate.computer/internal/cmdconf"
 	"gate.computer/internal/logging"
@@ -194,6 +195,7 @@ func Main() {
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
 	c.Source.Cache = database.NewSourceCacheConfigs()
+	c.Source.IPFS.Do = httptrace.DoPropagate
 	c.HTTP.Net = DefaultNet
 	c.HTTP.Addr = DefaultHTTPAddr
 	c.HTTP.AccessDB = database.NewNonceCheckerConfigs()
@@ -368,7 +370,7 @@ func main2(ctx Context, log *slog.Logger) error {
 		}
 	}
 	if c.Source.IPFS.Configured() {
-		c.Server.ModuleSources[ipfs.Source] = ipfs.New(&c.Source.IPFS.Config)
+		c.Server.ModuleSources[ipfs.Source] = tracelog.Source(ipfs.New(&c.Source.IPFS.Config), log)
 	}
 
 	sourceCacheDB, err := database.Resolve(c.Source.Cache)
