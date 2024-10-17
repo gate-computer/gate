@@ -20,6 +20,7 @@ import (
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/server/tracelog"
+	"gate.computer/gate/source"
 	"gate.computer/internal/error/resourcelimit"
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
@@ -1461,7 +1462,7 @@ func (s *Server) mustMergeProgramRef(lock serverLock, prog *program) (canonical 
 	}
 }
 
-func (s *Server) mustGetSource(uri string) (Source, string) {
+func (s *Server) mustGetSource(uri string) (source.Source, string) {
 	if strings.HasPrefix(uri, "/") {
 		if i := strings.Index(uri[1:], "/"); i > 0 {
 			prefix := uri[:1+i]

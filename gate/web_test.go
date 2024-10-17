@@ -27,6 +27,7 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/snapshot/wasm"
+	"gate.computer/gate/source"
 	"gate.computer/gate/web"
 	_ "gate.computer/internal/test/service-ext"
 	"gate.computer/wag"
@@ -119,7 +120,7 @@ func newServer() (*server.Server, error) {
 		ProcessFactory: newExecutor(),
 		Inventory:      db,
 		AccessPolicy:   server.NewPublicAccess(newServices()),
-		ModuleSources:  map[string]server.Source{"/test": helloSource{}},
+		ModuleSources:  map[string]source.Source{"/test": helloSource{}},
 		SourceCache:    db,
 		OpenDebugLog:   openDebugLog,
 	})

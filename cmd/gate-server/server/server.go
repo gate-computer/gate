@@ -36,6 +36,7 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/gate/service/origin"
 	"gate.computer/gate/service/random"
+	"gate.computer/gate/source"
 	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
 	"gate.computer/gate/web"
@@ -360,7 +361,7 @@ func main2(ctx Context, log *slog.Logger) error {
 		return fmt.Errorf("unknown access.policy option: %q", c.Access.Policy)
 	}
 
-	c.Server.ModuleSources = make(map[string]server.Source, len(c.Source.HTTP))
+	c.Server.ModuleSources = make(map[string]source.Source, len(c.Source.HTTP))
 	for _, x := range c.Source.HTTP {
 		if x.Name != "" && x.Configured() {
 			c.Server.ModuleSources[path.Join("/", x.Name)] = httpsource.New(&x.Config)

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"gate.computer/gate/server"
+	"gate.computer/gate/source"
 	"gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
 )
@@ -54,8 +54,8 @@ func TestIPFSGatewayPath(t *testing.T)    { testIPFSPath(t, newIPFSGateway(t)) }
 func TestIPFSGatewayTimeout(t *testing.T) { testIPFSTimeout(t, newIPFSGateway(t)) }
 func TestIPFSGatewayLength(t *testing.T)  { testIPFSLength(t, newIPFSGateway(t)) }
 
-func testIPFSKey(t *testing.T, source server.Source) {
-	data, tooLong, err := testIPFS(t, source, testKey, 65536, 5*time.Second)
+func testIPFSKey(t *testing.T, src source.Source) {
+	data, tooLong, err := testIPFS(t, src, testKey, 65536, 5*time.Second)
 	if err != nil {
 		t.Error(err)
 	}
@@ -69,7 +69,7 @@ func testIPFSKey(t *testing.T, source server.Source) {
 	}
 }
 
-func testIPFSPath(t *testing.T, source server.Source) {
+func testIPFSPath(t *testing.T, source source.Source) {
 	data, tooLong, err := testIPFS(t, source, testPath, 65536, 5*time.Second)
 	if err != nil {
 		t.Error(err)
@@ -84,7 +84,7 @@ func testIPFSPath(t *testing.T, source server.Source) {
 	}
 }
 
-func testIPFSTimeout(t *testing.T, source server.Source) {
+func testIPFSTimeout(t *testing.T, source source.Source) {
 	_, tooLong, err := testIPFS(t, source, testKey, 65536, 1)
 	if err == nil || !strings.HasSuffix(err.Error(), "context deadline exceeded") {
 		t.Error(err)
@@ -95,7 +95,7 @@ func testIPFSTimeout(t *testing.T, source server.Source) {
 	}
 }
 
-func testIPFSLength(t *testing.T, source server.Source) {
+func testIPFSLength(t *testing.T, source source.Source) {
 	_, tooLong, err := testIPFS(t, source, testKey, 5, 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func testIPFSLength(t *testing.T, source server.Source) {
 	}
 }
 
-func testIPFS(t *testing.T, source server.Source, uri string, maxSize int, timeout time.Duration) (data []byte, tooLong bool, err error) {
+func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeout time.Duration) (data []byte, tooLong bool, err error) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

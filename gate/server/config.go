@@ -12,6 +12,7 @@ import (
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/model"
+	"gate.computer/gate/source"
 	"gate.computer/gate/trace"
 	"gate.computer/internal/serverapi"
 
@@ -46,7 +47,7 @@ type Config struct {
 	Inventory      model.Inventory
 	ProcessFactory runtime.ProcessFactory
 	AccessPolicy   Authorizer
-	ModuleSources  map[string]Source
+	ModuleSources  map[string]source.Source
 	SourceCache    model.SourceCache
 	OpenDebugLog   func(string) io.WriteCloser
 
