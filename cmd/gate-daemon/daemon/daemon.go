@@ -132,7 +132,7 @@ func mainResult() int {
 	c.Runtime.Config = runtime.DefaultConfig
 	c.Runtime.Container.Namespace.Newuidmap = DefaultNewuidmap
 	c.Runtime.Container.Namespace.Newgidmap = DefaultNewgidmap
-	c.Image.StateDir = DefaultImageStateDir
+	c.Image.StateDir = cmdconf.ExpandEnv(DefaultImageStateDir)
 	c.Inventory = database.NewInventoryConfigs()
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
