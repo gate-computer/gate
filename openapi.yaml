@@ -143,30 +143,7 @@ paths:
             items:
               type: string
               enum:
-                - call
-                - launch
                 - pin
-                - suspend
-        - name: function
-          in: query
-          schema:
-            type: string
-        - name: instance
-          in: query
-          schema:
-            type: string
-        - name: instance-tag
-          in: query
-          schema:
-            type: array
-            items:
-              type: string
-        - name: log
-          in: query
-          schema:
-            type: string
-            enum:
-              - "*"
         - name: module-tag
           in: query
           schema:
@@ -178,38 +155,11 @@ paths:
           application/wasm: {}
         required: true
       responses:
-        "200":
-          description: |
-            Function was called without pinning module.  Content is program
-            output.
-          headers:
-            Gate-Instance:
-              schema:
-                type: string
-            Trailer:
-              schema:
-                type: string
         "201":
           description: |
-            WebAssembly module was pinned (possibly in addition to other
-            actions).  If function was called, content is program output.
+            WebAssembly module was pinned.
           headers:
-            Gate-Instance:
-              schema:
-                type: string
             Location:
-              schema:
-                type: string
-            Trailer:
-              schema:
-                type: array
-                items:
-                  type: string
-        "204":
-          description: |
-            Instance was launched without pinning module.
-          headers:
-            Gate-Instance:
               schema:
                 type: string
 
@@ -253,6 +203,9 @@ paths:
             type: array
             items:
               type: string
+      requestBody:
+        content:
+          application/wasm: {}
       responses:
         "200":
           description: |
@@ -277,9 +230,25 @@ paths:
                     type: array
                     items:
                       type: string
+        "201":
+          description: |
+            WebAssembly module was pinned (possibly in addition to other
+            actions).  If function was called, content is program output.
+          headers:
+            Gate-Instance:
+              schema:
+                type: string
+            Location:
+              schema:
+                type: string
+            Trailer:
+              schema:
+                type: array
+                items:
+                  type: string
         "204":
           description: |
-            Instance was launched, or module was pinned or unpinned.
+            Instance was launched without pinning module, or module was unpinned.
           headers:
             Gate-Instance:
               schema:

@@ -248,7 +248,7 @@ var remoteCommands = map[string]command{
 				uri = web.PathKnownModules + arg
 
 			case strings.HasPrefix(arg, "/ipfs/"):
-				req.Method = http.MethodPut
+				req.Method = http.MethodPost
 				uri = web.PathModule + arg
 
 				if c.Pin {
@@ -261,7 +261,7 @@ var remoteCommands = map[string]command{
 			default:
 				module, key := loadModule(arg)
 
-				req.Method = http.MethodPut
+				req.Method = http.MethodPost
 				uri = web.PathKnownModules + key
 
 				if c.Pin {

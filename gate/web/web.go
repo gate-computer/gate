@@ -68,10 +68,10 @@ const (
 // Actions on modules.  ActionPin can be combined with ActionCall or
 // ActionLaunch in a single request (ParamAction appears twice in the URL).
 const (
-	ActionPin    = "pin"    // Put (known), post (source) or websocket (call/launch).
+	ActionPin    = "pin"    // Post (any) or websocket (call/launch).
 	ActionUnpin  = "unpin"  // Post (known).
-	ActionCall   = "call"   // Put (known), post (any) or websocket (any).
-	ActionLaunch = "launch" // Put (known), post (any).
+	ActionCall   = "call"   // Post (any) or websocket (any).
+	ActionLaunch = "launch" // Post (any).
 )
 
 // Actions on instances.  ActionWait can be combined with ActionKill or

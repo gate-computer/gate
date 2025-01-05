@@ -488,8 +488,8 @@ func TestKnownModule(t *testing.T) {
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
-	t.Run("PutCall", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=call", wasmHello)
+	t.Run("PostCall", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=call", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		req.Header.Set(web.HeaderTE, web.TETrailers)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
@@ -520,8 +520,8 @@ func TestKnownModule(t *testing.T) {
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
-	t.Run("PutPinCall", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=pin&action=call", wasmHello)
+	t.Run("PostPinCall", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=pin&action=call", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		req.Header.Set(web.HeaderTE, web.TETrailers)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
@@ -558,8 +558,8 @@ func TestKnownModule(t *testing.T) {
 		checkResponse(t, handler, req, http.StatusNoContent)
 	})
 
-	t.Run("PutLaunch", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=launch", wasmHello)
+	t.Run("PostLaunch", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=launch", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -581,8 +581,8 @@ func TestKnownModule(t *testing.T) {
 		checkResponse(t, handler, req, http.StatusNotFound)
 	})
 
-	t.Run("PutPinLaunch", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=pin&action=launch", wasmHello)
+	t.Run("PostPinLaunch", func(t *testing.T) {
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=pin&action=launch", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -611,7 +611,7 @@ func TestKnownModule(t *testing.T) {
 	})
 
 	t.Run("LaunchUpload", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=launch", wasmHello)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=launch", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -636,7 +636,7 @@ func TestKnownModule(t *testing.T) {
 	})
 
 	t.Run("PinLaunchUpload", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=launch&action=pin", wasmHello)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=launch&action=pin", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -662,6 +662,10 @@ func TestKnownModule(t *testing.T) {
 
 	t.Run("ActionNotImplemented", func(t *testing.T) {
 		req := newRequest(http.MethodPut, web.PathKnownModules+hashHello+"?action=bad", wasmHello)
+		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
+		checkResponse(t, handler, req, http.StatusNotImplemented)
+
+		req = newRequest(http.MethodPost, web.PathKnownModules+hashHello+"?action=bad", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		checkResponse(t, handler, req, http.StatusNotImplemented)
 
@@ -942,7 +946,7 @@ func TestResumeSnapshot(t *testing.T) {
 	pri := newPrincipalKey()
 
 	test := func(t *testing.T, snapshot []byte) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+sha256hex(snapshot)+"?action=launch&log=*", snapshot)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+sha256hex(snapshot)+"?action=launch&log=*", snapshot)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 		id := resp.Header.Get(web.HeaderInstance)
@@ -972,7 +976,7 @@ func TestInstance(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=pin&action=launch&function=greet", wasmHello)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=pin&action=launch&function=greet", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -1059,7 +1063,7 @@ func TestInstanceMultiIO(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=pin&action=launch&function=multi", wasmHello)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=pin&action=launch&function=multi", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
@@ -1106,7 +1110,7 @@ func TestInstanceKill(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=launch&function=multi", wasmHello)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=launch&function=multi", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -1136,7 +1140,7 @@ func TestInstanceSuspend(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashSuspend+"?action=launch&function=loop&log=*", wasmSuspend)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashSuspend+"?action=launch&function=loop&log=*", wasmSuspend)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 
@@ -1226,7 +1230,7 @@ func TestInstanceSuspend(t *testing.T) {
 	handler2 := newHandler(t)
 
 	t.Run("Restore", func(t *testing.T) {
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+sha256hex(snapshot)+"?action=launch&log=*", snapshot)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+sha256hex(snapshot)+"?action=launch&log=*", snapshot)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler2, req, http.StatusNoContent)
 		restoredID := resp.Header.Get(web.HeaderInstance)
@@ -1252,7 +1256,7 @@ func TestInstanceTerminated(t *testing.T) {
 	var instID string
 
 	{
-		req := newSignedRequest(pri, http.MethodPut, web.PathKnownModules+hashHello+"?action=launch&function=fail", wasmHello)
+		req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=launch&function=fail", wasmHello)
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, _ := checkResponse(t, handler, req, http.StatusNoContent)
 

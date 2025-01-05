@@ -535,6 +535,31 @@ func handlePutKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 	mustHaveContentLength(w, r, s)
 	query := mustParseOptionalQuery(w, r, s)
 	pin := popOptionalActionParam(w, r, s, query, web.ActionPin)
+
+	if pin {
+		modTags := popOptionalParams(query, web.ParamModuleTag)
+		mustNotHaveParams(w, r, s, query)
+		handleModuleUpload(w, r, s, key, modTags)
+	} else {
+		respondUnsupportedAction(w, r, s)
+	}
+}
+
+func handlePostKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
+	mustValidateModuleKey(w, r, s, key)
+
+	query := mustParseQuery(w, r, s)
+
+	if len(query[web.ParamAction]) == 0 {
+		mustNotHaveParams(w, r, s, query)
+		mustNotHaveContentType(w, r, s)
+		mustNotHaveContent(w, r, s)
+		mustAcceptJSON(w, r, s)
+		handleKnownModule(w, r, s, key)
+		return
+	}
+
+	pin := popOptionalActionParam(w, r, s, query, web.ActionPin)
 	suspend := popOptionalActionParam(w, r, s, query, web.ActionSuspend)
 
 	var modTags []string
@@ -549,7 +574,21 @@ func handlePutKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 			instTags := popOptionalParams(query, web.ParamInstanceTag)
 			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleCall(w, r, s, api.OpCallUpload, pin, true, "", key, function, modTags, instTags, invoke)
+
+			var op api.Op
+			var wasm bool
+
+			if contentType, _ := getContentType(w, r, s); contentType == web.ContentTypeWebAssembly {
+				op = api.OpCallUpload
+				wasm = true
+			} else {
+				if pin {
+					respondExcessQueryParams(w, r, s)
+					return
+				}
+				op = api.OpCallExtant
+			}
+			handleCall(w, r, s, op, pin, wasm, "", key, function, modTags, instTags, invoke)
 
 		case web.ActionLaunch:
 			function := mustPopOptionalLastFunctionParam(w, r, s, query)
@@ -557,68 +596,45 @@ func handlePutKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, 
 			instTags := popOptionalParams(query, web.ParamInstanceTag)
 			invoke := popOptionalLastLogParam(w, r, s, query)
 			mustNotHaveParams(w, r, s, query)
-			handleLaunchUpload(w, r, s, pin, key, function, instance, modTags, instTags, suspend, invoke)
+
+			if contentType, ok := getContentType(w, r, s); ok {
+				if contentType != web.ContentTypeWebAssembly {
+					respondUnsupportedMediaType(w, r, s)
+					return
+				}
+				handleLaunchUpload(w, r, s, pin, key, function, instance, modTags, instTags, suspend, invoke)
+			} else {
+				if pin {
+					respondExcessQueryParams(w, r, s)
+					return
+				}
+				mustNotHaveContent(w, r, s)
+				handleLaunch(w, r, s, api.OpLaunchExtant, false, "", key, function, instance, nil, instTags, suspend, invoke)
+			}
+
+		case web.ActionUnpin:
+			if pin {
+				respondExcessQueryParams(w, r, s)
+				return
+			}
+			mustNotHaveParams(w, r, s, query)
+			mustNotHaveContentType(w, r, s)
+			mustNotHaveContent(w, r, s)
+			handleModuleUnpin(w, r, s, key)
 
 		default:
 			respondUnsupportedAction(w, r, s)
 		}
 	} else {
 		if pin {
+			modTags := popOptionalParams(query, web.ParamModuleTag)
 			mustNotHaveParams(w, r, s, query)
-			handleModuleUpload(w, r, s, key, modTags)
+			mustNotHaveContentType(w, r, s)
+			mustNotHaveContent(w, r, s)
+			handleModulePin(w, r, s, key, modTags)
 		} else {
 			respondUnsupportedAction(w, r, s)
 		}
-	}
-}
-
-func handlePostKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
-	mustValidateModuleKey(w, r, s, key)
-
-	query := mustParseQuery(w, r, s)
-
-	if len(query[web.ParamAction]) == 0 {
-		mustNotHaveParams(w, r, s, query)
-		mustAcceptJSON(w, r, s)
-		handleKnownModule(w, r, s, key)
-		return
-	}
-
-	suspend := popOptionalActionParam(w, r, s, query, web.ActionSuspend)
-
-	switch popLastParam(w, r, s, query, web.ParamAction) {
-	case web.ActionCall:
-		function := mustPopOptionalLastFunctionParam(w, r, s, query)
-		instTags := popOptionalParams(query, web.ParamInstanceTag)
-		invoke := popOptionalLastLogParam(w, r, s, query)
-		mustNotHaveParams(w, r, s, query)
-		handleCall(w, r, s, api.OpCallExtant, false, false, "", key, function, nil, instTags, invoke)
-
-	case web.ActionLaunch:
-		function := mustPopOptionalLastFunctionParam(w, r, s, query)
-		instance := popOptionalLastParam(w, r, s, query, web.ParamInstance)
-		instTags := popOptionalParams(query, web.ParamInstanceTag)
-		invoke := popOptionalLastLogParam(w, r, s, query)
-		mustNotHaveParams(w, r, s, query)
-		mustNotHaveContentType(w, r, s)
-		mustNotHaveContent(w, r, s)
-		handleLaunch(w, r, s, api.OpLaunchExtant, false, "", key, function, instance, nil, instTags, suspend, invoke)
-
-	case web.ActionPin:
-		modTags := popOptionalParams(query, web.ParamModuleTag)
-		mustNotHaveParams(w, r, s, query)
-		mustNotHaveContentType(w, r, s)
-		mustNotHaveContent(w, r, s)
-		handleModulePin(w, r, s, key, modTags)
-
-	case web.ActionUnpin:
-		mustNotHaveParams(w, r, s, query)
-		mustNotHaveContentType(w, r, s)
-		mustNotHaveContent(w, r, s)
-		handleModuleUnpin(w, r, s, key)
-
-	default:
-		respondUnsupportedAction(w, r, s)
 	}
 }
 

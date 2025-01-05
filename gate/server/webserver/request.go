@@ -256,21 +256,29 @@ func mustNotHaveParams(w http.ResponseWriter, r *http.Request, s *webserver, que
 	}
 }
 
-func mustHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver, contentType string) {
+func getContentType(w http.ResponseWriter, r *http.Request, s *webserver) (string, bool) {
 	switch values := r.Header[web.HeaderContentType]; len(values) {
 	case 1:
 		tokens := strings.SplitN(values[0], ";", 2)
-		if strings.TrimSpace(tokens[0]) != contentType {
-			respondUnsupportedMediaType(w, r, s)
-			panic(responded)
-		}
+		return strings.TrimSpace(tokens[0]), true
 
 	case 0:
-		respondUnsupportedMediaType(w, r, s)
-		panic(responded)
+		return "", false
 
 	default:
 		respondDuplicateHeader(w, r, s, web.HeaderContentType)
+		panic(responded)
+	}
+}
+
+func mustHaveContentType(w http.ResponseWriter, r *http.Request, s *webserver, contentType string) {
+	if value, found := getContentType(w, r, s); found {
+		if value != contentType {
+			respondUnsupportedMediaType(w, r, s)
+			panic(responded)
+		}
+	} else {
+		respondUnsupportedMediaType(w, r, s)
 		panic(responded)
 	}
 }
