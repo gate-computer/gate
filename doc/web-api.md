@@ -55,11 +55,12 @@ GET, HEAD and OPTIONS requests to any existing resource path succeed (if
 sufficiently authenticated), even if the resource is only meaningful to access
 using other methods.  It is safe to request information using GET and HEAD
 methods without query parameters: it doesn't cause side-effects to any resource
-(but it may spend quota or such, if authenticated); the server responds with
-HTTP status 204 (No Content) if the method is not implemented.  OPTIONS
-response indicates which additional methods are implemented for the resource.
-The server responds with HTTP status 405 (Method Not Allowed) if the requested
-method is not implemented for the resource.
+(but it may spend quota or such, if authenticated); if the GET method is not
+implemented for an otherwise valid path, the server responds with HTTP status
+200 (OK) with no content type and zero content length.  OPTIONS indicates which
+additional methods are implemented for the resource.  The server responds with
+HTTP status 405 (Method Not Allowed) if the requested method is not implemented
+for the resource.
 
 The server responds with HTTP status 501 (Not Implemented) if the `action`
 query parameter value is unknown.  New actions may be added at any time, so

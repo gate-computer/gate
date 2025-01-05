@@ -180,7 +180,7 @@ func popLastParam(w http.ResponseWriter, r *http.Request, s *webserver, query ur
 		if r.URL.RawQuery == "" {
 			switch r.Method {
 			case "GET", "HEAD":
-				w.WriteHeader(http.StatusNoContent)
+				w.WriteHeader(http.StatusOK)
 				panic(responded)
 			}
 		}

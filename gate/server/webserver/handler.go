@@ -310,7 +310,7 @@ func newKnownModuleHandler(s *webserver) http.HandlerFunc {
 
 			switch r.Method {
 			case "GET", "HEAD":
-				w.WriteHeader(http.StatusNoContent)
+				w.WriteHeader(http.StatusOK)
 
 			case "OPTIONS":
 				setOptions(w, methods)
@@ -365,7 +365,7 @@ func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string) http
 
 			switch r.Method {
 			case "GET", "HEAD":
-				w.WriteHeader(http.StatusNoContent)
+				w.WriteHeader(http.StatusOK)
 
 			case "OPTIONS":
 				setOptions(w, methods)
@@ -413,7 +413,7 @@ func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
 
 			switch r.Method {
 			case "GET", "HEAD":
-				w.WriteHeader(http.StatusNoContent)
+				w.WriteHeader(http.StatusOK)
 
 			case "POST":
 				handlePostInstances(w, r, s)
@@ -928,7 +928,7 @@ func handleModulePin(w http.ResponseWriter, r *http.Request, s *webserver, key s
 		panic(responded)
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key string) {
@@ -941,7 +941,7 @@ func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key
 		panic(responded)
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op api.Op, pin, wasm bool, source, key, function string, modTags, instTags []string, invoke *api.InvokeOptions) {
@@ -1209,7 +1209,7 @@ func handleLaunch(w http.ResponseWriter, r *http.Request, s *webserver, op api.O
 		w.Header().Set(web.HeaderLocation, s.pathKnownModules+module)
 		w.WriteHeader(http.StatusCreated)
 	} else {
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -1244,7 +1244,7 @@ func handleLaunchUpload(w http.ResponseWriter, r *http.Request, s *webserver, pi
 		w.Header().Set(web.HeaderLocation, s.pathKnownModules+key)
 		w.WriteHeader(http.StatusCreated)
 	} else {
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
 	}
 }
 
@@ -1276,7 +1276,7 @@ func handleInstance(w http.ResponseWriter, r *http.Request, s *webserver, op api
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleInstanceInfo(w http.ResponseWriter, r *http.Request, s *webserver, instance string) {
@@ -1309,7 +1309,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 
 	w.Header().Set(web.HeaderStatus, string(Must(protojson.Marshal(status))))
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, op api.Op, method instanceWaiterMethod, instance string, wait bool) {
@@ -1328,7 +1328,7 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 		w.Header().Set(web.HeaderStatus, string(Must(protojson.Marshal(status))))
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, function, instance string, invoke *api.InvokeOptions) {
@@ -1346,7 +1346,7 @@ func handleInstanceResume(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver, instance string) {
@@ -1522,7 +1522,7 @@ func handleInstanceUpdate(w http.ResponseWriter, r *http.Request, s *webserver, 
 	}
 
 	if !acceptsJSON(r) {
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 

@@ -52,7 +52,7 @@ paths:
   /module/sha256/:
     get:
       responses:
-        "204":
+        "200":
           description: |
             Module source exists.
       security:
@@ -209,8 +209,9 @@ paths:
       responses:
         "200":
           description: |
-            Module information (no query parameters) or program output (action
-            parameter specified call).
+            Module information (no query parameters), program output (action
+            parameter specified call), instance was launched without pinning
+            module, or module was unpinned.
           headers:
             Gate-Instance:
               schema:
@@ -246,13 +247,6 @@ paths:
                 type: array
                 items:
                   type: string
-        "204":
-          description: |
-            Instance was launched without pinning module, or module was unpinned.
-          headers:
-            Gate-Instance:
-              schema:
-                type: string
 
   /module/{source}/:
     parameters:
@@ -266,7 +260,7 @@ paths:
 
     get:
       responses:
-        "204":
+        "200":
           description: |
             Module source exists.
       security:
@@ -369,8 +363,8 @@ paths:
       responses:
         "200":
           description: |
-            Function was called without pinning module.  Content is program
-            output.
+            Function was called or instance was launched without pinning
+            module.  Content is program output.
           headers:
             Gate-Instance:
               schema:
@@ -406,13 +400,6 @@ paths:
                 type: array
                 items:
                   type: string
-        "204":
-          description: |
-            Instance was launched without pinning module.
-          headers:
-            Gate-Instance:
-              schema:
-                type: string
 
   /instance/:
     post:
@@ -581,7 +568,12 @@ paths:
           description: |
             Instance information (no query parameters, or action parameter
             specified update), debug response (action parameter specified
-            debug), or program output (action parameter specified io).
+            debug), program output (action parameter specified io), or empty
+            response acknowledging other instance action.
+          headers:
+            Gate-Status:
+              schema:
+                type: string
           content:
             "": {}
             application/json:
@@ -635,13 +627,5 @@ paths:
             Snapshot was created.
           headers:
             Location:
-              schema:
-                type: string
-        "204":
-          description: |
-            Instance was resumed, deleted, killed or suspended, or its status
-            changed (wait).
-          headers:
-            Gate-Status:
               schema:
                 type: string
