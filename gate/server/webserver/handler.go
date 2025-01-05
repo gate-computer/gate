@@ -928,7 +928,7 @@ func handleModuleUnpin(w http.ResponseWriter, r *http.Request, s *webserver, key
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op api.Op, pin, content bool, source, key, function string, modTags, instTags []string, invoke *api.InvokeOptions) {
+func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op api.Op, pin, wasm bool, source, key, function string, modTags, instTags []string, invoke *api.InvokeOptions) {
 	ctx := r.Context()
 	trailer := acceptsTrailers(r)
 	wr := &requestResponseWriter{w, r}
@@ -946,7 +946,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op api.Op,
 		err    error
 	)
 	switch {
-	case content:
+	case wasm:
 		ctx = mustParseAuthorizationHeader(ctx, wr, s, pin)
 		upload := moduleUpload(r.Body, r.ContentLength, key)
 		defer upload.Close()
@@ -1034,9 +1034,8 @@ func handleCallWebsocket(w http.ResponseWriter, r *http.Request, s *webserver, p
 
 	conn.SetReadLimit(0)
 
-	var (
-		content bool
-	)
+	var wasm bool
+
 	switch call.ContentType {
 	case "":
 
@@ -1046,7 +1045,7 @@ func handleCallWebsocket(w http.ResponseWriter, r *http.Request, s *webserver, p
 			reportProtocolError(ctx, s, errUnsupportedWebsocketContent)
 			return
 		}
-		content = true
+		wasm = true
 
 	default:
 		conn.WriteMessage(websocket.CloseMessage, websocketUnsupportedContentType)
@@ -1066,7 +1065,7 @@ func handleCallWebsocket(w http.ResponseWriter, r *http.Request, s *webserver, p
 		inst   api.Instance
 	)
 	switch {
-	case content:
+	case wasm:
 		w := websocketResponseWriter{conn}
 		ctx = mustParseAuthorization(ctx, w, s, call.Authorization, pin)
 
