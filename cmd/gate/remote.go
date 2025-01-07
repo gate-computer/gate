@@ -292,11 +292,11 @@ var remoteCommands = map[string]command{
 			Check(json.NewDecoder(resp.Body).Decode(&refs))
 
 			sort.SliceStable(refs.Modules, func(i, j int) bool {
-				return refs.Modules[i].ID < refs.Modules[j].ID
+				return refs.Modules[i].Module < refs.Modules[j].Module
 			})
 
 			for _, m := range refs.Modules {
-				fmt.Println(m.ID, m.Tags)
+				fmt.Println(m.Module, m.Tags)
 			}
 		},
 	},

@@ -315,8 +315,8 @@ type Modules struct {
 
 // ModuleInfo 'r' mation.
 type ModuleInfo struct {
-	ID   string   `json:"id"`
-	Tags []string `json:"tags,omitempty"`
+	Module string   `json:"module"`
+	Tags   []string `json:"tags,omitempty"`
 }
 
 // Response to a PathInstances request.
