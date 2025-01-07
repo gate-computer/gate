@@ -503,7 +503,7 @@ var localCommands = map[string]command{
 	"suspend": {
 		usage: "instance",
 		do: func() {
-			daemonCallInstanceWaiter("Suspend", flag.Arg(0))
+			daemonCallInstanceWaiter("SuspendInstance", flag.Arg(0))
 		},
 	},
 
