@@ -255,7 +255,10 @@ func TestMethodNotAllowed(t *testing.T) {
 		for _, method := range methods {
 			req := httptest.NewRequest(method, path, nil)
 			req.Header.Set(web.HeaderOrigin, "null")
-			checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
+			resp, _ := checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
+			if resp.Header.Get("Allow") == "" {
+				t.Errorf("%s %s response doesn't have Allow header", method, path)
+			}
 		}
 	}
 }

@@ -127,51 +127,27 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		}
 	}
 
-	p := strings.TrimRight(pattern, "/")                                    // host/path
-	patternAPI := p + web.Path                                              // host/path/api/
-	patternModule := p + web.PathModule                                     // host/path/api/module
-	patternModules := p + web.PathModuleSources                             // host/path/api/module/
-	patternKnownModule := p + web.PathModuleSources + web.KnownModuleSource // host/path/api/module/source
-	patternKnownModules := p + web.PathKnownModules                         // host/path/api/module/source/
-	patternInstances := p + web.PathInstances                               // host/path/api/instance/
-	patternInstance := patternInstances[:len(patternInstances)-1]           // host/path/api/instance
+	patternPrefix := strings.TrimRight(pattern, "/")
+	pathPrefix := strings.TrimLeftFunc(patternPrefix, func(r rune) bool { return r != '/' })
 
-	p = strings.TrimLeftFunc(p, func(r rune) bool { return r != '/' })   // /path
-	pathAPI := p + web.Path                                              // /path/api/
-	pathModule := p + web.PathModule                                     // /path/api/module
-	pathModules := p + web.PathModuleSources                             // /path/api/module/
-	pathKnownModule := p + web.PathModuleSources + web.KnownModuleSource // /path/api/module/source
-	s.pathKnownModules = p + web.PathKnownModules                        // /path/api/module/source/
-	pathInstances := p + web.PathInstances                               // /path/api/instance/
-	pathInstance := pathInstances[:len(pathInstances)-1]                 // /path/api/instance
-
-	s.identity = scheme + "://" + s.Authority + p + web.Path // https://authority/path/api/
+	s.identity = scheme + "://" + s.Authority + pathPrefix + web.Path
+	s.pathKnownModules = pathPrefix + web.PathKnownModules
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(patternAPI, newFeatureHandler(s, pathAPI, features))
-	mux.HandleFunc(patternModule, newRedirectHandler(s, pathModule))
-	mux.HandleFunc(patternInstance, newRedirectHandler(s, pathInstance))
-	mux.HandleFunc(patternInstances, newInstanceHandler(s, pathInstances))
-	mux.HandleFunc(patternKnownModule, newRedirectHandler(s, pathKnownModule))
-	mux.HandleFunc(patternKnownModules, newKnownModuleHandler(s))
+	initHandleFeatures(mux, patternPrefix+web.Path, s, features)
+	initHandleKnownModules(mux, patternPrefix+web.PathKnownModules, s)
+	initHandleInstances(mux, patternPrefix+web.PathInstances, s)
 
 	moduleSources := []string{web.KnownModuleSource}
 
 	for _, relURI := range features.ModuleSources {
-		patternSource := patternModule + relURI // host/path/api/module/source
-		patternSourceDir := patternSource + "/" // host/path/api/module/source/
-
-		pathSource := pathModule + relURI // /path/api/module/source
-		pathSourceDir := pathSource + "/" // /path/api/module/source/
-
-		mux.HandleFunc(patternSource, newRedirectHandler(s, pathSource))
-		mux.HandleFunc(patternSourceDir, newModuleSourceHandler(s, pathModule, pathSourceDir))
-
+		sourcePrefix := relURI + "/"
+		initHandleModuleSource(mux, patternPrefix+web.PathModule+sourcePrefix, s, sourcePrefix)
 		moduleSources = append(moduleSources, strings.TrimLeft(relURI, "/"))
 	}
 
 	sort.Strings(moduleSources)
-	mux.HandleFunc(patternModules, newStaticHandler(s, pathModules, moduleSources))
+	initHandleStatic(mux, patternPrefix+web.PathModuleSources, s, moduleSources)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -180,7 +156,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 			}
 		}()
 
-		h, pattern := mux.Handler(r)
+		_, pattern := mux.Handler(r)
 
 		ctx, end := contextWithSpanEnding(s.StartSpan(r, pattern))
 		defer end()
@@ -191,7 +167,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 			}
 		}
 
-		h.ServeHTTP(w, r.WithContext(ctx))
+		mux.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -210,58 +186,23 @@ func prepareStaticContent(data any) staticContent {
 
 // Path handlers.  Route methods and set up CORS.
 
-func newRedirectHandler(s *webserver, path string) http.HandlerFunc {
-	location := path + "/"
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != path {
-			respondPathNotFound(w, r, s)
-			return
-		}
-
-		methods := "OPTIONS"
-		setAccessControl(w, r, s, "GET, HEAD, "+methods)
-
-		switch r.Method {
-		case "GET", "HEAD":
-			w.Header().Set("Location", location)
-			w.WriteHeader(http.StatusMovedPermanently)
-
-		case "OPTIONS":
-			setOptions(w, methods)
-
-		default:
-			respondMethodNotAllowed(w, r, s, methods)
-		}
-	}
-}
-
-func newStaticHandler(s *webserver, path string, data any) http.HandlerFunc {
+func initHandleStatic(mux *http.ServeMux, pattern string, s *webserver, data any) {
 	static := prepareStaticContent(data)
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != path {
-			respondPathNotFound(w, r, s)
-			return
-		}
+	const methods = "GET, HEAD, OPTIONS"
 
-		methods := "OPTIONS"
-		setAccessControl(w, r, s, "GET, HEAD, "+methods)
+	mux.HandleFunc("GET "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+		setAccessControl(w, r, s, methods)
+		handleGetStatic(w, r, s, &static)
+	})
 
-		switch r.Method {
-		case "GET", "HEAD":
-			handleGetStatic(w, r, s, &static)
-
-		case "OPTIONS":
-			setOptions(w, methods)
-
-		default:
-			respondMethodNotAllowed(w, r, s, methods)
-		}
-	}
+	mux.HandleFunc("OPTIONS "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+		setAccessControl(w, r, s, methods)
+		setOptions(w, methods)
+	})
 }
 
-func newFeatureHandler(s *webserver, path string, featureAll *api.Features) http.HandlerFunc {
+func initHandleFeatures(mux *http.ServeMux, pattern string, s *webserver, featureAll *api.Features) {
 	featureScope := &web.Features{
 		Scope: featureAll.Scope,
 	}
@@ -272,179 +213,171 @@ func newFeatureHandler(s *webserver, path string, featureAll *api.Features) http
 		prepareStaticContent(featureScope), // all
 	}
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != path {
-			respondPathNotFound(w, r, s)
-			return
-		}
+	const methods = "GET, HEAD, OPTIONS"
 
-		methods := "OPTIONS"
-		setAccessControl(w, r, s, "GET, HEAD, "+methods)
+	mux.HandleFunc("GET "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+		setAccessControl(w, r, s, methods)
+		handleGetFeatures(w, r, s, &answers)
+	})
 
-		switch r.Method {
-		case "GET", "HEAD":
-			handleGetFeatures(w, r, s, &answers)
+	mux.HandleFunc("OPTIONS "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+		setAccessControl(w, r, s, methods)
+		setOptions(w, methods)
+	})
+}
 
-		case "OPTIONS":
+func initHandleKnownModules(mux *http.ServeMux, pattern string, s *webserver) {
+	{
+		const (
+			methods = "GET, HEAD, OPTIONS, POST"
+			headers = web.HeaderAuthorization
+		)
+
+		mux.HandleFunc("GET "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
+		})
+
+		mux.HandleFunc("POST "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
+			handlePostKnownModules(w, r, s)
+		})
+
+		// Override the PUT handler with {module...} wildcard.
+		mux.HandleFunc("PUT "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
+			w.Header().Set("Allow", methods)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		})
+
+		mux.HandleFunc("OPTIONS "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
 			setOptions(w, methods)
+		})
+	}
 
-		default:
-			respondMethodNotAllowed(w, r, s, methods)
-		}
+	{
+		const (
+			methods = "GET, HEAD, OPTIONS, POST, PUT"
+			headers = web.HeaderAuthorization + ", " + web.HeaderContentType
+			exposed = web.HeaderLocation + ", " + web.HeaderInstance + ", " + web.HeaderStatus
+		)
+
+		mux.HandleFunc("GET "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handleGetKnownModule(w, r, s, r.PathValue("module"))
+		})
+
+		mux.HandleFunc("POST "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handlePostKnownModule(w, r, s, r.PathValue("module"))
+		})
+
+		mux.HandleFunc("PUT "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handlePutKnownModule(w, r, s, r.PathValue("module"))
+		})
+
+		mux.HandleFunc("OPTIONS "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			setOptions(w, methods)
+		})
 	}
 }
 
-func newKnownModuleHandler(s *webserver) http.HandlerFunc {
-	var (
-		headersList = join(web.HeaderAuthorization)
-		headersID   = join(web.HeaderAuthorization, web.HeaderContentType)
-		exposed     = join(web.HeaderLocation, web.HeaderInstance, web.HeaderStatus)
-	)
+func initHandleModuleSource(mux *http.ServeMux, pattern string, s *webserver, prefix string) {
+	const headers = web.HeaderAuthorization
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		if len(r.URL.Path) == len(s.pathKnownModules) {
-			// Module directory listing
+	{
+		// Module directory listing is not supported for sources.  The path
+		// clearly exists (it has modules in it), but doesn't support any
+		// methods itself.
 
-			methods := "OPTIONS, POST"
-			setAccessControlAllowHeaders(w, r, s, "GET, HEAD, "+methods, headersList)
+		const methods = "GET, HEAD, OPTIONS"
 
-			switch r.Method {
-			case "GET", "HEAD":
-				w.WriteHeader(http.StatusOK)
+		mux.HandleFunc("GET "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControl(w, r, s, methods)
+		})
 
-			case "OPTIONS":
-				setOptions(w, methods)
+		// Override the POST handler with {module...} wildcard.
+		mux.HandleFunc("POST "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControl(w, r, s, methods)
+			w.Header().Set("Allow", methods)
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		})
 
-			case "POST":
-				handlePostKnownModules(w, r, s)
+		mux.HandleFunc("OPTIONS "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControl(w, r, s, methods)
+			setOptions(w, methods)
+		})
+	}
 
-			default:
-				respondMethodNotAllowed(w, r, s, methods)
-			}
-		} else {
-			// Module operations
-			module := r.URL.Path[len(s.pathKnownModules):]
+	{
+		const (
+			methods = "GET, HEAD, OPTIONS, POST"
+			exposed = web.HeaderLocation + ", " + web.HeaderInstance + ", " + web.HeaderStatus
+		)
 
-			methods := "OPTIONS, POST, PUT"
-			setAccessControlAllowExposeHeaders(w, r, s, "GET, HEAD, "+methods, headersID, exposed)
+		mux.HandleFunc("GET "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handleGetModuleSource(w, r, s, prefix+r.PathValue("module"))
+		})
 
-			switch r.Method {
-			case "GET", "HEAD":
-				handleGetKnownModule(w, r, s, module)
+		mux.HandleFunc("POST "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handlePostModuleSource(w, r, s, prefix+r.PathValue("module"))
+		})
 
-			case "PUT":
-				handlePutKnownModule(w, r, s, module)
-
-			case "POST":
-				handlePostKnownModule(w, r, s, module)
-
-			case "OPTIONS":
-				setOptions(w, methods)
-
-			default:
-				respondMethodNotAllowed(w, r, s, methods)
-			}
-		}
+		mux.HandleFunc("OPTIONS "+pattern+"{module...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			setOptions(w, methods)
+		})
 	}
 }
 
-func newModuleSourceHandler(s *webserver, sourceURIBase, sourcePath string) http.HandlerFunc {
-	var (
-		headers = join(web.HeaderAuthorization)
-		exposed = join(web.HeaderLocation, web.HeaderInstance, web.HeaderStatus)
-	)
+func initHandleInstances(mux *http.ServeMux, pattern string, s *webserver) {
+	const exposed = web.HeaderStatus
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		if len(r.URL.Path) == len(sourcePath) {
-			// Module directory listing is not supported for sources.  The
-			// directory clearly exists (it has modules in it), but doesn't
-			// support any methods itself.
+	{
+		const (
+			methods = "GET, HEAD, OPTIONS"
+			headers = web.HeaderAuthorization
+		)
 
-			methods := "OPTIONS"
-			setAccessControl(w, r, s, "GET, HEAD, "+methods)
+		mux.HandleFunc("GET "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
+		})
 
-			switch r.Method {
-			case "GET", "HEAD":
-				w.WriteHeader(http.StatusOK)
+		mux.HandleFunc("POST "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
+			handlePostInstances(w, r, s)
+		})
 
-			case "OPTIONS":
-				setOptions(w, methods)
-
-			default:
-				respondMethodNotAllowed(w, r, s, methods)
-			}
-		} else {
-			// Module operations
-			module := r.URL.Path[len(sourceURIBase):]
-
-			methods := "OPTIONS, POST"
-			setAccessControlAllowExposeHeaders(w, r, s, "GET, HEAD, "+methods, headers, exposed)
-
-			switch r.Method {
-			case "GET", "HEAD":
-				handleGetModuleSource(w, r, s, module)
-
-			case "POST":
-				handlePostModuleSource(w, r, s, module)
-
-			case "OPTIONS":
-				setOptions(w, methods)
-
-			default:
-				respondMethodNotAllowed(w, r, s, methods)
-			}
-		}
+		mux.HandleFunc("OPTIONS "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowHeaders(w, r, s, methods, headers)
+			setOptions(w, methods)
+		})
 	}
-}
 
-func newInstanceHandler(s *webserver, instancesPath string) http.HandlerFunc {
-	var (
-		headersGet  = join(web.HeaderAuthorization)
-		headersPost = join(web.HeaderAuthorization, web.HeaderContentType)
-		exposed     = join(web.HeaderStatus)
-	)
+	{
+		const (
+			methods = "GET, HEAD, OPTIONS, POST"
+			headers = web.HeaderAuthorization + ", " + web.HeaderContentType
+		)
 
-	return func(w http.ResponseWriter, r *http.Request) {
-		if len(r.URL.Path) == len(instancesPath) {
-			// Instance directory listing
+		mux.HandleFunc("GET "+pattern+"{instance...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handleGetInstance(w, r, s, r.PathValue("instance"))
+		})
 
-			methods := "OPTIONS"
-			setAccessControlAllowHeaders(w, r, s, "GET, HEAD, "+methods, headersGet)
+		mux.HandleFunc("POST "+pattern+"{instance...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			handlePostInstance(w, r, s, r.PathValue("instance"))
+		})
 
-			switch r.Method {
-			case "GET", "HEAD":
-				w.WriteHeader(http.StatusOK)
-
-			case "POST":
-				handlePostInstances(w, r, s)
-
-			case "OPTIONS":
-				setOptions(w, methods)
-
-			default:
-				respondMethodNotAllowed(w, r, s, methods)
-			}
-		} else {
-			// Instance operations
-			instance := r.URL.Path[len(instancesPath):]
-
-			methods := "OPTIONS, POST"
-			setAccessControlAllowExposeHeaders(w, r, s, "GET, HEAD, "+methods, headersPost, exposed)
-
-			switch r.Method {
-			case "GET", "HEAD":
-				handleGetInstance(w, r, s, instance)
-
-			case "POST":
-				handlePostInstance(w, r, s, instance)
-
-			case "OPTIONS":
-				setOptions(w, methods)
-
-			default:
-				respondMethodNotAllowed(w, r, s, methods)
-			}
-		}
+		mux.HandleFunc("OPTIONS "+pattern+"{instance...}", func(w http.ResponseWriter, r *http.Request) {
+			setAccessControlAllowExposeHeaders(w, r, s, methods, headers, exposed)
+			setOptions(w, methods)
+		})
 	}
 }
 

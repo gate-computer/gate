@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"gate.computer/gate/server/api"
@@ -31,14 +30,9 @@ var (
 	errContentNotEmpty      = errors.New("request content not empty")
 	errDuplicateQueryParam  = errors.New("duplicate query parameter")
 	errLengthRequired       = errors.New("length required")
-	errMethodNotAllowed     = errors.New("method not allowed")
 	errNotAcceptable        = errors.New("not acceptable")
 	errUnsupportedMediaType = errors.New("unsupported content type")
 )
-
-func join(fields ...string) string {
-	return strings.Join(fields, ", ")
-}
 
 func mustMarshalJSON(x any) []byte {
 	content, err := json.MarshalIndent(x, "", "\t")
@@ -108,13 +102,6 @@ func (wr *requestResponseWriter) WriteError(status int, text string) {
 	respond(wr.response, wr.request, status, text)
 }
 
-func respondMethodNotAllowed(w http.ResponseWriter, r *http.Request, s *webserver, allow string) {
-	w.Header().Set("Allow", allow)
-	w.Header().Set("Cache-Control", cacheControlStatic)
-	respond(w, r, http.StatusMethodNotAllowed, errMethodNotAllowed.Error())
-	reportProtocolError(r.Context(), s, errMethodNotAllowed)
-}
-
 func respondNotAcceptable(w http.ResponseWriter, r *http.Request, s *webserver) {
 	respond(w, r, http.StatusNotAcceptable, errNotAcceptable.Error())
 	reportProtocolError(r.Context(), s, errNotAcceptable)
@@ -133,11 +120,6 @@ func respondLengthRequired(w http.ResponseWriter, r *http.Request, s *webserver)
 func respondContentNotEmpty(w http.ResponseWriter, r *http.Request, s *webserver) {
 	respond(w, r, http.StatusRequestEntityTooLarge, "request content must be empty")
 	reportProtocolError(r.Context(), s, errContentNotEmpty)
-}
-
-func respondPathNotFound(w http.ResponseWriter, r *http.Request, s *webserver) {
-	respond(w, r, http.StatusNotFound, "not found")
-	reportProtocolError(r.Context(), s, fmt.Errorf("path not found: %s", r.URL.Path))
 }
 
 func respondPathInvalid(w http.ResponseWriter, r *http.Request, s *webserver, err error) {
