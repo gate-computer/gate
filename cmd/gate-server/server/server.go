@@ -49,6 +49,7 @@ import (
 	"github.com/gorilla/handlers"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
+	"golang.org/x/crypto/ssh"
 	"import.name/confi"
 
 	. "import.name/pan/mustcheck"
@@ -97,9 +98,9 @@ type Config struct {
 
 	Server struct {
 		server.Config
-
-		UID int
-		GID int
+		IdentityFile string
+		UID          int
+		GID          int
 	}
 
 	Access struct {
@@ -393,6 +394,13 @@ func main2(ctx Context, log *slog.Logger) error {
 		c.HTTP.Authority, _, err = net.SplitHostPort(c.HTTP.Addr)
 		if err != nil {
 			return fmt.Errorf("http.authority string cannot be inferred: %w", err)
+		}
+	}
+
+	if filename := cmdconf.ExpandEnv(c.Server.IdentityFile); filename != "" {
+		key := Must(ssh.ParseRawPrivateKey(Must(os.ReadFile(filename))))
+		if err := c.HTTP.SetIdentityKey(key); err != nil {
+			return fmt.Errorf("%s: %w", filename, err)
 		}
 	}
 
