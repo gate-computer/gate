@@ -84,6 +84,10 @@ type Config struct {
 
 	Service map[string]any
 
+	Server struct {
+		server.Config
+	}
+
 	Principal server.AccessConfig
 
 	HTTP struct {
@@ -229,20 +233,18 @@ func mainResult() int {
 		panic(reply)
 	}
 
-	serverConfig := &server.Config{
-		ImageStorage:   storage,
-		Inventory:      inventory,
-		ProcessFactory: exec,
-		AccessPolicy:   &access{server.PublicAccess{AccessConfig: c.Principal}},
-		OpenDebugLog:   openDebugLog,
-		StartSpan:      tracelog.SpanStarter(log, "server: "),
-		AddEvent:       tracelog.EventAdder(log, "server: ", nil),
-	}
+	c.Server.ImageStorage = storage
+	c.Server.Inventory = inventory
+	c.Server.ProcessFactory = exec
+	c.Server.AccessPolicy = &access{server.PublicAccess{AccessConfig: c.Principal}}
+	c.Server.OpenDebugLog = openDebugLog
+	c.Server.StartSpan = tracelog.SpanStarter(log, "server: ")
+	c.Server.AddEvent = tracelog.EventAdder(log, "server: ", nil)
 	if n := c.Runtime.PrepareProcesses; n > 0 {
-		serverConfig.ProcessFactory = runtime.PrepareProcesses(ctx, exec, n)
+		c.Server.ProcessFactory = runtime.PrepareProcesses(ctx, exec, n)
 	}
 
-	s := Must(server.New(ctx, serverConfig))
+	s := Must(server.New(ctx, &c.Server.Config))
 	defer s.Shutdown(ctx)
 
 	httpDone := make(chan error, 1)

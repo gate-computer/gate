@@ -28,6 +28,7 @@ type Server interface {
 	SourceModule(Context, string, *ModuleOptions) (string, error)
 	SourceModuleInstance(Context, string, *ModuleOptions, *LaunchOptions) (string, Instance, error)
 	SuspendInstance(Context, string) (Instance, error)
+	UUID() string
 	UnpinModule(Context, string) error
 	UpdateInstance(Context, string, *InstanceUpdate) (*InstanceInfo, error)
 	UploadModule(Context, *ModuleUpload, *ModuleOptions) (string, error)

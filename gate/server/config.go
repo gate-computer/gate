@@ -43,6 +43,7 @@ func NewInstanceServices(c InstanceConnector, r runtime.ServiceRegistry) Instanc
 }
 
 type Config struct {
+	UUID           string
 	ImageStorage   image.Storage
 	Inventory      model.Inventory
 	ProcessFactory runtime.ProcessFactory
@@ -61,7 +62,7 @@ type Config struct {
 }
 
 func (c *Config) Configured() bool {
-	return c.Inventory != nil && c.ProcessFactory != nil && c.AccessPolicy != nil
+	return c.UUID != "" && c.Inventory != nil && c.ProcessFactory != nil && c.AccessPolicy != nil
 }
 
 func (c *Config) openDebugLog(opt *api.InvokeOptions) io.WriteCloser {

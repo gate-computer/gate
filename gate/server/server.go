@@ -205,6 +205,10 @@ func (s *Server) Shutdown(ctx Context) error {
 	return nil
 }
 
+func (s *Server) UUID() string {
+	return s.Config.UUID
+}
+
 func (s *Server) Features() *api.Features {
 	sources := make([]string, 0, len(s.ModuleSources))
 	for s := range s.ModuleSources {

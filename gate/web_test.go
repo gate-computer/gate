@@ -117,6 +117,7 @@ func newServices() func(Context) server.InstanceServices {
 
 func newServer() (*server.Server, error) {
 	return server.New(context.Background(), &server.Config{
+		UUID:           uuid.NewString(),
 		ProcessFactory: newExecutor(),
 		Inventory:      db,
 		AccessPolicy:   server.NewPublicAccess(newServices()),
