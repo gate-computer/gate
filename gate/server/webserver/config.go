@@ -5,6 +5,8 @@
 package webserver
 
 import (
+	"crypto/ed25519"
+	"errors"
 	"net/http"
 
 	"gate.computer/gate/server/api"
@@ -30,6 +32,17 @@ type Config struct {
 	// AddEvent to the current trace span, or outside of trace but in relation
 	// to [trace.ContextAutoLinks].
 	AddEvent func(Context, *event.Event, error)
+
+	identityKey *ed25519.PrivateKey
+}
+
+func (c *Config) SetIdentityKey(privateKey any) error {
+	key, ok := privateKey.(*ed25519.PrivateKey)
+	if !ok {
+		return errors.New("server identity key type not supported")
+	}
+	c.identityKey = key
+	return nil
 }
 
 func (c *Config) Configured() bool {

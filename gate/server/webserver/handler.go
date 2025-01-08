@@ -6,6 +6,7 @@ package webserver
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/tracelog"
@@ -208,12 +210,27 @@ func initHandleStatic(mux *http.ServeMux, pattern string, s *webserver, data any
 func initHandleAPI(mux *http.ServeMux, pattern string, s *webserver, features *api.Features) {
 	id := s.Server.UUID()
 
-	tokenHeader := (&web.TokenHeader{Alg: web.SignAlgNone}).MustEncode()
-	tokenClaims := base64.RawURLEncoding.EncodeToString(Must(json.Marshal(web.APIClaims{
-		Iss:  s.identity,
-		UUID: id,
-	})))
-	token := fmt.Sprintf("%s.%s.", tokenHeader, tokenClaims)
+	var token string
+
+	if s.identityKey == nil {
+		header := (&web.TokenHeader{Alg: web.SignAlgNone}).MustEncode()
+		claims := base64.RawURLEncoding.EncodeToString(Must(json.Marshal(web.APIClaims{
+			Iss:  s.identity,
+			UUID: id,
+		})))
+		token = fmt.Sprintf("%s.%s.", header, claims)
+	} else {
+		key := web.PublicKeyEd25519(s.identityKey.Public().(ed25519.PublicKey))
+		header := web.TokenHeaderEdDSA(key).MustEncode()
+		claims := base64.RawURLEncoding.EncodeToString(Must(json.Marshal(web.APIClaims{
+			Exp:  time.Now().Add(90 * 24 * time.Hour).Unix(),
+			Iss:  s.identity,
+			UUID: id,
+		})))
+		signee := []byte(fmt.Sprintf("%s.%s", header, claims))
+		sig := base64.RawURLEncoding.EncodeToString(ed25519.Sign(*s.identityKey, signee))
+		token = fmt.Sprintf("%s.%s", signee, sig)
+	}
 
 	answers := [3]staticContent{
 		prepareStaticContent(web.API{
