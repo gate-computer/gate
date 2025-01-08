@@ -6,7 +6,10 @@ package webserver
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -134,7 +137,7 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 	s.pathKnownModules = pathPrefix + web.PathKnownModules
 
 	mux := http.NewServeMux()
-	initHandleFeatures(mux, patternPrefix+web.Path, s, features)
+	initHandleAPI(mux, patternPrefix+web.Path, s, features)
 	initHandleKnownModules(mux, patternPrefix+web.PathKnownModules, s)
 	initHandleInstances(mux, patternPrefix+web.PathInstances, s)
 
@@ -202,22 +205,38 @@ func initHandleStatic(mux *http.ServeMux, pattern string, s *webserver, data any
 	})
 }
 
-func initHandleFeatures(mux *http.ServeMux, pattern string, s *webserver, featureAll *api.Features) {
-	featureScope := &web.Features{
-		Scope: featureAll.Scope,
-	}
+func initHandleAPI(mux *http.ServeMux, pattern string, s *webserver, features *api.Features) {
+	id := s.Server.UUID()
+
+	tokenHeader := (&web.TokenHeader{Alg: web.SignAlgNone}).MustEncode()
+	tokenClaims := base64.RawURLEncoding.EncodeToString(Must(json.Marshal(web.APIClaims{
+		Iss:  s.identity,
+		UUID: id,
+	})))
+	token := fmt.Sprintf("%s.%s.", tokenHeader, tokenClaims)
 
 	answers := [3]staticContent{
-		prepareStaticContent(struct{}{}),
-		prepareStaticContent(featureScope), // scope
-		prepareStaticContent(featureScope), // all
+		prepareStaticContent(web.API{
+			UUID: id,
+			JWT:  token,
+		}),
+		prepareStaticContent(web.API{
+			UUID:     id,
+			JWT:      token,
+			Features: &web.Features{Scope: features.Scope},
+		}),
+		prepareStaticContent(web.API{
+			UUID:     id,
+			JWT:      token,
+			Features: &web.Features{Scope: features.Scope},
+		}),
 	}
 
 	const methods = "GET, HEAD, OPTIONS"
 
 	mux.HandleFunc("GET "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
 		setAccessControl(w, r, s, methods)
-		handleGetFeatures(w, r, s, &answers)
+		handleGetAPI(w, r, s, &answers)
 	})
 
 	mux.HandleFunc("OPTIONS "+pattern+"{$}", func(w http.ResponseWriter, r *http.Request) {
@@ -389,13 +408,16 @@ func handleGetStatic(w http.ResponseWriter, r *http.Request, s *webserver, stati
 	handleStatic(w, r, s, static)
 }
 
-func handleGetFeatures(w http.ResponseWriter, r *http.Request, s *webserver, answers *[3]staticContent) {
+func handleGetAPI(w http.ResponseWriter, r *http.Request, s *webserver, answers *[3]staticContent) {
 	query := mustParseOptionalQuery(w, r, s)
 	features := popOptionalParams(query, web.ParamFeature)
 	mustNotHaveParams(w, r, s, query)
 
-	if len(features) > 0 {
+	switch {
+	case len(features) > 0:
 		mustAcceptJSON(w, r, s)
+	case len(features) == 0 && !acceptsJSON(r):
+		return
 	}
 
 	level := 0

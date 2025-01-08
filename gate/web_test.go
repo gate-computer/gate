@@ -268,7 +268,7 @@ func TestFeatures(t *testing.T) {
 	expectScope := []string{system.Scope}
 
 	for query, expect := range map[string]*web.Features{
-		"":                         {},
+		"":                         nil,
 		"?feature=scope":           {Scope: expectScope},
 		"?feature=*":               {Scope: expectScope},
 		"?feature=*&feature=scope": {Scope: expectScope},
@@ -276,14 +276,14 @@ func TestFeatures(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, web.Path+query, nil)
 		_, content := checkResponse(t, newHandler(t), req, http.StatusOK)
 
-		var features *web.Features
+		var api *web.API
 
-		if err := json.Unmarshal(content, &features); err != nil {
+		if err := json.Unmarshal(content, &api); err != nil {
 			t.Fatal(err)
 		}
 
-		if !reflect.DeepEqual(features, expect) {
-			t.Errorf("%q: %#v", query, features)
+		if !reflect.DeepEqual(api.Features, expect) {
+			t.Errorf("%q: %#v", query, api.Features)
 		}
 	}
 

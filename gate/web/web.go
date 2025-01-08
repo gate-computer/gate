@@ -181,6 +181,13 @@ func (header *TokenHeader) MustEncode() []byte {
 	return encoded
 }
 
+// Server API JSON Web Token payload.
+type APIClaims struct {
+	Exp  int64  `json:"exp,omitempty"` // Expiration time.
+	Iss  string `json:"iss"`           // https://authority/api
+	UUID string `json:"uuid"`          // Server identifier.
+}
+
 // Client authorization JSON Web Token payload.
 type AuthorizationClaims struct {
 	Exp   int64    `json:"exp,omitempty"`   // Expiration time.
@@ -236,6 +243,27 @@ func unsignedBearer(header []byte, claims *AuthorizationClaims) ([]byte, error) 
 	base64.RawURLEncoding.Encode(b[claimsOff:], claimsJSON)
 	b = append(b, '.')
 	return b, nil
+}
+
+// API information.  Each server has an identifier (UUID).  A server may also
+// have a secret key, allowing its identity to be verified.
+//
+// The JWT field contains a signed token (JWS), encoding TokenHeader and
+// APIClaims.  To authenticate a server's identity against known identifier and
+// public key, perform all of the following checks:
+//   - The UUID field must match the known identifier.
+//   - The token's key type must be OKP, algorithm EdDSA, and curve Ed25519.
+//   - The token's key must match the known public key.
+//   - The token's signature must be valid.
+//   - The token must have an expiration time and it must not have elapsed.
+//   - The token's "uuid" claim must match the UUID field.
+//   - The token's "iss" claim must match the server's URL.
+//
+// A server presents an insecure token if it doesn't have a secret key.
+type API struct {
+	UUID     string    `json:"uuid"`
+	JWT      string    `json:"jwt"`
+	Features *Features `json:"features,omitempty"`
 }
 
 // Features supported by the server.
