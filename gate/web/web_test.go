@@ -21,7 +21,7 @@ func TestBearerEd25519(t *testing.T) {
 
 	t.Logf("JWK: %#v", *header.JWK)
 
-	claims := &Claims{
+	claims := &AuthorizationClaims{
 		Exp: time.Now().Unix() + 300,
 		Aud: []string{"test"},
 	}
@@ -35,7 +35,7 @@ func TestBearerEd25519(t *testing.T) {
 }
 
 func TestBearerLocal(t *testing.T) {
-	claims := &Claims{
+	claims := &AuthorizationClaims{
 		Aud: []string{"test"},
 	}
 

@@ -124,8 +124,8 @@ func mustUnmarshalJWTHeader(ctx Context, ew errorWriter, s *webserver, serialize
 	panic(responded)
 }
 
-func mustUnmarshalJWTPayload(ctx Context, ew errorWriter, s *webserver, serialized []byte) web.Claims {
-	var claims web.Claims
+func mustUnmarshalJWTPayload(ctx Context, ew errorWriter, s *webserver, serialized []byte) web.AuthorizationClaims {
+	var claims web.AuthorizationClaims
 	if err := json.Unmarshal(serialized, &claims); err == nil {
 		return claims
 	}

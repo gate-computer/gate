@@ -669,7 +669,7 @@ func makeAuthorization() string {
 	sort.Strings(c.Scope)
 	scope := strings.Join(c.Scope, " ")
 
-	claims := &web.Claims{
+	claims := &web.AuthorizationClaims{
 		Exp:   time.Now().Unix() + 60,
 		Aud:   []string{aud.String()},
 		Scope: scope,

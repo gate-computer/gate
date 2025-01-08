@@ -57,7 +57,7 @@ func newPrincipalKey() principalKey {
 	return principalKey{pri, web.TokenHeaderEdDSA(web.PublicKeyEd25519(pub)).MustEncode()}
 }
 
-func (pri principalKey) authorization(claims *web.Claims) (s string) {
+func (pri principalKey) authorization(claims *web.AuthorizationClaims) (s string) {
 	s, err := web.AuthorizationBearerEd25519(pri.privateKey, pri.tokenHeader, claims)
 	if err != nil {
 		panic(err)
@@ -160,7 +160,7 @@ func newRequest(method, path string, content []byte) (req *http.Request) {
 
 func newSignedRequest(pri principalKey, method, path string, content []byte) (req *http.Request) {
 	req = newRequest(method, path, content)
-	req.Header.Set(web.HeaderAuthorization, pri.authorization(&web.Claims{
+	req.Header.Set(web.HeaderAuthorization, pri.authorization(&web.AuthorizationClaims{
 		Exp:   time.Now().Add(time.Minute).Unix(),
 		Aud:   []string{"no", "https://example.invalid/gate-0/"},
 		Nonce: strconv.Itoa(rand.Int()),

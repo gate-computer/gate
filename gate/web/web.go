@@ -181,8 +181,8 @@ func (header *TokenHeader) MustEncode() []byte {
 	return encoded
 }
 
-// JSON Web Token payload.
-type Claims struct {
+// Client authorization JSON Web Token payload.
+type AuthorizationClaims struct {
 	Exp   int64    `json:"exp,omitempty"`   // Expiration time.
 	Aud   []string `json:"aud,omitempty"`   // https://authority/api
 	Nonce string   `json:"nonce,omitempty"` // Unique during expiration period.
@@ -191,7 +191,7 @@ type Claims struct {
 
 // AuthorizationBearerEd25519 creates a signed JWT token (JWS).  TokenHeader
 // must have been encoded beforehand.
-func AuthorizationBearerEd25519(privateKey ed25519.PrivateKey, tokenHeader []byte, claims *Claims) (string, error) {
+func AuthorizationBearerEd25519(privateKey ed25519.PrivateKey, tokenHeader []byte, claims *AuthorizationClaims) (string, error) {
 	b, err := unsignedBearer(tokenHeader, claims)
 	if err != nil {
 		return "", err
@@ -205,9 +205,9 @@ func AuthorizationBearerEd25519(privateKey ed25519.PrivateKey, tokenHeader []byt
 }
 
 // AuthorizationBearerLocal creates an unsecured JWT token.
-func AuthorizationBearerLocal(claims *Claims) (string, error) {
+func AuthorizationBearerLocal(claims *AuthorizationClaims) (string, error) {
 	if claims == nil {
-		claims = new(Claims)
+		claims = new(AuthorizationClaims)
 	}
 
 	header := (&TokenHeader{
@@ -218,7 +218,7 @@ func AuthorizationBearerLocal(claims *Claims) (string, error) {
 	return string(b), err
 }
 
-func unsignedBearer(header []byte, claims *Claims) ([]byte, error) {
+func unsignedBearer(header []byte, claims *AuthorizationClaims) ([]byte, error) {
 	claimsJSON, err := json.Marshal(claims)
 	if err != nil {
 		return nil, err
