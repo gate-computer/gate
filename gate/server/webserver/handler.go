@@ -20,8 +20,7 @@ import (
 	"time"
 
 	"gate.computer/gate/server/api"
-	"gate.computer/gate/server/tracelog"
-	"gate.computer/gate/trace"
+	"gate.computer/gate/server/logging"
 	"gate.computer/gate/web"
 	"gate.computer/internal/principal"
 	"github.com/gorilla/websocket"
@@ -109,10 +108,13 @@ func newHandler(pattern string, config *Config, scheme string, localAuthorizatio
 		s.Authority = strings.SplitN(pattern, "/", 2)[0]
 	}
 	if s.StartSpan == nil {
-		s.StartSpan = tracelog.HTTPSpanStarter(nil, "webserver: ")
+		s.StartSpan = logging.HTTPSpanStarter(nil, "webserver: ")
 	}
 	if s.AddEvent == nil {
-		s.AddEvent = tracelog.EventAdder(nil, "webserver: ", nil)
+		s.AddEvent = logging.EventAdder(nil, "webserver: ", nil)
+	}
+	if s.DetachTrace == nil {
+		s.DetachTrace = func(ctx Context) Context { return ctx }
 	}
 	if !s.Configured() {
 		panic("incomplete webserver configuration")
@@ -1113,9 +1115,7 @@ func handleCallWebsocket(w http.ResponseWriter, r *http.Request, s *webserver, p
 	}
 
 	endContextSpan(ctx)
-	link := trace.LinkToContext(ctx)
-	ctx = trace.ContextWithoutTrace(ctx)
-	ctx = trace.ContextWithAutoLinks(ctx, link)
+	ctx = s.DetachTrace(ctx)
 
 	handleCallWebsocketIO(ctx, conn, s, inst)
 }
@@ -1330,9 +1330,7 @@ func handleInstanceConnect(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	endContextSpan(ctx)
-	link := trace.LinkToContext(ctx)
-	ctx = trace.ContextWithoutTrace(ctx)
-	ctx = trace.ContextWithAutoLinks(ctx, link)
+	ctx = s.DetachTrace(ctx)
 
 	handleInstanceIO(ctx, w, r, s, iofunc)
 }
@@ -1380,9 +1378,7 @@ func handleInstanceConnectWebsocket(w http.ResponseWriter, r *http.Request, s *w
 	iofunc := handleInstanceWebsocketConnection(ctx, conn, s, instance)
 
 	endContextSpan(ctx)
-	link := trace.LinkToContext(ctx)
-	ctx = trace.ContextWithoutTrace(ctx)
-	ctx = trace.ContextWithAutoLinks(ctx, link)
+	ctx = s.DetachTrace(ctx)
 
 	handleInstanceWebsocketIO(ctx, conn, s, iofunc)
 }

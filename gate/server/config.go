@@ -13,7 +13,6 @@ import (
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/model"
 	"gate.computer/gate/source"
-	"gate.computer/gate/trace"
 	"gate.computer/internal/serverapi"
 
 	. "import.name/type/context"
@@ -52,12 +51,12 @@ type Config struct {
 	SourceCache    model.SourceCache
 	OpenDebugLog   func(string) io.WriteCloser
 
-	// StartSpan within trace context, ending when endSpan is called.  Nil
-	// links must be ignored.  [trace.ContextAutoLinks] must also be respected.
-	StartSpan func(_ Context, op api.Op, links ...*trace.Link) (_ Context, endSpan func(Context))
+	// StartSpan within trace context, ending when endSpan is called.  See
+	// gate.computer/gate/trace/tracelink.
+	StartSpan func(_ Context, op api.Op) (_ Context, endSpan func(Context))
 
 	// AddEvent to the current trace span, or outside of trace but in relation
-	// to [trace.ContextAutoLinks].
+	// to span links.  See gate.computer/gate/trace/tracelink.
 	AddEvent func(Context, *event.Event, error)
 }
 
@@ -72,9 +71,9 @@ func (c *Config) openDebugLog(opt *api.InvokeOptions) io.WriteCloser {
 	return nil
 }
 
-func (c *Config) startOp(ctx Context, op api.Op, links ...*trace.Link) (Context, func(Context)) {
+func (c *Config) startOp(ctx Context, op api.Op) (Context, func(Context)) {
 	ctx = serverapi.ContextWithOp(ctx, op)
-	return c.StartSpan(ctx, op, links...)
+	return c.StartSpan(ctx, op)
 }
 
 func (c *Config) event(ctx Context, t event.Type) {

@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"gate.computer/gate/database/sql"
 	"gate.computer/gate/runtime/abi"
 	"gate.computer/gate/scope/program/system"
 	"gate.computer/gate/server"
@@ -35,9 +34,7 @@ import (
 	"gate.computer/wag/compile"
 	"gate.computer/wag/section"
 	"github.com/google/uuid"
-	_ "modernc.org/sqlite"
 
-	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -88,18 +85,6 @@ func openDebugLog(string) io.WriteCloser     { return debugLog{} }
 func (debugLog) Write(b []byte) (int, error) { return os.Stdout.Write(b) }
 func (debugLog) Close() error                { return nil }
 
-var db *sql.Endpoint
-
-func init() {
-	db = Must(sql.Open(sql.Config{
-		Driver: "sqlite",
-		DSN:    "file::memory:?cache=shared",
-	}))
-	Check(db.InitInventory(context.Background()))
-	Check(db.InitSourceCache(context.Background()))
-	Check(db.InitNonceChecker(context.Background()))
-}
-
 func newServices() func(Context) server.InstanceServices {
 	registry := new(service.Registry)
 
@@ -119,10 +104,10 @@ func newServer() (*server.Server, error) {
 	return server.New(context.Background(), &server.Config{
 		UUID:           uuid.NewString(),
 		ProcessFactory: newExecutor(),
-		Inventory:      db,
+		Inventory:      newTestInventory(),
 		AccessPolicy:   server.NewPublicAccess(newServices()),
 		ModuleSources:  map[string]source.Source{"/test": helloSource{}},
-		SourceCache:    db,
+		SourceCache:    newTestSourceCache(),
 		OpenDebugLog:   openDebugLog,
 	})
 }
@@ -139,7 +124,7 @@ func newHandler(t *testing.T) http.Handler {
 		Server:       s,
 		Authority:    "example.invalid",
 		Origins:      []string{"null"},
-		NonceChecker: db,
+		NonceChecker: newTestNonceChecker(),
 	}
 
 	h := webserver.NewHandler("/", config)

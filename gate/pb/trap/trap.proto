@@ -4,7 +4,7 @@
 
 syntax = "proto3";
 
-package gate.trap;
+package gate.gate.trap;
 
 option go_package = "gate.computer/gate/pb/trap";
 

@@ -4,13 +4,13 @@
 
 syntax = "proto3";
 
-package gate.server.model;
+package gate.internal.server;
 
 import "gate/pb/server/api.proto";
 import "gate/pb/snapshot/buffers.proto";
 import "google/protobuf/duration.proto";
 
-option go_package = "gate.computer/gate/pb/server/model";
+option go_package = "gate.computer/internal/pb/server";
 
 message Module {
   repeated string tags = 1;
@@ -19,8 +19,8 @@ message Module {
 message Instance {
   bool exists = 1;
   bool transient = 2;
-  Status status = 3;
-  snapshot.Buffers buffers = 4;
+  gate.server.Status status = 3;
+  gate.snapshot.Buffers buffers = 4;
   google.protobuf.Duration time_resolution = 5;
   repeated string tags = 6;
 }

@@ -30,7 +30,6 @@ import (
 	"gate.computer/gate/runtime/system"
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/sshkeys"
-	"gate.computer/gate/server/tracelog"
 	"gate.computer/gate/server/webserver"
 	"gate.computer/gate/server/webserver/router"
 	"gate.computer/gate/service"
@@ -39,12 +38,11 @@ import (
 	"gate.computer/gate/source"
 	httpsource "gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
-	"gate.computer/gate/trace/httptrace"
 	"gate.computer/gate/web"
 	"gate.computer/internal/cmdconf"
 	"gate.computer/internal/logging"
 	"gate.computer/internal/services"
-	"gate.computer/internal/sys"
+	"gate.computer/otel/trace/tracing"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/gorilla/handlers"
 	"golang.org/x/crypto/acme"
@@ -206,7 +204,7 @@ func Main() {
 	c.Service = service.Config()
 	c.Principal = server.DefaultAccessConfig
 	c.Source.Cache = database.NewSourceCacheConfigs()
-	c.Source.IPFS.Do = httptrace.DoPropagate
+	c.Source.IPFS.Do = httpDoPropagateTraceContext
 	c.HTTP.Net = DefaultNet
 	c.HTTP.Addr = DefaultHTTPAddr
 	c.HTTP.AccessDB = database.NewNonceCheckerConfigs()
@@ -253,16 +251,19 @@ func Main() {
 		c.Runtime.Log = log
 	}
 	if c.HTTP.StartSpan == nil {
-		c.HTTP.StartSpan = tracelog.HTTPSpanStarter(log, "webserver: ")
+		c.HTTP.StartSpan = tracing.HTTPSpanStarter(nil)
 	}
 	if c.HTTP.AddEvent == nil {
-		c.HTTP.AddEvent = tracelog.EventAdder(log, "webserver: ", nil)
+		c.HTTP.AddEvent = tracing.EventAdder()
+	}
+	if c.HTTP.DetachTrace == nil {
+		c.HTTP.DetachTrace = tracing.TraceDetacher()
 	}
 	if c.Server.StartSpan == nil {
-		c.Server.StartSpan = tracelog.SpanStarter(log, "server: ")
+		c.Server.StartSpan = tracing.SpanStarter(nil)
 	}
 	if c.Server.AddEvent == nil {
-		c.Server.AddEvent = tracelog.EventAdder(log, "server: ", nil)
+		c.Server.AddEvent = tracing.EventAdder()
 	}
 
 	ctx := context.Background()
@@ -398,7 +399,7 @@ func main2(ctx Context, log *slog.Logger) error {
 		}
 	}
 	if c.Source.IPFS.Configured() {
-		c.Server.ModuleSources[ipfs.Source] = tracelog.Source(ipfs.New(&c.Source.IPFS.Config), log)
+		c.Server.ModuleSources[ipfs.Source] = tracing.Source(ipfs.New(&c.Source.IPFS.Config), nil)
 	}
 
 	if c.Server.SourceCache == nil {
@@ -529,7 +530,7 @@ func main2(ctx Context, log *slog.Logger) error {
 		}
 	}
 
-	if err := sys.ClearCaps(); err != nil {
+	if err := clearCaps(); err != nil {
 		return err
 	}
 

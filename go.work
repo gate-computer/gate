@@ -1,0 +1,13 @@
+go 1.23
+
+use (
+	.
+	./cmd
+	./cmd/gate
+	./cmd/gate-daemon
+	./cmd/gate-runtime
+	./cmd/gate-server
+	./grpc
+	./localhost
+	./otel
+)

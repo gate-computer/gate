@@ -19,7 +19,7 @@ import (
 	"gate.computer/gate/server/internal"
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/notfound"
-	"gate.computer/gate/server/tracelog"
+	"gate.computer/gate/server/logging"
 	"gate.computer/gate/source"
 	"gate.computer/internal/error/resourcelimit"
 	"gate.computer/internal/principal"
@@ -84,10 +84,10 @@ func New(ctx Context, config *Config) (_ *Server, err error) {
 		s.ImageStorage = image.Memory
 	}
 	if s.StartSpan == nil {
-		s.StartSpan = tracelog.SpanStarter(nil, "server: ")
+		s.StartSpan = logging.SpanStarter(nil, "server: ")
 	}
 	if s.AddEvent == nil {
-		s.AddEvent = tracelog.EventAdder(nil, "server: ", nil)
+		s.AddEvent = logging.EventAdder(nil, "server: ", nil)
 	}
 	if !s.Configured() {
 		panic("incomplete server configuration")

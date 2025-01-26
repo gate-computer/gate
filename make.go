@@ -113,7 +113,7 @@ func targets() (targets Tasks) {
 
 		goTestBinaries := Group(
 			sources,
-			Command(GO, "build", "-o", Join(O, "lib", ARCH, "test-grpc-service"), "./internal/test/grpc-service"),
+			Command(GO, "build", "-o", Join(O, "lib", ARCH, "test-grpc-service"), "./grpc/internal/test/grpc-service"),
 		)
 		targets.Add(Target("check",
 			sources,
@@ -289,6 +289,7 @@ func protoTask(O, GO string) Task {
 	protos := Globber(
 		"gate/pb/*/*.proto",
 		"gate/pb/*/*/*.proto",
+		"grpc/pb/*.proto",
 		"internal/pb/*/*.proto",
 	)
 

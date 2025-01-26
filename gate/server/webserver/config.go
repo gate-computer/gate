@@ -12,7 +12,6 @@ import (
 	"gate.computer/gate/server/api"
 	"gate.computer/gate/server/event"
 	"gate.computer/gate/server/model"
-	"gate.computer/gate/trace"
 
 	. "import.name/type/context"
 )
@@ -24,14 +23,22 @@ type Config struct {
 	Origins      []string // Value "*" causes Origin header to be ignored.
 	NonceChecker model.NonceChecker
 
-	// StartSpan within request context, ending when endSpan is called.  Nil
-	// links must be ignored.  [trace.ContextAutoLinks] must also be respected.
-	// The pattern string indicates the matching HTTP route handler.
-	StartSpan func(r *http.Request, pattern string, links ...*trace.Link) (ctx Context, endSpan func(Context))
+	// StartSpan within request context, ending when endSpan is called.  See
+	// gate.computer/gate/trace/tracelink.  The pattern string indicates the
+	// matching HTTP route handler.
+	//
+	// TODO: is pattern redundant?
+	StartSpan func(r *http.Request, pattern string) (ctx Context, endSpan func(Context))
 
 	// AddEvent to the current trace span, or outside of trace but in relation
-	// to [trace.ContextAutoLinks].
+	// to span links.  See gate.computer/gate/trace/tracelink.
 	AddEvent func(Context, *event.Event, error)
+
+	// DetachTrace is invoked after a potentially long-running connection has
+	// finished its setup.  It should end current trace and/or span if
+	// possible, and prepare the context for linking to the ended span.  See
+	// gate.computer/gate/trace/tracelink.
+	DetachTrace func(Context) Context
 
 	identityKey *ed25519.PrivateKey
 }

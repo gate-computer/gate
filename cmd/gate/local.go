@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -20,50 +21,35 @@ import (
 	"syscall"
 
 	"gate.computer/gate/server/api"
-	"gate.computer/gate/trace"
 	"gate.computer/gate/web"
 	"gate.computer/internal/bus"
-	"gate.computer/internal/traceid"
 	"github.com/godbus/dbus/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 	"google.golang.org/protobuf/proto"
 
 	. "import.name/pan/mustcheck"
 )
 
-func ptr[T any](x T) *T {
-	return &x
-}
-
-var (
-	traceID  *trace.TraceID
-	parentID *trace.SpanID
-	daemon   dbus.BusObject
-)
+var daemon dbus.BusObject
 
 func daemonCall(method string, args ...any) *dbus.Call {
-	if traceID == nil {
-		traceID = ptr(traceid.MakeTraceID())
-		spanID := traceid.MakeSpanID()
+	tracer := otel.GetTracerProvider().Tracer("gate/cmd/gate")
+	_, span := tracer.Start(context.Background(), method, trace.WithSpanKind(trace.SpanKindClient))
+	defer span.End()
 
-		slog.Debug("trace",
-			"trace", traceID,
-			"span", spanID,
-		)
-
-		parentID = &spanID
-	}
-
-	spanID := traceid.MakeSpanID()
+	c := span.SpanContext()
+	traceID := c.TraceID()
+	spanID := c.SpanID()
 
 	slog.Debug("call",
-		"trace", *traceID,
-		"span", spanID,
 		"method", method,
-		"parent", *parentID,
+		"trace", traceID,
+		"span", spanID,
 	)
 
-	args = append([]any{(*traceID)[:], spanID[:]}, args...)
+	args = append([]any{traceID[:], spanID[:]}, args...)
 
 	if daemon == nil {
 		conn := Must(dbus.SessionBus())
