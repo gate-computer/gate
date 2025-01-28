@@ -159,6 +159,10 @@ type Config struct {
 
 var c = new(Config)
 
+func SetConfig(config *Config) {
+	c = config
+}
+
 var logger *slog.Logger
 
 func SetLogger(l *slog.Logger) {
@@ -244,12 +248,22 @@ func Main() {
 			os.Exit(1)
 		}
 	}
-	c.Runtime.Log = log
 
-	c.HTTP.StartSpan = tracelog.HTTPSpanStarter(log, "webserver: ")
-	c.HTTP.AddEvent = tracelog.EventAdder(log, "webserver: ", nil)
-	c.Server.StartSpan = tracelog.SpanStarter(log, "server: ")
-	c.Server.AddEvent = tracelog.EventAdder(log, "server: ", nil)
+	if c.Runtime.Log == nil {
+		c.Runtime.Log = log
+	}
+	if c.HTTP.StartSpan == nil {
+		c.HTTP.StartSpan = tracelog.HTTPSpanStarter(log, "webserver: ")
+	}
+	if c.HTTP.AddEvent == nil {
+		c.HTTP.AddEvent = tracelog.EventAdder(log, "webserver: ", nil)
+	}
+	if c.Server.StartSpan == nil {
+		c.Server.StartSpan = tracelog.SpanStarter(log, "server: ")
+	}
+	if c.Server.AddEvent == nil {
+		c.Server.AddEvent = tracelog.EventAdder(log, "server: ", nil)
+	}
 
 	ctx := context.Background()
 
@@ -338,14 +352,16 @@ func main2(ctx Context, log *slog.Logger) error {
 
 	c.Server.ImageStorage = image.CombinedStorage(progStorage, instStorage)
 
-	inventoryDB, err := database.Resolve(c.Inventory)
-	if err != nil {
-		return err
-	}
-	defer inventoryDB.Close()
-	c.Server.Inventory, err = inventoryDB.InitInventory(ctx)
-	if err != nil {
-		return err
+	if c.Server.Inventory == nil {
+		inventoryDB, err := database.Resolve(c.Inventory)
+		if err != nil {
+			return err
+		}
+		defer inventoryDB.Close()
+		c.Server.Inventory, err = inventoryDB.InitInventory(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	switch c.Access.Policy {
@@ -385,14 +401,16 @@ func main2(ctx Context, log *slog.Logger) error {
 		c.Server.ModuleSources[ipfs.Source] = tracelog.Source(ipfs.New(&c.Source.IPFS.Config), log)
 	}
 
-	sourceCacheDB, err := database.Resolve(c.Source.Cache)
-	if err != nil {
-		return err
-	}
-	defer sourceCacheDB.Close()
-	c.Server.SourceCache, err = sourceCacheDB.InitSourceCache(ctx)
-	if err != nil {
-		return err
+	if c.Server.SourceCache == nil {
+		sourceCacheDB, err := database.Resolve(c.Source.Cache)
+		if err != nil {
+			return err
+		}
+		defer sourceCacheDB.Close()
+		c.Server.SourceCache, err = sourceCacheDB.InitSourceCache(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	serverImpl, err := server.New(ctx, &c.Server.Config)
@@ -415,15 +433,17 @@ func main2(ctx Context, log *slog.Logger) error {
 		}
 	}
 
-	accessDB, err := database.Resolve(c.HTTP.AccessDB)
-	if err != nil && err != database.ErrNoConfig {
-		return err
-	}
-	if accessDB != nil {
-		defer accessDB.Close()
-		c.HTTP.NonceChecker, err = accessDB.InitNonceChecker(ctx)
-		if err != nil {
+	if c.HTTP.NonceChecker == nil {
+		accessDB, err := database.Resolve(c.HTTP.AccessDB)
+		if err != nil && err != database.ErrNoConfig {
 			return err
+		}
+		if accessDB != nil {
+			defer accessDB.Close()
+			c.HTTP.NonceChecker, err = accessDB.InitNonceChecker(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
