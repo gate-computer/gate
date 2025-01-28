@@ -12,7 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
+	stdlog "log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -159,6 +159,12 @@ type Config struct {
 
 var c = new(Config)
 
+var logger *slog.Logger
+
+func SetLogger(l *slog.Logger) {
+	logger = l
+}
+
 var handlerFunc func(http.ResponseWriter, *http.Request, http.Handler)
 
 // SetHandlerFunc replaces the function which is invoked for every HTTP
@@ -225,13 +231,18 @@ func Main() {
 	flag.Usage = confi.FlagUsage(nil, c)
 	cmdconf.Parse(c, flag.CommandLine, false, DefaultConfigFiles...)
 
-	if c.Log.Journal {
-		log.SetFlags(0)
-	}
-	log, err := logging.Init(c.Log.Journal)
-	if err != nil {
-		log.Error("journal initialization failed", "error", err)
-		os.Exit(1)
+	var err error
+
+	log := logger
+	if log == nil {
+		if c.Log.Journal {
+			stdlog.SetFlags(0)
+		}
+		log, err = logging.Init(c.Log.Journal)
+		if err != nil {
+			log.Error("journal initialization failed", "error", err)
+			os.Exit(1)
+		}
 	}
 	c.Runtime.Log = log
 
