@@ -2,8 +2,6 @@ module gate.computer/localhost
 
 go 1.23
 
-replace gate.computer => ../
-
 require (
 	gate.computer v0.0.0-00010101000000-000000000000
 	github.com/google/flatbuffers v25.1.24+incompatible

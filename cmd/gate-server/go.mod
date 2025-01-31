@@ -2,13 +2,6 @@ module gate.computer/cmd/gate-server
 
 go 1.23
 
-replace (
-	gate.computer => ../../
-	gate.computer/grpc => ../../grpc/
-	gate.computer/localhost => ../../localhost/
-	gate.computer/otel => ../../otel/
-)
-
 require (
 	gate.computer v0.0.0-00010101000000-000000000000
 	gate.computer/grpc v0.0.0-00010101000000-000000000000

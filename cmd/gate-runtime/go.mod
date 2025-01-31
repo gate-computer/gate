@@ -2,8 +2,6 @@ module gate.computer/cmd/gate-runtime
 
 go 1.23
 
-replace gate.computer => ../../
-
 require (
 	gate.computer v0.0.0-00010101000000-000000000000
 	github.com/coreos/go-systemd/v22 v22.5.0
