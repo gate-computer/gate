@@ -1,6 +1,6 @@
 module gate.computer/otel
 
-go 1.23
+go 1.24
 
 require (
 	gate.computer v0.0.0-20250131054915-e694ff662681

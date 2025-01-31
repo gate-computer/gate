@@ -1,17 +1,20 @@
 module gate.computer
 
-go 1.23
+go 1.24
+
+tool (
+	gate.computer/ga
+	github.com/bufbuild/buf/cmd/buf
+	import.name/make
+)
 
 require (
-	gate.computer/ga v0.0.0-20230304172433-8beab68a75bd
 	gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731
-	github.com/bufbuild/buf v1.48.0
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	golang.org/x/crypto v0.31.0
 	golang.org/x/sys v0.28.0
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1
 	google.golang.org/protobuf v1.36.1
 	import.name/confi v1.6.0
 	import.name/flux v1.0.0
@@ -34,10 +37,12 @@ require (
 	cel.dev/expr v0.19.1 // indirect
 	connectrpc.com/connect v1.17.0 // indirect
 	connectrpc.com/otelconnect v0.7.1 // indirect
+	gate.computer/ga v0.0.0-20230304172433-8beab68a75bd // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.12.9 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	github.com/bufbuild/buf v1.48.0 // indirect
 	github.com/bufbuild/protocompile v0.14.1 // indirect
 	github.com/bufbuild/protoplugin v0.0.0-20240911180120-7bb73e41a54a // indirect
 	github.com/bufbuild/protovalidate-go v0.8.0 // indirect
