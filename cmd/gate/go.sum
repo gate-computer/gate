@@ -1,3 +1,5 @@
+gate.computer v0.0.0-20250131054915-e694ff662681 h1:wqQsqrrrIhOLCsnNMhMXHsfWGJvFU6TDUqbs16po1yE=
+gate.computer v0.0.0-20250131054915-e694ff662681/go.mod h1:DmIPJHnPxfsL1hIF+WY5NaTMJhrsm5GzMcZh+8+VIv0=
 gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731 h1:xx0J8J29wknJFMnIOyvkmjFnVFP20xWlM4qi1dqAAXg=
 gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731/go.mod h1:qRYLyqbTKqGPoHHLIjSIyfnjacB9nNHW+D2ByahP0cg=
 github.com/chzyer/logex v1.2.1 h1:XHDu3E6q+gdHgsdTPH6ImJMIp436vR6MPtH8gP05QzM=
