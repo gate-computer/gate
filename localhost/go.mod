@@ -3,7 +3,7 @@ module gate.computer/localhost
 go 1.23
 
 require (
-	gate.computer v0.0.0-00010101000000-000000000000
+	gate.computer v0.0.0-20250131054915-e694ff662681
 	github.com/google/flatbuffers v25.1.24+incompatible
 	import.name/type v1.0.0
 )

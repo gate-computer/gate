@@ -3,7 +3,7 @@ module gate.computer/grpc
 go 1.23
 
 require (
-	gate.computer v0.0.0-00010101000000-000000000000
+	gate.computer v0.0.0-20250131054915-e694ff662681
 	github.com/google/uuid v1.6.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.4

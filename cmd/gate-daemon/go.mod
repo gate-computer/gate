@@ -3,10 +3,10 @@ module gate.computer/cmd/gate-daemon
 go 1.23
 
 require (
-	gate.computer v0.0.0-00010101000000-000000000000
-	gate.computer/grpc v0.0.0-00010101000000-000000000000
-	gate.computer/localhost v0.0.0-00010101000000-000000000000
-	gate.computer/otel v0.0.0-00010101000000-000000000000
+	gate.computer v0.0.0-20250131054915-e694ff662681
+	gate.computer/grpc v0.0.0-20250131054915-e694ff662681
+	gate.computer/localhost v0.0.0-20250131054915-e694ff662681
+	gate.computer/otel v0.0.0-20250131054915-e694ff662681
 	gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/godbus/dbus/v5 v5.1.0

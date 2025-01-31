@@ -1,3 +1,11 @@
+gate.computer v0.0.0-20250131054915-e694ff662681 h1:wqQsqrrrIhOLCsnNMhMXHsfWGJvFU6TDUqbs16po1yE=
+gate.computer v0.0.0-20250131054915-e694ff662681/go.mod h1:DmIPJHnPxfsL1hIF+WY5NaTMJhrsm5GzMcZh+8+VIv0=
+gate.computer/grpc v0.0.0-20250131054915-e694ff662681 h1:Q2QhV5DXqBdgB1gFnGbgAbT6x0JKsu/vR8xqfOVNvqI=
+gate.computer/grpc v0.0.0-20250131054915-e694ff662681/go.mod h1:J4d4k89x+vN3Kj1vFCG9d6QHQgj9tgSKwtvRzJjvLqw=
+gate.computer/localhost v0.0.0-20250131054915-e694ff662681 h1:9Eo/I+ie/EetAXXyVthwuaLqG8ruxvngxDGNfDCdO9A=
+gate.computer/localhost v0.0.0-20250131054915-e694ff662681/go.mod h1:sFzFCvk4KvRGieiWEqohRW3nC6LnRiKFmHRs3P4+7lY=
+gate.computer/otel v0.0.0-20250131054915-e694ff662681 h1:7mBpPHgyaTQhnhrxb7LEtdGpcGhoeq9XZaIUDyWllIc=
+gate.computer/otel v0.0.0-20250131054915-e694ff662681/go.mod h1:mZjo/mQPomEcCVuPlADjmUwwIjSjFwFdR7WHxm9rdh0=
 gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731 h1:xx0J8J29wknJFMnIOyvkmjFnVFP20xWlM4qi1dqAAXg=
 gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731/go.mod h1:qRYLyqbTKqGPoHHLIjSIyfnjacB9nNHW+D2ByahP0cg=
 github.com/coreos/go-systemd/v22 v22.5.0 h1:RrqgGjYQKalulkV8NGVIfkXQf6YYmOyiJKk8iXXhfZs=

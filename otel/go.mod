@@ -3,7 +3,7 @@ module gate.computer/otel
 go 1.23
 
 require (
-	gate.computer v0.0.0-00010101000000-000000000000
+	gate.computer v0.0.0-20250131054915-e694ff662681
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/trace v1.34.0
 	import.name/type v1.0.0

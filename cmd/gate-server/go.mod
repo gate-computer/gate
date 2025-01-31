@@ -3,10 +3,10 @@ module gate.computer/cmd/gate-server
 go 1.23
 
 require (
-	gate.computer v0.0.0-00010101000000-000000000000
-	gate.computer/grpc v0.0.0-00010101000000-000000000000
-	gate.computer/localhost v0.0.0-00010101000000-000000000000
-	gate.computer/otel v0.0.0-00010101000000-000000000000
+	gate.computer v0.0.0-20250131054915-e694ff662681
+	gate.computer/grpc v0.0.0-20250131054915-e694ff662681
+	gate.computer/localhost v0.0.0-20250131054915-e694ff662681
+	gate.computer/otel v0.0.0-20250131054915-e694ff662681
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/gorilla/handlers v1.5.2
 	go.opentelemetry.io/otel/trace v1.34.0
