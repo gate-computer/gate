@@ -30,9 +30,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"import.name/lock"
-	"import.name/pan"
 
-	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -76,12 +74,12 @@ func instanceStorageKey(pri *internal.ID, instID string) string {
 func mustParseInstanceStorageKey(key string) (*internal.ID, string) {
 	i := strings.LastIndexByte(key, '.')
 	if i < 0 {
-		pan.Panic(fmt.Errorf("invalid instance storage key: %q", key))
+		z.Panic(fmt.Errorf("invalid instance storage key: %q", key))
 	}
 
-	pri := Must(internal.ParseID(key[:i]))
+	pri := must(internal.ParseID(key[:i]))
 	instID := key[i+1:]
-	Check(ValidateInstanceUUIDForm(instID))
+	z.Check(ValidateInstanceUUIDForm(instID))
 	return pri, instID
 }
 
@@ -315,22 +313,22 @@ func (inst *Instance) mustCheckResume(function string) {
 
 func (inst *Instance) mustCheckResumeWithLock(lock instanceLock, function string) {
 	if !inst.model.Exists {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 
 	switch inst.model.Status.State {
 	case api.StateSuspended:
 		if function != "" {
-			pan.Panic(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
+			z.Panic(failrequest.Error(event.FailInstanceStatus, "function specified for suspended instance"))
 		}
 
 	case api.StateHalted:
 		if function == "" {
-			pan.Panic(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
+			z.Panic(failrequest.Error(event.FailInstanceStatus, "function must be specified when resuming halted instance"))
 		}
 
 	default:
-		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
+		z.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be suspended or halted"))
 	}
 }
 
@@ -394,14 +392,14 @@ func (inst *Instance) mustSnapshot(prog *program) (*image.Program, *snapshot.Buf
 	defer inst.mu.Unlock()
 
 	if !inst.model.Exists {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 	if inst.model.Status.State == api.StateRunning {
-		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
+		z.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	buffers := inst.model.Buffers
-	progImage := Must(image.Snapshot(prog.image, inst.image, buffers, inst.model.Status.State == api.StateSuspended))
+	progImage := must(image.Snapshot(prog.image, inst.image, buffers, inst.model.Status.State == api.StateSuspended))
 
 	return progImage, buffers
 }
@@ -412,10 +410,10 @@ func (inst *Instance) mustAnnihilate() {
 	defer inst.mu.Unlock()
 
 	if !inst.model.Exists {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 	if inst.model.Status.State == api.StateRunning {
-		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
+		z.Panic(failrequest.Error(event.FailInstanceStatus, "instance must not be running"))
 	}
 
 	inst.annihilate(lock)
@@ -558,11 +556,11 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 	defer inst.mu.Unlock()
 
 	if req.Op < api.DebugOpConfigGet || req.Op > api.DebugOpReadStack {
-		pan.Panic(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
+		z.Panic(failrequest.Error(event.FailUnsupported, "unsupported debug op"))
 	}
 
 	if req.Op != api.DebugOpConfigGet && inst.model.Status.State == api.StateRunning {
-		pan.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
+		z.Panic(failrequest.Error(event.FailInstanceStatus, "instance must be stopped"))
 	}
 
 	breaks := inst.image.Breakpoints()
@@ -574,7 +572,7 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 		config := req.GetConfig()
 
 		if len(config.Breakpoints) > snapshot.MaxBreakpoints {
-			pan.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
+			z.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		breaks = dedup.SortUint64(config.Breakpoints)
@@ -586,7 +584,7 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 		config := req.GetConfig()
 
 		if len(breaks)+len(config.Breakpoints) > snapshot.MaxBreakpoints {
-			pan.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
+			z.Panic(failrequest.Error(event.FailResourceLimit, "too many breakpoints"))
 		}
 
 		breaks = append([]uint64{}, breaks...)
@@ -619,7 +617,7 @@ func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugReques
 		if inst.altProgImage == nil {
 			callMap = &prog.image.Map
 		}
-		data = Must(inst.image.ExportStack(callMap))
+		data = must(inst.image.ExportStack(callMap))
 	}
 
 	var (

@@ -25,9 +25,7 @@ import (
 	"gate.computer/internal/principal"
 	"gate.computer/wag/object"
 	"import.name/lock"
-	"import.name/pan"
 
-	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -68,7 +66,7 @@ type Server struct {
 
 func New(ctx Context, config *Config) (_ *Server, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	s := &Server{
@@ -93,8 +91,8 @@ func New(ctx Context, config *Config) (_ *Server, err error) {
 		panic("incomplete server configuration")
 	}
 
-	progs := Must(s.ImageStorage.Programs())
-	insts := Must(s.ImageStorage.Instances())
+	progs := must(s.ImageStorage.Programs())
+	insts := must(s.ImageStorage.Instances())
 
 	shutdown := s.Shutdown
 	defer func() {
@@ -124,13 +122,13 @@ func New(ctx Context, config *Config) (_ *Server, err error) {
 }
 
 func (s *Server) mustLoadProgramDuringInit(lock serverLock, owner *account, progID string) {
-	image := Must(s.ImageStorage.LoadProgram(progID))
+	image := must(s.ImageStorage.LoadProgram(progID))
 	if image == nil { // Race condition with human operator?
 		return
 	}
 	defer closeProgramImage(&image)
 
-	prog := newProgram(progID, image, Must(image.LoadBuffers()), true)
+	prog := newProgram(progID, image, must(image.LoadBuffers()), true)
 	image = nil
 
 	if owner != nil {
@@ -141,7 +139,7 @@ func (s *Server) mustLoadProgramDuringInit(lock serverLock, owner *account, prog
 }
 
 func (s *Server) mustLoadInstanceDuringInit(lock serverLock, key string) {
-	image := Must(s.ImageStorage.LoadInstance(key))
+	image := must(s.ImageStorage.LoadInstance(key))
 	if image == nil { // Race condition with human operator?
 		return
 	}
@@ -223,7 +221,7 @@ func (s *Server) Features() *api.Features {
 
 func (s *Server) UploadModule(ctx Context, upload *api.ModuleUpload, know *api.ModuleOptions) (module string, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpModuleUpload)
@@ -232,10 +230,10 @@ func (s *Server) UploadModule(ctx Context, upload *api.ModuleUpload, know *api.M
 	know = mustPrepareModuleOptions(know)
 
 	policy := new(progPolicy)
-	ctx = Must(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
+	ctx = must(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
 
 	if upload.Length > int64(policy.prog.MaxModuleSize) {
-		pan.Panic(resourcelimit.Error("module size limit exceeded"))
+		z.Panic(resourcelimit.Error("module size limit exceeded"))
 	}
 
 	// TODO: check resource policy
@@ -249,7 +247,7 @@ func (s *Server) UploadModule(ctx Context, upload *api.ModuleUpload, know *api.M
 
 func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) (module string, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpModuleSource)
@@ -259,22 +257,21 @@ func (s *Server) SourceModule(ctx Context, uri string, know *api.ModuleOptions) 
 	know = mustPrepareModuleOptions(know)
 
 	policy := new(progPolicy)
-	ctx = Must(s.AccessPolicy.AuthorizeProgramSource(ctx, &policy.res, &policy.prog, prefix))
+	ctx = must(s.AccessPolicy.AuthorizeProgramSource(ctx, &policy.res, &policy.prog, prefix))
 
-	uri = Must(source.CanonicalURI(uri))
+	uri = must(source.CanonicalURI(uri))
 
 	if m, err := s.SourceCache.GetSourceSHA256(ctx, uri); err == nil && m != "" {
 		slog.DebugContext(ctx, "server: source module is known", "uri", uri, "module", m)
 		// TODO
 	}
 
-	stream, length, err := source.OpenURI(ctx, uri, policy.prog.MaxModuleSize)
-	Check(err)
+	stream, length := must2(source.OpenURI(ctx, uri, policy.prog.MaxModuleSize))
 	if stream == nil {
 		if length > 0 {
-			pan.Panic(resourcelimit.Error("program size limit exceeded"))
+			z.Panic(resourcelimit.Error("program size limit exceeded"))
 		}
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	upload := &api.ModuleUpload{
@@ -308,7 +305,7 @@ func (s *Server) mustLoadKnownModule(ctx Context, policy *progPolicy, upload *ap
 	mustValidateUpload(upload)
 
 	if prog.image.TextSize() > policy.prog.MaxTextSize {
-		pan.Panic(resourcelimit.Error("program code size limit exceeded"))
+		z.Panic(resourcelimit.Error("program code size limit exceeded"))
 	}
 
 	s.mustRegisterProgramRef(ctx, prog, know)
@@ -345,7 +342,7 @@ func (s *Server) mustLoadUnknownModule(ctx Context, policy *progPolicy, upload *
 
 func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptions) (_ api.Instance, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpLaunchExtant)
@@ -354,11 +351,11 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 	launch = mustPrepareLaunchOptions(launch)
 
 	policy := new(instPolicy)
-	ctx = Must(s.AccessPolicy.AuthorizeInstance(ctx, &policy.res, &policy.inst))
+	ctx = must(s.AccessPolicy.AuthorizeInstance(ctx, &policy.res, &policy.inst))
 
 	acc := s.mustCheckAccountInstanceID(ctx, launch.Instance)
 	if acc == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	prog := lock.GuardTagged(&s.mu, func(lock serverLock) *program {
@@ -370,15 +367,15 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 		return acc.refProgram(lock, prog)
 	})
 	if prog == nil {
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 	defer s.unrefProgram(&prog)
 
-	funcIndex := Must(prog.image.ResolveEntryFunc(launch.Function, false))
+	funcIndex := must(prog.image.ResolveEntryFunc(launch.Function, false))
 
 	// TODO: check resource policy (text/stack/memory/max-memory size etc.)
 
-	instImage := Must(image.NewInstance(prog.image, policy.inst.MaxMemorySize, policy.inst.StackSize, funcIndex))
+	instImage := must(image.NewInstance(prog.image, policy.inst.MaxMemorySize, policy.inst.StackSize, funcIndex))
 	defer closeInstanceImage(&instImage)
 
 	ref := &api.ModuleOptions{}
@@ -395,7 +392,7 @@ func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptio
 
 func (s *Server) UploadModuleInstance(ctx Context, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (_ string, _ api.Instance, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpLaunchUpload)
@@ -405,7 +402,7 @@ func (s *Server) UploadModuleInstance(ctx Context, upload *api.ModuleUpload, kno
 	launch = mustPrepareLaunchOptions(launch)
 
 	policy := new(instProgPolicy)
-	ctx = Must(s.AccessPolicy.AuthorizeProgramInstance(ctx, &policy.res, &policy.prog, &policy.inst))
+	ctx = must(s.AccessPolicy.AuthorizeProgramInstance(ctx, &policy.res, &policy.prog, &policy.inst))
 
 	acc := s.mustCheckAccountInstanceID(ctx, launch.Instance)
 	module, inst := s.mustLoadModuleInstance(ctx, acc, policy, upload, know, launch)
@@ -414,7 +411,7 @@ func (s *Server) UploadModuleInstance(ctx Context, upload *api.ModuleUpload, kno
 
 func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleOptions, launch *api.LaunchOptions) (module string, _ api.Instance, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpLaunchSource)
@@ -425,24 +422,23 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 	launch = mustPrepareLaunchOptions(launch)
 
 	policy := new(instProgPolicy)
-	ctx = Must(s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, &policy.res, &policy.prog, &policy.inst, prefix))
+	ctx = must(s.AccessPolicy.AuthorizeProgramInstanceSource(ctx, &policy.res, &policy.prog, &policy.inst, prefix))
 
 	acc := s.mustCheckAccountInstanceID(ctx, launch.Instance)
 
-	uri = Must(source.CanonicalURI(uri))
+	uri = must(source.CanonicalURI(uri))
 
 	if m, err := s.SourceCache.GetSourceSHA256(ctx, uri); err == nil && m != "" {
 		slog.DebugContext(ctx, "server: source module is known", "uri", uri, "module", m)
 		// TODO
 	}
 
-	stream, length, err := source.OpenURI(ctx, uri, policy.prog.MaxModuleSize)
-	Check(err)
+	stream, length := must2(source.OpenURI(ctx, uri, policy.prog.MaxModuleSize))
 	if stream == nil {
 		if length > 0 {
-			pan.Panic(resourcelimit.Error("program size limit exceeded"))
+			z.Panic(resourcelimit.Error("program size limit exceeded"))
 		}
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	upload := &api.ModuleUpload{
@@ -467,7 +463,7 @@ func (s *Server) SourceModuleInstance(ctx Context, uri string, know *api.ModuleO
 
 func (s *Server) mustLoadModuleInstance(ctx Context, acc *account, policy *instProgPolicy, upload *api.ModuleUpload, know *api.ModuleOptions, launch *api.LaunchOptions) (string, *Instance) {
 	if upload.Length > int64(policy.prog.MaxModuleSize) {
-		pan.Panic(resourcelimit.Error("module size limit exceeded"))
+		z.Panic(resourcelimit.Error("module size limit exceeded"))
 	}
 
 	// TODO: check resource policy
@@ -493,14 +489,14 @@ func (s *Server) mustLoadKnownModuleInstance(ctx Context, acc *account, policy *
 	mustValidateUpload(upload)
 
 	if prog.image.TextSize() > policy.prog.MaxTextSize {
-		pan.Panic(resourcelimit.Error("program code size limit exceeded"))
+		z.Panic(resourcelimit.Error("program code size limit exceeded"))
 	}
 
 	// TODO: check resource policy (stack/memory/max-memory size etc.)
 
-	funcIndex := Must(prog.image.ResolveEntryFunc(launch.Function, false))
+	funcIndex := must(prog.image.ResolveEntryFunc(launch.Function, false))
 
-	instImage := Must(image.NewInstance(prog.image, policy.inst.MaxMemorySize, policy.inst.StackSize, funcIndex))
+	instImage := must(image.NewInstance(prog.image, policy.inst.MaxMemorySize, policy.inst.StackSize, funcIndex))
 	defer closeInstanceImage(&instImage)
 
 	inst, prog, _ := s.mustRegisterProgramRefInstance(ctx, acc, prog, instImage, &policy.inst, know, launch)
@@ -563,38 +559,38 @@ func (s *Server) mustLoadUnknownModuleInstance(ctx Context, acc *account, policy
 
 func (s *Server) ModuleInfo(ctx Context, module string) (_ *api.ModuleInfo, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpModuleInfo)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if s.programs == nil {
-		pan.Panic(ErrServerClosed)
+		z.Panic(ErrServerClosed)
 	}
 	prog := s.programs[module]
 	if prog == nil {
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	x, found := acc.programs[prog]
 	if !found {
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	info := &api.ModuleInfo{
@@ -611,17 +607,17 @@ func (s *Server) ModuleInfo(ctx Context, module string) (_ *api.ModuleInfo, err 
 
 func (s *Server) Modules(ctx Context) (_ *api.Modules, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpModuleList)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	s.event(ctx, event.TypeModuleList)
@@ -648,7 +644,7 @@ func (s *Server) Modules(ctx Context) (_ *api.Modules, err error) {
 
 func (s *Server) ModuleContent(ctx Context, module string) (stream io.ReadCloser, length int64, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, endSpan := s.startOp(ctx, api.OpModuleDownload)
@@ -658,11 +654,11 @@ func (s *Server) ModuleContent(ctx Context, module string) (stream io.ReadCloser
 		}
 	}()
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	prog := lock.GuardTagged(&s.mu, func(lock serverLock) *program {
@@ -679,7 +675,7 @@ func (s *Server) ModuleContent(ctx Context, module string) (stream io.ReadCloser
 		return acc.refProgram(lock, prog)
 	})
 	if prog == nil {
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	length = prog.image.ModuleSize()
@@ -718,7 +714,7 @@ func (x *moduleContent) Close() error {
 
 func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) (err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpModulePin)
@@ -730,25 +726,25 @@ func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) 
 	}
 
 	policy := new(progPolicy)
-	ctx = Must(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
+	ctx = must(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
 
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	modified := lock.GuardTagged(&s.mu, func(lock serverLock) bool {
 		if s.programs == nil {
-			pan.Panic(ErrServerClosed)
+			z.Panic(ErrServerClosed)
 		}
 		prog := s.programs[module]
 		if prog == nil {
-			pan.Panic(notfound.ErrModule)
+			z.Panic(notfound.ErrModule)
 		}
 
 		acc := s.accounts[principal.Raw(pri)]
 		if acc == nil {
-			pan.Panic(notfound.ErrModule)
+			z.Panic(notfound.ErrModule)
 		}
 
 		_, found := acc.programs[prog]
@@ -758,7 +754,7 @@ func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) 
 					goto do
 				}
 			}
-			pan.Panic(notfound.ErrModule)
+			z.Panic(notfound.ErrModule)
 		}
 
 	do:
@@ -778,17 +774,17 @@ func (s *Server) PinModule(ctx Context, module string, know *api.ModuleOptions) 
 
 func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpModuleUnpin)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	found := lock.GuardTagged(&s.mu, func(lock serverLock) bool {
@@ -805,7 +801,7 @@ func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 		return acc.unrefProgram(lock, prog)
 	})
 	if !found {
-		pan.Panic(notfound.ErrModule)
+		z.Panic(notfound.ErrModule)
 	}
 
 	s.eventModule(ctx, event.TypeModuleUnpin, &event.Module{
@@ -817,13 +813,13 @@ func (s *Server) UnpinModule(ctx Context, module string) (err error) {
 
 func (s *Server) InstanceConnection(ctx Context, instance string) (_ api.Instance, _ func(Context, io.Reader, io.WriteCloser) *api.Status, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceConnect)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instance)
 	conn := inst.connect(ctx)
@@ -854,18 +850,18 @@ func (s *Server) InstanceConnection(ctx Context, instance string) (_ api.Instanc
 
 func (s *Server) InstanceInfo(ctx Context, instance string) (_ *api.InstanceInfo, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceInfo)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	progID, inst := s.mustGetInstanceProgramID(ctx, instance)
 	info := inst.info(progID)
 	if info == nil {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 
 	s.eventInstance(ctx, event.TypeInstanceInfo, &event.Instance{
@@ -877,13 +873,13 @@ func (s *Server) InstanceInfo(ctx Context, instance string) (_ *api.InstanceInfo
 
 func (s *Server) WaitInstance(ctx Context, instID string) (_ *api.Status, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceWait)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instID)
 	status := inst.Wait(ctx)
@@ -897,13 +893,13 @@ func (s *Server) WaitInstance(ctx Context, instID string) (_ *api.Status, err er
 
 func (s *Server) KillInstance(ctx Context, instance string) (_ api.Instance, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceKill)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instance)
 	inst.kill()
@@ -917,13 +913,13 @@ func (s *Server) KillInstance(ctx Context, instance string) (_ api.Instance, err
 
 func (s *Server) SuspendInstance(ctx Context, instance string) (_ api.Instance, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceSuspend)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	// Store the program in case the instance becomes non-transient.
 	inst, prog := s.mustGetInstanceRefProgram(ctx, instance)
@@ -941,7 +937,7 @@ func (s *Server) SuspendInstance(ctx Context, instance string) (_ api.Instance, 
 
 func (s *Server) ResumeInstance(ctx Context, instance string, resume *api.ResumeOptions) (_ api.Instance, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceResume)
@@ -950,7 +946,7 @@ func (s *Server) ResumeInstance(ctx Context, instance string, resume *api.Resume
 	resume = prepareResumeOptions(resume)
 	policy := new(instPolicy)
 
-	ctx = Must(s.AccessPolicy.AuthorizeInstance(ctx, &policy.res, &policy.inst))
+	ctx = must(s.AccessPolicy.AuthorizeInstance(ctx, &policy.res, &policy.inst))
 
 	inst, prog := s.mustGetInstanceRefProgram(ctx, instance)
 	defer s.unrefProgram(&prog)
@@ -977,13 +973,13 @@ func (s *Server) ResumeInstance(ctx Context, instance string, resume *api.Resume
 
 func (s *Server) DeleteInstance(ctx Context, instance string) (err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceDelete)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	inst := s.mustGetInstance(ctx, instance)
 	inst.mustAnnihilate()
@@ -998,7 +994,7 @@ func (s *Server) DeleteInstance(ctx Context, instance string) (err error) {
 
 func (s *Server) Snapshot(ctx Context, instance string, know *api.ModuleOptions) (module string, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceSnapshot)
@@ -1019,7 +1015,7 @@ func (s *Server) Snapshot(ctx Context, instance string, know *api.ModuleOptions)
 			defer func() {
 				_, e := s.ResumeInstance(ctx, instance, nil)
 				if module != "" {
-					Check(e)
+					z.Check(e)
 				}
 			}()
 		}
@@ -1030,7 +1026,7 @@ func (s *Server) Snapshot(ctx Context, instance string, know *api.ModuleOptions)
 }
 
 func (s *Server) mustSnapshot(ctx Context, instance string, know *api.ModuleOptions) string {
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	// TODO: check module storage limits
 
@@ -1041,10 +1037,10 @@ func (s *Server) mustSnapshot(ctx Context, instance string, know *api.ModuleOpti
 	defer closeProgramImage(&newImage)
 
 	h := api.KnownModuleHash.New()
-	Must(io.Copy(h, newImage.NewModuleReader()))
+	must(io.Copy(h, newImage.NewModuleReader()))
 	progID := api.EncodeKnownModule(h.Sum(nil))
 
-	Check(newImage.Store(progID))
+	z.Check(newImage.Store(progID))
 
 	newProg := newProgram(progID, newImage, buffers, true)
 	newImage = nil
@@ -1063,7 +1059,7 @@ func (s *Server) mustSnapshot(ctx Context, instance string, know *api.ModuleOpti
 
 func (s *Server) UpdateInstance(ctx Context, instance string, update *api.InstanceUpdate) (_ *api.InstanceInfo, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceUpdate)
@@ -1071,7 +1067,7 @@ func (s *Server) UpdateInstance(ctx Context, instance string, update *api.Instan
 
 	update = prepareInstanceUpdate(update)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	progID, inst := s.mustGetInstanceProgramID(ctx, instance)
 	if inst.update(update) {
@@ -1084,7 +1080,7 @@ func (s *Server) UpdateInstance(ctx Context, instance string, update *api.Instan
 
 	info := inst.info(progID)
 	if info == nil {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 
 	return info, nil
@@ -1092,7 +1088,7 @@ func (s *Server) UpdateInstance(ctx Context, instance string, update *api.Instan
 
 func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugRequest) (_ *api.DebugResponse, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceDebug)
@@ -1100,7 +1096,7 @@ func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugReque
 
 	policy := new(progPolicy)
 
-	ctx = Must(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
+	ctx = must(s.AccessPolicy.AuthorizeProgram(ctx, &policy.res, &policy.prog))
 
 	inst, defaultProg := s.mustGetInstanceRefProgram(ctx, instance)
 	defer s.unrefProgram(&defaultProg)
@@ -1122,7 +1118,7 @@ func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugReque
 
 		res, ok = rebuild.apply(progImage, config, callMap)
 		if !ok {
-			pan.Panic(failrequest.Error(event.FailInstanceDebugState, "conflict"))
+			z.Panic(failrequest.Error(event.FailInstanceDebugState, "conflict"))
 		}
 		progImage = nil
 	}
@@ -1137,17 +1133,17 @@ func (s *Server) DebugInstance(ctx Context, instance string, req *api.DebugReque
 
 func (s *Server) Instances(ctx Context) (_ *api.Instances, err error) {
 	if internal.DontPanic() {
-		defer func() { err = pan.Error(recover()) }()
+		defer func() { err = z.Error(recover()) }()
 	}
 
 	ctx, end := s.startOp(ctx, api.OpInstanceList)
 	defer end(ctx)
 
-	ctx = Must(s.AccessPolicy.Authorize(ctx))
+	ctx = must(s.AccessPolicy.Authorize(ctx))
 
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	s.event(ctx, event.TypeInstanceList)
@@ -1201,7 +1197,7 @@ func (s *Server) mustRefProgram(hash string, length int64) *program {
 	}
 
 	if length != prog.image.ModuleSize() {
-		pan.Panic(errModuleSizeMismatch)
+		z.Panic(errModuleSizeMismatch)
 	}
 
 	return prog.ref(lock)
@@ -1225,7 +1221,7 @@ func (s *Server) mustRegisterProgramRef(ctx Context, prog *program, know *api.Mo
 	if know.Pin {
 		pri = principal.ContextID(ctx)
 		if pri == nil {
-			pan.Panic(errAnonymous)
+			z.Panic(errAnonymous)
 		}
 
 		prog.mustEnsureStorage()
@@ -1253,7 +1249,7 @@ func (s *Server) mustRegisterProgramRef(ctx Context, prog *program, know *api.Mo
 
 func (s *Server) mustCheckAccountInstanceID(ctx Context, instID string) *account {
 	if instID != "" {
-		Check(ValidateInstanceUUIDForm(instID))
+		z.Check(ValidateInstanceUUIDForm(instID))
 	}
 
 	pri := principal.ContextID(ctx)
@@ -1265,7 +1261,7 @@ func (s *Server) mustCheckAccountInstanceID(ctx Context, instID string) *account
 	defer s.mu.Unlock()
 
 	if s.accounts == nil {
-		pan.Panic(ErrServerClosed)
+		z.Panic(ErrServerClosed)
 	}
 
 	acc := s.ensureAccount(lock, pri)
@@ -1284,7 +1280,7 @@ func (s *Server) mustRunOrDeleteInstance(ctx Context, inst *Instance, prog *prog
 	drive, err := inst.startOrAnnihilate(prog)
 	if err != nil {
 		s.deleteNonexistentInstance(inst)
-		pan.Panic(err)
+		z.Panic(err)
 	}
 
 	if drive {
@@ -1310,7 +1306,7 @@ func (s *Server) mustGetInstance(ctx Context, instance string) *Instance {
 func (s *Server) mustGetInstanceProgramID(ctx Context, instance string) (string, *Instance) {
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	lock := s.mu.Lock()
@@ -1323,7 +1319,7 @@ func (s *Server) mustGetInstanceProgramID(ctx Context, instance string) (string,
 func (s *Server) mustGetInstanceRefProgram(ctx Context, instance string) (*Instance, *program) {
 	pri := principal.ContextID(ctx)
 	if pri == nil {
-		pan.Panic(errAnonymous)
+		z.Panic(errAnonymous)
 	}
 
 	lock := s.mu.Lock()
@@ -1336,12 +1332,12 @@ func (s *Server) mustGetInstanceRefProgram(ctx Context, instance string) (*Insta
 func (s *Server) mustGetInstanceBorrowProgram(lock serverLock, pri *principal.ID, instance string) (*Instance, *program) {
 	acc := s.accounts[principal.Raw(pri)]
 	if acc == nil {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 
 	x, found := acc.instances[instance]
 	if !found {
-		pan.Panic(notfound.ErrInstance)
+		z.Panic(notfound.ErrInstance)
 	}
 
 	return x.inst, x.prog
@@ -1349,7 +1345,7 @@ func (s *Server) mustGetInstanceBorrowProgram(lock serverLock, pri *principal.ID
 
 func (s *Server) mustAllocateInstanceResources(ctx Context, policy *InstancePolicy) (*runtime.Process, InstanceServices) {
 	if policy.Services == nil {
-		pan.Panic(PermissionDenied("no service policy"))
+		z.Panic(PermissionDenied("no service policy"))
 	}
 
 	services := policy.Services(ctx)
@@ -1359,7 +1355,7 @@ func (s *Server) mustAllocateInstanceResources(ctx Context, policy *InstancePoli
 		}
 	}()
 
-	proc := Must(s.ProcessFactory.NewProcess(ctx))
+	proc := must(s.ProcessFactory.NewProcess(ctx))
 
 	ss := services
 	services = nil
@@ -1381,7 +1377,7 @@ func (s *Server) mustRegisterProgramRefInstance(ctx Context, acc *account, prog 
 
 	if know.Pin || !launch.Transient {
 		if acc == nil {
-			pan.Panic(errAnonymous)
+			z.Panic(errAnonymous)
 		}
 		prog.mustEnsureStorage()
 	}
@@ -1396,7 +1392,7 @@ func (s *Server) mustRegisterProgramRefInstance(ctx Context, acc *account, prog 
 
 	if acc != nil {
 		if s.accounts == nil {
-			pan.Panic(ErrServerClosed)
+			z.Panic(ErrServerClosed)
 		}
 		acc.mustCheckUniqueInstanceID(lock, instance)
 	}
@@ -1448,7 +1444,7 @@ func (s *Server) mustMergeProgramRef(lock serverLock, prog *program) (canonical 
 	switch existing := s.programs[prog.id]; existing {
 	case nil:
 		if s.programs == nil {
-			pan.Panic(ErrServerClosed)
+			z.Panic(ErrServerClosed)
 		}
 		s.programs[prog.id] = prog // Pass reference to map.
 		return prog, false
@@ -1479,7 +1475,7 @@ func (s *Server) mustGetSource(uri string) (source.Source, string) {
 		}
 	}
 
-	panic(pan.Wrap(notfound.ErrModule))
+	panic(z.Wrap(notfound.ErrModule))
 }
 
 func mustPrepareModuleOptions(opt *api.ModuleOptions) *api.ModuleOptions {
@@ -1494,7 +1490,7 @@ func mustPrepareLaunchOptions(opt *api.LaunchOptions) *api.LaunchOptions {
 		return new(api.LaunchOptions)
 	}
 	if opt.Suspend && opt.Function != "" {
-		pan.Panic(failrequest.Error(event.FailInstanceStatus, "function cannot be specified for suspended instance"))
+		z.Panic(failrequest.Error(event.FailInstanceStatus, "function cannot be specified for suspended instance"))
 	}
 	return opt
 }

@@ -20,9 +20,6 @@ import (
 	"gate.computer/internal/logging"
 	"golang.org/x/term"
 	"import.name/confi"
-	"import.name/pan"
-
-	. "import.name/pan/mustcheck"
 )
 
 const (
@@ -137,7 +134,9 @@ func main() {
 
 	if internal.CmdPanic == "" {
 		defer func() {
-			pan.Fatal(recover())
+			if err := z.Error(recover()); err != nil {
+				log.Fatal(err)
+			}
 		}()
 	}
 
@@ -307,13 +306,9 @@ func fatal(x any, args ...any) {
 	if err == nil {
 		err = errors.New("nil")
 	}
-	Check(err)
+	z.Check(err)
 }
 
 func fatalf(format string, args ...any) {
-	Check(fmt.Errorf(format, args...))
-}
-
-func check_(_ any, err error) {
-	Check(err)
+	z.Check(fmt.Errorf(format, args...))
 }

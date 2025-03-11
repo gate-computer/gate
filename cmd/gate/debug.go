@@ -32,9 +32,6 @@ import (
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa"
 	dbus "github.com/godbus/dbus/v5"
-	"import.name/pan"
-
-	. "import.name/pan/mustcheck"
 )
 
 type location struct {
@@ -109,7 +106,7 @@ func debug(call debugCallFunc) {
 
 	case "dumptext":
 		_, text, codeMap, names, _ := build(res)
-		Check(dumpText(text, codeMap.FuncAddrs, &names))
+		z.Check(dumpText(text, codeMap.FuncAddrs, &names))
 
 	default:
 		modkey := res.Module
@@ -182,7 +179,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 	)
 
 	for r := info.Reader(); ; {
-		e := Must(r.Next())
+		e := must(r.Next())
 		if e == nil {
 			break
 		}
@@ -190,7 +187,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 		switch e.Tag {
 		case dwarf.TagCompileUnit:
 			if e.Children {
-				if lr := Must(info.LineReader(e)); lr != nil {
+				if lr := must(info.LineReader(e)); lr != nil {
 					for {
 						var le dwarf.LineEntry
 
@@ -198,7 +195,7 @@ func parseBreakpoints(args []string, call debugCallFunc, instID string) (breakOf
 							if err == io.EOF {
 								break
 							}
-							Check(err)
+							z.Check(err)
 						}
 
 						locAddrs[le.File.Name] = append(locAddrs[le.File.Name], lineAddr{le.Line, le.Address, le.Column})
@@ -302,7 +299,7 @@ func debugBacktrace(res *api.DebugResponse) {
 
 	mod, _, codeMap, names, info := build(res)
 	frames := traceStack(res.Data, codeMap, mod.FuncTypes())
-	Check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
+	z.Check(stacktrace.Fprint(os.Stdout, frames, mod.FuncTypes(), &names, info))
 }
 
 func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap objectdebug.InsnMap, names section.NameSection, debugInfo *dwarf.Data) {
@@ -313,15 +310,14 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		fatal("unsupported module specification:", res.Module)
 	}
 
-	r, w, err := os.Pipe()
-	Check(err)
+	r, w := must2(os.Pipe())
 
 	wFD := dbus.UnixFD(w.Fd())
 	call := daemonCall("DownloadModule", wFD, modkey)
 	closeFiles(w)
 
 	var moduleLen int64
-	Check(call.Store(&moduleLen))
+	z.Check(call.Store(&moduleLen))
 
 	reader := compile.NewLoader(bufio.NewReader(r))
 	var custom section.CustomSections
@@ -337,7 +333,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 		}),
 	}
 
-	mod = Must(compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader))
+	mod = must(compile.LoadInitialSections(&compile.ModuleConfig{Config: config}, reader))
 
 	if err := binding.BindImports(&mod, new(abi.ImportResolver)); err != nil {
 		log.Print(err)
@@ -361,7 +357,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 	text = codeConfig.Text.Bytes()
 
-	_, err = section.CopyStandardSection(io.Discard, reader, section.Data, config.CustomSectionLoader)
+	_, err := section.CopyStandardSection(io.Discard, reader, section.Data, config.CustomSectionLoader)
 	if err == nil {
 		err = compile.LoadCustomSections(&config, reader)
 	}
@@ -389,7 +385,7 @@ func build(res *api.DebugResponse) (mod compile.Module, text []byte, codeMap obj
 
 func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType) []stack.Frame {
 	if n := len(buf); n == 0 || n&7 != 0 {
-		Check(fmt.Errorf("invalid stack size %d", n))
+		z.Check(fmt.Errorf("invalid stack size %d", n))
 	}
 
 	var frames []stack.Frame
@@ -399,12 +395,12 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 
 		callIndex := uint32(pair)
 		if callIndex >= uint32(len(textMap.CallSites)) {
-			Check(fmt.Errorf("function call site index %d is unknown", callIndex))
+			z.Check(fmt.Errorf("function call site index %d is unknown", callIndex))
 		}
 		call := textMap.CallSites[callIndex]
 
 		if off := int32(pair >> 32); off != call.StackOffset {
-			Check(fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset))
+			z.Check(fmt.Errorf("encoded stack offset %d of call site %d does not match offset %d in map", off, callIndex, call.StackOffset))
 		}
 
 		if len(textMap.FuncAddrs) == 0 || call.RetAddr < textMap.FuncAddrs[0] {
@@ -412,15 +408,15 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		}
 
 		if call.StackOffset&7 != 0 {
-			Check(fmt.Errorf("invalid stack offset %d", call.StackOffset))
+			z.Check(fmt.Errorf("invalid stack offset %d", call.StackOffset))
 		}
 		if call.StackOffset == 0 {
-			Check(errors.New("inconsistent call stack"))
+			z.Check(errors.New("inconsistent call stack"))
 		}
 
 		init, funcIndex, callIndexAgain, stackOffset, retOff := textMap.FindCall(call.RetAddr)
 		if init || callIndexAgain != int(callIndex) || stackOffset != call.StackOffset {
-			Check(fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr))
+			z.Check(fmt.Errorf("call instruction not found for return address 0x%x", call.RetAddr))
 		}
 
 		numParams := len(funcTypes[funcIndex].Params)
@@ -445,7 +441,7 @@ func traceStack(buf []byte, textMap objectdebug.InsnMap, funcTypes []wa.FuncType
 		buf = buf[stackOffset:]
 	}
 
-	panic(pan.Wrap(errors.New("ran out of stack before initial call")))
+	panic(z.Wrap(errors.New("ran out of stack before initial call")))
 }
 
 func asUint64(x any) uint64 {

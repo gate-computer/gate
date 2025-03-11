@@ -50,7 +50,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"import.name/confi"
 
-	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -216,10 +215,10 @@ func Main() {
 	cmdconf.Parse(c, flags, true, DefaultConfigFiles...)
 
 	if defaultDB {
-		if len(c.Inventory) == 1 && Must(confi.Get(c, "inventory.sql.driver")) == DefaultDatabaseDriver && Must(confi.Get(c, "inventory.sql.dsn")) == "" {
+		if len(c.Inventory) == 1 && must(confi.Get(c, "inventory.sql.driver")) == DefaultDatabaseDriver && must(confi.Get(c, "inventory.sql.dsn")) == "" {
 			confi.MustSet(c, "inventory.sql.dsn", DefaultInventoryDSN)
 		}
-		if len(c.Source.Cache) == 1 && Must(confi.Get(c, "source.cache.sql.driver")) == DefaultDatabaseDriver && Must(confi.Get(c, "source.cache.sql.dsn")) == "" {
+		if len(c.Source.Cache) == 1 && must(confi.Get(c, "source.cache.sql.driver")) == DefaultDatabaseDriver && must(confi.Get(c, "source.cache.sql.dsn")) == "" {
 			confi.MustSet(c, "source.cache.sql.dsn", DefaultSourceCacheDSN)
 		}
 	}
@@ -428,7 +427,7 @@ func main2(ctx Context, log *slog.Logger) error {
 	}
 
 	if filename := cmdconf.ExpandEnv(c.Server.IdentityFile); filename != "" {
-		key := Must(ssh.ParseRawPrivateKey(Must(os.ReadFile(filename))))
+		key := must(ssh.ParseRawPrivateKey(must(os.ReadFile(filename))))
 		if err := c.HTTP.SetIdentityKey(key); err != nil {
 			return fmt.Errorf("%s: %w", filename, err)
 		}

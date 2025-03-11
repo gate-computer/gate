@@ -9,7 +9,7 @@ tool (
 )
 
 require (
-	gate.computer/wag v0.36.1-0.20240923211841-04ccc6280731
+	gate.computer/wag v0.36.1-0.20250311023511-04b7ed9260b4
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
@@ -20,7 +20,7 @@ require (
 	import.name/flux v1.0.0
 	import.name/lock v1.1.0
 	import.name/make v0.1.0
-	import.name/pan v0.2.0
+	import.name/pan v0.3.0
 	import.name/sjournal v1.0.0
 	import.name/type v1.0.0
 )

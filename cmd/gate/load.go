@@ -8,8 +8,6 @@ import (
 	"io"
 	"os"
 	"path"
-
-	. "import.name/pan/mustcheck"
 )
 
 func download(filename string, get func() (io.Reader, int64)) {
@@ -23,7 +21,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 	} else {
 		f, err := os.OpenFile(filename, os.O_WRONLY, 0)
 		if err == nil {
-			if info := Must(f.Stat()); info.Mode().IsRegular() {
+			if info := must(f.Stat()); info.Mode().IsRegular() {
 				f.Close()
 				temp = true
 			} else {
@@ -41,7 +39,7 @@ func download(filename string, get func() (io.Reader, int64)) {
 	in, length := get()
 
 	if temp {
-		out = Must(os.CreateTemp(path.Dir(filename), ".*.wasm"))
+		out = must(os.CreateTemp(path.Dir(filename), ".*.wasm"))
 		defer func() {
 			if out != nil {
 				os.Remove(out.Name())
@@ -49,13 +47,13 @@ func download(filename string, get func() (io.Reader, int64)) {
 		}()
 	}
 
-	if Must(io.Copy(out, in)) != length {
+	if must(io.Copy(out, in)) != length {
 		fatal(io.ErrUnexpectedEOF)
 	}
-	Check(out.Close())
+	z.Check(out.Close())
 
 	if temp {
-		Check(os.Rename(out.Name(), filename))
+		z.Check(os.Rename(out.Name(), filename))
 		out = nil
 	}
 }

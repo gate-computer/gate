@@ -51,9 +51,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"import.name/confi"
-	"import.name/pan"
 
-	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -118,7 +116,9 @@ var (
 
 func Main() {
 	defer func() {
-		pan.Fatal(recover())
+		if err := z.Error(recover()); err != nil {
+			log.Fatal(err)
+		}
 	}()
 
 	os.Exit(mainResult())
@@ -155,7 +155,7 @@ func mainResult() int {
 	cmdconf.Parse(c, flags, true, DefaultConfigFiles...)
 
 	if defaultDB {
-		if len(c.Inventory) == 1 && Must(confi.Get(c, "inventory.sql.driver")) == DefaultDatabaseDriver && Must(confi.Get(c, "inventory.sql.dsn")) == "" {
+		if len(c.Inventory) == 1 && must(confi.Get(c, "inventory.sql.driver")) == DefaultDatabaseDriver && must(confi.Get(c, "inventory.sql.dsn")) == "" {
 			confi.MustSet(c, "inventory.sql.dsn", cmdconf.ExpandEnv(DefaultInventoryDSN))
 		}
 	}
@@ -190,41 +190,41 @@ func mainResult() int {
 	c.HTTP.AddEvent = tracing.EventAdder()
 	c.HTTP.DetachTrace = tracing.TraceDetacher()
 
-	c.Principal.Services = Must(services.Init(context.Background(), &originConfig, &randomConfig, log))
+	c.Principal.Services = must(services.Init(context.Background(), &originConfig, &randomConfig, log))
 
-	exec := Must(runtime.NewExecutor(&c.Runtime.Config))
+	exec := must(runtime.NewExecutor(&c.Runtime.Config))
 	defer exec.Close()
 
-	Check(clearCaps())
+	z.Check(clearCaps())
 
 	var storage image.Storage = image.Memory
 	if c.Image.StateDir != "" {
-		Check(os.MkdirAll(c.Image.StateDir, 0o755))
-		fs := Must(image.NewFilesystem(c.Image.StateDir))
+		z.Check(os.MkdirAll(c.Image.StateDir, 0o755))
+		fs := must(image.NewFilesystem(c.Image.StateDir))
 		defer fs.Close()
 		storage = image.CombinedStorage(fs, image.PersistentMemory(fs))
 	}
 
-	conn := Must(dbus.SessionBusPrivate())
+	conn := must(dbus.SessionBusPrivate())
 	defer conn.Close()
-	Check(conn.Auth(nil))
-	Check(conn.Hello())
+	z.Check(conn.Auth(nil))
+	z.Check(conn.Hello())
 	ctx := conn.Context()
 
 	signal.Ignore(syscall.SIGHUP)
 	signal.Notify(terminate, syscall.SIGINT, syscall.SIGTERM)
 
-	inventoryDB := Must(database.Resolve(c.Inventory))
+	inventoryDB := must(database.Resolve(c.Inventory))
 	defer inventoryDB.Close()
-	inventory := Must(inventoryDB.InitInventory(ctx))
+	inventory := must(inventoryDB.InitInventory(ctx))
 
 	ctx = principal.ContextWithLocalID(ctx)
 
 	inited := make(chan api.Server, 1)
 	defer close(inited)
-	Check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
+	z.Check(conn.ExportMethodTable(methods(ctx, inited), bus.DaemonPath, bus.DaemonIface))
 
-	reply := Must(conn.RequestName(bus.DaemonIface, dbus.NameFlagDoNotQueue))
+	reply := must(conn.RequestName(bus.DaemonIface, dbus.NameFlagDoNotQueue))
 	switch reply {
 	case dbus.RequestNameReplyPrimaryOwner:
 		// ok
@@ -245,15 +245,14 @@ func mainResult() int {
 		c.Server.ProcessFactory = runtime.PrepareProcesses(ctx, exec, n)
 	}
 
-	s := Must(server.New(ctx, &c.Server.Config))
+	s := must(server.New(ctx, &c.Server.Config))
 	defer s.Shutdown(ctx)
 
 	httpDone := make(chan error, 1)
 	if c.HTTP.Addr != "" {
-		host, port, err := net.SplitHostPort(c.HTTP.Addr)
-		Check(err)
+		host, port := must2(net.SplitHostPort(c.HTTP.Addr))
 		if host == "" {
-			Check(errors.New("HTTP hostname must be configured explicitly"))
+			z.Check(errors.New("HTTP hostname must be configured explicitly"))
 		}
 		verifyLoopbackHost("HTTP", host)
 
@@ -266,11 +265,11 @@ func mainResult() int {
 		}
 
 		if len(c.HTTP.Origins) == 0 {
-			Check(errors.New("no HTTP origins configured"))
+			z.Check(errors.New("no HTTP origins configured"))
 		}
 		for _, origin := range c.HTTP.Origins {
 			if origin != "" && origin != "null" {
-				u := Must(url.Parse(origin))
+				u := must(url.Parse(origin))
 				verifyLoopbackHost("HTTP origin", u.Hostname())
 			}
 		}
@@ -287,12 +286,12 @@ func mainResult() int {
 
 	inited <- s
 
-	Must(daemon.SdNotify(false, daemon.SdNotifyReady))
+	must(daemon.SdNotify(false, daemon.SdNotifyReady))
 
 	select {
 	case <-terminate:
 	case err := <-httpDone:
-		Check(err)
+		z.Check(err)
 	}
 
 	daemon.SdNotify(false, daemon.SdNotifyStopping)
@@ -300,9 +299,9 @@ func mainResult() int {
 }
 
 func verifyLoopbackHost(errorDesc, host string) {
-	for _, ip := range Must(net.LookupIP(host)) {
+	for _, ip := range must(net.LookupIP(host)) {
 		if !ip.IsLoopback() {
-			Check(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
+			z.Check(fmt.Errorf("%s hostname %q resolves to non-loopback IP address: %s", errorDesc, host, ip))
 		}
 	}
 }
@@ -320,7 +319,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 		if initedServer != nil {
 			return initedServer
 		}
-		panic(pan.Wrap(errors.New("daemon initialization was aborted")))
+		panic(z.Wrap(errors.New("daemon initialization was aborted")))
 	}
 
 	methods := map[string]any{
@@ -374,7 +373,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			defer func() { err = asBusError(recover()) }()
 			ctx, span := startSpan(ctx, "DeleteInstance", traceID, spanID)
 			defer span.End()
-			Check(s().DeleteInstance(ctx, instanceID))
+			z.Check(s().DeleteInstance(ctx, instanceID))
 			return
 		},
 
@@ -404,7 +403,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			defer func() { err = asBusError(recover()) }()
 			ctx, span := startSpan(ctx, "GetModuleInfo", traceID, spanID)
 			defer span.End()
-			tags = Must(s().ModuleInfo(ctx, moduleID)).Tags
+			tags = must(s().ModuleInfo(ctx, moduleID)).Tags
 			return
 		},
 
@@ -472,7 +471,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 				Pin:  true,
 				Tags: tags,
 			}
-			Check(s().PinModule(ctx, moduleID, opt))
+			z.Check(s().PinModule(ctx, moduleID, opt))
 			return
 		},
 
@@ -480,7 +479,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			defer func() { err = asBusError(recover()) }()
 			ctx, span := startSpan(ctx, "KillInstance", traceID, spanID)
 			defer span.End()
-			Must(s().KillInstance(ctx, instanceID))
+			must(s().KillInstance(ctx, instanceID))
 			return
 		},
 
@@ -501,7 +500,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			ctx, span := startSpan(ctx, "Snapshot", traceID, spanID)
 			defer span.End()
 			moduleOpt := moduleOptions(true, moduleTags)
-			moduleID = Must(s().Snapshot(ctx, instanceID, moduleOpt))
+			moduleID = must(s().Snapshot(ctx, instanceID, moduleOpt))
 			return
 		},
 
@@ -509,7 +508,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			defer func() { err = asBusError(recover()) }()
 			ctx, span := startSpan(ctx, "SuspendInstance", traceID, spanID)
 			defer span.End()
-			Must(s().SuspendInstance(ctx, instanceID))
+			must(s().SuspendInstance(ctx, instanceID))
 			return
 		},
 
@@ -517,7 +516,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			defer func() { err = asBusError(recover()) }()
 			ctx, span := startSpan(ctx, "UnpinModule", traceID, spanID)
 			defer span.End()
-			Check(s().UnpinModule(ctx, moduleID))
+			z.Check(s().UnpinModule(ctx, moduleID))
 			return
 		},
 
@@ -529,7 +528,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 				Persist: persist,
 				Tags:    tags,
 			}
-			Must(s().UpdateInstance(ctx, instanceID, update))
+			must(s().UpdateInstance(ctx, instanceID, update))
 			return
 		},
 
@@ -556,7 +555,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 }
 
 func listModules(ctx Context, s api.Server) []string {
-	refs := Must(s.Modules(ctx))
+	refs := must(s.Modules(ctx))
 	ids := make([]string, 0, len(refs.Modules))
 	for _, ref := range refs.Modules {
 		ids = append(ids, ref.Module)
@@ -565,9 +564,7 @@ func listModules(ctx Context, s api.Server) []string {
 }
 
 func downloadModule(ctx Context, s api.Server, moduleID string) (io.ReadCloser, int64) {
-	stream, length, err := s.ModuleContent(ctx, moduleID)
-	Check(err)
-	return stream, length
+	return must2(s.ModuleContent(ctx, moduleID))
 }
 
 func uploadModule(ctx Context, s api.Server, file *os.File, length int64, hash string, opt *api.ModuleOptions) string {
@@ -578,7 +575,7 @@ func uploadModule(ctx Context, s api.Server, file *os.File, length int64, hash s
 	}
 	defer upload.Close()
 
-	return Must(s.UploadModule(ctx, upload, opt))
+	return must(s.UploadModule(ctx, upload, opt))
 }
 
 // doCall module id or file.  Module options apply only to module file.
@@ -622,7 +619,7 @@ func doCall(ctx Context, s api.Server, moduleID string, moduleFile *os.File, mod
 	suspend = nil
 
 	wrote = true
-	Check(inst.Connect(ctx, r, w))
+	z.Check(inst.Connect(ctx, r, w))
 	status := inst.Wait(ctx)
 	return inst.ID(), status.State, status.Cause, status.Result
 }
@@ -638,16 +635,15 @@ func doLaunch(ctx Context, s api.Server, moduleID string, moduleFile *os.File, m
 		upload := moduleUpload(moduleFile)
 		defer upload.Close()
 
-		_, inst, err := s.UploadModuleInstance(ctx, upload, moduleOpt, launch)
-		Check(err)
+		_, inst := must2(s.UploadModuleInstance(ctx, upload, moduleOpt, launch))
 		return inst
 	} else {
-		return Must(s.NewInstance(ctx, moduleID, launch))
+		return must(s.NewInstance(ctx, moduleID, launch))
 	}
 }
 
 func listInstances(ctx Context, s api.Server) []string {
-	instances := Must(s.Instances(ctx))
+	instances := must(s.Instances(ctx))
 	ids := make([]string, 0, len(instances.Instances))
 	for _, i := range instances.Instances {
 		ids = append(ids, i.Instance)
@@ -656,12 +652,12 @@ func listInstances(ctx Context, s api.Server) []string {
 }
 
 func getInstanceInfo(ctx Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32, tags []string) {
-	info := Must(s.InstanceInfo(ctx, instanceID))
+	info := must(s.InstanceInfo(ctx, instanceID))
 	return info.Status.State, info.Status.Cause, info.Status.Result, info.Tags
 }
 
 func waitInstance(ctx Context, s api.Server, instanceID string) (state api.State, cause api.Cause, result int32) {
-	status := Must(s.WaitInstance(ctx, instanceID))
+	status := must(s.WaitInstance(ctx, instanceID))
 	return status.State, status.Cause, status.Result
 }
 
@@ -671,7 +667,7 @@ func resumeInstance(ctx Context, s api.Server, instance string, resume *api.Resu
 
 	resume.Invoke = invoke
 
-	Must(s.ResumeInstance(ctx, instance, resume))
+	must(s.ResumeInstance(ctx, instance, resume))
 }
 
 func connectInstance(ctx Context, s api.Server, instanceID string, rFD, wFD dbus.UnixFD) bool {
@@ -694,10 +690,9 @@ func connectInstance(ctx Context, s api.Server, instanceID string, rFD, wFD dbus
 		}
 	}()
 
-	Check(err) // First SetNonblock error.
+	z.Check(err) // First SetNonblock error.
 
-	_, iofunc, err := s.InstanceConnection(ctx, instanceID)
-	Check(err)
+	_, iofunc := must2(s.InstanceConnection(ctx, instanceID))
 	if iofunc == nil {
 		return false
 	}
@@ -713,11 +708,11 @@ func connectInstance(ctx Context, s api.Server, instanceID string, rFD, wFD dbus
 
 func debugInstance(ctx Context, s api.Server, instanceID string, reqBuf []byte) []byte {
 	req := new(api.DebugRequest)
-	Check(proto.Unmarshal(reqBuf, req))
+	z.Check(proto.Unmarshal(reqBuf, req))
 
-	res := Must(s.DebugInstance(ctx, instanceID, req))
+	res := must(s.DebugInstance(ctx, instanceID, req))
 
-	return Must(proto.Marshal(res))
+	return must(proto.Marshal(res))
 }
 
 type access struct {
@@ -766,7 +761,7 @@ func moduleUpload(f *os.File) *api.ModuleUpload {
 		}
 	}
 
-	data := Must(io.ReadAll(f))
+	data := must(io.ReadAll(f))
 
 	return &api.ModuleUpload{
 		Stream: io.NopCloser(bytes.NewReader(data)),
@@ -825,7 +820,7 @@ func asBusError(x any) *dbus.Error {
 	if x == nil {
 		return nil
 	}
-	return dbus.MakeFailedError(pan.Error(x))
+	return dbus.MakeFailedError(z.Error(x))
 }
 
 func newHTTPHandler(api http.Handler, origin string) http.Handler {
@@ -833,13 +828,13 @@ func newHTTPHandler(api http.Handler, origin string) http.Handler {
 
 	for _, static := range c.HTTP.Static {
 		if !strings.HasPrefix(static.URI, "/") {
-			Check(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
+			z.Check(fmt.Errorf("static HTTP URI does not start with slash: %q", static.URI))
 		}
 		if static.Path == "" {
-			Check(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
+			z.Check(fmt.Errorf("filesystem path not specified for static HTTP URI: %q", static.URI))
 		}
 		if strings.HasSuffix(static.URI, "/") != strings.HasSuffix(static.Path, "/") {
-			Check(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
+			z.Check(errors.New("static HTTP URI and filesystem path must both end in slash if one ends in slash"))
 		}
 
 		mux.HandleFunc(static.URI, newStaticHTTPHandler(static.URI, static.Path, origin))

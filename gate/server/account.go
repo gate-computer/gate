@@ -11,7 +11,6 @@ import (
 	"gate.computer/gate/server/internal/error/failrequest"
 	pb "gate.computer/internal/pb/server"
 	"gate.computer/internal/principal"
-	"import.name/pan"
 )
 
 type accountInstance struct {
@@ -89,5 +88,5 @@ func (acc *account) mustCheckUniqueInstanceID(lock serverLock, id string) {
 	if _, found := acc.instances[id]; !found {
 		return
 	}
-	pan.Panic(failrequest.Error(event.FailInstanceIDExists, "duplicate instance id"))
+	z.Panic(failrequest.Error(event.FailInstanceIDExists, "duplicate instance id"))
 }

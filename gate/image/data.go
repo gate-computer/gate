@@ -14,9 +14,6 @@ import (
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa/opcode"
 	"golang.org/x/sys/unix"
-
-	"import.name/pan"
-	. "import.name/pan/mustcheck"
 )
 
 // mustMakeDataSection splits memory into segments, skipping long ranges of
@@ -45,11 +42,11 @@ func mustMakeDataSection(f *file.File, offset int64, memory []byte) []byte {
 }
 
 func mustScanDataHoles(buf *bytes.Buffer, f *file.File, base int64, memory []byte) (count int) {
-	fd := Must(unix.FcntlInt(f.Fd(), unix.F_DUPFD_CLOEXEC, 0))
+	fd := must(unix.FcntlInt(f.Fd(), unix.F_DUPFD_CLOEXEC, 0))
 	defer unix.Close(fd)
 
 	space := int64(len(memory))
-	data := Must(unix.Seek(fd, base, unix.SEEK_DATA))
+	data := must(unix.Seek(fd, base, unix.SEEK_DATA))
 
 	for data-base < space {
 		hole, err := unix.Seek(fd, data, unix.SEEK_HOLE)
@@ -57,7 +54,7 @@ func mustScanDataHoles(buf *bytes.Buffer, f *file.File, base int64, memory []byt
 			if errors.Is(err, unix.ENXIO) {
 				break
 			}
-			pan.Panic(err)
+			z.Panic(err)
 		}
 
 		count += scanData(buf, memory, data-base, min(hole-base, space))
@@ -67,7 +64,7 @@ func mustScanDataHoles(buf *bytes.Buffer, f *file.File, base int64, memory []byt
 			if errors.Is(err, unix.ENXIO) {
 				break
 			}
-			pan.Panic(err)
+			z.Panic(err)
 		}
 	}
 

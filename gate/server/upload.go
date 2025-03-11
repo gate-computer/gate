@@ -8,18 +8,17 @@ import (
 	"io"
 
 	"gate.computer/gate/server/api"
-	"import.name/pan"
 )
 
 func mustValidateUpload(opt *api.ModuleUpload) {
 	h := api.KnownModuleHash.New()
 
 	if _, err := io.Copy(h, opt.Stream); err != nil {
-		pan.Panic(wrapContentError(err))
+		z.Panic(wrapContentError(err))
 	}
 
 	if err := opt.TakeStream().Close(); err != nil {
-		pan.Panic(wrapContentError(err))
+		z.Panic(wrapContentError(err))
 	}
 
 	mustValidateHashBytes(opt.Hash, h.Sum(nil))

@@ -16,9 +16,6 @@ import (
 	"gate.computer/wag/section"
 	"gate.computer/wag/wa"
 	"gate.computer/wag/wa/opcode"
-	"import.name/pan"
-
-	. "import.name/pan/mustcheck"
 )
 
 const (
@@ -29,7 +26,7 @@ const (
 // Snapshot creates a new program from an instance.  The instance must not be
 // running.
 func Snapshot(oldProg *Program, inst *Instance, buffers *snapshot.Buffers, suspended bool) (newProg *Program, err error) {
-	err = pan.Recover(func() {
+	err = z.Recover(func() {
 		s := mustNewState(oldProg, inst, buffers, suspended)
 		defer s.mustClose()
 		m := mustNewModuleState(s)
@@ -93,7 +90,7 @@ func mustNewState(prog *Program, inst *Instance, buffers *snapshot.Buffers, susp
 		mapSize         = mapMemoryOffset + int(inst.man.MemorySize)
 	)
 
-	s.instMap = Must(mmap(inst.file.FD(), fileOffset, mapSize, syscall.PROT_READ, syscall.MAP_PRIVATE))
+	s.instMap = must(mmap(inst.file.FD(), fileOffset, mapSize, syscall.PROT_READ, syscall.MAP_PRIVATE))
 
 	if mapStackOffset >= 0 {
 		s.stack = s.instMap[mapStackOffset:mapGlobalsOffset]
@@ -156,7 +153,7 @@ func mustNewModuleState(s *state) *moduleState {
 			m.stackData = makeInitStack(s.inst.man.StartFunc, s.inst.man.EntryFunc)
 		} else {
 			m.stackData = make([]byte, len(s.stack))
-			Check(exportStack(m.stackData, s.stack, s.inst.man.TextAddr, &s.prog.Map))
+			z.Check(exportStack(m.stackData, s.stack, s.inst.man.TextAddr, &s.prog.Map))
 		}
 		m.stackHead = makeStackSectionHeader(len(m.stackData))
 	}
@@ -281,7 +278,7 @@ func mustSerializeState(s *state, m *moduleState) *Program {
 		},
 	}
 
-	f := Must(prog.storage.newProgramFile())
+	f := must(prog.storage.newProgramFile())
 	defer func() {
 		if f != nil {
 			f.Close()
@@ -303,7 +300,7 @@ func mustWriteState(f *file.File, s *state) {
 	copyDest := progTextOffset
 	copyFrom := progTextOffset
 
-	Check(copyFileRange(s.prog.file, &copyFrom, f, &copyDest, copySize))
+	z.Check(copyFileRange(s.prog.file, &copyFrom, f, &copyDest, copySize))
 
 	// Instance stack, globals and memory
 
@@ -318,7 +315,7 @@ func mustWriteState(f *file.File, s *state) {
 		copyFrom -= int64(stackPageSize)
 	}
 
-	Check(copyFileRange(s.inst.file, &copyFrom, f, &copyDest, copySize))
+	z.Check(copyFileRange(s.inst.file, &copyFrom, f, &copyDest, copySize))
 }
 
 func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
@@ -327,7 +324,7 @@ func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
 	copyFromModule := func(r *pb.ByteRange) {
 		if r.GetSize() > 0 {
 			from := progModuleOffset + r.Start
-			Check(copyFileRange(s.prog.file, &from, f, &dest, int(r.Size)))
+			z.Check(copyFileRange(s.prog.file, &from, f, &dest, int(r.Size)))
 		}
 	}
 
@@ -337,12 +334,12 @@ func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
 		copyFromModule(s.prog.man.Sections[i])
 	}
 
-	dest += int64(Must(f.WriteAt(m.memory, dest)))
-	dest += int64(Must(f.WriteAt(m.global, dest)))
-	dest += int64(Must(f.WriteAt(m.snapshot, dest)))
+	dest += int64(must(f.WriteAt(m.memory, dest)))
+	dest += int64(must(f.WriteAt(m.global, dest)))
+	dest += int64(must(f.WriteAt(m.snapshot, dest)))
 
 	if len(m.exportWrap) > 0 {
-		dest += int64(Must(f.WriteAt(m.exportWrap, dest)))
+		dest += int64(must(f.WriteAt(m.exportWrap, dest)))
 	}
 
 	for i := section.Export; i <= section.Code; i++ {
@@ -350,16 +347,16 @@ func mustWriteModuleState(f *file.File, s *state, m *moduleState) {
 	}
 
 	if len(m.bufferHead) > 0 {
-		dest += int64(Must(f.WriteAt(m.bufferHead, dest)))
-		dest += int64(Must(writeBufferSectionDataAt(f, s.buffers, dest)))
+		dest += int64(must(f.WriteAt(m.bufferHead, dest)))
+		dest += int64(must(writeBufferSectionDataAt(f, s.buffers, dest)))
 	}
 
 	if len(m.stackHead) > 0 {
-		dest += int64(Must(f.WriteAt(m.stackHead, dest)))
-		dest += int64(Must(f.WriteAt(m.stackData, dest)))
+		dest += int64(must(f.WriteAt(m.stackHead, dest)))
+		dest += int64(must(f.WriteAt(m.stackData, dest)))
 	}
 
-	dest += int64(Must(f.WriteAt(m.data, dest)))
+	dest += int64(must(f.WriteAt(m.data, dest)))
 
 	// Trailing custom sections
 	from := programSectionsEnd(s.prog.man)

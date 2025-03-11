@@ -26,7 +26,6 @@ import (
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	. "import.name/pan/mustcheck"
 	. "import.name/type/context"
 )
 
@@ -216,7 +215,7 @@ func initHandleAPI(mux *http.ServeMux, pattern string, s *webserver, features *a
 
 	if s.identityKey == nil {
 		header := (&web.TokenHeader{Alg: web.SignAlgNone}).MustEncode()
-		claims := base64.RawURLEncoding.EncodeToString(Must(json.Marshal(web.APIClaims{
+		claims := base64.RawURLEncoding.EncodeToString(must(json.Marshal(web.APIClaims{
 			Iss:  s.identity,
 			UUID: id,
 		})))
@@ -224,7 +223,7 @@ func initHandleAPI(mux *http.ServeMux, pattern string, s *webserver, features *a
 	} else {
 		key := web.PublicKeyEd25519(s.identityKey.Public().(ed25519.PublicKey))
 		header := web.TokenHeaderEdDSA(key).MustEncode()
-		claims := base64.RawURLEncoding.EncodeToString(Must(json.Marshal(web.APIClaims{
+		claims := base64.RawURLEncoding.EncodeToString(must(json.Marshal(web.APIClaims{
 			Exp:  time.Now().Add(90 * 24 * time.Hour).Unix(),
 			Iss:  s.identity,
 			UUID: id,
@@ -816,7 +815,7 @@ func handleModuleList(w http.ResponseWriter, r *http.Request, s *webserver) {
 		return
 	}
 
-	content := Must(protojson.Marshal(infos))
+	content := must(protojson.Marshal(infos))
 	w.Header().Set(web.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(web.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
@@ -834,7 +833,7 @@ func handleKnownModule(w http.ResponseWriter, r *http.Request, s *webserver, key
 		return
 	}
 
-	content := Must(protojson.Marshal(info))
+	content := must(protojson.Marshal(info))
 	w.Header().Set(web.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(web.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
@@ -991,7 +990,7 @@ func handleCall(w http.ResponseWriter, r *http.Request, s *webserver, op api.Op,
 	status := inst.Wait(ctx)
 
 	if trailer {
-		w.Header().Set(web.HeaderStatus, string(Must(protojson.Marshal(status))))
+		w.Header().Set(web.HeaderStatus, string(must(protojson.Marshal(status))))
 	}
 }
 
@@ -1231,7 +1230,7 @@ func handleInstanceList(w http.ResponseWriter, r *http.Request, s *webserver) {
 		return
 	}
 
-	content := Must(protojson.Marshal(instances))
+	content := must(protojson.Marshal(instances))
 	w.Header().Set(web.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(web.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
@@ -1262,7 +1261,7 @@ func handleInstanceInfo(w http.ResponseWriter, r *http.Request, s *webserver, in
 		return
 	}
 
-	content := Must(protojson.Marshal(info))
+	content := must(protojson.Marshal(info))
 	w.Header().Set(web.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(web.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
@@ -1280,7 +1279,7 @@ func handleInstanceStatus(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	w.Header().Set(web.HeaderStatus, string(Must(protojson.Marshal(status))))
+	w.Header().Set(web.HeaderStatus, string(must(protojson.Marshal(status))))
 	w.WriteHeader(http.StatusOK)
 }
 
@@ -1297,7 +1296,7 @@ func handleInstanceWaiter(w http.ResponseWriter, r *http.Request, s *webserver, 
 
 	if wait {
 		status := inst.Wait(ctx)
-		w.Header().Set(web.HeaderStatus, string(Must(protojson.Marshal(status))))
+		w.Header().Set(web.HeaderStatus, string(must(protojson.Marshal(status))))
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -1361,7 +1360,7 @@ func handleInstanceIO(ctx Context, w http.ResponseWriter, r *http.Request, s *we
 	status := iofunc(ctx, r.Body, nopCloser{w})
 
 	if acceptsTrailers(r) {
-		w.Header().Set(web.HeaderStatus, string(Must(protojson.Marshal(status))))
+		w.Header().Set(web.HeaderStatus, string(must(protojson.Marshal(status))))
 	}
 }
 
@@ -1494,7 +1493,7 @@ func handleInstanceUpdate(w http.ResponseWriter, r *http.Request, s *webserver, 
 		return
 	}
 
-	content := Must(protojson.Marshal(info))
+	content := must(protojson.Marshal(info))
 	w.Header().Set(web.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(web.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)
@@ -1519,7 +1518,7 @@ func handleInstanceDebug(w http.ResponseWriter, r *http.Request, s *webserver, i
 		return
 	}
 
-	content := Must(protojson.Marshal(res))
+	content := must(protojson.Marshal(res))
 	w.Header().Set(web.HeaderContentLength, strconv.Itoa(len(content)))
 	w.Header().Set(web.HeaderContentType, contentTypeJSON)
 	w.WriteHeader(http.StatusOK)

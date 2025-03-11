@@ -24,9 +24,6 @@ import (
 	"gate.computer/internal/error/badmodule"
 	"gate.computer/wag/compile"
 	"gate.computer/wag/object"
-	"import.name/pan"
-
-	. "import.name/pan/mustcheck"
 )
 
 var errModuleSizeMismatch = &badmodule.Dual{
@@ -51,11 +48,11 @@ func validateModuleSHA256Form(s string) ([]byte, error) {
 }
 
 func mustValidateHashBytes(hash1 string, digest2 []byte) {
-	digest1 := Must(validateModuleSHA256Form(hash1))
+	digest1 := must(validateModuleSHA256Form(hash1))
 	if subtle.ConstantTimeCompare(digest1, digest2) == 1 {
 		return
 	}
-	pan.Panic(failrequest.Error(event.FailModuleHashMismatch, "module hash does not match content"))
+	z.Panic(failrequest.Error(event.FailModuleHashMismatch, "module hash does not match content"))
 }
 
 type program struct {
@@ -82,37 +79,37 @@ func mustBuildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPoli
 
 	var codeMap object.CallMap
 
-	b := Must(build.New(storage, int(mod.Length), progPolicy.MaxTextSize, &codeMap, instPolicy != nil))
+	b := must(build.New(storage, int(mod.Length), progPolicy.MaxTextSize, &codeMap, instPolicy != nil))
 	defer b.Close()
 
 	hasher := api.KnownModuleHash.New()
 	r := compile.NewLoader(bufio.NewReader(io.TeeReader(io.TeeReader(content, b.Image.ModuleWriter()), hasher)))
 
 	b.InstallEarlySnapshotLoaders()
-	b.Module = Must(compile.LoadInitialSections(b.ModuleConfig(), r))
+	b.Module = must(compile.LoadInitialSections(b.ModuleConfig(), r))
 
 	b.StackSize = progPolicy.MaxStackSize
 	if instPolicy != nil {
 		if b.StackSize > instPolicy.StackSize {
 			b.StackSize = instPolicy.StackSize
 		}
-		Check(b.SetMaxMemorySize(instPolicy.MaxMemorySize))
+		z.Check(b.SetMaxMemorySize(instPolicy.MaxMemorySize))
 	}
 
-	Check(b.BindFunctions(entryName))
-	Check(compile.LoadCodeSection(b.CodeConfig(&codeMap), r, b.Module, abi.Library()))
-	Check(b.VerifyBreakpoints())
+	z.Check(b.BindFunctions(entryName))
+	z.Check(compile.LoadCodeSection(b.CodeConfig(&codeMap), r, b.Module, abi.Library()))
+	z.Check(b.VerifyBreakpoints())
 	b.InstallSnapshotDataLoaders()
-	Check(compile.LoadCustomSections(&b.Config, r))
-	Check(b.FinishImageText())
+	z.Check(compile.LoadCustomSections(&b.Config, r))
+	z.Check(b.FinishImageText())
 	b.InstallLateSnapshotLoaders()
-	Check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
-	Check(compile.LoadCustomSections(&b.Config, r))
+	z.Check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
+	z.Check(compile.LoadCustomSections(&b.Config, r))
 
 	c := content
 	content = nil
 	if err := c.Close(); err != nil {
-		pan.Panic(wrapContentError(err))
+		z.Panic(wrapContentError(err))
 	}
 
 	actualHash := hasher.Sum(nil)
@@ -120,12 +117,12 @@ func mustBuildProgram(storage image.Storage, progPolicy *ProgramPolicy, instPoli
 		mustValidateHashBytes(mod.Hash, actualHash)
 	}
 
-	progImage := Must(b.FinishProgramImage())
+	progImage := must(b.FinishProgramImage())
 	defer closeProgramImage(&progImage)
 
 	var inst *image.Instance
 	if instPolicy != nil {
-		inst = Must(b.FinishInstanceImage(progImage))
+		inst = must(b.FinishInstanceImage(progImage))
 	}
 
 	prog := newProgram(api.EncodeKnownModule(actualHash), progImage, b.Buffers, false)
@@ -187,35 +184,35 @@ func (prog *program) mustEnsureStorage() {
 	if prog.stored {
 		return
 	}
-	Check(prog.image.Store(prog.id))
+	z.Check(prog.image.Store(prog.id))
 	prog.stored = true
 }
 
 func mustRebuildProgramImage(storage image.Storage, progPolicy *ProgramPolicy, content io.Reader, breakpoints []uint64) (*image.Program, *object.CallMap) {
 	callMap := new(object.CallMap)
 
-	b := Must(build.New(storage, 0, progPolicy.MaxTextSize, callMap, false))
+	b := must(build.New(storage, 0, progPolicy.MaxTextSize, callMap, false))
 	defer b.Close()
 
 	r := compile.NewLoader(bufio.NewReader(content))
 	b.InstallEarlySnapshotLoaders()
-	b.Module = Must(compile.LoadInitialSections(b.ModuleConfig(), r))
+	b.Module = must(compile.LoadInitialSections(b.ModuleConfig(), r))
 	b.StackSize = progPolicy.MaxStackSize
-	Check(b.BindFunctions(""))
+	z.Check(b.BindFunctions(""))
 
 	if b.Snapshot == nil {
 		b.Snapshot = new(snapshot.Snapshot)
 	}
 	b.Snapshot.Breakpoints = append([]uint64(nil), breakpoints...)
 
-	Check(compile.LoadCodeSection(b.CodeConfig(callMap), r, b.Module, abi.Library()))
-	Check(b.VerifyBreakpoints())
+	z.Check(compile.LoadCodeSection(b.CodeConfig(callMap), r, b.Module, abi.Library()))
+	z.Check(b.VerifyBreakpoints())
 	b.InstallSnapshotDataLoaders()
-	Check(compile.LoadCustomSections(&b.Config, r))
-	Check(b.FinishImageText())
+	z.Check(compile.LoadCustomSections(&b.Config, r))
+	z.Check(b.FinishImageText())
 	b.InstallLateSnapshotLoaders()
-	Check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
-	progImage := Must(b.FinishProgramImage())
+	z.Check(compile.LoadDataSection(b.DataConfig(), r, b.Module))
+	progImage := must(b.FinishProgramImage())
 
 	return progImage, callMap
 }

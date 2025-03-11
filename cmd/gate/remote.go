@@ -25,8 +25,6 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/encoding/protojson"
-
-	. "import.name/pan/mustcheck"
 )
 
 var remoteCommands = map[string]command{
@@ -89,7 +87,7 @@ var remoteCommands = map[string]command{
 		usage: "instance [command [offset...]]",
 		do: func() {
 			debug(func(instID string, debug *pb.DebugRequest) *pb.DebugResponse {
-				debugJSON := Must(protojson.Marshal(debug))
+				debugJSON := must(protojson.Marshal(debug))
 
 				params := url.Values{
 					web.ParamAction: []string{web.ActionDebug},
@@ -107,7 +105,7 @@ var remoteCommands = map[string]command{
 				_, resp := doHTTP(req, web.PathInstances+instID, params)
 
 				res := new(pb.DebugResponse)
-				Check(protojson.Unmarshal(Must(io.ReadAll(resp.Body)), res))
+				z.Check(protojson.Unmarshal(must(io.ReadAll(resp.Body)), res))
 				return res
 			})
 		},
@@ -167,7 +165,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, web.PathInstances, nil)
 
 			var is web.Instances
-			Check(json.NewDecoder(resp.Body).Decode(&is))
+			z.Check(json.NewDecoder(resp.Body).Decode(&is))
 
 			sort.SliceStable(is.Instances, func(i, j int) bool {
 				return is.Instances[i].Instance < is.Instances[j].Instance
@@ -191,7 +189,7 @@ var remoteCommands = map[string]command{
 			}
 
 			_, resp := doHTTP(req, web.PathInstances+flag.Arg(0), params)
-			Must(io.Copy(os.Stdout, resp.Body))
+			must(io.Copy(os.Stdout, resp.Body))
 		},
 	},
 
@@ -289,7 +287,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, web.PathKnownModules, nil)
 
 			var refs web.Modules
-			Check(json.NewDecoder(resp.Body).Decode(&refs))
+			z.Check(json.NewDecoder(resp.Body).Decode(&refs))
 
 			sort.SliceStable(refs.Modules, func(i, j int) bool {
 				return refs.Modules[i].Module < refs.Modules[j].Module
@@ -328,13 +326,12 @@ var remoteCommands = map[string]command{
 			}
 
 			var d websocket.Dialer
-			conn, _, err := d.Dial(makeWebsocketURL(web.PathInstances+flag.Arg(0), params), nil)
-			Check(err)
+			conn, _ := must2(d.Dial(makeWebsocketURL(web.PathInstances+flag.Arg(0), params), nil))
 
-			Check(conn.WriteJSON(web.IO{Authorization: makeAuthorization()}))
+			z.Check(conn.WriteJSON(web.IO{Authorization: makeAuthorization()}))
 
 			var reply web.IOConnection
-			Check(conn.ReadJSON(&reply))
+			z.Check(conn.ReadJSON(&reply))
 			if !reply.Connected {
 				fatal("connection rejected")
 			}
@@ -365,7 +362,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, web.PathKnownModules+flag.Arg(0), nil)
 
 			var info web.ModuleInfo
-			Check(json.NewDecoder(resp.Body).Decode(&info))
+			z.Check(json.NewDecoder(resp.Body).Decode(&info))
 
 			fmt.Println(info.Tags)
 		},
@@ -408,7 +405,7 @@ var remoteCommands = map[string]command{
 			_, resp := doHTTP(req, web.PathInstances+flag.Arg(0), nil)
 
 			info := new(web.InstanceInfo)
-			Check(json.NewDecoder(resp.Body).Decode(info))
+			z.Check(json.NewDecoder(resp.Body).Decode(info))
 
 			fmt.Printf("%s %s\n", info.Status, info.Tags)
 		},
@@ -451,7 +448,7 @@ var remoteCommands = map[string]command{
 				fatal("no tags")
 			}
 
-			updateJSON := Must(json.Marshal(update))
+			updateJSON := must(json.Marshal(update))
 
 			req := &http.Request{
 				Method: http.MethodPost,
@@ -485,7 +482,7 @@ func discoverRemoteScope(w io.Writer) {
 	_, resp := doHTTP(req, web.Path, params)
 
 	var f web.Features
-	Check(json.NewDecoder(resp.Body).Decode(&f))
+	z.Check(json.NewDecoder(resp.Body).Decode(&f))
 
 	printScope(w, f.Scope)
 }
@@ -505,7 +502,7 @@ func callPost(uri string, params url.Values) web.Status {
 	}
 
 	_, resp := doHTTP(req, uri, params)
-	Must(io.Copy(os.Stdout, resp.Body))
+	must(io.Copy(os.Stdout, resp.Body))
 	return unmarshalStatus(resp.Trailer.Get(web.HeaderStatus))
 }
 
@@ -514,23 +511,21 @@ func callWebsocket(filename string, params url.Values) web.Status {
 
 	url := makeWebsocketURL(web.PathKnownModules+key, params)
 
-	conn, _, err := new(websocket.Dialer).Dial(url, nil)
-	Check(err)
+	conn, _ := must2(new(websocket.Dialer).Dial(url, nil))
 	defer conn.Close()
 
-	Check(conn.WriteJSON(web.Call{
+	z.Check(conn.WriteJSON(web.Call{
 		Authorization: makeAuthorization(),
 		ContentType:   web.ContentTypeWebAssembly,
 		ContentLength: int64(module.Len()),
 	}))
-	Check(conn.WriteMessage(websocket.BinaryMessage, module.Bytes()))
-	Check(conn.ReadJSON(new(web.CallConnection)))
+	z.Check(conn.WriteMessage(websocket.BinaryMessage, module.Bytes()))
+	z.Check(conn.ReadJSON(new(web.CallConnection)))
 
 	// TODO: input
 
 	for {
-		msgType, data, err := conn.ReadMessage()
-		Check(err)
+		msgType, data := must2(conn.ReadMessage())
 
 		switch msgType {
 		case websocket.BinaryMessage:
@@ -538,7 +533,7 @@ func callWebsocket(filename string, params url.Values) web.Status {
 
 		case websocket.TextMessage:
 			var status web.ConnectionStatus
-			Check(json.Unmarshal(data, &status))
+			z.Check(json.Unmarshal(data, &status))
 			return status.Status
 		}
 	}
@@ -567,12 +562,12 @@ func commandInstanceWaiter(action string) {
 }
 
 func loadModule(filename string) (b *bytes.Buffer, key string) {
-	f := Must(os.Open(filename))
+	f := must(os.Open(filename))
 	defer f.Close()
 
 	b = new(bytes.Buffer)
 	h := web.KnownModuleHash.New()
-	Must(io.Copy(h, io.TeeReader(f, b)))
+	must(io.Copy(h, io.TeeReader(f, b)))
 	key = web.EncodeKnownModule(h.Sum(nil))
 	return
 }
@@ -593,7 +588,7 @@ func doHTTP(req *http.Request, uri string, params url.Values) (status web.Status
 		req.Header.Set(web.HeaderAuthorization, auth)
 	}
 
-	resp = Must(http.DefaultClient.Do(req))
+	resp = must(http.DefaultClient.Do(req))
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusNoContent, http.StatusCreated:
@@ -624,13 +619,13 @@ func makeURL(uri string, params url.Values, prelocate bool) *url.URL {
 	var u *url.URL
 
 	if prelocate {
-		resp := Must(http.Head(addr + web.Path))
+		resp := must(http.Head(addr + web.Path))
 		resp.Body.Close()
 
 		u = resp.Request.URL
 		u.Path = u.Path + strings.Replace(uri, web.Path, "", 1)
 	} else {
-		u = Must(url.Parse(addr + uri))
+		u = must(url.Parse(addr + uri))
 	}
 
 	if len(params) > 0 {
@@ -660,7 +655,7 @@ func makeAuthorization() string {
 		return ""
 	}
 
-	aud := Must(url.Parse(c.address))
+	aud := must(url.Parse(c.address))
 	if aud.Scheme == "" {
 		aud.Scheme = "https"
 	}
@@ -675,10 +670,10 @@ func makeAuthorization() string {
 		Scope: scope,
 	}
 
-	identity := Must(os.ReadFile(c.IdentityFile))
+	identity := must(os.ReadFile(c.IdentityFile))
 
 	if len(identity) != 0 {
-		x := Must(ssh.ParseRawPrivateKey(identity))
+		x := must(ssh.ParseRawPrivateKey(identity))
 		privateKey, ok := x.(*ed25519.PrivateKey)
 		if !ok {
 			fatalf("%s: not an Ed25519 private key", c.IdentityFile)
@@ -686,24 +681,24 @@ func makeAuthorization() string {
 
 		publicJWK := web.PublicKeyEd25519(privateKey.Public().(ed25519.PublicKey))
 		jwtHeader := web.TokenHeaderEdDSA(publicJWK)
-		return Must(web.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims))
+		return must(web.AuthorizationBearerEd25519(*privateKey, jwtHeader.MustEncode(), claims))
 	} else {
 		if aud.Scheme != "http" {
 			fatalf("%s scheme with empty identity", aud.Scheme)
 		}
 
-		for _, ip := range Must(net.LookupIP(aud.Hostname())) {
+		for _, ip := range must(net.LookupIP(aud.Hostname())) {
 			if !ip.IsLoopback() {
 				fatalf("non-loopback host with empty identity: %s", ip)
 			}
 		}
 
-		return Must(web.AuthorizationBearerLocal(claims))
+		return must(web.AuthorizationBearerLocal(claims))
 	}
 }
 
 func unmarshalStatus(serialized string) (status web.Status) {
-	Check(json.Unmarshal([]byte(serialized), &status))
+	z.Check(json.Unmarshal([]byte(serialized), &status))
 	if status.Error != "" {
 		fatal(status.String())
 	}

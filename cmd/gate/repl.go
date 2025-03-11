@@ -9,8 +9,6 @@ import (
 
 	"github.com/chzyer/readline"
 	"github.com/gorilla/websocket"
-
-	. "import.name/pan/mustcheck"
 )
 
 type REPLConfig struct {
@@ -19,7 +17,7 @@ type REPLConfig struct {
 }
 
 func repl(r io.Reader, w io.Writer) {
-	rl := Must(readline.NewEx(&readline.Config{
+	rl := must(readline.NewEx(&readline.Config{
 		Prompt:       "> ",
 		HistoryFile:  c.REPL.HistoryFile,
 		HistoryLimit: c.REPL.HistoryLimit,
@@ -50,20 +48,20 @@ func repl(r io.Reader, w io.Writer) {
 	outbuf := []byte("\r\r\r\r\r\r\r\n")
 
 	for {
-		check_(w.Write(outbuf))
+		must(w.Write(outbuf))
 
 		line, err := rl.ReadSlice()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			Check(err)
+			z.Check(err)
 		}
 
 		outbuf = append(line, '\n')
 	}
 
-	Check(<-readErr)
+	z.Check(<-readErr)
 }
 
 type websocketConn struct {
