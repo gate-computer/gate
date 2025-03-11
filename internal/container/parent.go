@@ -19,7 +19,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const magicKey = "TNGREHAGVZRPBAGNVARE"
+const magicKey = "GATETNGREHAGVZRPBAGNVARE"
 
 var (
 	executable = "/proc/self/exe"
