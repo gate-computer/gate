@@ -49,7 +49,7 @@ func Start(controlSocket *os.File, c *config.Config, cred *NamespaceCreds) (*exe
 	cmd := &exec.Cmd{
 		Path:   executable,
 		Args:   []string{common.ContainerFilename},
-		Env:    append(append([]string{}, os.Environ()...), magicKey+"="+magicValue),
+		Env:    append(os.Environ(), magicKey+"="+magicValue),
 		Stderr: os.Stderr,
 		ExtraFiles: []*os.File{
 			controlSocket,
