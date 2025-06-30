@@ -12,6 +12,6 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
 	github.com/naoina/toml v0.1.1 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
 	import.name/sjournal v1.0.0 // indirect
 )

@@ -10,9 +10,8 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/gorilla/handlers v1.5.2
 	go.opentelemetry.io/otel/trace v1.34.0
-	golang.org/x/crypto v0.32.0
+	golang.org/x/crypto v0.39.0
 	import.name/confi v1.6.0
-	import.name/pan v0.2.0
 	import.name/type v1.0.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.66
 	modernc.org/sqlite v1.34.5
@@ -37,14 +36,15 @@ require (
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel v1.34.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect
-	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241223144023-3abc09e42ca8 // indirect
 	google.golang.org/grpc v1.70.0 // indirect
 	google.golang.org/protobuf v1.36.4 // indirect
 	import.name/flux v1.0.0 // indirect
 	import.name/lock v1.1.0 // indirect
+	import.name/pan v0.2.0 // indirect
 	import.name/sjournal v1.0.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.66 // indirect
 	modernc.org/libc v1.55.3 // indirect
