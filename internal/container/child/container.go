@@ -20,7 +20,7 @@ import (
 
 // Additional file descriptors passed from container to executor.
 const (
-	procFD = 7
+	executorProcFD = 7
 )
 
 const (
@@ -105,15 +105,13 @@ func setrlimit(name string, resource int, value uint64) error {
 	return nil
 }
 
-func openProcPath(path string) error {
+// openProcPath without close-on-exec flag.
+func openProcPath(path string) (int, error) {
 	fd, err := syscall.Open(path, unix.O_PATH|unix.O_DIRECTORY, 0)
 	if err != nil {
-		return fmt.Errorf("opening %s: %w", path, err)
+		return -1, fmt.Errorf("opening %s: %w", path, err)
 	}
-	if fd != procFD {
-		return fmt.Errorf("unexpected file descriptor allocated for procfs: %d", fd)
-	}
-	return nil
+	return fd, nil
 }
 
 func setCred(id int) error {
@@ -127,72 +125,74 @@ func setCred(id int) error {
 	return nil
 }
 
-func furnishNamespaces() error {
+func furnishNamespaces() (procFD int, err error) {
 	// UTS namespace
 
 	if err := syscall.Sethostname(nil); err != nil {
-		return fmt.Errorf("setting hostname to empty string: %w", err)
+		return -1, fmt.Errorf("setting hostname to empty string: %w", err)
 	}
 
 	if err := syscall.Setdomainname(nil); err != nil {
-		return fmt.Errorf("setting domain name to empty string: %w", err)
+		return -1, fmt.Errorf("setting domain name to empty string: %w", err)
 	}
 
 	// Mount namespace
 
 	if err := syscall.Mount("", "/", "", unix.MS_PRIVATE|unix.MS_REC, ""); err != nil {
-		return fmt.Errorf("remounting old root as private recursively: %w", err)
+		return -1, fmt.Errorf("remounting old root as private recursively: %w", err)
 	}
 
 	var mountOptions uintptr = unix.MS_NODEV | unix.MS_NOEXEC | unix.MS_NOSUID
 
 	// Abuse /tmp as staging area for new root.
 	if err := syscall.Mount("tmpfs", "/tmp", "tmpfs", mountOptions, "mode=0,nr_blocks=1,nr_inodes=2"); err != nil {
-		return fmt.Errorf("mounting small tmpfs at /tmp: %w", err)
+		return -1, fmt.Errorf("mounting small tmpfs at /tmp: %w", err)
 	}
 
 	if err := os.Mkdir("/tmp/proc", 0); err != nil {
-		return err
+		return -1, err
 	}
 
 	// For some reason this causes EPERM if done after pivot_root...
 	if err := syscall.Mount("proc", "/tmp/proc", "proc", mountOptions, "hidepid=2"); err != nil {
-		return fmt.Errorf("mounting /tmp/proc: %w", err)
+		return -1, fmt.Errorf("mounting /tmp/proc: %w", err)
 	}
 
-	if err := openProcPath("/tmp/proc"); err != nil {
-		return err
+	procFD, err = openProcPath("/tmp/proc")
+	if err != nil {
+		return -1, err
 	}
+	// procFD is leaked on error.
 
 	if err := syscall.Unmount("/tmp/proc", unix.MNT_DETACH); err != nil {
-		return fmt.Errorf("unmounting /tmp/proc: %w", err)
+		return -1, fmt.Errorf("unmounting /tmp/proc: %w", err)
 	}
 
 	if err := os.Remove("/tmp/proc"); err != nil {
-		return err
+		return -1, err
 	}
 
 	if err := os.Mkdir("/tmp/x", 0); err != nil {
-		return err
+		return -1, err
 	}
 
 	if err := syscall.PivotRoot("/tmp", "/tmp/x"); err != nil {
-		return fmt.Errorf("pivoting root: %w", err)
+		return -1, fmt.Errorf("pivoting root: %w", err)
 	}
 
 	if err := os.Chdir("/"); err != nil {
-		return err
+		return -1, err
 	}
 
 	if err := syscall.Unmount("/x", unix.MNT_DETACH); err != nil {
-		return fmt.Errorf("unmounting old root: %w", err)
+		return -1, fmt.Errorf("unmounting old root: %w", err)
 	}
 
 	// Sit in the directory so that it remains busy and keeps the filesystem
 	// full inode-wise.
 
 	if err := os.Chdir("/x"); err != nil {
-		return err
+		return -1, err
 	}
 
 	// Read-only filesystem
@@ -200,10 +200,10 @@ func furnishNamespaces() error {
 	mountOptions |= unix.MS_RDONLY
 
 	if err := syscall.Mount("", "/", "", unix.MS_REMOUNT|mountOptions, ""); err != nil {
-		return fmt.Errorf("remounting new root as read-only: %w", err)
+		return -1, fmt.Errorf("remounting new root as read-only: %w", err)
 	}
 
-	return nil
+	return procFD, nil
 }
 
 func Exec() {
@@ -263,6 +263,11 @@ func childMain() error {
 		}
 	}
 
+	var (
+		procFD int
+		err    error
+	)
+
 	if common.Sandbox && !namespaceDisabled {
 		if err := setCred(common.ContainerCred); err != nil {
 			return err
@@ -275,7 +280,8 @@ func childMain() error {
 			}
 		}
 
-		if err := furnishNamespaces(); err != nil {
+		procFD, err = furnishNamespaces()
+		if err != nil {
 			return err
 		}
 
@@ -297,7 +303,8 @@ func childMain() error {
 	} else {
 		fmt.Fprintln(os.Stderr, "container: disabled - sharing namespaces with host!")
 
-		if err := openProcPath("/proc"); err != nil {
+		procFD, err = openProcPath("/proc")
+		if err != nil {
 			return err
 		}
 	}
@@ -336,8 +343,17 @@ func childMain() error {
 		}
 	}
 
+	if procFD != executorProcFD {
+		if err := syscall.Dup3(procFD, executorProcFD, 0); err != nil {
+			return fmt.Errorf("duplicating procFD as executorProcFD: %w", err)
+		}
+		if err := syscall.Close(procFD); err != nil { // It doesn't have the close-on-exec flag.
+			return fmt.Errorf("closing procFD: %w", err)
+		}
+	}
+
 	args := append([]string{common.ExecutorFilename}, os.Args[1:]...)
-	err := execveat(common.ExecutorFD, "", args, nil, unix.AT_EMPTY_PATH)
+	err = execveat(common.ExecutorFD, "", args, nil, unix.AT_EMPTY_PATH)
 	if runtimeDebug {
 		return fmt.Errorf("execveat: %w", err)
 	}
