@@ -143,3 +143,17 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	pluginrpc.com/pluginrpc v0.5.0 // indirect
 )
+
+ignore (
+	./alpine-chroot-install
+	./bin
+	./doc
+	./etc
+	./gate/runtime/executor
+	./gate/runtime/include
+	./gate/runtime/loader
+	./internal/container/child/binary
+	./lib
+	./obj
+	./share
+)
