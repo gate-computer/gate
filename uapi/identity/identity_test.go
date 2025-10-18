@@ -5,18 +5,10 @@
 package identity
 
 import (
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/google/uuid"
 )
-
-func init() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})))
-}
 
 func TestPrincipalID(t *testing.T) {
 	s := <-PrincipalID()
@@ -27,8 +19,8 @@ func TestPrincipalID(t *testing.T) {
 
 func TestInstanceID(t *testing.T) {
 	s := <-InstanceID()
+	t.Logf("instance ID: %q", s)
 	if _, err := uuid.Parse(s); err != nil {
-		t.Logf("instance ID: %q", s)
 		t.Error(err)
 	}
 }

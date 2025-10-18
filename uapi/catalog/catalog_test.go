@@ -6,16 +6,8 @@ package catalog
 
 import (
 	"encoding/json"
-	"log/slog"
-	"os"
 	"testing"
 )
-
-func init() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	})))
-}
 
 func TestJSON(t *testing.T) {
 	b := <-JSON()

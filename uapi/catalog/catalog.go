@@ -19,7 +19,7 @@ var srv = sync.OnceValue(func() *service.Service {
 
 // JSON document describing available services.
 func JSON() <-chan []byte {
-	c := make(chan []byte)
+	c := make(chan []byte, 1)
 	srv().Call([]byte("json"), func(reply []byte) {
 		c <- reply
 	})

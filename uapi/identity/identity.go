@@ -31,7 +31,7 @@ func InstanceID() <-chan string {
 }
 
 func getID(call uint8) <-chan string {
-	c := make(chan string)
+	c := make(chan string, 1)
 	srv().Call([]byte{call}, func(reply []byte) {
 		c <- string(reply)
 	})
