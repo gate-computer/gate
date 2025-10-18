@@ -87,7 +87,7 @@ func Main() {
 		listener = listeners[0].(*net.UnixListener)
 
 	case len(listeners) > 1:
-		log.Error("too many sockets to activate")
+		log.Error("too many sockets")
 		os.Exit(1)
 
 	default:
