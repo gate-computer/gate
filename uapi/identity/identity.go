@@ -22,10 +22,14 @@ var srv = sync.OnceValue(func() *service.Service {
 	})
 })
 
+// PrincipalID gets an id of this program instances's owner, if any.  It may
+// change if the program is suspended and resumed.
 func PrincipalID() <-chan string {
 	return getID(callPrincipalID)
 }
 
+// InstanceID gets the instance id of this program invocation, if there is one.
+// It may change if the program is suspended and resumed.
 func InstanceID() <-chan string {
 	return getID(callInstanceID)
 }
