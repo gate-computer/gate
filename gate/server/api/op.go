@@ -28,6 +28,7 @@ const (
 	OpLaunchExtant     = pb.Op_LAUNCH_EXTANT
 	OpLaunchUpload     = pb.Op_LAUNCH_UPLOAD
 	OpLaunchSource     = pb.Op_LAUNCH_SOURCE
+	OpLaunchHost       = pb.Op_LAUNCH_HOST
 	OpInstanceList     = pb.Op_INSTANCE_LIST
 	OpInstanceInfo     = pb.Op_INSTANCE_INFO
 	OpInstanceConnect  = pb.Op_INSTANCE_CONNECT

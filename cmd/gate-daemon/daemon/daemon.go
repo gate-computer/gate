@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"log/slog"
 	"math"
@@ -45,6 +46,7 @@ import (
 	"gate.computer/otel/trace/tracelink"
 	"gate.computer/otel/trace/tracing"
 	"gate.computer/wag/compile"
+	"github.com/coreos/go-systemd/v22/activation"
 	"github.com/coreos/go-systemd/v22/daemon"
 	"github.com/godbus/dbus/v5"
 	"go.opentelemetry.io/otel"
@@ -96,6 +98,10 @@ type Config struct {
 			URI  string
 			Path string
 		}
+	}
+
+	Unix struct {
+		InstanceSocket string
 	}
 
 	Log struct {
@@ -284,6 +290,36 @@ func mainResult() int {
 		}()
 	}
 
+	var unixListener *net.UnixListener
+
+	switch listeners := must(activation.Listeners()); {
+	case len(listeners) == 0 && c.Unix.InstanceSocket != "":
+		addr := must(net.ResolveUnixAddr("unix", c.Unix.InstanceSocket))
+
+		if info, err := os.Lstat(addr.Name); err == nil && info.Mode()&fs.ModeSocket != 0 {
+			os.Remove(addr.Name)
+		}
+
+		unixListener = must(net.ListenUnix(addr.Net, addr))
+
+	case len(listeners) == 1 && c.Unix.InstanceSocket == "":
+		unixListener = listeners[0].(*net.UnixListener)
+
+	case len(listeners) == 1 && c.Unix.InstanceSocket != "":
+		z.Check(errors.New("unix.instancesocket setting and socket activation must not be used simultaneously"))
+
+	case len(listeners) > 1:
+		z.Check(errors.New("too many sockets"))
+	}
+
+	unixDone := make(chan error, 1)
+	if unixListener != nil {
+		go func() {
+			defer close(unixDone)
+			unixDone <- serveUnix(ctx, s, unixListener)
+		}()
+	}
+
 	inited <- s
 
 	must(daemon.SdNotify(false, daemon.SdNotifyReady))
@@ -291,6 +327,8 @@ func mainResult() int {
 	select {
 	case <-terminate:
 	case err := <-httpDone:
+		z.Check(err)
+	case err := <-unixDone:
 		z.Check(err)
 	}
 
@@ -887,6 +925,24 @@ func newStaticHTTPHandler(staticPattern, staticPath, staticOrigin string) http.H
 		}
 
 		http.ServeFile(w, r, staticFile)
+	}
+}
+
+func serveUnix(ctx Context, s *server.Server, l *net.UnixListener) error {
+	defer l.Close()
+
+	for {
+		conn, err := l.AcceptUnix()
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			defer conn.Close()
+			if err := s.UnixInstance(ctx, conn); err != nil {
+				slog.ErrorContext(ctx, "daemon: host instance", "err", err)
+			}
+		}()
 	}
 }
 

@@ -300,6 +300,8 @@ const (
 
 // Low-level process, tightly coupled with Executor.  See process.go for the
 // high-level Process type.
+//
+// Zero value represents a host process.
 type execProcess struct {
 	executor *Executor
 	id       int32 // Atomic.
@@ -321,6 +323,10 @@ func (p *execProcess) kill()    { p.killSuspend(false, execProcessIDKilled) }
 func (p *execProcess) suspend() { p.killSuspend(true, execProcessIDSuspended) }
 
 func (p *execProcess) killSuspend(suspend bool, replacement int32) {
+	if p.executor == nil {
+		return
+	}
+
 	n := atomic.LoadInt32(&p.id)
 	if n < 0 || !atomic.CompareAndSwapInt32(&p.id, n, replacement) {
 		return
@@ -342,6 +348,10 @@ func (p *execProcess) killSuspend(suspend bool, replacement int32) {
 }
 
 func (p *execProcess) finalize() (status syscall.WaitStatus, err error) {
+	if p.executor == nil {
+		return
+	}
+
 	var (
 		id           int16 = -1
 		killRequests chan<- int16

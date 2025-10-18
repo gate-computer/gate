@@ -179,9 +179,11 @@ func ioLoop2(ctx Context, services ServiceRegistry, subject *Process, frozen *sn
 				}
 				frozen.Output = append(frozen.Output, read.buf...)
 
-				frozen.Input, err = io.ReadAll(subject.writerOut.File())
-				if err != nil {
-					return err
+				if f := subject.writerOut.File(); f != nil { // Unvailable if host process.
+					frozen.Input, err = io.ReadAll(f)
+					if err != nil {
+						return err
+					}
 				}
 
 				var pendingLen int

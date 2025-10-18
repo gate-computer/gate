@@ -7,6 +7,7 @@ package server
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"path"
 	"reflect"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"gate.computer/gate/snapshot"
 	"gate.computer/gate/trap"
 	"gate.computer/internal/dedup"
+	"gate.computer/internal/error/badprogram"
 	"gate.computer/internal/error/subsystem"
 	pb "gate.computer/internal/pb/server"
 	internal "gate.computer/internal/principal"
@@ -110,6 +112,7 @@ type Instance struct {
 	model        *pb.Instance
 	altProgImage *image.Program
 	altCallMap   *object.CallMap
+	host         bool
 	image        *image.Instance
 	process      *runtime.Process
 	services     InstanceServices
@@ -118,7 +121,7 @@ type Instance struct {
 }
 
 // newInstance steals instance image, process, and services.
-func newInstance(id string, acc *account, transient bool, image *image.Instance, buffers *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeResolution time.Duration, tags []string, debugLog io.WriteCloser) *Instance {
+func newInstance(id string, acc *account, transient, host bool, image *image.Instance, buffers *snapshot.Buffers, proc *runtime.Process, services InstanceServices, timeResolution time.Duration, tags []string, debugLog io.WriteCloser) *Instance {
 	return &Instance{
 		id:  id,
 		acc: acc,
@@ -129,6 +132,7 @@ func newInstance(id string, acc *account, transient bool, image *image.Instance,
 			TimeResolution: durationpb.New(timeResolution),
 			Tags:           tags,
 		},
+		host:     host,
 		image:    image,
 		process:  proc,
 		services: services,
@@ -234,14 +238,17 @@ func (inst *Instance) info(module string) *api.InstanceInfo {
 		return nil
 	}
 
-	return &api.InstanceInfo{
+	info := &api.InstanceInfo{
 		Instance:  inst.id,
 		Module:    module,
 		Status:    cloneStatus(inst.model.Status),
 		Transient: inst.model.Transient,
-		Debugging: len(inst.image.Breakpoints()) > 0,
 		Tags:      inst.model.Tags,
 	}
+	if inst.image != nil {
+		info.Debugging = len(inst.image.Breakpoints()) > 0
+	}
+	return info
 }
 
 func (inst *Instance) Wait(ctx Context) (status *api.Status) {
@@ -269,6 +276,10 @@ func (inst *Instance) Kill(ctx Context) error {
 }
 
 func (inst *Instance) kill() {
+	if inst.host {
+		panic("host instance killing not implemented") // XXX
+	}
+
 	proc := inst.getProcess()
 	if proc == nil {
 		return
@@ -279,6 +290,10 @@ func (inst *Instance) kill() {
 
 // Suspend the instance and make it non-transient.
 func (inst *Instance) Suspend(ctx Context) error {
+	if inst.host {
+		return badprogram.Error("host instance cannot be suspended")
+	}
+
 	inst.suspend(true)
 	return nil
 }
@@ -388,6 +403,10 @@ func (inst *Instance) connect(ctx Context) func(Context, io.Reader, io.WriteClos
 }
 
 func (inst *Instance) mustSnapshot(prog *program) (*image.Program, *snapshot.Buffers) {
+	if inst.host {
+		z.Panic(badprogram.Error("host instance cannot be snapshotted"))
+	}
+
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 
@@ -421,12 +440,17 @@ func (inst *Instance) mustAnnihilate() {
 
 func (inst *Instance) annihilate(lock instanceLock) {
 	inst.model.Exists = false
+
+	if inst.host {
+		panic("host instance annihilation not implemented") // XXX
+	}
+
 	inst.image.Unstore()
 	inst.image.Close()
 	inst.image = nil
 }
 
-func (inst *Instance) drive(ctx Context, prog *program, function string, config *Config) (nonexistent bool) {
+func (inst *Instance) drive(ctx Context, prog *program, module, function string, config *Config) (nonexistent bool) {
 	trapID := trap.InternalError
 	res := &api.Status{
 		State: api.StateKilled,
@@ -434,11 +458,13 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 	}
 
 	cleanupFunc := func(lock instanceLock) {
-		if res.State >= api.StateTerminated {
-			inst.image.SetFinal()
+		if inst.image != nil {
+			if res.State >= api.StateTerminated {
+				inst.image.SetFinal()
+			}
+			inst.image.SetTrap(trapID)
+			inst.image.SetResult(res.Result)
 		}
-		inst.image.SetTrap(trapID)
-		inst.image.SetResult(res.Result)
 		inst.model.Status = res
 		inst.stop(lock)
 
@@ -447,7 +473,7 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 			Status:   cloneStatus(inst.model.Status),
 		}, nil)
 
-		if inst.model.Transient {
+		if inst.model.Transient && !inst.host {
 			inst.annihilate(lock)
 			nonexistent = true
 
@@ -471,19 +497,27 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 
 	result, trapID, inst.model.Buffers, err = inst.process.Serve(instanceServingContext(ctx, inst.id), inst.services, inst.model.Buffers)
 	if err != nil {
+		if inst.host {
+			slog.InfoContext(ctx, "host instance disconnected", "err", err)
+		}
+
 		res.Error = api.PublicErrorString(err, res.Error)
 		if trapID == trap.ABIViolation {
 			res.Cause = api.CauseABIViolation
 			config.eventFail(ctx, event.TypeFailRequest, &event.Fail{
 				Type:     event.FailProgramError,
-				Module:   prog.id,
+				Module:   module,
 				Function: function,
 				Instance: inst.id,
 			}, err)
 		} else {
-			config.eventFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "service io", err), err)
+			config.eventFail(ctx, event.TypeFailInternal, internalFail(module, function, inst.id, "service io", err), err)
 		}
 		return
+	}
+
+	if inst.host {
+		slog.InfoContext(ctx, "host instance disconnected")
 	}
 
 	lock := inst.mu.Lock()
@@ -494,19 +528,21 @@ func (inst *Instance) drive(ctx Context, prog *program, function string, config 
 		f(lock)
 	}()
 
-	mutErr := inst.image.CheckMutation()
-	if mutErr != nil && trapID != trap.Killed {
-		res.Error = api.PublicErrorString(mutErr, res.Error)
-		config.eventFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image state", mutErr), mutErr)
-		return
-	}
-
-	if mutErr == nil && !inst.model.Transient {
-		err = inst.store(lock, prog)
-		if err != nil {
-			res.Error = api.PublicErrorString(err, res.Error)
-			config.eventFail(ctx, event.TypeFailInternal, internalFail(prog.id, function, inst.id, "image storage", err), err)
+	if inst.image != nil {
+		mutErr := inst.image.CheckMutation()
+		if mutErr != nil && trapID != trap.Killed {
+			res.Error = api.PublicErrorString(mutErr, res.Error)
+			config.eventFail(ctx, event.TypeFailInternal, internalFail(module, function, inst.id, "image state", mutErr), mutErr)
 			return
+		}
+
+		if mutErr == nil && !inst.model.Transient {
+			err = inst.store(lock, prog)
+			if err != nil {
+				res.Error = api.PublicErrorString(err, res.Error)
+				config.eventFail(ctx, event.TypeFailInternal, internalFail(module, function, inst.id, "image storage", err), err)
+				return
+			}
 		}
 	}
 
@@ -552,6 +588,10 @@ func (inst *Instance) update(update *api.InstanceUpdate) (modified bool) {
 }
 
 func (inst *Instance) mustDebug(ctx Context, prog *program, req *api.DebugRequest) (*instanceRebuild, *api.DebugConfig, *api.DebugResponse) {
+	if inst.host {
+		z.Panic(badprogram.Error("host instance cannot be debugged"))
+	}
+
 	inst.mu.Lock()
 	defer inst.mu.Unlock()
 

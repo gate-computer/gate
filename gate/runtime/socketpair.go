@@ -7,12 +7,10 @@ package runtime
 import (
 	"fmt"
 	"syscall"
-
-	"gate.computer/internal/file"
 )
 
-func socketPipe() (r file.Ref, w *file.File, err error) {
-	p, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
+func socketPipe() (p [2]int, err error) {
+	p, err = syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_STREAM|syscall.SOCK_CLOEXEC, 0)
 	if err != nil {
 		err = fmt.Errorf("socketpair: %w", err)
 		return
@@ -30,7 +28,5 @@ func socketPipe() (r file.Ref, w *file.File, err error) {
 		return
 	}
 
-	r = file.Own(p[0])
-	w = file.New(p[1])
 	return
 }

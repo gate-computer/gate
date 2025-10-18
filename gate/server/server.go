@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"strings"
 
 	"gate.computer/gate/image"
@@ -20,6 +21,7 @@ import (
 	"gate.computer/gate/server/internal/error/failrequest"
 	"gate.computer/gate/server/internal/error/notfound"
 	"gate.computer/gate/server/logging"
+	"gate.computer/gate/snapshot"
 	"gate.computer/gate/source"
 	"gate.computer/internal/error/resourcelimit"
 	"gate.computer/internal/principal"
@@ -338,6 +340,59 @@ func (s *Server) mustLoadUnknownModule(ctx Context, policy *progPolicy, upload *
 	}
 
 	return progID
+}
+
+// UnixInstance connects a host instance to the server.  It's the caller's
+// responsibility to call conn.Close(); it can be done immediately after this
+// function returns (the server retains a duplicate file descriptor).
+func (s *Server) UnixInstance(ctx Context, conn *net.UnixConn) (err error) {
+	if internal.DontPanic() {
+		defer func() { err = z.Error(recover()) }()
+	}
+
+	slog.InfoContext(ctx, "host instance connected")
+
+	ctx, end := s.startOp(ctx, api.OpLaunchHost)
+	defer end(ctx)
+
+	policy := new(instPolicy)
+	ctx = must(s.AccessPolicy.AuthorizeInstance(ctx, &policy.res, &policy.inst))
+
+	acc := s.mustCheckAccountInstanceID(ctx, "")
+	if acc == nil {
+		z.Panic(errAnonymous)
+	}
+
+	proc := must(runtime.NewUnixProcess(conn))
+	defer func() {
+		if proc != nil {
+			proc.Close()
+		}
+	}()
+
+	if policy.inst.Services == nil {
+		z.Panic(PermissionDenied("no service policy"))
+	}
+
+	services := policy.inst.Services(ctx)
+	defer func() {
+		if services != nil {
+			services.Close()
+		}
+	}()
+
+	inst := newInstance(makeInstanceID(), acc, true, true, nil, new(snapshot.Buffers), proc, services, policy.inst.TimeResolution, nil, nil)
+	proc = nil
+	services = nil
+
+	go func() {
+		inst.drive(ctx, nil, "", "", &s.Config)
+		s.deleteNonexistentInstance(inst)
+	}()
+
+	s.eventInstance(ctx, event.TypeInstanceCreateHost, newInstanceCreateInfo(inst.id, "", &api.LaunchOptions{Transient: true}), nil)
+
+	return
 }
 
 func (s *Server) NewInstance(ctx Context, module string, launch *api.LaunchOptions) (_ api.Instance, err error) {
@@ -1293,7 +1348,7 @@ func (s *Server) mustRunOrDeleteInstance(ctx Context, inst *Instance, prog *prog
 func (s *Server) driveInstance(ctx Context, inst *Instance, prog *program, function string) {
 	defer s.unrefProgram(&prog)
 
-	if nonexistent := inst.drive(ctx, prog, function, &s.Config); nonexistent {
+	if nonexistent := inst.drive(ctx, prog, prog.id, function, &s.Config); nonexistent {
 		s.deleteNonexistentInstance(inst)
 	}
 }
@@ -1399,7 +1454,7 @@ func (s *Server) mustRegisterProgramRefInstance(ctx Context, acc *account, prog 
 
 	prog, redundantProg = s.mustMergeProgramRef(lock, prog)
 
-	inst = newInstance(instance, acc, launch.Transient, instImage, prog.buffers, proc, services, policy.TimeResolution, launch.Tags, s.openDebugLog(launch.Invoke))
+	inst = newInstance(instance, acc, launch.Transient, false, instImage, prog.buffers, proc, services, policy.TimeResolution, launch.Tags, s.openDebugLog(launch.Invoke))
 	proc = nil
 	services = nil
 

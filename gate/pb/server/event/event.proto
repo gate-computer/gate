@@ -40,6 +40,7 @@ enum Type {
   INSTANCE_SNAPSHOT = 26;
   INSTANCE_UPDATE = 27;
   INSTANCE_DEBUG = 28;
+  INSTANCE_CREATE_HOST = 29;
 }
 
 message Event {

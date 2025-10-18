@@ -10,6 +10,7 @@ const (
 	TypeFailProtocol         = pb.Type_FAIL_PROTOCOL
 	TypeFailRequest          = pb.Type_FAIL_REQUEST
 	TypeInstanceConnect      = pb.Type_INSTANCE_CONNECT
+	TypeInstanceCreateHost   = pb.Type_INSTANCE_CREATE_HOST
 	TypeInstanceCreateKnown  = pb.Type_INSTANCE_CREATE_KNOWN
 	TypeInstanceCreateStream = pb.Type_INSTANCE_CREATE_STREAM
 	TypeInstanceDebug        = pb.Type_INSTANCE_DEBUG

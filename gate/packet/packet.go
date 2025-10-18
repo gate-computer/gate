@@ -86,7 +86,7 @@ func Align(length int) int {
 type Buf []byte
 
 func Make(code Code, domain Domain, packetSize int) Buf {
-	b := Buf(make([]byte, packetSize))
+	b := Buf(make([]byte, packetSize, Align(packetSize)))
 	b.SetCode(code)
 	b[OffsetDomain] = byte(domain)
 	return b

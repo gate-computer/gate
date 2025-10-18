@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"math/bits"
+	"net"
 	"os"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"gate.computer/internal/executable"
 	"gate.computer/internal/file"
 	"gate.computer/wag/object/abi"
+	"golang.org/x/sys/unix"
 
 	. "import.name/type/context"
 )
@@ -120,7 +122,7 @@ func (r Result) String() string {
 type Process struct {
 	execution execProcess // Executor's low-level process state.
 	writer    *file.File
-	writerOut file.Ref
+	writerOut file.Ref // Unset for host process.
 	reader    *os.File
 	suspended chan struct{}
 	debugFile *os.File
@@ -128,10 +130,12 @@ type Process struct {
 }
 
 func newProcess(ctx Context, e *Executor, group file.Ref) (*Process, error) {
-	inputR, inputW, err := socketPipe()
+	pair, err := socketPipe()
 	if err != nil {
 		return nil, err
 	}
+	inputR := file.Own(pair[0])
+	inputW := file.New(pair[1])
 	defer func() {
 		if err != nil {
 			inputW.Close()
@@ -165,10 +169,42 @@ func newProcess(ctx Context, e *Executor, group file.Ref) (*Process, error) {
 	return p, nil
 }
 
+// NewUnixProcess creates a host process handle.  It's the caller's
+// responsibility to call conn.Close(); it can be done immediately after this
+// function returns (the Process retains a duplicate file descriptor).
+func NewUnixProcess(conn *net.UnixConn) (*Process, error) {
+	output, err := conn.File()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if output != nil {
+			output.Close()
+		}
+	}()
+
+	inputDup, err := conn.File()
+	if err != nil {
+		return nil, err
+	}
+	defer inputDup.Close()
+
+	inputFD, err := unix.FcntlInt(inputDup.Fd(), unix.F_DUPFD_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	p := &Process{
+		writer: file.New(inputFD),
+		reader: output,
+	}
+	output = nil
+	return p, nil
+}
+
 // Start the program.  The program state will be undergoing mutation until the
 // process terminates.
 //
-// This function must be called before Serve.
+// This function must be called before Serve (except for host processes).
 func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPolicy) error {
 	textAddr, heapAddr, stackAddr, random, err := getRand(state.TextAddr(), code.Random())
 	if err != nil {
@@ -264,7 +300,7 @@ func (p *Process) Start(code ProgramCode, state ProgramState, policy ProcessPoli
 // Start must have been called before this.
 //
 // A meaningful trap id is returned also when an error is returned.  The result
-// is meaningful when trap is Exit.
+// is meaningful when trap is Exit and the process is not a host process.
 func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot.Buffers) (Result, trap.ID, *snapshot.Buffers, error) {
 	buffers, err := ioLoop(contextWithProcess(ctx, p), services, p, buffers)
 	if err != nil {
@@ -334,6 +370,8 @@ func (p *Process) Serve(ctx Context, services ServiceRegistry, buffers *snapshot
 //
 // This can be called multiple times, concurrently with Start, Serve, Kill,
 // Close and itself.
+//
+// Does nothing to host processes.
 func (p *Process) Suspend() {
 	select {
 	case p.suspended <- struct{}{}:
@@ -346,6 +384,8 @@ func (p *Process) Suspend() {
 //
 // This can be called multiple times, concurrently with Start, Serve, Suspend,
 // Close and itself.
+//
+// Does nothing to host processes.
 func (p *Process) Kill() {
 	p.execution.kill()
 }
