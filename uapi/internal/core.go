@@ -99,8 +99,9 @@ func writePackets(w io.Writer) {
 
 func manage() {
 	var (
-		services []*Service
-		send     sendEntry
+		services     []*Service
+		servicesSent int
+		send         sendEntry
 	)
 
 	for {
@@ -120,6 +121,8 @@ func manage() {
 
 		select {
 		case s := <-regC:
+			slog.Debug("gate: registering service", "name", s.Name, "code", s.Code)
+
 			services = slices.Grow(services, int(s.Code)+1-len(services))
 			for len(services) <= int(s.Code) {
 				services = append(services, nil)
@@ -129,8 +132,9 @@ func manage() {
 			if !slices.Contains(services, nil) {
 				// Reg channel is active only when there is no queued send.
 				send = sendEntry{
-					packet: makeServicesPacket(services),
+					packet: makeServicesPacket(services[servicesSent:]),
 				}
+				servicesSent = len(services)
 			}
 
 		case send = <-sendC:
@@ -157,15 +161,15 @@ func manage() {
 	}
 }
 
-func makeServicesPacket(services []*Service) packet.Buf {
+func makeServicesPacket(newServices []*Service) packet.Buf {
 	size := packet.HeaderSize + 2
-	for _, s := range services {
+	for _, s := range newServices {
 		size += 1 + len(s.Name)
 	}
 
 	b := bytes.NewBuffer(packet.Make(packet.CodeServices, packet.DomainCall, size)[:packet.HeaderSize])
-	binary.Write(b, binary.LittleEndian, uint16(len(services)))
-	for _, s := range services {
+	binary.Write(b, binary.LittleEndian, uint16(len(newServices)))
+	for _, s := range newServices {
 		b.WriteByte(uint8(len(s.Name)))
 		b.WriteString(s.Name)
 	}
