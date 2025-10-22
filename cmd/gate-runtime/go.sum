@@ -1,8 +1,7 @@
-gate.computer v0.0.0-20250131054915-e694ff662681 h1:wqQsqrrrIhOLCsnNMhMXHsfWGJvFU6TDUqbs16po1yE=
-gate.computer v0.0.0-20250131054915-e694ff662681/go.mod h1:DmIPJHnPxfsL1hIF+WY5NaTMJhrsm5GzMcZh+8+VIv0=
-github.com/coreos/go-systemd/v22 v22.5.0 h1:RrqgGjYQKalulkV8NGVIfkXQf6YYmOyiJKk8iXXhfZs=
-github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
-github.com/godbus/dbus/v5 v5.0.4/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
+gate.computer v0.0.0-20251020065250-5bad91ccb5ed h1:LTcQNzPlz62dU9ryp7SZPh8GzG6JwgMJ1FzRxLQB/zU=
+gate.computer v0.0.0-20251020065250-5bad91ccb5ed/go.mod h1:fv6DSu8VtCxLjBJY9V2OJDky3bEZMQx+BocyVfp5T88=
+github.com/coreos/go-systemd/v22 v22.6.0 h1:aGVa/v8B7hpb0TKl0MWoAavPDmHvobFe5R5zn0bCJWo=
+github.com/coreos/go-systemd/v22 v22.6.0/go.mod h1:iG+pp635Fo7ZmV/j14KUcmEyWF+0X7Lua8rrTWzYgWU=
 github.com/godbus/dbus/v5 v5.1.0 h1:4KLkAxT3aOY8Li4FRJe/KvhoNFFxo0m6fNuFUO8QJUk=
 github.com/godbus/dbus/v5 v5.1.0/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
@@ -11,8 +10,8 @@ github.com/naoina/go-stringutil v0.1.0 h1:rCUeRUHjBjGTSHl0VC00jUPLz8/F9dDzYI70Hz
 github.com/naoina/go-stringutil v0.1.0/go.mod h1:XJ2SJL9jCtBh+P9q5btrd/Ylo8XwT/h1USek5+NqSA0=
 github.com/naoina/toml v0.1.1 h1:PT/lllxVVN0gzzSqSlHEmP8MJB4MY2U7STGxiouV4X8=
 github.com/naoina/toml v0.1.1/go.mod h1:NBIhNtsFMo3G2szEBne+bO4gS192HuIYRqfvOWb4i1E=
-golang.org/x/sys v0.33.0 h1:q3i8TbbEz+JRD9ywIRlyRAQbM0qF7hu24q3teo2hbuw=
-golang.org/x/sys v0.33.0/go.mod h1:BJP2sWEmIv4KK5OTEluFJCKSidICx8ciO85XgH3Ak8k=
+golang.org/x/sys v0.37.0 h1:fdNQudmxPjkdUTPnLn5mdQv7Zwvbvpaxqs831goi9kQ=
+golang.org/x/sys v0.37.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
 import.name/confi v1.6.0 h1:zQ3ki06ZDp4+ohhlNqC07nzwY70WaQmSoXr9xiIu7ec=
 import.name/confi v1.6.0/go.mod h1:jeyJVWX3Z5bFX91LPdetqunSrmgrWztnrgUQbQM/bJo=
 import.name/sjournal v1.0.0 h1:I7SxLA4ZOheQB2ry+7RTre4f6VcvqrwbQZdLFAUBg+w=
