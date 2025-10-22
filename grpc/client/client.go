@@ -7,6 +7,7 @@ package client
 import (
 	"errors"
 	"io"
+	"log/slog"
 	"sync"
 
 	"gate.computer/gate/packet"
@@ -132,6 +133,7 @@ func NewClient(ctx Context, target string, opts ...grpc.DialOption) (*Conn, erro
 // Register the services which are accessible through the connection.
 func (c *Conn) Register(r *service.Registry) error {
 	for _, s := range c.Services {
+		slog.Info("grpc: registering service", "name", s.info.Name, "revision", s.info.Revision)
 		if err := r.Register(s); err != nil {
 			return err
 		}
