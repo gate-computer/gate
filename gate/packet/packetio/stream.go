@@ -9,6 +9,7 @@
 package packetio
 
 import (
+	"errors"
 	"io"
 
 	"gate.computer/gate/packet"
@@ -110,7 +111,7 @@ func (s *Stream) Transfer(ctx Context, config packet.Service, streamID int32, r 
 	}
 
 	if readErr != nil && writeErr != nil {
-		return dualError(readErr, writeErr)
+		return errors.Join(readErr, writeErr)
 	}
 	if readErr != nil {
 		return readErr
