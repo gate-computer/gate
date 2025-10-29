@@ -11,10 +11,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
-	"time"
 
 	"gate.computer/gate/packet"
 	"gate.computer/gate/service"
+	"gate.computer/gate/service/servicetest"
 	"gate.computer/localhost/internal/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,13 @@ import (
 
 const testMaxSendSize = 65536
 
-var testCode = packet.Code(time.Now().UnixNano() & 0x7fff)
+func TestFactory(t *testing.T) {
+	f := Must(t, R(New(&Config{Addr: "http://example.invalid"})))
+	servicetest.FactoryTest(t.Context(), t, f, servicetest.FactorySpec{
+		NoStreams:          true,
+		AlwaysDiscoverable: true,
+	})
+}
 
 func TestRequest(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +49,7 @@ func TestRequest(t *testing.T) {
 	inst := newInstance(&Localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
 		Service: packet.Service{
 			MaxSendSize: testMaxSendSize,
-			Code:        testCode,
+			Code:        servicetest.Code,
 		},
 	})
 
@@ -59,7 +65,7 @@ func TestRequest(t *testing.T) {
 	flat.CallAddFunction(b, request)
 	b.Finish(flat.CallEnd(b))
 
-	p := append(packet.MakeCall(testCode, 0), b.FinishedBytes()...)
+	p := append(packet.MakeCall(servicetest.Code, 0), b.FinishedBytes()...)
 
 	c := make(chan packet.Thunk, 1)
 	if err := inst.Start(context.Background(), c, nil); err != nil {
@@ -70,7 +76,7 @@ func TestRequest(t *testing.T) {
 	for len(p) == 0 {
 		p = Must(t, R((<-c)()))
 	}
-	assert.True(t, packet.IsValidCall(p, testCode))
+	assert.True(t, packet.IsValidCall(p, servicetest.Code))
 
 	r := flat.GetRootAsResponse(p, packet.HeaderSize)
 	assert.Equal(t, int(r.StatusCode()), http.StatusCreated)
