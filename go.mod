@@ -13,6 +13,7 @@ require (
 	github.com/coreos/go-systemd/v22 v22.6.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.43.0
 	golang.org/x/sys v0.37.0
 	google.golang.org/protobuf v1.36.10
@@ -22,6 +23,7 @@ require (
 	import.name/make v0.1.0
 	import.name/pan v0.3.0
 	import.name/sjournal v1.0.0
+	import.name/testing v0.1.0
 	import.name/type v1.0.0
 )
 
@@ -54,6 +56,7 @@ require (
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.17.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v28.5.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
@@ -89,6 +92,7 @@ require (
 	github.com/petermattis/goid v0.0.0-20250904145737-900bdf8bb490 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.55.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

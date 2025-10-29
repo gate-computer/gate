@@ -8,19 +8,17 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+
+	. "import.name/testing/mustr"
 )
 
 func TestPrincipalID(t *testing.T) {
-	s := <-PrincipalID()
-	if s != "local" {
-		t.Errorf("principal ID: %q", s)
-	}
+	assert.Equal(t, <-PrincipalID(), "local")
 }
 
 func TestInstanceID(t *testing.T) {
-	s := <-InstanceID()
-	t.Logf("instance ID: %q", s)
-	if _, err := uuid.Parse(s); err != nil {
-		t.Error(err)
-	}
+	id := Must(t, R(uuid.Parse(<-InstanceID())))
+	assert.Equal(t, id.Variant(), uuid.RFC4122)
+	assert.Equal(t, id.Version(), uuid.Version(4))
 }

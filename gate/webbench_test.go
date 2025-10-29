@@ -16,8 +16,9 @@ import (
 	"gate.computer/gate/server"
 	"gate.computer/gate/server/webserver"
 	"gate.computer/gate/web"
+	"github.com/stretchr/testify/assert"
 
-	. "import.name/type/context"
+	. "import.name/testing/mustr"
 )
 
 func newBenchServer(factory runtime.ProcessFactory) (*server.Server, error) {
@@ -40,13 +41,10 @@ func newBenchHandler(s *server.Server) http.Handler {
 }
 
 func BenchmarkCall(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	executor := newExecutor()
 	defer executor.Close()
 
-	benchCall(ctx, b, executor)
+	benchCall(b, executor)
 }
 
 func BenchmarkCallExecutors(b *testing.B) {
@@ -58,27 +56,21 @@ func BenchmarkCallExecutors(b *testing.B) {
 }
 
 func benchCallExecutors(b *testing.B, count int) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	var executors []runtime.ProcessFactory
 
-	for i := 0; i < count; i++ {
+	for range count {
 		e := newExecutor()
 		defer e.Close()
 
 		executors = append(executors, e)
 	}
 
-	benchCall(ctx, b, runtime.DistributeProcesses(executors...))
+	benchCall(b, runtime.DistributeProcesses(executors...))
 }
 
-func benchCall(ctx Context, b *testing.B, factory runtime.ProcessFactory) {
-	server, err := newBenchServer(factory)
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer server.Shutdown(ctx)
+func benchCall(b *testing.B, factory runtime.ProcessFactory) {
+	server := Must(b, R(newBenchServer(factory)))
+	defer server.Shutdown(b.Context())
 
 	handler := newBenchHandler(server)
 	uri := web.PathKnownModules + hashNop + "?action=call"
@@ -88,14 +80,14 @@ func benchCall(ctx Context, b *testing.B, factory runtime.ProcessFactory) {
 
 	done := make(chan int, procs)
 
-	for i := 0; i < procs; i++ {
+	for range procs {
 		go func() {
 			var status int
 			defer func() {
 				done <- status
 			}()
 
-			for i := 0; i < loops; i++ {
+			for range loops {
 				req := newRequest(http.MethodPost, uri, wasmNop)
 				req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 				w := httptest.NewRecorder()
@@ -111,9 +103,7 @@ func benchCall(ctx Context, b *testing.B, factory runtime.ProcessFactory) {
 		}()
 	}
 
-	for i := 0; i < procs; i++ {
-		if status := <-done; status != http.StatusOK {
-			b.Error(status)
-		}
+	for range procs {
+		assert.Equal(b, <-done, http.StatusOK)
 	}
 }

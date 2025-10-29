@@ -18,11 +18,12 @@ import (
 const maxPacketSize = 65536
 
 var (
-	RegChan   = make(chan *Service)
-	sendChan  = make(chan sendEntry)
-	readChan  = make(chan packet.Buf)
-	writeChan = make(chan packet.Buf)
-	inited    bool
+	ServiceRegChan = make(chan *Service)
+	StreamRegChan  = make(chan *Stream, 1) // Sent from synchronous callbacks.
+	sendChan       = make(chan sendEntry)
+	writeChan      = make(chan packet.Buf)
+	readChan       = make(chan packet.Buf)
+	inited         bool
 )
 
 type sendEntry struct {
@@ -38,6 +39,31 @@ type Service struct {
 
 	state         uint8
 	callReceptors []func([]byte)
+	streams       map[int32]*Stream
+}
+
+type Stream struct {
+	// Fields are initialized by service.NewStream.
+	Service *Service
+	ID      int32
+}
+
+func (st *Stream) Write(b []byte) (int, error) {
+	n := min(len(b), maxPacketSize-packet.HeaderSize)
+	// TODO: check flow
+	p := packet.MakeData(st.Service.Code, st.ID, n)
+	copy(p.Data(), b)
+	SendPacket(packet.Buf(p), nil)
+	return n, nil
+}
+
+func (st *Stream) Read(b []byte) (int, error) {
+	panic("gate: stream read not implemented")
+}
+
+func (st *Stream) Close() error {
+	slog.Debug("gate: stream close not implemented", "id", st.ID)
+	return nil
 }
 
 func SendPacket(p packet.Buf, receptor func([]byte)) {
@@ -63,8 +89,6 @@ func Init() {
 func readPackets(unbuffered io.Reader) {
 	r := bufio.NewReader(unbuffered)
 	for {
-		slog.Debug("gate: reading packet")
-
 		var size uint32
 		if err := binary.Read(r, binary.LittleEndian, &size); err != nil {
 			panic(err)
@@ -77,8 +101,11 @@ func readPackets(unbuffered io.Reader) {
 		if _, err := io.ReadFull(r, p[4:]); err != nil {
 			panic(err)
 		}
+		p = p[:size]
 
-		readChan <- p[:size]
+		slog.Debug("gate: read packet", "size", len(p), "code", p.Code(), "domain", p.Domain(), "index", p.Index())
+
+		readChan <- p
 	}
 }
 
@@ -102,25 +129,34 @@ func manage() {
 		services     []*Service
 		servicesSent int
 		send         sendEntry
+		read         packet.Buf
 	)
 
 	for {
 		var (
-			regC      <-chan *Service
-			sendC     <-chan sendEntry
-			writeC    chan<- packet.Buf
-			writeCode packet.Code
+			serviceRegC <-chan *Service
+			sendC       <-chan sendEntry
+			writeC      chan<- packet.Buf
+			writeCode   packet.Code
+			writeDomain packet.Domain
+			readC       <-chan packet.Buf
 		)
+
 		if len(send.packet) == 0 {
-			regC = RegChan // Only when there is space for services packet.
+			serviceRegC = ServiceRegChan // Only when there is space for services packet.
 			sendC = sendChan
 		} else {
 			writeC = writeChan
 			writeCode = send.packet.Code()
+			writeDomain = send.packet.Domain()
+		}
+
+		if len(read) == 0 {
+			readC = readChan
 		}
 
 		select {
-		case s := <-regC:
+		case s := <-serviceRegC:
 			slog.Debug("gate: registering service", "name", s.Name, "code", s.Code)
 
 			services = slices.Grow(services, int(s.Code)+1-len(services))
@@ -137,26 +173,43 @@ func manage() {
 				servicesSent = len(services)
 			}
 
+		case st := <-StreamRegChan:
+			slog.Debug("gate: registering stream", "code", st.Service.Code, "id", st.ID)
+
+			if st.Service.streams == nil {
+				st.Service.streams = make(map[int32]*Stream)
+			}
+			st.Service.streams[st.ID] = st
+
 		case send = <-sendC:
 
-		case p := <-readChan:
-			slog.Debug("gate: handling packet", "size", len(p), "code", p.Code(), "domain", p.Domain(), "index", p.Index())
-
-			switch {
-			case p.Code() >= 0:
-				handleServicePacket(services[p.Code()], p)
-			case p.Code() == packet.CodeServices:
-				handleServiceStatePacket(services, p)
-			default:
-				panic(p.Code())
-			}
-
 		case writeC <- send.packet:
-			if writeCode >= 0 {
+			if writeDomain == packet.DomainCall && writeCode >= 0 {
 				s := services[writeCode]
 				s.callReceptors = append(s.callReceptors, send.receptor)
 			}
 			send = sendEntry{}
+
+		case read = <-readC:
+		}
+
+		if len(read) > 0 {
+			slog.Debug("gate: handling packet", "size", len(read), "code", read.Code(), "domain", read.Domain(), "index", read.Index())
+
+			switch {
+			case read.Code() >= 0:
+				read = handleServicePacket(services[read.Code()], read)
+				if len(read) > 0 {
+					slog.Debug("gate: packet was not completely handled")
+				}
+
+			case read.Code() == packet.CodeServices:
+				handleServiceStatePacket(services, read)
+				read = packet.Buf{}
+
+			default:
+				panic(read.Code())
+			}
 		}
 	}
 }
@@ -197,22 +250,51 @@ func handleServiceStatePacket(services []*Service, p packet.Buf) {
 	}
 }
 
-func handleServicePacket(s *Service, p packet.Buf) {
+// handleServicePacket returns non-nil if the packet handling needs to be
+// retried later.
+func handleServicePacket(s *Service, p packet.Buf) packet.Buf {
 	switch p.Domain() {
 	case packet.DomainCall:
 		i := p.Index()
 		f := s.callReceptors[i]
 		s.callReceptors = append(s.callReceptors[:i], s.callReceptors[i+1:]...)
 		f(p.Content())
+		return nil
 
 	case packet.DomainInfo:
 		if p.Index() != 0 {
 			panic(p.Index())
 		}
 		s.InfoReceptor(p.Content())
+		return nil
 
 	case packet.DomainFlow:
-		panic("TODO: handle flow packet")
+		p := packet.FlowBuf(p)
+
+		for i := range p.Len() {
+			if f := p.At(i); f.ID >= 0 { // Not done yet?
+				st := s.streams[f.ID]
+
+				if st == nil { // Not registered yet?
+					slog.Debug("gate: flow for nonregistered stream", "code", p.Code(), "id", f.ID)
+					for prev := range i { // Flag previous entries as done.
+						f := p.At(prev)
+						f.ID = -1
+						p.Set(prev, f)
+					}
+					return packet.Buf(p)
+				}
+
+				switch {
+				case f.IsIncrement():
+					handleStreamFlow(st, f.Value)
+				case f.IsEOF():
+					handleStreamFlowEOF(st)
+				}
+			}
+		}
+
+		return nil
 
 	case packet.DomainData:
 		panic("TODO: handle data packet")
@@ -220,4 +302,12 @@ func handleServicePacket(s *Service, p packet.Buf) {
 	default:
 		panic(p.Domain())
 	}
+}
+
+func handleStreamFlow(st *Stream, increment int32) {
+	slog.Debug("gate: stream flow not implemented", "id", st.ID, "increment", increment)
+}
+
+func handleStreamFlowEOF(st *Stream) {
+	slog.Debug("gate: stream flow EOF not implemented", "id", st.ID)
 }

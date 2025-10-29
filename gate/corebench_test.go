@@ -6,7 +6,6 @@ package gate_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -20,6 +19,8 @@ import (
 	"gate.computer/gate/runtime"
 	"gate.computer/gate/trap"
 	"gate.computer/wag/object"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	. "import.name/type/context"
 )
@@ -114,10 +115,7 @@ func BenchmarkBuildMem(b *testing.B) {
 }
 
 func BenchmarkBuildMemPrep(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	benchBuild(b, image.CombinedStorage(image.PreparePrograms(ctx, image.Memory, benchPrepareCount), image.PrepareInstances(ctx, image.Memory, benchPrepareCount)))
+	benchBuild(b, image.CombinedStorage(image.PreparePrograms(b.Context(), image.Memory, benchPrepareCount), image.PrepareInstances(b.Context(), image.Memory, benchPrepareCount)))
 }
 
 func BenchmarkBuildFS(b *testing.B) {
@@ -134,7 +132,7 @@ func benchBuild(b *testing.B, storage image.Storage) {
 		b.Run(x.name, func(b *testing.B) {
 			var codeMap object.CallMap
 
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 				codeMap.CallSites = codeMap.CallSites[:0]
 
@@ -155,7 +153,7 @@ func BenchmarkBuildStore(b *testing.B) {
 
 	var codeMap object.CallMap
 
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		codeMap.FuncAddrs = codeMap.FuncAddrs[:0]
 		codeMap.CallSites = codeMap.CallSites[:0]
 
@@ -182,9 +180,6 @@ func BenchmarkExecInstFS(b *testing.B) {
 }
 
 func benchExecInst(b *testing.B, storage image.Storage) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	var codeMap object.CallMap
 
 	prog, instProto, _ := buildInstance(getBenchExecutor(), storage, &codeMap, wasmNop, len(wasmNop), "", false)
@@ -193,16 +188,14 @@ func benchExecInst(b *testing.B, storage image.Storage) {
 
 	b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		instClone := *instProto // Hack to work around state invalidation.
 
-		result, trapID, err := executeInstance(ctx, prog, &instClone)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if trapID != trap.Exit || result.Terminated() || result.Value() != runtime.ResultSuccess {
-			b.Error(trapID, result)
-		}
+		result, trapID, err := executeInstance(b.Context(), prog, &instClone)
+		require.NoError(b, err)
+		assert.Equal(b, trapID, trap.Exit)
+		assert.False(b, result.Terminated())
+		assert.Equal(b, result.Value(), runtime.ResultSuccess)
 	}
 
 	b.StopTimer()
@@ -213,10 +206,7 @@ func BenchmarkExecProgMem(b *testing.B) {
 }
 
 func BenchmarkExecProgMemPrep(b *testing.B) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	benchExecProg(b, image.CombinedStorage(image.Memory, image.PrepareInstances(ctx, image.Memory, benchPrepareCount)))
+	benchExecProg(b, image.CombinedStorage(image.Memory, image.PrepareInstances(b.Context(), image.Memory, benchPrepareCount)))
 }
 
 func BenchmarkExecProgFS(b *testing.B) {
@@ -237,9 +227,6 @@ func BenchmarkExecProgPersistMem(b *testing.B) {
 }
 
 func benchExecProg(b *testing.B, storage image.Storage) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	for _, x := range benchData {
 		wasm := x.wasm
 		b.Run(x.name, func(b *testing.B) {
@@ -251,14 +238,12 @@ func benchExecProg(b *testing.B, storage image.Storage) {
 
 			b.ResetTimer()
 
-			for i := 0; i < b.N; i++ {
-				result, trapID, err := executeProgram(ctx, prog)
-				if err != nil {
-					b.Fatal(err)
-				}
-				if trapID != trap.Exit || result.Terminated() || result.Value() != runtime.ResultSuccess {
-					b.Error(trapID, result)
-				}
+			for b.Loop() {
+				result, trapID, err := executeProgram(b.Context(), prog)
+				require.NoError(b, err)
+				assert.Equal(b, trapID, trap.Exit)
+				assert.False(b, result.Terminated())
+				assert.Equal(b, result.Value(), runtime.ResultSuccess)
 			}
 
 			b.StopTimer()

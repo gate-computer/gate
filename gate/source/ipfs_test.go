@@ -15,6 +15,10 @@ import (
 	"gate.computer/gate/source"
 	"gate.computer/gate/source/http"
 	"gate.computer/gate/source/ipfs"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	. "import.name/testing/mustr"
 )
 
 const (
@@ -56,54 +60,28 @@ func TestIPFSGatewayLength(t *testing.T)  { testIPFSLength(t, newIPFSGateway(t))
 
 func testIPFSKey(t *testing.T, src source.Source) {
 	data, tooLong, err := testIPFS(t, src, testKey, 65536, 5*time.Second)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if tooLong {
-		t.Error("too long")
-	}
-
-	if string(data) != "hello worlds\n" {
-		t.Errorf("data: %q", data)
-	}
+	require.NoError(t, err)
+	assert.False(t, tooLong)
+	assert.Equal(t, string(data), "hello worlds\n")
 }
 
 func testIPFSPath(t *testing.T, source source.Source) {
 	data, tooLong, err := testIPFS(t, source, testPath, 65536, 5*time.Second)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if tooLong {
-		t.Error("too long")
-	}
-
-	if !strings.HasPrefix(string(data), "# IPFS Examples\n") {
-		t.Errorf("data: %q", data)
-	}
+	require.NoError(t, err)
+	assert.False(t, tooLong)
+	assert.True(t, strings.HasPrefix(string(data), "# IPFS Examples\n"))
 }
 
 func testIPFSTimeout(t *testing.T, source source.Source) {
 	_, tooLong, err := testIPFS(t, source, testKey, 65536, 1)
-	if err == nil || !strings.HasSuffix(err.Error(), "context deadline exceeded") {
-		t.Error(err)
-	}
-
-	if tooLong {
-		t.Error("too long")
-	}
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.False(t, tooLong)
 }
 
 func testIPFSLength(t *testing.T, source source.Source) {
 	_, tooLong, err := testIPFS(t, source, testKey, 5, 5*time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !tooLong {
-		t.Error("not too long")
-	}
+	require.NoError(t, err)
+	assert.True(t, tooLong)
 }
 
 func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeout time.Duration) (data []byte, tooLong bool, err error) {
@@ -118,36 +96,19 @@ func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeo
 	}
 
 	if r == nil {
-		if length == 0 {
-			t.Fatal("not found")
-		}
-
-		if maxSize >= 13 {
-			t.Error("failed without good reason")
-		}
-
+		require.NotEqual(t, length, 0, "not found")
+		require.Less(t, maxSize, 13, "failed without good reason")
 		tooLong = true
 		return
 	}
 
 	defer func() {
-		if err := r.Close(); err != nil {
-			t.Error("Close:", err)
-		}
+		assert.NoError(t, r.Close())
 	}()
 
-	if length > int64(maxSize) {
-		t.Error("length:", length)
-	}
+	assert.LessOrEqual(t, length, int64(maxSize))
 
-	data, err = io.ReadAll(r)
-	if err != nil {
-		t.Fatal("ReadFile:", err)
-	}
-
-	if int64(len(data)) != length {
-		t.Errorf("%d != %d", len(data), length)
-	}
-
+	data = Must(t, R(io.ReadAll(r)))
+	assert.Equal(t, int64(len(data)), length)
 	return
 }

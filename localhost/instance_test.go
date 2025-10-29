@@ -5,7 +5,6 @@
 package localhost
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -18,6 +17,9 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/localhost/internal/flat"
 	flatbuffers "github.com/google/flatbuffers/go"
+	"github.com/stretchr/testify/assert"
+
+	. "import.name/testing/mustr"
 )
 
 const testMaxSendSize = 65536
@@ -26,25 +28,17 @@ var testCode = packet.Code(time.Now().UnixNano() & 0x7fff)
 
 func TestRequest(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != "bogus" {
-			t.Error(r.Host)
-		}
-		if r.Method != http.MethodGet {
-			t.Error(r.Method)
-		}
-		if r.URL.Path != "/test" {
-			t.Error(r.URL)
-		}
+		assert.Equal(t, r.Host, "bogus")
+		assert.Equal(t, r.Method, http.MethodGet)
+		assert.Equal(t, r.URL.Path, "/test")
+
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
 		fmt.Fprintln(w, "hellocalhost")
 	}))
 	defer s.Close()
 
-	u, err := url.Parse(s.URL)
-	if err != nil {
-		panic(err)
-	}
+	u := Must(t, R(url.Parse(s.URL)))
 
 	inst := newInstance(&Localhost{u.Scheme, u.Host, s.Client()}, service.InstanceConfig{
 		Service: packet.Service{
@@ -65,44 +59,22 @@ func TestRequest(t *testing.T) {
 	flat.CallAddFunction(b, request)
 	b.Finish(flat.CallEnd(b))
 
-	p := packet.Make(testCode, packet.DomainCall, packet.HeaderSize+len(b.FinishedBytes()))
-	copy(p.Content(), b.FinishedBytes())
-
-	if !packet.IsValidCall(p, testCode) {
-		t.Error(p)
-	}
+	p := append(packet.MakeCall(testCode, 0), b.FinishedBytes()...)
 
 	c := make(chan packet.Thunk, 1)
 	if err := inst.Start(context.Background(), c, nil); err != nil {
 		t.Fatal(err)
 	}
 
-	p, err = inst.Handle(context.Background(), c, p)
-	if err != nil {
-		t.Fatal(err)
-	}
+	p = Must(t, R(inst.Handle(context.Background(), c, p)))
 	for len(p) == 0 {
-		p, err = (<-c)()
-		if err != nil {
-			t.Fatal(err)
-		}
+		p = Must(t, R((<-c)()))
 	}
-
-	if !packet.IsValidCall(p, testCode) {
-		t.Error(p)
-	}
+	assert.True(t, packet.IsValidCall(p, testCode))
 
 	r := flat.GetRootAsResponse(p, packet.HeaderSize)
-	if r.StatusCode() != http.StatusCreated {
-		t.Error(r.StatusCode())
-	}
-	if string(r.ContentType()) != "text/plain" {
-		t.Errorf("%q", r.ContentType())
-	}
-	if r.BodyLength() != 13 {
-		t.Error(r.BodyLength())
-	}
-	if !bytes.Equal(r.BodyBytes(), []byte("hellocalhost\n")) {
-		t.Errorf("%q", r.BodyBytes())
-	}
+	assert.Equal(t, int(r.StatusCode()), http.StatusCreated)
+	assert.Equal(t, string(r.ContentType()), "text/plain")
+	assert.Equal(t, r.BodyLength(), 13)
+	assert.Equal(t, r.BodyBytes(), []byte("hellocalhost\n"))
 }

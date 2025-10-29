@@ -6,22 +6,14 @@ package scope
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRestrict(t *testing.T) {
-	if err := <-Restrict([]string{System}); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-Restrict([]string{System}); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-Restrict(nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-Restrict(nil); err != nil {
-		t.Fatal(err)
-	}
-	if err := <-Restrict([]string{"ignored"}); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, <-Restrict([]string{System}))
+	assert.NoError(t, <-Restrict([]string{System}))
+	assert.NoError(t, <-Restrict(nil))
+	assert.NoError(t, <-Restrict(nil))
+	assert.NoError(t, <-Restrict([]string{"ignored"}))
 }

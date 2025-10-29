@@ -10,22 +10,12 @@ import (
 	"time"
 
 	"gate.computer/gate/server/api"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestErrorTypes(t *testing.T) {
-	if err := Unauthenticated("test"); api.AsUnauthenticated(err) == nil {
-		t.Error(err)
-	}
-
-	if err := PermissionDenied("test"); api.AsPermissionDenied(err) == nil {
-		t.Error(err)
-	}
-
-	if err := Unavailable(io.ErrUnexpectedEOF); api.AsUnavailable(err) == nil {
-		t.Error(err)
-	}
-
-	if err := RetryAfter(time.Now().Add(time.Minute)); api.AsTooManyRequests(err) == nil {
-		t.Error(err)
-	}
+	assert.Error(t, api.AsUnauthenticated(Unauthenticated("test")))
+	assert.Error(t, api.AsPermissionDenied(PermissionDenied("test")))
+	assert.Error(t, api.AsUnavailable(Unavailable(io.ErrUnexpectedEOF)))
+	assert.Error(t, api.AsTooManyRequests(RetryAfter(time.Now().Add(time.Minute))))
 }

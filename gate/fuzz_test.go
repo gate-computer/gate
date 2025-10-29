@@ -16,25 +16,17 @@ import (
 
 	"gate.computer/gate/server/api"
 	werrors "gate.computer/wag/errors"
+	"github.com/stretchr/testify/assert"
+
+	. "import.name/testing/mustr"
 )
 
 func FuzzServerUploadModule(f *testing.F) {
-	filenames, err := filepath.Glob("../testdata/*.wasm")
-	if err != nil {
-		f.Fatal(err)
-	}
-	for _, filename := range filenames {
-		wasm, err := os.ReadFile(filename)
-		if err != nil {
-			f.Fatal(err)
-		}
-		f.Add(wasm)
+	for _, filename := range Must(f, R(filepath.Glob("../testdata/*.wasm"))) {
+		f.Add(Must(f, R(os.ReadFile(filename))))
 	}
 
-	s, err := newServer()
-	if err != nil {
-		f.Fatal(err)
-	}
+	s := Must(f, R(newServer()))
 
 	f.Fuzz(func(t *testing.T, wasm []byte) {
 		wasmHash := hex.EncodeToString(api.KnownModuleHash.New().Sum(wasm))
@@ -54,9 +46,7 @@ func FuzzServerUploadModule(f *testing.F) {
 		}
 
 		if err == nil || resultHash != "" {
-			if resultHash != wasmHash {
-				t.Errorf("incorrect module hash: %q", resultHash)
-			}
+			assert.Equal(t, resultHash, wasmHash)
 		}
 	})
 }

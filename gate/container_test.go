@@ -16,6 +16,10 @@ import (
 	"gate.computer/gate/runtime/container"
 	internal "gate.computer/internal/container"
 	"gate.computer/internal/sys"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	. "import.name/testing/mustr"
 )
 
 var testExecDir = path.Join("../lib", runtime.GOARCH, "gate")
@@ -31,10 +35,7 @@ func TestContainerPrivileged(t *testing.T) {
 	}
 
 	var ns container.NamespaceConfig
-	creds, err := internal.ParseCreds(&ns)
-	if err != nil {
-		t.Fatal(err)
-	}
+	creds := Must(t, R(internal.ParseCreds(&ns)))
 	testContainer(t, ns, creds)
 }
 
@@ -44,10 +45,7 @@ func TestContainerNewuidmap(t *testing.T) {
 	}
 
 	ns := testNamespaceConfig
-	creds, err := internal.ParseCreds(&ns)
-	if err != nil {
-		t.Fatal(err)
-	}
+	creds := Must(t, R(internal.ParseCreds(&ns)))
 	testContainer(t, ns, creds)
 }
 
@@ -72,16 +70,11 @@ func testContainer(t *testing.T, ns container.NamespaceConfig, cred *internal.Na
 	}
 
 	otherEnd, thisEnd, err := sys.SocketFilePair(0)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	kill := true
 
-	cmd, err := internal.Start(otherEnd, config, cred)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cmd := Must(t, R(internal.Start(otherEnd, config, cred)))
 	defer func() {
 		if kill {
 			cmd.Process.Kill()
@@ -97,9 +90,7 @@ func testContainer(t *testing.T, ns container.NamespaceConfig, cred *internal.Na
 
 	err = cmd.Wait()
 	kill = false
-	if err != nil && !isTermination(err) {
-		t.Error(err)
-	}
+	assert.True(t, err == nil || isTermination(err))
 }
 
 func isTermination(err error) bool {

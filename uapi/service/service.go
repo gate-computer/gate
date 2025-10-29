@@ -7,6 +7,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sync"
 
@@ -29,8 +30,7 @@ var (
 //
 // If a stream is opened as a result of service registration or a call, the
 // appropriate stream constructor must be called synchronously in the receptor
-// function.  Care must be taken when using input buffering with streams which
-// carry stream ids.
+// function.
 type Service struct {
 	internal internal.Service
 }
@@ -70,7 +70,7 @@ func Register(name string, infoReceptor func([]byte)) (*Service, error) {
 		Code:         packet.Code(n),
 		InfoReceptor: infoReceptor,
 	}}
-	internal.RegChan <- &s.internal
+	internal.ServiceRegChan <- &s.internal
 	regNames[name] = struct{}{}
 	return s, nil
 }
@@ -85,4 +85,21 @@ func (s *Service) Call(content []byte, receptor func([]byte)) {
 	p := packet.MakeCall(s.internal.Code, len(content))
 	copy(p.Content(), content)
 	internal.SendPacket(p, receptor)
+}
+
+// SendInfo to the service.
+func (s *Service) SendInfo(content []byte) {
+	p := packet.MakeInfo(s.internal.Code, len(content))
+	copy(p.Content(), content)
+	internal.SendPacket(p, nil)
+}
+
+// NewStream constructs a handle to a new bidirectional stream.
+func (s *Service) NewStream(id int32) io.ReadWriteCloser {
+	st := &internal.Stream{
+		Service: &s.internal,
+		ID:      id,
+	}
+	internal.StreamRegChan <- st
+	return st
 }

@@ -9,40 +9,27 @@ import (
 	"crypto/ed25519"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	. "import.name/testing/mustr"
 )
 
 func TestBearerEd25519(t *testing.T) {
 	pub, pri, err := ed25519.GenerateKey(bytes.NewReader(make([]byte, 1000)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	header := TokenHeaderEdDSA(PublicKeyEd25519(pub))
-
 	t.Logf("JWK: %#v", *header.JWK)
 
-	claims := &AuthorizationClaims{
+	t.Log("Authorization:", Must(t, R(AuthorizationBearerEd25519(pri, header.MustEncode(), &AuthorizationClaims{
 		Exp: time.Now().Unix() + 300,
 		Aud: []string{"test"},
-	}
-
-	authorization, err := AuthorizationBearerEd25519(pri, header.MustEncode(), claims)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("Authorization: %s", authorization)
+	}))))
 }
 
 func TestBearerLocal(t *testing.T) {
-	claims := &AuthorizationClaims{
+	t.Log("Authorization:", Must(t, R(AuthorizationBearerLocal(&AuthorizationClaims{
 		Aud: []string{"test"},
-	}
-
-	authorization, err := AuthorizationBearerLocal(claims)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("Authorization: %s", authorization)
+	}))))
 }

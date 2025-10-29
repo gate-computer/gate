@@ -7,14 +7,12 @@ package catalog
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestJSON(t *testing.T) {
-	b := <-JSON()
-
-	if err := json.Unmarshal(b, new(any)); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Logf("%s", b)
+	var m any
+	assert.NoError(t, json.Unmarshal(<-JSON(), &m))
+	t.Logf("%v", m)
 }

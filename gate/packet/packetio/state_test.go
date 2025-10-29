@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"gate.computer/gate/packet"
+	"github.com/stretchr/testify/assert"
+
+	. "import.name/testing/mustr"
 )
 
 type state interface {
@@ -35,50 +38,29 @@ func (s *State) equal(s2 state) bool {
 
 func TestStateZero(t *testing.T) {
 	s1 := new(State)
-	if s1.Live() {
-		t.Error("zero value is live")
-	}
-	if n := s1.MarshaledSize(); n != 3 {
-		t.Error(n)
-	}
+	assert.False(t, s1.Live())
+	assert.Equal(t, s1.MarshaledSize(), 3)
 	b := make([]byte, s1.MarshaledSize())
-	if n := len(s1.Marshal(b)); n != 0 {
-		t.Error(n)
-	}
+	assert.Empty(t, s1.Marshal(b))
 
 	s2 := new(State)
-	tail, err := s2.Unmarshal(b, testMaxSendSize)
-	if err != nil {
-		t.Error(err)
-	}
-	if n := len(b) - len(tail); n != 3 {
-		t.Error(s1.MarshaledSize(), n)
-	}
-	if s2.Live() {
-		t.Error("unmarshaled zero state is live")
-	}
+	tail := Must(t, R(s2.Unmarshal(b, testMaxSendSize)))
+	assert.Equal(t, len(b)-len(tail), 3)
+	assert.False(t, s2.Live())
 
-	if !reflect.DeepEqual(s1, s2) {
-		t.Error(s1, s2)
-	}
+	assert.Equal(t, s1, s2)
 }
 
 func testStateUnmarshal(t *testing.T, s1, s2 state, maxSize int) {
 	b := make([]byte, s1.MarshaledSize())
-	if n := len(s1.Marshal(b)); n != 0 {
-		t.Error(n)
-	}
+	assert.Empty(t, s1.Marshal(b))
 
-	if tail, err := s2.Unmarshal(b, maxSize); err != nil || len(tail) != 0 {
-		t.Error(err, len(tail))
-	}
-	if !s1.equal(s2) {
-		t.Error(s1, s2)
-	}
+	tail := Must(t, R(s2.Unmarshal(b, maxSize)))
+	assert.Empty(t, tail)
+	assert.True(t, s1.equal(s2))
 
-	if _, err := s2.Unmarshal(make([]byte, 2), maxSize); err == nil {
-		t.Error("unmarshaling from short buffer succeeded")
-	}
+	_, err := s2.Unmarshal(make([]byte, 2), maxSize)
+	assert.Error(t, err)
 }
 
 func TestStateUnmarshal(t *testing.T) {

@@ -22,9 +22,12 @@ import (
 	"gate.computer/gate/service"
 	"gate.computer/grpc/client"
 	"gate.computer/grpc/executable"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	. "import.name/testing/mustr"
 	. "import.name/type/context"
 )
 
@@ -40,19 +43,14 @@ func TestDialParallelRestore(t *testing.T)        { testDial(t, true, true, fals
 func TestDialParallelRestoreSuspend(t *testing.T) { testDial(t, true, true, true) }
 
 func testDial(t *testing.T, parallel, restore, suspend bool) {
-	tmp, err := os.MkdirTemp("", "*.test")
-	if err != nil {
-		panic(err)
-	}
+	tmp := Must(t, R(os.MkdirTemp("", "*.test")))
 	defer os.RemoveAll(tmp)
 
 	socket := path.Join(tmp, t.Name()+".sock")
 
 	cmd := exec.Command(binary, "-net", "unix", "-addr", socket)
 	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, cmd.Start())
 	defer func() {
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			t.Error(err)
@@ -70,16 +68,15 @@ func testDial(t *testing.T, parallel, restore, suspend bool) {
 	defer cancel()
 
 	var c *client.Conn
-	for i := 0; i < 100; i++ {
+	var err error
+	for range 100 {
 		time.Sleep(time.Millisecond * 10)
 		c, err = client.NewClient(ctx, "unix:"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err == nil {
 			break
 		}
 	}
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	testServiceRepeat(t, c, c.Services, parallel, restore, suspend)
 }
@@ -97,19 +94,13 @@ func testExecutable(t *testing.T, parallel, restore, suspend bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	c, err := executable.Execute(ctx, binary, []string{"service"}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	c := Must(t, R(executable.Execute(ctx, binary, []string{"service"}, nil)))
 	testServiceRepeat(t, c, c.Services, parallel, restore, suspend)
 }
 
 func testServiceRepeat(t *testing.T, c io.Closer, services []*client.Service, parallel, restore, suspend bool) {
 	defer func() {
-		if err := c.Close(); err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, c.Close())
 	}()
 
 	t.Run("#", func(t *testing.T) {
@@ -119,7 +110,7 @@ func testServiceRepeat(t *testing.T, c io.Closer, services []*client.Service, pa
 			runtime.ContextWithDummyProcessKey(context.Background()),
 		}
 
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			ctx := ctxs[i%len(ctxs)]
 
 			t.Run(strconv.Itoa(i), func(t *testing.T) {
@@ -136,14 +127,12 @@ func testServiceRepeat(t *testing.T, c io.Closer, services []*client.Service, pa
 }
 
 func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend bool) {
-	if x := s.Properties().Service.Name; x != "test" {
-		t.Error(x)
-	}
-	if x := s.Properties().Service.Revision; x != "0" {
-		t.Error(x)
-	}
+	assert.Equal(t, s.Properties().Service, service.Service{
+		Name:     "test",
+		Revision: "0",
+	})
 
-	const code = 1234
+	const code = packet.Code(1234)
 	const count = 100
 
 	config := service.InstanceConfig{
@@ -155,7 +144,7 @@ func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend 
 
 	var snapshot []byte
 	if restore {
-		for i := 0; i < count/2; i++ {
+		for i := range count / 2 {
 			p := packet.MakeCall(code, 1)
 			p.SetSize()
 			p.Content()[0] = byte(i)
@@ -163,13 +152,8 @@ func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend 
 		}
 	}
 
-	inst, err := s.CreateInstance(ctx, config, snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := inst.Ready(ctx); err != nil {
-		t.Fatal(err)
-	}
+	inst := Must(t, R(s.CreateInstance(ctx, config, snapshot)))
+	require.NoError(t, inst.Ready(ctx))
 
 	done := make(chan int, 1)
 	recv := make(chan packet.Thunk)
@@ -180,18 +164,10 @@ func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend 
 			if p, err := thunk(); err != nil {
 				t.Error(err)
 			} else if len(p) > 0 {
-				if x := p.Domain(); x != packet.DomainCall {
-					t.Error(x)
-				}
-				if x := p.Code(); x != code {
-					t.Error(x)
-				}
-				if x := len(p.Content()); x != 1 {
-					t.Error(x)
-				}
-				if x := int(p.Content()[0]); x != i {
-					t.Error(x)
-				}
+				assert.Equal(t, p.Domain(), packet.DomainCall)
+				assert.Equal(t, p.Code(), code)
+				assert.Equal(t, len(p.Content()), 1)
+				assert.Equal(t, int(p.Content()[0]), i)
 				i++
 			}
 		}
@@ -201,9 +177,7 @@ func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend 
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		if err := inst.Start(ctx, recv, func(e error) { t.Fatal(e) }); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, inst.Start(ctx, recv, func(err error) { t.Fatal(err) }))
 
 		i := 0
 		if restore {
@@ -213,31 +187,16 @@ func testService(ctx Context, t *testing.T, s *client.Service, restore, suspend 
 			p := packet.MakeCall(code, 1)
 			p.Content()[0] = byte(i)
 
-			reply, err := inst.Handle(ctx, recv, p)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(reply) > 0 {
-				t.Fatal(reply) // Not implemented.
-			}
+			reply := Must(t, R(inst.Handle(ctx, recv, p)))
+			require.Empty(t, reply, "not implemented")
 		}
 
 		<-done
 	}()
 
-	if suspend {
-		if snapshot, err := inst.Shutdown(ctx, true); err != nil {
-			t.Error(err)
-		} else if len(snapshot) != 0 {
-			t.Error(snapshot)
-		}
-	} else {
-		if _, err := inst.Shutdown(ctx, false); err != nil {
-			t.Error(err)
-		}
-	}
+	snapshot = Must(t, R(inst.Shutdown(ctx, suspend)))
+	require.Empty(t, snapshot)
 
-	if _, err := inst.Shutdown(ctx, true); err == nil {
-		t.Error("redundant instance suspension did not fail")
-	}
+	_, err := inst.Shutdown(ctx, true)
+	assert.Error(t, err, "redundant instance suspension did not fail")
 }

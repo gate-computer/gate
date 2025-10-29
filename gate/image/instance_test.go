@@ -9,12 +9,9 @@ import (
 	"unsafe"
 
 	internal "gate.computer/internal/executable"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestStackVars(*testing.T) {
-	var x stackVars
-
-	if unsafe.Sizeof(x) != internal.StackVarsSize {
-		panic("stackVars size mismatch")
-	}
+func TestStackVars(t *testing.T) {
+	assert.Equal(t, unsafe.Sizeof(stackVars{}), uintptr(internal.StackVarsSize))
 }

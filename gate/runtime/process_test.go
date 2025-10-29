@@ -7,20 +7,10 @@ package runtime
 import (
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestImageInfo(*testing.T) {
-	var x imageInfo
-
-	if unsafe.Sizeof(x) != imageInfoSize {
-		panic("imageInfo size mismatch")
-	}
-}
-
-func TestProcessKey(t *testing.T) {
-	var a, b ProcessKey
-
-	if a != b {
-		t.Fail()
-	}
+func TestImageInfo(t *testing.T) {
+	assert.Equal(t, unsafe.Sizeof(imageInfo{}), uintptr(imageInfoSize))
 }

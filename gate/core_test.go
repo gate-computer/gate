@@ -37,8 +37,11 @@ import (
 	"gate.computer/wag/object/debug/dump"
 	"gate.computer/wag/object/stack/stacktrace"
 	"gate.computer/wag/wa"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"import.name/lock"
 
+	. "import.name/testing/mustr"
 	. "import.name/type/context"
 )
 
@@ -345,14 +348,9 @@ func startInstance(ctx Context, t *testing.T, storage image.Storage, wasm []byte
 		}
 	}()
 
-	if err := prog.Store(fmt.Sprint(crc32.ChecksumIEEE(wasm))); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, prog.Store(fmt.Sprint(crc32.ChecksumIEEE(wasm))))
 
-	proc, err := executor.NewProcess(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	proc := Must(t, R(executor.NewProcess(ctx)))
 	defer func() {
 		if !ok {
 			proc.Kill()
@@ -364,9 +362,7 @@ func startInstance(ctx Context, t *testing.T, storage image.Storage, wasm []byte
 		DebugLog:       debugOut,
 	}
 
-	if err := proc.Start(prog, inst, policy); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, proc.Start(prog, inst, policy))
 
 	ok = true
 	return executor, prog, inst, proc, codeMap, mod
@@ -387,24 +383,16 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 	var outputMu sync.Mutex
 
 	result, trapID, _, err := proc.Serve(ctx, serviceRegistry{nopCloser{&output}, &outputMu}, nil)
-	if err != nil {
-		t.Errorf("run error: %v", err)
-	} else {
-		if trapID != expectTrap {
-			t.Errorf("run %v", trapID)
+	require.NoError(t, err)
+	assert.Equal(t, trapID, expectTrap)
+	assert.True(t, trapID != trap.Exit || result.Value() == runtime.ResultSuccess)
+
+	if testing.Verbose() {
+		trace, err := inst.Stacktrace(textMap, mod.FuncTypes())
+		if err == nil {
+			err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
 		}
-		if trapID == trap.Exit && result.Value() != runtime.ResultSuccess {
-			t.Errorf("run result: %s", result)
-		}
-		if testing.Verbose() {
-			trace, err := inst.Stacktrace(textMap, mod.FuncTypes())
-			if err == nil {
-				err = stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
-			}
-			if err != nil {
-				t.Error(err)
-			}
-		}
+		assert.NoError(t, err)
 	}
 
 	outputMu.Lock()
@@ -414,14 +402,11 @@ func runProgram(t *testing.T, wasm []byte, function string, debug io.Writer, exp
 }
 
 func TestABI(t *testing.T) {
-	src, err := os.ReadFile("../testdata/abi.cpp")
-	if err != nil {
-		t.Fatal(err)
-	}
+	src := Must(t, R(os.ReadFile("../testdata/abi.cpp")))
 
 	re := regexp.MustCompile(`^([A-Za-z0-9_]+)\s*\(\s*([A-Za-z0-9_]*)\s*\)`)
 
-	for _, line := range strings.Split(string(src), "\n") {
+	for line := range strings.SplitSeq(string(src), "\n") {
 		m := re.FindStringSubmatch(line)
 		if len(m) == 0 {
 			continue
@@ -443,9 +428,7 @@ func testABI(t *testing.T, name string) {
 	t.Run(name, func(t *testing.T) {
 		var debug bytes.Buffer
 		runProgram(t, wasmABI, "test_"+name, &debug, trap.Exit)
-		if s := debug.String(); s != "PASS\n" {
-			t.Errorf("output: %q", s)
-		}
+		assert.Equal(t, debug.String(), "PASS\n")
 	})
 }
 
@@ -454,9 +437,7 @@ func testABITrap(t *testing.T, name string) {
 	t.Run(name, func(t *testing.T) {
 		var debug bytes.Buffer
 		runProgram(t, wasmABI, "testtrap_"+name, &debug, trap.ABIDeficiency)
-		if s := debug.String(); s != "" {
-			t.Errorf("output: %q", s)
-		}
+		assert.Empty(t, debug.String())
 	})
 }
 
@@ -466,9 +447,7 @@ func TestRunNop(t *testing.T) {
 
 func testRunHello(t *testing.T, debug io.Writer) {
 	s := runProgram(t, wasmHello, "greet", debug, trap.Exit)
-	if s != "hello, world\n" {
-		t.Errorf("output: %q", s)
-	}
+	assert.Equal(t, s, "hello, world\n")
 }
 
 func TestRunHello(t *testing.T) {
@@ -482,10 +461,7 @@ func TestRunHelloNoDebug(t *testing.T) {
 func TestRunHelloDebug(t *testing.T) {
 	var debug bytes.Buffer
 	runProgram(t, wasmHelloDebug, "debug", &debug, trap.Exit)
-	s := debug.String()
-	if s != "hello, world\n" {
-		t.Errorf("debug: %q", s)
-	}
+	assert.Equal(t, debug.String(), "hello, world\n")
 }
 
 func TestRunHelloDebugNoDebug(t *testing.T) {
@@ -525,71 +501,44 @@ func testRunSuspend(t *testing.T, storage image.Storage, expectInitRoutine uint3
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
-	exit, trapID, buffers, err := proc.Serve(ctx, serviceRegistry{}, nil)
-	if err != nil {
-		t.Errorf("run error: %v", err)
-	} else if trapID == 0 {
-		t.Errorf("run exit: %d", exit)
-	} else if trapID != trap.Suspended {
-		t.Errorf("run %v", trapID)
-	}
+	_, trapID, buffers, err := proc.Serve(ctx, serviceRegistry{}, nil)
+	require.NoError(t, err)
+	assert.NotEqual(t, trapID, 0)
+	assert.Equal(t, trapID, trap.Suspended)
 
-	if err := inst.CheckMutation(); err != nil {
-		t.Errorf("instance state: %v", err)
-	}
-
-	if err := inst.Store(t.Name(), t.Name(), prog); err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, inst.CheckMutation())
+	require.NoError(t, inst.Store(t.Name(), t.Name(), prog))
 
 	if false {
-		trace, err := inst.Stacktrace(codeMap, mod.FuncTypes())
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		trace := Must(t, R(inst.Stacktrace(codeMap, mod.FuncTypes())))
 		if len(trace) > 0 {
 			stacktrace.Fprint(os.Stderr, trace, mod.FuncTypes(), nil, nil)
 		}
 	}
 
 	if false {
-		prog2, err := image.Snapshot(prog, inst, buffers, true)
-		if err != nil {
-			t.Fatal(err)
-		}
+		prog2 := Must(t, R(image.Snapshot(prog, inst, buffers, true)))
 		defer prog2.Close()
 
-		data, err := io.ReadAll(prog2.NewModuleReader())
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		data := Must(t, R(io.ReadAll(prog2.NewModuleReader())))
 		filename := fmt.Sprintf("../testdata/%s.%s.wasm", t.Name(), goruntime.GOARCH)
-
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(filename, data, 0o644))
 	}
 }
 
 func TestRandomSeed(t *testing.T) {
 	values := make([][2]uint64, 10)
 
-	for i := 0; i < len(values); i++ {
+	for i := range values {
 		var debug bytes.Buffer
 		runProgram(t, wasmRandomSeed, "dump", &debug, trap.Exit)
 		for j, s := range strings.Split(debug.String(), " ") {
-			n, err := strconv.ParseUint(strings.TrimSpace(s), 16, 64)
-			if err != nil {
-				t.Fatal(err)
-			}
-			values[i][j] = n
+			values[i][j] = Must(t, R(strconv.ParseUint(strings.TrimSpace(s), 16, 64)))
 		}
 	}
 
-	for i := 0; i < len(values); i++ {
-		for j := 0; j < len(values); j++ {
+	for i := range values {
+		for j := range values {
 			if i != j && values[i] == values[j] {
 				t.Fatal(values[i])
 			}
@@ -608,9 +557,7 @@ func TestRandomDeficiency2(t *testing.T) {
 func testRandomDeficiency(t *testing.T, function string) {
 	var debug bytes.Buffer
 	runProgram(t, wasmRandomSeed, function, &debug, trap.ABIDeficiency)
-	if s := debug.String(); s != "ping\n" {
-		t.Errorf("debug: %q", s)
-	}
+	assert.Equal(t, debug.String(), "ping\n")
 }
 
 func TestTime(t *testing.T) {

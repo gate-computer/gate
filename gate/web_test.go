@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -34,7 +33,10 @@ import (
 	"gate.computer/wag/compile"
 	"gate.computer/wag/section"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	. "import.name/testing/mustr"
 	. "import.name/type/context"
 )
 
@@ -115,13 +117,8 @@ func newServer() (*server.Server, error) {
 func newHandler(t *testing.T) http.Handler {
 	t.Helper()
 
-	s, err := newServer()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	config := &webserver.Config{
-		Server:       s,
+		Server:       Must(t, R(newServer())),
 		Authority:    "example.invalid",
 		Origins:      []string{"null"},
 		NonceChecker: newTestNonceChecker(),
@@ -129,7 +126,6 @@ func newHandler(t *testing.T) http.Handler {
 
 	h := webserver.NewHandler("/", config)
 	// h = handlers.LoggingHandler(os.Stdout, h)
-
 	return h
 }
 
@@ -162,11 +158,7 @@ func doRequest(t *testing.T, handler http.Handler, req *http.Request) (*http.Res
 	resp := w.Result()
 	defer resp.Body.Close()
 
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("response content error: %v", err)
-	}
-
+	content := Must(t, R(io.ReadAll(resp.Body)))
 	return resp, content
 }
 
@@ -188,14 +180,8 @@ func checkStatusHeader(t *testing.T, statusHeader string, expect web.Status) {
 	t.Helper()
 
 	var status web.Status
-
-	if err := json.Unmarshal([]byte(statusHeader), &status); err != nil {
-		t.Error(err)
-	}
-
-	if !reflect.DeepEqual(status, expect) {
-		t.Errorf("%#v", status)
-	}
+	assert.NoError(t, json.Unmarshal([]byte(statusHeader), &status))
+	assert.Equal(t, status, expect)
 }
 
 func TestOrigin(t *testing.T) {
@@ -223,9 +209,7 @@ func TestRedirect(t *testing.T) {
 			req.Header.Set(web.HeaderOrigin, "null")
 
 			resp, _ := checkResponse(t, newHandler(t), req, http.StatusMovedPermanently)
-			if l := resp.Header.Get("Location"); l != location {
-				t.Error(method, path, l)
-			}
+			assert.Equal(t, resp.Header.Get("Location"), location)
 		}
 	}
 }
@@ -242,9 +226,7 @@ func TestMethodNotAllowed(t *testing.T) {
 			req := httptest.NewRequest(method, path, nil)
 			req.Header.Set(web.HeaderOrigin, "null")
 			resp, _ := checkResponse(t, newHandler(t), req, http.StatusMethodNotAllowed)
-			if resp.Header.Get("Allow") == "" {
-				t.Errorf("%s %s response doesn't have Allow header", method, path)
-			}
+			assert.NotEmpty(t, resp.Header.Get("Allow"))
 		}
 	}
 }
@@ -262,14 +244,8 @@ func TestFeatures(t *testing.T) {
 		_, content := checkResponse(t, newHandler(t), req, http.StatusOK)
 
 		var api *web.API
-
-		if err := json.Unmarshal(content, &api); err != nil {
-			t.Fatal(err)
-		}
-
-		if !reflect.DeepEqual(api.Features, expect) {
-			t.Errorf("%q: %#v", query, api.Features)
-		}
+		require.NoError(t, json.Unmarshal(content, &api))
+		assert.Equal(t, api.Features, expect)
 	}
 
 	for query, expect := range map[string]int{
@@ -286,22 +262,14 @@ func TestModuleSourceList(t *testing.T) {
 	req.Header.Set(web.HeaderOrigin, "null")
 	resp, content := checkResponse(t, newHandler(t), req, http.StatusOK)
 
-	if x := resp.Header.Get(web.HeaderContentType); x != "application/json; charset=utf-8" {
-		t.Error(x)
-	}
+	assert.Equal(t, resp.Header.Get(web.HeaderContentType), "application/json; charset=utf-8")
 
 	var sources any
-
-	if err := json.Unmarshal(content, &sources); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(sources, []any{
+	require.NoError(t, json.Unmarshal(content, &sources))
+	assert.Equal(t, sources, []any{
 		web.KnownModuleSource,
 		"test",
-	}) {
-		t.Errorf("%#v", sources)
-	}
+	})
 }
 
 func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expect any) {
@@ -310,19 +278,11 @@ func checkModuleList(t *testing.T, handler http.Handler, pri principalKey, expec
 	req := newSignedRequest(pri, http.MethodPost, web.PathKnownModules, nil)
 	resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-	if x := resp.Header.Get(web.HeaderContentType); x != "application/json; charset=utf-8" {
-		t.Error(x)
-	}
+	assert.Equal(t, resp.Header.Get(web.HeaderContentType), "application/json; charset=utf-8")
 
 	var refs any
-
-	if err := json.Unmarshal(content, &refs); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(refs, expect) {
-		t.Errorf("%#v", refs)
-	}
+	require.NoError(t, json.Unmarshal(content, &refs))
+	assert.Equal(t, refs, expect)
 }
 
 func TestKnownModule(t *testing.T) {
@@ -348,9 +308,7 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if len(content) != 0 {
-			t.Error(content)
-		}
+		assert.Empty(t, content)
 	})
 
 	t.Run("ListOne", func(t *testing.T) {
@@ -383,26 +341,16 @@ func TestKnownModule(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodGet, web.PathKnownModules+hashHello, nil)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-		if x := resp.Header.Get(web.HeaderContentType); x != web.ContentTypeWebAssembly {
-			t.Error(x)
-		}
-
-		if !bytes.Equal(content, wasmHello) {
-			t.Error(content)
-		}
+		assert.Equal(t, resp.Header.Get(web.HeaderContentType), web.ContentTypeWebAssembly)
+		assert.Equal(t, content, wasmHello)
 	})
 
 	t.Run("GetNotFound", func(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodGet, web.PathKnownModules+"C5879EADB14FA246BD9DCB2EA3D91CDC6461D33DD87F88774BE2BDE7F9AB5149", nil)
 		resp, content := checkResponse(t, handler, req, http.StatusNotFound)
 
-		if x := resp.Header.Get(web.HeaderContentType); x != "text/plain; charset=utf-8" {
-			t.Error(x)
-		}
-
-		if string(content) != "module hash must use lower-case hex encoding\n" {
-			t.Errorf("%q", content)
-		}
+		assert.Equal(t, resp.Header.Get(web.HeaderContentType), "text/plain; charset=utf-8")
+		assert.Equal(t, string(content), "module hash must use lower-case hex encoding\n")
 	})
 
 	for _, spec := range [][2]string{
@@ -422,21 +370,15 @@ func TestKnownModule(t *testing.T) {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-				t.Error(err)
-			}
+			Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-			if string(content) != expect {
-				t.Errorf("%q", content)
-			}
+			assert.Equal(t, string(content), expect)
 
 			checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 				State: web.StateTerminated,
 			})
 
-			if len(resp.Trailer) != 1 {
-				t.Errorf("trailer: %v", resp.Trailer)
-			}
+			assert.Equal(t, len(resp.Trailer), 1)
 		})
 
 		t.Run("Launch_"+fn, func(t *testing.T) {
@@ -447,13 +389,9 @@ func TestKnownModule(t *testing.T) {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-				t.Error(err)
-			}
+			Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-			if len(content) != 0 {
-				t.Errorf("%q", content)
-			}
+			assert.Empty(t, content)
 		})
 	}
 
@@ -465,9 +403,7 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if len(content) != 0 {
-			t.Error(content)
-		}
+		assert.Empty(t, content)
 
 		checkModuleList(t, handler, pri, map[string]any{})
 	})
@@ -487,21 +423,15 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-		if len(content) != 0 {
-			t.Errorf("%q", content)
-		}
+		assert.Empty(t, content)
 
 		checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 			State: web.StateTerminated,
 		})
 
-		if len(resp.Trailer) != 1 {
-			t.Errorf("trailer: %v", resp.Trailer)
-		}
+		assert.Equal(t, len(resp.Trailer), 1)
 
 		checkModuleList(t, handler, pri, map[string]any{})
 
@@ -519,21 +449,15 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-		if len(content) != 0 {
-			t.Errorf("%q", content)
-		}
+		assert.Empty(t, content)
 
 		checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 			State: web.StateTerminated,
 		})
 
-		if len(resp.Trailer) != 1 {
-			t.Errorf("trailer: %v", resp.Trailer)
-		}
+		assert.Equal(t, len(resp.Trailer), 1)
 
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
@@ -556,13 +480,9 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-		if len(content) != 0 {
-			t.Errorf("%q", content)
-		}
+		assert.Empty(t, content)
 
 		checkModuleList(t, handler, pri, map[string]any{})
 
@@ -579,13 +499,9 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-		if len(content) != 0 {
-			t.Errorf("%q", content)
-		}
+		assert.Empty(t, content)
 
 		checkModuleList(t, handler, pri, map[string]any{
 			"modules": []any{
@@ -612,13 +528,9 @@ func TestKnownModule(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-		if len(content) != 0 {
-			t.Error(content)
-		}
+		assert.Empty(t, content)
 
 		req = newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=unpin", nil)
 		checkResponse(t, handler, req, http.StatusNotFound)
@@ -629,21 +541,15 @@ func TestKnownModule(t *testing.T) {
 		req.Header.Set(web.HeaderContentType, web.ContentTypeWebAssembly)
 		resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-		if x := resp.Header.Get(web.HeaderLocation); x != web.PathKnownModules+hashHello {
-			t.Error(x)
-		}
+		assert.Equal(t, resp.Header.Get(web.HeaderLocation), web.PathKnownModules+hashHello)
 
 		if s, found := resp.Header[web.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
 
-		if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-		if len(content) != 0 {
-			t.Error(content)
-		}
+		assert.Empty(t, content)
 
 		req = newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=unpin", nil)
 		checkResponse(t, handler, req, http.StatusOK)
@@ -683,9 +589,7 @@ func TestModuleSource(t *testing.T) {
 		if s, found := resp.Header[web.HeaderContentType]; found {
 			t.Errorf("%q", s)
 		}
-		if s := resp.Header.Get(web.HeaderLocation); s != web.PathKnownModules+hashHello {
-			t.Errorf("%q", s)
-		}
+		assert.Equal(t, resp.Header.Get(web.HeaderLocation), web.PathKnownModules+hashHello)
 		if s, found := resp.Header[web.HeaderInstance]; found {
 			t.Errorf("%q", s)
 		}
@@ -725,17 +629,13 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", s)
 			}
 
-			if string(content) != expect {
-				t.Errorf("%q", content)
-			}
+			assert.Equal(t, string(content), expect)
 
 			checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 				State: web.StateTerminated,
 			})
 
-			if len(resp.Trailer) != 1 {
-				t.Errorf("trailer: %v", resp.Trailer)
-			}
+			assert.Equal(t, len(resp.Trailer), 1)
 		})
 
 		t.Run("AnonPinCallUnauthorized_"+fn, func(t *testing.T) {
@@ -759,21 +659,15 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-				t.Error(err)
-			}
+			Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-			if string(content) != expect {
-				t.Errorf("%q", content)
-			}
+			assert.Equal(t, string(content), expect)
 
 			checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 				State: web.StateTerminated,
 			})
 
-			if len(resp.Trailer) != 1 {
-				t.Errorf("trailer: %v", resp.Trailer)
-			}
+			assert.Equal(t, len(resp.Trailer), 1)
 
 			req = newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=unpin", nil)
 			checkResponse(t, handler, req, http.StatusNotFound)
@@ -784,29 +678,21 @@ func TestModuleSource(t *testing.T) {
 			req.Header.Set(web.HeaderTE, web.TETrailers)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-			if x := resp.Header.Get(web.HeaderLocation); x != web.PathKnownModules+hashHello {
-				t.Error(x)
-			}
+			assert.Equal(t, resp.Header.Get(web.HeaderLocation), web.PathKnownModules+hashHello)
 
 			if s, found := resp.Header[web.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-				t.Error(err)
-			}
+			Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-			if string(content) != expect {
-				t.Errorf("%q", content)
-			}
+			assert.Equal(t, string(content), expect)
 
 			checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 				State: web.StateTerminated,
 			})
 
-			if len(resp.Trailer) != 1 {
-				t.Errorf("trailer: %v", resp.Trailer)
-			}
+			assert.Equal(t, len(resp.Trailer), 1)
 
 			req = newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=unpin", nil)
 			checkResponse(t, handler, req, http.StatusOK)
@@ -824,13 +710,9 @@ func TestModuleSource(t *testing.T) {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-				t.Error(err)
-			}
+			Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-			if len(content) != 0 {
-				t.Error(content)
-			}
+			assert.Empty(t, content)
 
 			req = newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=unpin", nil)
 			checkResponse(t, handler, req, http.StatusNotFound)
@@ -840,21 +722,15 @@ func TestModuleSource(t *testing.T) {
 			req := newSignedRequest(pri, http.MethodPost, web.PathModule+"/test/hello?action=pin&action=launch&function="+fn, nil)
 			resp, content := checkResponse(t, handler, req, http.StatusCreated)
 
-			if x := resp.Header.Get(web.HeaderLocation); x != web.PathKnownModules+hashHello {
-				t.Error(x)
-			}
+			assert.Equal(t, resp.Header.Get(web.HeaderLocation), web.PathKnownModules+hashHello)
 
 			if s, found := resp.Header[web.HeaderContentType]; found {
 				t.Errorf("%q", s)
 			}
 
-			if _, err := uuid.Parse(resp.Header.Get(web.HeaderInstance)); err != nil {
-				t.Error(err)
-			}
+			Must(t, R(uuid.Parse(resp.Header.Get(web.HeaderInstance))))
 
-			if len(content) != 0 {
-				t.Error(content)
-			}
+			assert.Empty(t, content)
 
 			req = newSignedRequest(pri, http.MethodPost, web.PathKnownModules+hashHello+"?action=unpin", nil)
 			checkResponse(t, handler, req, http.StatusOK)
@@ -870,13 +746,9 @@ func TestModuleSource(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodHead, web.PathKnownModules+hashHello, nil)
 		resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-		if x := resp.Header.Get(web.HeaderContentType); x != web.ContentTypeWebAssembly {
-			t.Error(x)
-		}
+		assert.Equal(t, resp.Header.Get(web.HeaderContentType), web.ContentTypeWebAssembly)
 
-		if len(content) != 0 {
-			t.Error(content)
-		}
+		assert.Empty(t, content)
 	})
 
 	t.Run("ActionNotImplemented", func(t *testing.T) {
@@ -894,19 +766,11 @@ func checkInstanceList(t *testing.T, handler http.Handler, pri principalKey, exp
 	req := newSignedRequest(pri, http.MethodPost, web.PathInstances, nil)
 	resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-	if x := resp.Header.Get(web.HeaderContentType); x != "application/json; charset=utf-8" {
-		t.Error(x)
-	}
+	assert.Equal(t, resp.Header.Get(web.HeaderContentType), "application/json; charset=utf-8")
 
 	var ids any
-
-	if err := json.Unmarshal(content, &ids); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(ids, expect) {
-		t.Errorf("%#v", ids)
-	}
+	require.NoError(t, json.Unmarshal(content, &ids))
+	assert.Equal(t, ids, expect)
 }
 
 func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, instID string, expect web.Status) {
@@ -915,19 +779,11 @@ func checkInstanceStatus(t *testing.T, handler http.Handler, pri principalKey, i
 	req := newSignedRequest(pri, http.MethodPost, web.PathInstances+instID, nil)
 	resp, content := checkResponse(t, handler, req, http.StatusOK)
 
-	if x := resp.Header.Get(web.HeaderContentType); x != "application/json; charset=utf-8" {
-		t.Error(x)
-	}
+	assert.Equal(t, resp.Header.Get(web.HeaderContentType), "application/json; charset=utf-8")
 
 	var info web.InstanceInfo
-
-	if err := json.Unmarshal(content, &info); err != nil {
-		t.Fatal(err)
-	}
-
-	if !reflect.DeepEqual(info.Status, expect) {
-		t.Errorf("%#v", info)
-	}
+	require.NoError(t, json.Unmarshal(content, &info))
+	assert.Equal(t, info.Status, expect)
 }
 
 func TestResumeSnapshot(t *testing.T) {
@@ -1006,9 +862,7 @@ func TestInstance(t *testing.T) {
 			t.Errorf("%q", s)
 		}
 
-		if string(content) != "hello, world\n" {
-			t.Errorf("%q", content)
-		}
+		assert.Equal(t, string(content), "hello, world\n")
 
 		if !(resp.Trailer.Get(web.HeaderStatus) == `{"state":"RUNNING"}` || resp.Trailer.Get(web.HeaderStatus) == `{"state":"HALTED"}`) || len(resp.Trailer) != 1 {
 			t.Errorf("trailer: %v", resp.Trailer)
@@ -1073,17 +927,13 @@ func TestInstanceMultiIO(t *testing.T) {
 				t.Errorf("%q", s)
 			}
 
-			if string(content) != "hello, world\n" {
-				t.Errorf("%q", content)
-			}
+			assert.Equal(t, string(content), "hello, world\n")
 
 			checkStatusHeader(t, resp.Trailer.Get(web.HeaderStatus), web.Status{
 				State: web.StateRunning,
 			})
 
-			if len(resp.Trailer) != 1 {
-				t.Errorf("trailer: %v", resp.Trailer)
-			}
+			assert.Equal(t, len(resp.Trailer), 1)
 		}()
 	}
 
@@ -1142,9 +992,7 @@ func TestInstanceSuspend(t *testing.T) {
 		req := newSignedRequest(pri, http.MethodPost, web.PathInstances+instID+"?action=suspend", nil)
 		resp, _ := checkResponse(t, handler, req, http.StatusOK)
 
-		if x := resp.Header[web.HeaderStatus]; x != nil {
-			t.Error(x)
-		}
+		assert.NotContains(t, resp.Header, web.HeaderStatus)
 	})
 
 	t.Run("Wait", func(t *testing.T) {
@@ -1163,29 +1011,19 @@ func TestInstanceSuspend(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
 		location := resp.Header.Get(web.HeaderLocation)
-		if location == "" {
-			t.Fatal("no module location")
-		}
+		assert.NotEmpty(t, location)
 
 		req = newSignedRequest(pri, http.MethodGet, location, nil)
 		_, snapshot = checkResponse(t, handler, req, http.StatusOK)
 
 		if false {
-			f, err := os.Create("/tmp/snapshot.wasm")
-			if err != nil {
-				t.Error(err)
-			} else {
-				defer f.Close()
-				if _, err := f.Write(snapshot); err != nil {
-					t.Error(err)
-				}
-			}
+			f := Must(t, R(os.Create("/tmp/snapshot.wasm")))
+			defer f.Close()
+			Must(t, R(f.Write(snapshot)))
 		}
 
 		config := &wag.Config{ImportResolver: new(abi.ImportResolver)}
-		if _, err := wag.Compile(config, bytes.NewReader(snapshot), abi.Library()); err != nil {
-			t.Error(err)
-		}
+		Must(t, R(wag.Compile(config, bytes.NewReader(snapshot), abi.Library())))
 	})
 
 	t.Run("ResumeFunction", func(t *testing.T) {
@@ -1267,23 +1105,15 @@ func TestInstanceTerminated(t *testing.T) {
 		resp, _ := checkResponse(t, handler, req, http.StatusCreated)
 
 		location := resp.Header.Get(web.HeaderLocation)
-		if location == "" {
-			t.Fatal("no module location")
-		}
+		assert.NotEmpty(t, location)
 
 		req = newSignedRequest(pri, http.MethodGet, location, nil)
 		_, snapshot := checkResponse(t, handler, req, http.StatusOK)
 
 		if false {
-			f, err := os.Create("/tmp/snapshot.wasm")
-			if err != nil {
-				t.Error(err)
-			} else {
-				defer f.Close()
-				if _, err := f.Write(snapshot); err != nil {
-					t.Error(err)
-				}
-			}
+			f := Must(t, R(os.Create("/tmp/snapshot.wasm")))
+			defer f.Close()
+			Must(t, R(f.Write(snapshot)))
 		}
 
 		var final bool
@@ -1302,29 +1132,12 @@ func TestInstanceTerminated(t *testing.T) {
 
 		c := compile.Config{CustomSectionLoader: section.CustomLoader(loaders)}
 		r := compile.NewLoader(bytes.NewReader(snapshot))
-
-		m, err := compile.LoadInitialSections(&compile.ModuleConfig{Config: c}, r)
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		m := Must(t, R(compile.LoadInitialSections(&compile.ModuleConfig{Config: c}, r)))
 		binding.BindImports(&m, new(abi.ImportResolver))
-
-		if err := compile.LoadCodeSection(&compile.CodeConfig{Config: c}, r, m, abi.Library()); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := compile.LoadDataSection(&compile.DataConfig{Config: c}, r, m); err != nil {
-			t.Fatal(err)
-		}
-
-		if err := compile.LoadCustomSections(&c, r); err != nil {
-			t.Error(err)
-		}
-
-		if !final {
-			t.Error("snapshot section did not have final flag set")
-		}
+		require.NoError(t, compile.LoadCodeSection(&compile.CodeConfig{Config: c}, r, m, abi.Library()))
+		require.NoError(t, compile.LoadDataSection(&compile.DataConfig{Config: c}, r, m))
+		require.NoError(t, compile.LoadCustomSections(&c, r))
+		assert.True(t, final, "snapshot section did not have final flag set")
 	})
 }
 

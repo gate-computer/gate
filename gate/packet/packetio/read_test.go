@@ -10,33 +10,27 @@ import (
 	"testing"
 
 	"gate.computer/gate/packet"
+	"github.com/stretchr/testify/assert"
+
+	. "import.name/testing/mustr"
 )
 
 func TestReadStreamEnd(t *testing.T) {
 	s := NewReadStream()
-	if err := s.FinishSubscription(); err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, s.FinishSubscription())
 
 	send := make(chan packet.Thunk, 1)
 	r, w := io.Pipe()
 	w.Close()
 
-	if err := s.Transfer(context.Background(), testService, testStreamID, send, r); err != nil {
-		t.Error(err)
-	}
-
-	if s.Live() {
-		t.Error("still live")
-	}
+	assert.NoError(t, s.Transfer(context.Background(), testService, testStreamID, send, r))
+	assert.False(t, s.Live())
 
 	thunk := <-send
-	if p, err := thunk(); err != nil {
-		t.Error(err)
-	} else if len(p) > 0 {
+	p := Must(t, R(thunk()))
+	if len(p) > 0 {
 		p := packet.MustBeData(p)
-		if p.Code() != testService.Code || p.ID() != testStreamID {
-			t.Error(p)
-		}
+		assert.Equal(t, p.Code(), testService.Code)
+		assert.Equal(t, p.ID(), testStreamID)
 	}
 }
