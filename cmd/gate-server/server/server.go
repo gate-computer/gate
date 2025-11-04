@@ -126,8 +126,8 @@ type Config struct {
 	}
 
 	HTTP struct {
-		Net  string
-		Addr string
+		Net string
+		http.Server
 		webserver.Config
 		AccessDB  map[string]database.Config
 		AccessLog string
@@ -417,7 +417,7 @@ func main2(ctx Context, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	c.HTTP.Server = serverImpl
+	c.HTTP.Config.Server = serverImpl
 
 	if c.HTTP.Authority == "" {
 		c.HTTP.Authority, _, err = net.SplitHostPort(c.HTTP.Addr)
@@ -463,9 +463,7 @@ func main2(ctx Context, log *slog.Logger) error {
 		handler = handlers.LoggingHandler(f, handler)
 	}
 
-	webServer := &http.Server{
-		Handler: wrapWithHandlerFunc(handler),
-	}
+	c.HTTP.Handler = wrapWithHandlerFunc(handler)
 
 	webListener, err := net.Listen(c.HTTP.Net, c.HTTP.Addr)
 	if err != nil {
@@ -492,11 +490,11 @@ func main2(ctx Context, log *slog.Logger) error {
 			ForceRSA:    c.ACME.ForceRSA,
 		}
 
-		webServer.TLSConfig = &tls.Config{
+		c.HTTP.TLSConfig = &tls.Config{
 			GetCertificate: m.GetCertificate,
 			NextProtos:     []string{"h2", "http/1.1"},
 		}
-		webListener = tls.NewListener(webListener, webServer.TLSConfig)
+		webListener = tls.NewListener(webListener, c.HTTP.TLSConfig)
 
 		acmeServer = &http.Server{
 			Handler: wrapWithHandlerFunc(m.HTTPHandler(newACMEHandler())),
@@ -541,7 +539,7 @@ func main2(ctx Context, log *slog.Logger) error {
 
 	go func() {
 		select {
-		case exit <- webServer.Serve(webListener):
+		case exit <- c.HTTP.Server.Serve(webListener):
 		default:
 		}
 	}()
@@ -567,7 +565,7 @@ func main2(ctx Context, log *slog.Logger) error {
 		ctx, cancel := context.WithTimeout(ctx, shutdownTimeout)
 		defer cancel()
 
-		if err := webServer.Shutdown(ctx); err != nil {
+		if err := c.HTTP.Server.Shutdown(ctx); err != nil {
 			log.ErrorContext(ctx, "web server shutdown failed", "error", err)
 		}
 
