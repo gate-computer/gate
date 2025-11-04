@@ -11,7 +11,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -566,7 +565,7 @@ func benchmarkTask(O, GO, TAGS string) Task {
 		result := make(chan error, 1)
 		go func() { result <- cmd.Run() }()
 
-		output, err := ioutil.ReadAll(io.TeeReader(stdout, os.Stdout))
+		output, err := io.ReadAll(io.TeeReader(stdout, os.Stdout))
 		if err != nil {
 			return err
 		}
@@ -577,7 +576,7 @@ func benchmarkTask(O, GO, TAGS string) Task {
 
 		Println("Writing", BENCHSTATSNEW)
 
-		if err := ioutil.WriteFile(BENCHSTATSNEW, output, 0o666); err != nil {
+		if err := os.WriteFile(BENCHSTATSNEW, output, 0o666); err != nil {
 			return err
 		}
 

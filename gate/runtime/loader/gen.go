@@ -8,7 +8,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -1135,7 +1134,7 @@ func main() {
 		as(arch, output)
 	}
 
-	if err := ioutil.WriteFile(filename, []byte(output), 0o666); err != nil {
+	if err := os.WriteFile(filename, []byte(output), 0o666); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -1150,7 +1149,7 @@ const boilerplate = `
 `
 
 func as(arch ga.Arch, asm string) {
-	f, err := ioutil.TempFile("", "*.o")
+	f, err := os.CreateTemp("", "*.o")
 	if err != nil {
 		panic(err)
 	}
