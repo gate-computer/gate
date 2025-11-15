@@ -361,9 +361,9 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 	}
 
 	methods := map[string]any{
-		"Call": func(traceID, spanID []byte, moduleID, function string, instanceTags, scop []string, transient bool, suspendFD, rFD, wFD, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"Call": func(moduleID, function string, instanceTags, scop []string, transient bool, suspendFD, rFD, wFD, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "Call", traceID, spanID)
+			ctx, span := startSpan(ctx, "Call")
 			defer span.End()
 			launch := &api.LaunchOptions{
 				Function:  function,
@@ -375,9 +375,9 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"CallFile": func(traceID, spanID []byte, moduleFD dbus.UnixFD, modulePin bool, moduleTags []string, function string, instanceTags, scop []string, transient bool, suspendFD, rFD, wFD, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"CallFile": func(moduleFD dbus.UnixFD, modulePin bool, moduleTags []string, function string, instanceTags, scop []string, transient bool, suspendFD, rFD, wFD, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "CallFile", traceID, spanID)
+			ctx, span := startSpan(ctx, "CallFile")
 			defer span.End()
 			moduleFile := os.NewFile(uintptr(moduleFD), "module")
 			moduleOpt := moduleOptions(modulePin, moduleTags)
@@ -391,33 +391,33 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"ConnectInstance": func(traceID, spanID []byte, instanceID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
+		"ConnectInstance": func(instanceID string, rFD, wFD dbus.UnixFD) (ok bool, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "ConnectInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "ConnectInstance")
 			defer span.End()
 			ok = connectInstance(ctx, s(), instanceID, rFD, wFD)
 			return
 		},
 
-		"DebugInstance": func(traceID, spanID []byte, instanceID string, reqProtoBuf []byte) (resProtoBuf []byte, err *dbus.Error) {
+		"DebugInstance": func(instanceID string, reqProtoBuf []byte) (resProtoBuf []byte, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "DebugInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "DebugInstance")
 			defer span.End()
 			resProtoBuf = debugInstance(ctx, s(), instanceID, reqProtoBuf)
 			return
 		},
 
-		"DeleteInstance": func(traceID, spanID []byte, instanceID string) (err *dbus.Error) {
+		"DeleteInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "DeleteInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "DeleteInstance")
 			defer span.End()
 			z.Check(s().DeleteInstance(ctx, instanceID))
 			return
 		},
 
-		"DownloadModule": func(traceID, spanID []byte, moduleFD dbus.UnixFD, moduleID string) (moduleLen int64, err *dbus.Error) {
+		"DownloadModule": func(moduleFD dbus.UnixFD, moduleID string) (moduleLen int64, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "DownloadModule", traceID, spanID)
+			ctx, span := startSpan(ctx, "DownloadModule")
 			defer span.End()
 			module := os.NewFile(uintptr(moduleFD), "module")
 			r, moduleLen := downloadModule(ctx, s(), moduleID)
@@ -429,17 +429,17 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"GetInstanceInfo": func(traceID, spanID []byte, instanceID string) (state api.State, cause api.Cause, result int32, tags []string, err *dbus.Error) {
+		"GetInstanceInfo": func(instanceID string) (state api.State, cause api.Cause, result int32, tags []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "GetInstanceInfo", traceID, spanID)
+			ctx, span := startSpan(ctx, "GetInstanceInfo")
 			defer span.End()
 			state, cause, result, tags = getInstanceInfo(ctx, s(), instanceID)
 			return
 		},
 
-		"GetModuleInfo": func(traceID, spanID []byte, moduleID string) (tags []string, err *dbus.Error) {
+		"GetModuleInfo": func(moduleID string) (tags []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "GetModuleInfo", traceID, spanID)
+			ctx, span := startSpan(ctx, "GetModuleInfo")
 			defer span.End()
 			tags = must(s().ModuleInfo(ctx, moduleID)).Tags
 			return
@@ -447,15 +447,15 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 
 		"GetScope": func(traceID, spanID []byte) (scop []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			_, span := startSpan(ctx, "GetScope", traceID, spanID)
+			_, span := startSpan(ctx, "GetScope")
 			defer span.End()
 			scop = s().Features().Scope
 			return
 		},
 
-		"Launch": func(traceID, spanID []byte, moduleID string, function string, suspend bool, instanceTags []string, scop []string, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, err *dbus.Error) {
+		"Launch": func(moduleID string, function string, suspend bool, instanceTags []string, scop []string, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "Launch", traceID, spanID)
+			ctx, span := startSpan(ctx, "Launch")
 			defer span.End()
 			launch := &api.LaunchOptions{
 				Function: function,
@@ -468,9 +468,9 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"LaunchFile": func(traceID, spanID []byte, moduleFD dbus.UnixFD, modulePin bool, moduleTags []string, function string, suspend bool, instanceTags, scop []string, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, err *dbus.Error) {
+		"LaunchFile": func(moduleFD dbus.UnixFD, modulePin bool, moduleTags []string, function string, suspend bool, instanceTags, scop []string, debugFD dbus.UnixFD, debugLogging bool) (instanceID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "LaunchFile", traceID, spanID)
+			ctx, span := startSpan(ctx, "LaunchFile")
 			defer span.End()
 			moduleFile := os.NewFile(uintptr(moduleFD), "module")
 			moduleOpt := moduleOptions(modulePin, moduleTags)
@@ -487,7 +487,7 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 
 		"ListInstances": func(traceID, spanID []byte) (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "ListInstances", traceID, spanID)
+			ctx, span := startSpan(ctx, "ListInstances")
 			defer span.End()
 			list = listInstances(ctx, s())
 			return
@@ -495,15 +495,15 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 
 		"ListModules": func(traceID, spanID []byte) (list []string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "ListModules", traceID, spanID)
+			ctx, span := startSpan(ctx, "ListModules")
 			defer span.End()
 			list = listModules(ctx, s())
 			return
 		},
 
-		"PinModule": func(traceID, spanID []byte, moduleID string, tags []string) (err *dbus.Error) {
+		"PinModule": func(moduleID string, tags []string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "PinModule", traceID, spanID)
+			ctx, span := startSpan(ctx, "PinModule")
 			defer span.End()
 			opt := &api.ModuleOptions{
 				Pin:  true,
@@ -513,17 +513,17 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"KillInstance": func(traceID, spanID []byte, instanceID string) (err *dbus.Error) {
+		"KillInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "KillInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "KillInstance")
 			defer span.End()
 			must(s().KillInstance(ctx, instanceID))
 			return
 		},
 
-		"ResumeInstance": func(traceID, spanID []byte, instanceID, function string, scop []string, debugFD dbus.UnixFD, debugLogging bool) (err *dbus.Error) {
+		"ResumeInstance": func(instanceID, function string, scop []string, debugFD dbus.UnixFD, debugLogging bool) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "ResumeInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "ResumeInstance")
 			defer span.End()
 			resume := &api.ResumeOptions{
 				Function: function,
@@ -533,34 +533,34 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"Snapshot": func(traceID, spanID []byte, instanceID string, moduleTags []string) (moduleID string, err *dbus.Error) {
+		"Snapshot": func(instanceID string, moduleTags []string) (moduleID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "Snapshot", traceID, spanID)
+			ctx, span := startSpan(ctx, "Snapshot")
 			defer span.End()
 			moduleOpt := moduleOptions(true, moduleTags)
 			moduleID = must(s().Snapshot(ctx, instanceID, moduleOpt))
 			return
 		},
 
-		"SuspendInstance": func(traceID, spanID []byte, instanceID string) (err *dbus.Error) {
+		"SuspendInstance": func(instanceID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "SuspendInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "SuspendInstance")
 			defer span.End()
 			must(s().SuspendInstance(ctx, instanceID))
 			return
 		},
 
-		"UnpinModule": func(traceID, spanID []byte, moduleID string) (err *dbus.Error) {
+		"UnpinModule": func(moduleID string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "UnpinModule", traceID, spanID)
+			ctx, span := startSpan(ctx, "UnpinModule")
 			defer span.End()
 			z.Check(s().UnpinModule(ctx, moduleID))
 			return
 		},
 
-		"UpdateInstance": func(traceID, spanID []byte, instanceID string, persist bool, tags []string) (err *dbus.Error) {
+		"UpdateInstance": func(instanceID string, persist bool, tags []string) (err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "UpdateInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "UpdateInstance")
 			defer span.End()
 			update := &api.InstanceUpdate{
 				Persist: persist,
@@ -570,9 +570,9 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"UploadModule": func(traceID, spanID []byte, fd dbus.UnixFD, length int64, hash string, tags []string) (moduleID string, err *dbus.Error) {
+		"UploadModule": func(fd dbus.UnixFD, length int64, hash string, tags []string) (moduleID string, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "UploadModule", traceID, spanID)
+			ctx, span := startSpan(ctx, "UploadModule")
 			defer span.End()
 			file := os.NewFile(uintptr(fd), "module")
 			opt := moduleOptions(true, tags)
@@ -580,9 +580,9 @@ func methods(ctx Context, inited <-chan api.Server) map[string]any {
 			return
 		},
 
-		"WaitInstance": func(traceID, spanID []byte, instanceID string) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
+		"WaitInstance": func(instanceID string) (state api.State, cause api.Cause, result int32, err *dbus.Error) {
 			defer func() { err = asBusError(recover()) }()
-			ctx, span := startSpan(ctx, "WaitInstance", traceID, spanID)
+			ctx, span := startSpan(ctx, "WaitInstance")
 			defer span.End()
 			state, cause, result = waitInstance(ctx, s(), instanceID)
 			return
@@ -946,24 +946,11 @@ func serveUnix(ctx Context, s *server.Server, l *net.UnixListener) error {
 	}
 }
 
-func startSpan(ctx Context, method string, traceID, parentID []byte) (Context, trace.Span) {
-	traceIDx := trace.TraceID(traceID)
-	parentIDx := trace.SpanID(parentID)
-
-	var c trace.SpanContext
-	c = c.WithTraceID(traceIDx)
-	c = c.WithSpanID(parentIDx)
-	ctx = trace.ContextWithRemoteSpanContext(ctx, c)
-
+func startSpan(ctx Context, method string, logargs ...any) (Context, trace.Span) {
 	tracer := otel.GetTracerProvider().Tracer("gate/cmd/gate-daemon")
 	ctx, span := tracer.Start(ctx, method, trace.WithSpanKind(trace.SpanKindServer))
 
-	slog.DebugContext(ctx, "daemon: call",
-		"method", method,
-		"trace", traceIDx,
-		"span", span.SpanContext().SpanID(),
-		"parent", parentIDx,
-	)
+	slog.DebugContext(ctx, "daemon: call", append([]any{"method", method}, logargs...)...)
 
 	return ctx, span
 }
