@@ -17,7 +17,6 @@ import (
 	"gate.computer/gate/scope"
 	"gate.computer/internal"
 	"gate.computer/internal/cmdconf"
-	"gate.computer/internal/logging"
 	"golang.org/x/term"
 	"import.name/confi"
 )
@@ -130,7 +129,6 @@ type command struct {
 
 func main() {
 	log.SetFlags(0)
-	logging.Init(true)
 
 	if internal.CmdPanic == "" {
 		defer func() {
