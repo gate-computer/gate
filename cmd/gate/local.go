@@ -5,11 +5,9 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,8 +22,6 @@ import (
 	"gate.computer/gate/web"
 	"gate.computer/internal/bus"
 	"github.com/godbus/dbus/v5"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 	"google.golang.org/protobuf/proto"
 )
@@ -33,22 +29,6 @@ import (
 var daemon dbus.BusObject
 
 func daemonCall(method string, args ...any) *dbus.Call {
-	tracer := otel.GetTracerProvider().Tracer("gate/cmd/gate")
-	_, span := tracer.Start(context.Background(), method, trace.WithSpanKind(trace.SpanKindClient))
-	defer span.End()
-
-	c := span.SpanContext()
-	traceID := c.TraceID()
-	spanID := c.SpanID()
-
-	slog.Debug("call",
-		"method", method,
-		"trace", traceID,
-		"span", spanID,
-	)
-
-	args = append([]any{traceID[:], spanID[:]}, args...)
-
 	if daemon == nil {
 		conn := must(dbus.SessionBus())
 		daemon = conn.Object(bus.DaemonIface, bus.DaemonPath)
