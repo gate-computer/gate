@@ -300,6 +300,7 @@ func subjectWriteLoop(w *file.File) chan<- packet.Buf {
 			iov[1] = pad[:n]
 
 			if err := w.WriteVec(iov); err != nil {
+				// Error is handled quietly.
 				return
 			}
 		}
@@ -331,21 +332,11 @@ func handlePacket(ctx Context, p packet.Buf, discoverer *serviceDiscoverer) (msg
 	switch code := p.Code(); {
 	case code >= 0:
 		msg, err = discoverer.checkPacket(p)
-		if err != nil {
-			return
-		}
-
 	case code == packet.CodeServices:
 		reply, err = discoverer.handlePacket(ctx, p)
-		if err != nil {
-			return
-		}
-
 	default:
 		err = badprogram.Errorf("invalid code in incoming packet: %d", code)
-		return
 	}
-
 	return
 }
 

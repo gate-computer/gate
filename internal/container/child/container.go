@@ -248,7 +248,6 @@ func childMain() error {
 
 	if common.Sandbox {
 		syscall.Umask(0o777)
-
 		if err := setrlimit("FSIZE", unix.RLIMIT_FSIZE, limitFSIZE); err != nil {
 			return err
 		}

@@ -40,7 +40,6 @@ func (ak *AuthorizedKeys) ParseFile(uid, filename string) error {
 	if err != nil {
 		return err
 	}
-
 	return ak.Parse(uid, text)
 }
 

@@ -86,7 +86,6 @@ func (rw *websocketReadWriter) Read(buf []byte) (int, error) {
 			if err != nil {
 				return 0, err
 			}
-
 			rw.readFrame = frame
 		}
 

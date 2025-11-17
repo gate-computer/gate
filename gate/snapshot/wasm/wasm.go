@@ -29,87 +29,86 @@ const (
 	SectionStack    = "gate.stack"    // May appear once between buffer and data sections.
 )
 
-func ReadSnapshotSection(r section.Reader) (snap snapshot.Snapshot, readLen int, err error) {
+func ReadSnapshotSection(r section.Reader) (snap *snapshot.Snapshot, readLen int, err error) {
 	version, n, err := binary.Varuint64(r)
-	if err != nil {
-		return
-	}
 	readLen += n
-
+	if err != nil {
+		return nil, readLen, err
+	}
 	if version < minSnapshotVersion {
-		err = badprogram.Error(fmt.Sprintf("unsupported snapshot version: %d", version))
-		return
+		return nil, readLen, badprogram.Error(fmt.Sprintf("unsupported snapshot version: %d", version))
 	}
 
 	flags, n, err := binary.Varuint64(r)
-	if err != nil {
-		return
-	}
 	readLen += n
-	snap.Final = flags&1 != 0
+	if err != nil {
+		return nil, readLen, err
+	}
+	snap = &snapshot.Snapshot{
+		Final: flags&1 != 0,
+	}
 
 	trapID, n, err := binary.Varuint32(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, err
+	}
 	snap.Trap = trap.ID(trapID)
 
 	result, n, err := binary.Varuint32(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, err
+	}
 	snap.Result = int32(result)
 
 	snap.MonotonicTime, n, err = binary.Varuint64(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, err
+	}
 
 	numBreakpoints, n, err := binary.Varuint32(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, err
+	}
 	if numBreakpoints > snapshot.MaxBreakpoints {
-		err = errors.New("snapshot has too many breakpoints")
-		return
+		return nil, readLen, errors.New("snapshot has too many breakpoints")
 	}
 
 	snap.Breakpoints = make([]uint64, numBreakpoints)
 	for i := range snap.Breakpoints {
 		snap.Breakpoints[i], n, err = binary.Varuint64(r)
-		if err != nil {
-			return
-		}
 		readLen += n
+		if err != nil {
+			return nil, readLen, err
+		}
 	}
 
-	return
+	return snap, readLen, nil
 }
 
 func ReadBufferSectionHeader(r section.Reader, length uint32) (bs *snapshot.Buffers, readLen int, dataBuf []byte, err error) {
 	// TODO: limit sizes and count
 
 	inputSize, n, err := binary.Varuint32(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, nil, err
+	}
 
 	outputSize, n, err := binary.Varuint32(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, nil, err
+	}
 
 	serviceCount, n, err := binary.Varuint32(r)
-	if err != nil {
-		return
-	}
 	readLen += n
+	if err != nil {
+		return nil, readLen, nil, err
+	}
 
 	dataSize := int64(inputSize) + int64(outputSize)
 
@@ -119,32 +118,29 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs *snapshot.Buff
 	serviceSizes := make([]uint32, serviceCount)
 
 	for i := range bs.Services {
-		var nameLen byte
-
-		nameLen, err = r.ReadByte()
+		nameLen, err := r.ReadByte()
 		if err != nil {
-			return
+			return nil, readLen, nil, err
 		}
 		readLen++
 
 		if nameLen == 0 || nameLen > maxServiceNameLen {
-			err = badprogram.Error("service name length out of bounds")
-			return
+			return nil, readLen, nil, badprogram.Error("service name length out of bounds")
 		}
 
 		b := make([]byte, nameLen)
-		n, err = io.ReadFull(r, b)
-		if err != nil {
-			return
-		}
+		n, err := io.ReadFull(r, b)
 		readLen += n
+		if err != nil {
+			return nil, readLen, nil, err
+		}
 		bs.Services[i] = &snapshot.Service{Name: string(b)}
 
 		serviceSizes[i], n, err = binary.Varuint32(r)
-		if err != nil {
-			return
-		}
 		readLen += n
+		if err != nil {
+			return nil, readLen, nil, err
+		}
 
 		// TODO: limit size
 
@@ -152,8 +148,7 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs *snapshot.Buff
 	}
 
 	if int64(readLen)+dataSize > int64(length) {
-		err = badprogram.Error("invalid buffer section in wasm module")
-		return
+		return nil, readLen, nil, badprogram.Error("invalid buffer section in wasm module")
 	}
 
 	dataBuf = make([]byte, dataSize)
@@ -170,5 +165,5 @@ func ReadBufferSectionHeader(r section.Reader, length uint32) (bs *snapshot.Buff
 		b = b[size:]
 	}
 
-	return
+	return bs, readLen, dataBuf, nil
 }

@@ -311,26 +311,23 @@ func (inst *Instance) CheckHaltedMutation(result wa.ScalarCategory) (uint64, err
 	if err != nil {
 		return 0, err
 	}
-
 	return vars.Result[result], nil
 }
 
-func (inst *Instance) checkMutation() (vars stackVars, err error) {
+func (inst *Instance) checkMutation() (stackVars, error) {
 	if inst.coherent {
-		return
+		return stackVars{}, nil
 	}
 
 	b := make([]byte, executable.StackVarsSize)
 
-	_, err = inst.file.ReadAt(b, 0)
-	if err != nil {
-		return
+	if _, err := inst.file.ReadAt(b, 0); err != nil {
+		return stackVars{}, err
 	}
 
 	vars, ok := checkStack(b, inst.man.StackSize)
 	if !ok {
-		err = ErrInvalidState
-		return
+		return stackVars{}, ErrInvalidState
 	}
 
 	if vars.StackUnused != 0 {
@@ -349,7 +346,7 @@ func (inst *Instance) checkMutation() (vars stackVars, err error) {
 	}
 
 	inst.coherent = true
-	return
+	return vars, nil
 }
 
 func (inst *Instance) Globals(prog *Program) ([]uint64, error) {
@@ -359,13 +356,11 @@ func (inst *Instance) Globals(prog *Program) ([]uint64, error) {
 	)
 
 	b := make([]byte, inst.man.GlobalsSize)
-
 	if _, err := inst.file.ReadAt(b, instGlobalsOffset); err != nil {
 		return nil, err
 	}
 
 	values := make([]uint64, len(prog.man.GlobalTypes))
-
 	for i := range values {
 		values[i] = binary.LittleEndian.Uint64(b[len(b)-(i+1)*8:])
 	}
@@ -446,7 +441,6 @@ func (inst *Instance) ExportStack(textMap stack.TextMap) ([]byte, error) {
 	if err := exportStack(b, b, inst.man.TextAddr, textMap); err != nil {
 		return nil, err
 	}
-
 	return b, nil
 }
 

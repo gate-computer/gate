@@ -37,51 +37,50 @@ func NewFilesystem(root string) (*Filesystem, error) {
 	return NewFilesystemWithOwnership(root, -1, -1)
 }
 
-func NewFilesystemWithOwnership(root string, uid, gid int) (fs *Filesystem, err error) {
+func NewFilesystemWithOwnership(root string, uid, gid int) (*Filesystem, error) {
 	progPath := path.Join(root, "program")
 	instPath := path.Join(root, "instance")
 
 	// Don't use MkdirAll to get an error if root doesn't exist.
 	for _, p := range []string{progPath, instPath} {
-		if e := os.Mkdir(p, 0o700); e != nil && !os.IsExist(e) {
-			err = e
-			return
+		if err := os.Mkdir(p, 0o700); err != nil && !os.IsExist(err) {
+			return nil, err
 		}
 	}
 
+	var ok bool
+
 	progDir, err := openat(unix.AT_FDCWD, progPath, syscall.O_DIRECTORY, 0)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			progDir.Close()
 		}
 	}()
 
 	instDir, err := openat(unix.AT_FDCWD, instPath, syscall.O_DIRECTORY, 0)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			instDir.Close()
 		}
 	}()
 
 	if uid >= 0 || gid >= 0 {
-		err = unix.Fchownat(int(progDir.Fd()), ".", uid, gid, 0)
-		if err != nil {
-			return
+		if err := unix.Fchownat(int(progDir.Fd()), ".", uid, gid, 0); err != nil {
+			return nil, err
 		}
-		err = unix.Fchownat(int(instDir.Fd()), ".", uid, gid, 0)
-		if err != nil {
-			return
+		if err := unix.Fchownat(int(instDir.Fd()), ".", uid, gid, 0); err != nil {
+			return nil, err
 		}
 	}
 
-	fs = &Filesystem{progDir, instDir}
-	return
+	ok = true
+	return &Filesystem{progDir, instDir}, nil
 }
 
 func (fs *Filesystem) Close() error {
@@ -90,19 +89,25 @@ func (fs *Filesystem) Close() error {
 	return nil
 }
 
-func (fs *Filesystem) newProgramFile() (f *file.File, err error) {
-	f, err = openat(int(fs.progDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o400)
+func (fs *Filesystem) newProgramFile() (*file.File, error) {
+	var ok bool
+
+	f, err := openat(int(fs.progDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o400)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			f.Close()
 		}
 	}()
 
-	err = ftruncate(f.FD(), progMaxOffset)
-	return
+	if err := ftruncate(f.FD(), progMaxOffset); err != nil {
+		return nil, err
+	}
+
+	ok = true
+	return f, nil
 }
 
 func (fs *Filesystem) protectProgramFile(*file.File) error { return nil }
@@ -111,17 +116,12 @@ func (fs *Filesystem) storeProgram(prog *Program, name string) error {
 	if err := marshalManifest(prog.file, prog.man, progManifestOffset, programFileTag); err != nil {
 		return err
 	}
-
 	if err := fdatasync(prog.file.FD()); err != nil {
 		return err
 	}
-
-	if err := linkTempFile(prog.file.Fd(), fs.progDir.Fd(), name); err != nil {
-		if !os.IsExist(err) {
-			return err
-		}
+	if err := linkTempFile(prog.file.Fd(), fs.progDir.Fd(), name); err != nil && !os.IsExist(err) {
+		return err
 	}
-
 	return fdatasync(fs.progDir.FD())
 }
 
@@ -173,7 +173,6 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (*Program, error
 	if _, err := io.ReadFull(io.NewSectionReader(f, progCallSitesOffset, int64(prog.man.CallSitesSize)), callSitesBytes(&prog.Map)); err != nil {
 		return nil, err
 	}
-
 	if _, err := io.ReadFull(io.NewSectionReader(f, progFuncAddrsOffset, int64(prog.man.FuncAddrsSize)), funcAddrsBytes(&prog.Map)); err != nil {
 		return nil, err
 	}
@@ -183,19 +182,25 @@ func (fs *Filesystem) loadProgram(storage Storage, name string) (*Program, error
 	return prog, nil
 }
 
-func (fs *Filesystem) newInstanceFile() (f *file.File, err error) {
-	f, err = openat(int(fs.instDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o600)
+func (fs *Filesystem) newInstanceFile() (*file.File, error) {
+	var ok bool
+
+	f, err := openat(int(fs.instDir.Fd()), ".", unix.O_TMPFILE|syscall.O_RDWR, 0o600)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			f.Close()
 		}
 	}()
 
-	err = ftruncate(f.FD(), instMaxOffset)
-	return
+	if err := ftruncate(f.FD(), instMaxOffset); err != nil {
+		return nil, err
+	}
+
+	ok = true
+	return f, nil
 }
 
 func (fs *Filesystem) instanceFileWriteSupported() bool { return true }
@@ -212,11 +217,9 @@ func (fs *Filesystem) storeInstance(inst *Instance, name string) error {
 	if err := fdatasync(inst.file.FD()); err != nil {
 		return err
 	}
-
 	if err := linkTempFile(inst.file.Fd(), fs.instDir.Fd(), name); err != nil {
 		return err
 	}
-
 	if err := fdatasync(fs.instDir.FD()); err != nil {
 		return err
 	}
@@ -230,21 +233,23 @@ func (fs *Filesystem) Instances() ([]string, error) {
 	return fs.listNames(fs.instDir.Fd())
 }
 
-func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
+func (fs *Filesystem) LoadInstance(name string) (*Instance, error) {
+	var ok bool
+
 	f, err := openat(int(fs.instDir.Fd()), name, syscall.O_RDWR, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
-			err = nil
+			return nil, nil
 		}
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			f.Close()
 		}
 	}()
 
-	inst = &Instance{
+	inst := &Instance{
 		man:      new(pb.InstanceManifest),
 		coherent: true,
 		file:     f,
@@ -252,8 +257,12 @@ func (fs *Filesystem) LoadInstance(name string) (inst *Instance, err error) {
 		name:     name,
 	}
 
-	err = unmarshalManifest(f, inst.man, instManifestOffset, instanceFileTag)
-	return
+	if err := unmarshalManifest(f, inst.man, instManifestOffset, instanceFileTag); err != nil {
+		return nil, err
+	}
+
+	ok = true
+	return inst, nil
 }
 
 func (fs *Filesystem) listNames(dirFD uintptr) ([]string, error) {
@@ -292,7 +301,6 @@ func marshalManifest(f *file.File, man proto.Message, offset int64, tag uint32) 
 	if _, err := f.WriteAt(b, offset); err != nil {
 		return err
 	}
-
 	return nil
 }
 

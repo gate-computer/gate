@@ -762,7 +762,6 @@ func (a *access) AuthorizeInstance(ctx Context, res *server.ResourcePolicy, inst
 	if err != nil {
 		return ctx, err
 	}
-
 	return authorizeScope(ctx)
 }
 
@@ -771,7 +770,6 @@ func (a *access) AuthorizeProgramInstance(ctx Context, res *server.ResourcePolic
 	if err != nil {
 		return ctx, err
 	}
-
 	return authorizeScope(ctx)
 }
 
@@ -780,7 +778,6 @@ func (a *access) AuthorizeProgramInstanceSource(ctx Context, res *server.Resourc
 	if err != nil {
 		return ctx, err
 	}
-
 	return authorizeScope(ctx)
 }
 

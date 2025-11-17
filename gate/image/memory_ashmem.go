@@ -21,23 +21,23 @@ import (
 
 const memoryFileWriteSupported = false // Ashmem doesn't implement write syscalls.
 
-func newMemoryFile(name string, size int64) (f *file.File, err error) {
-	f, err = openat(unix.AT_FDCWD, "/dev/ashmem", syscall.O_RDWR, 0)
+func newMemoryFile(name string, size int64) (*file.File, error) {
+	var ok bool
+
+	f, err := openat(unix.AT_FDCWD, "/dev/ashmem", syscall.O_RDWR, 0)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			f.Close()
 		}
 	}()
 
-	err = ashmemSetSize.ioctl(f.Fd(), uintptr(size))
-	if err != nil {
-		return
+	if err := ashmemSetSize.ioctl(f.Fd(), uintptr(size)); err != nil {
+		return nil, err
 	}
-
-	return
+	return f, nil
 }
 
 func protectFileMemory(f *file.File, mask uintptr) error {
@@ -79,6 +79,5 @@ func ioctl(fd, cmd, arg uintptr) error {
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, fd, cmd, arg); errno != 0 {
 		return fmt.Errorf("ioctl %s: %w", ioctlStrings[cmd], error(errno))
 	}
-
 	return nil
 }

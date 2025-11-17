@@ -78,32 +78,31 @@ func (prog *Program) NewModuleReader() io.Reader {
 	return io.NewSectionReader(prog.file, progModuleOffset, prog.man.ModuleSize)
 }
 
-func (prog *Program) LoadBuffers() (bs *snapshot.Buffers, err error) {
+func (prog *Program) LoadBuffers() (*snapshot.Buffers, error) {
 	if prog.man.BufferSection.Size == 0 {
-		return
+		return nil, nil
 	}
 
 	header := make([]byte, prog.man.BufferSectionHeaderSize)
 
 	off := progModuleOffset + prog.man.BufferSection.Start
-	_, err = prog.file.ReadAt(header, off)
-	if err != nil {
-		return
+	if _, err := prog.file.ReadAt(header, off); err != nil {
+		return nil, err
 	}
 
 	bs, n, dataBuf, err := wasm.ReadBufferSectionHeader(bytes.NewReader(header), prog.man.BufferSection.Size)
 	if err != nil {
-		return
+		return nil, err
 	}
 	off += int64(n)
 
 	n, err = prog.file.ReadAt(dataBuf, off)
 	if err != nil {
-		return
+		return nil, err
 	}
 	off += int64(n)
 
-	return
+	return bs, nil
 }
 
 // Store the program.  The name must not contain path separators.

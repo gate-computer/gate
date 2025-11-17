@@ -51,6 +51,5 @@ func dialContainerDaemon(path string) (*net.UnixConn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return net.DialUnix(addr.Net, nil, addr)
 }

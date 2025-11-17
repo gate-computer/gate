@@ -1124,7 +1124,6 @@ func TestInstanceTerminated(t *testing.T) {
 				if err != nil {
 					return err
 				}
-
 				final = snap.GetFinal()
 				return nil
 			},

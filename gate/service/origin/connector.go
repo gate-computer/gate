@@ -89,6 +89,5 @@ func (cr *Connector) CreateInstance(ctx Context, config service.InstanceConfig, 
 	if err := cr.inst.restore(state); err != nil {
 		return nil, err
 	}
-
 	return &cr.inst, nil
 }

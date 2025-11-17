@@ -55,7 +55,6 @@ func (s *Stream) Unmarshal(src []byte, config packet.Service) ([]byte, error) {
 	if err != nil {
 		return src, err
 	}
-
 	return s.WriteStream.State.Unmarshal(src, s.WriteStream.bufferSize())
 }
 

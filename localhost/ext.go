@@ -23,6 +23,5 @@ var Ext = service.Extend(extName, &extConfig, func(ctx Context, r *service.Regis
 	if err != nil {
 		return err
 	}
-
 	return r.Register(l)
 })

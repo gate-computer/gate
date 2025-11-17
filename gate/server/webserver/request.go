@@ -329,6 +329,5 @@ func decodeProtoJSON(r io.Reader, m proto.Message) error {
 	if err != nil {
 		return err
 	}
-
 	return protojson.Unmarshal(b, m)
 }

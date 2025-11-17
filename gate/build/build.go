@@ -67,7 +67,7 @@ func (b *Build) InstallEarlySnapshotLoaders() {
 		}
 
 		b.SectionMap.Snapshot = b.SectionMap.Sections[section.Custom]
-		b.Snapshot = &snap
+		b.Snapshot = snap
 		return nil
 	}
 

@@ -12,10 +12,8 @@ func clearCaps() error {
 	if err := cap.NewSet().SetProc(); err != nil {
 		return err
 	}
-
 	if err := cap.ResetAmbient(); err != nil {
 		return err
 	}
-
 	return nil
 }

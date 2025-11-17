@@ -25,7 +25,6 @@ func OpenCgroup(name string) (*ProcessGroup, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &ProcessGroup{file.Own(fd)}, nil
 }
 

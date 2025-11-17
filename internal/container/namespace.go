@@ -68,11 +68,9 @@ func configureUserNamespace(pid int, c *config.NamespaceConfig, cred *NamespaceC
 	if err := writeIDMap(c.Newuidmap, pid, os.Getuid(), cred.Container.UID, cred.Executor.UID); err != nil {
 		return err
 	}
-
 	if err := writeIDMap(c.Newgidmap, pid, os.Getgid(), cred.Container.GID, cred.Executor.GID); err != nil {
 		return err
 	}
-
 	return nil
 }
 

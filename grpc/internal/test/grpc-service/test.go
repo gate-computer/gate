@@ -220,7 +220,6 @@ func (s *instanceServer) Receive(req *pb.ReceiveRequest, stream pb.Instance_Rece
 	if err != nil {
 		return err
 	}
-
 	return inst.sendTo(stream)
 }
 
@@ -229,7 +228,6 @@ func (s *instanceServer) Handle(ctx Context, req *pb.HandleRequest) (*emptypb.Em
 	if err != nil {
 		return nil, err
 	}
-
 	inst.handle(ctx, req.Data)
 	return new(emptypb.Empty), nil
 }
@@ -249,7 +247,6 @@ func (s *instanceServer) Suspend(ctx Context, req *pb.SuspendRequest) (*emptypb.
 	if err != nil {
 		return nil, err
 	}
-
 	inst.suspend()
 	return new(emptypb.Empty), nil
 }

@@ -40,7 +40,6 @@ func (scope) CreateInstance(ctx Context, config service.InstanceConfig, snapshot
 	if err := restore(ctx, snapshot); err != nil {
 		return nil, err
 	}
-
 	return instance{}, nil
 }
 

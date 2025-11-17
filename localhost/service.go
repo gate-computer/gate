@@ -26,46 +26,41 @@ type Config struct {
 	Addr string
 }
 
-func New(config *Config) (l *Localhost, err error) {
+func New(config *Config) (*Localhost, error) {
 	if config.Addr == "" {
-		err = errors.New("localhost service: no address")
-		return
+		return nil, errors.New("localhost service: no address")
 	}
 
 	u, err := url.Parse(config.Addr)
 	if err != nil {
-		return
+		return nil, err
 	}
 	if !u.IsAbs() {
-		err = fmt.Errorf("localhost service: address is relative: %s", u)
-		return
+		return nil, fmt.Errorf("localhost service: address is relative: %s", u)
 	}
 
 	switch u.Scheme {
 	case "http", "https":
 		if u.Hostname() == "" {
-			err = fmt.Errorf("localhost service: HTTP address has no host: %s", u)
-			return
+			return nil, fmt.Errorf("localhost service: HTTP address has no host: %s", u)
 		}
 		if u.Path != "" && u.Path != "/" {
-			err = fmt.Errorf("localhost service: HTTP address with path is not supported: %s", u)
-			return
+			return nil, fmt.Errorf("localhost service: HTTP address with path is not supported: %s", u)
 		}
 
-		l = &Localhost{
+		l := &Localhost{
 			scheme: u.Scheme,
 			host:   u.Host,
 			client: http.DefaultClient,
 		}
+		return l, nil
 
 	case "unix":
 		if u.Host != "" {
-			err = fmt.Errorf("localhost service: unix address with host is not supported: %s", u)
-			return
+			return nil, fmt.Errorf("localhost service: unix address with host is not supported: %s", u)
 		}
 		if u.Path == "" {
-			err = fmt.Errorf("localhost service: unix address has no path: %s", u)
-			return
+			return nil, fmt.Errorf("localhost service: unix address has no path: %s", u)
 		}
 
 		dialer := net.Dialer{
@@ -86,18 +81,16 @@ func New(config *Config) (l *Localhost, err error) {
 			},
 		}
 
-		l = &Localhost{
+		l := &Localhost{
 			scheme: "http",
 			host:   "localhost",
 			client: client,
 		}
+		return l, nil
 
 	default:
-		err = fmt.Errorf("localhost service: address has unsupported scheme: %s", u)
-		return
+		return nil, fmt.Errorf("localhost service: address has unsupported scheme: %s", u)
 	}
-
-	return
 }
 
 type Localhost struct {
@@ -124,6 +117,5 @@ func (l *Localhost) CreateInstance(ctx Context, config service.InstanceConfig, s
 	if err := inst.restore(snapshot); err != nil {
 		return nil, err
 	}
-
 	return inst, nil
 }

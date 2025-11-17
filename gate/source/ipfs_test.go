@@ -84,7 +84,7 @@ func testIPFSLength(t *testing.T, source source.Source) {
 	assert.True(t, tooLong)
 }
 
-func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeout time.Duration) (data []byte, tooLong bool, err error) {
+func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeout time.Duration) (_ []byte, tooLong bool, _ error) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -92,14 +92,13 @@ func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeo
 
 	r, length, err := source.OpenURI(ctx, uri, maxSize)
 	if err != nil {
-		return
+		return nil, false, err
 	}
 
 	if r == nil {
 		require.NotEqual(t, length, 0, "not found")
 		require.Less(t, maxSize, 13, "failed without good reason")
-		tooLong = true
-		return
+		return nil, true, nil
 	}
 
 	defer func() {
@@ -108,7 +107,7 @@ func testIPFS(t *testing.T, source source.Source, uri string, maxSize int, timeo
 
 	assert.LessOrEqual(t, length, int64(maxSize))
 
-	data = Must(t, R(io.ReadAll(r)))
+	data := Must(t, R(io.ReadAll(r)))
 	assert.Equal(t, int64(len(data)), length)
-	return
+	return data, false, nil
 }

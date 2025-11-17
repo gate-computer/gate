@@ -303,7 +303,6 @@ func Write(w CloseWriter, packet EOFData) (int, error) {
 		if err := w.CloseWrite(); err != nil {
 			return 0, err
 		}
-
 		return 0, nil
 	}
 

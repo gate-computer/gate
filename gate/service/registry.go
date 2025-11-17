@@ -353,7 +353,6 @@ func (d *discoverer) Handle(ctx Context, send chan<- packet.Thunk, p packet.Buf)
 		if err := s.instance.Ready(ctx); err != nil {
 			return nil, err
 		}
-
 		if err := s.instance.Start(ctx, send, d.abort); err != nil {
 			return nil, err
 		}

@@ -19,6 +19,5 @@ var Ext = service.Extend(extName, &extConfig, func(ctx Context, r *service.Regis
 	if err := extConfig.Init(ctx, logger.MustContextual(ctx)); err != nil {
 		return err
 	}
-
 	return extConfig.Register(r)
 })

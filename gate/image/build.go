@@ -97,7 +97,6 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 	if err := mmapp(&b.compileMem, b.prog.file, progTextOffset, maxTextSize); err != nil {
 		return nil, err
 	}
-
 	b.prog.text = buffer.MakeStatic(b.compileMem[:0:maxTextSize])
 
 	if moduleSize > 0 {
@@ -105,7 +104,6 @@ func NewBuild(storage Storage, moduleSize, maxTextSize int, objectMap *object.Ca
 		if err := mmapp(&b.prog.moduleMem, b.prog.file, progModuleOffset, moduleSize); err != nil {
 			return nil, err
 		}
-
 		b.prog.module = buffer.MakeStatic(b.prog.moduleMem[:0:moduleSize])
 	}
 
@@ -183,7 +181,6 @@ func (b *Build) FinishText(stackSize, stackUsage, globalsSize, memorySize int) e
 		if err != nil {
 			return err
 		}
-
 		b.inst.file = f
 		f = nil
 	}
@@ -396,7 +393,6 @@ func mmapp(ptr *[]byte, f *file.File, offset int64, length int) error {
 	if err != nil {
 		return err
 	}
-
 	*ptr = b
 	return nil
 }
@@ -422,6 +418,5 @@ func generateRandTextAddr() (uint64, error) {
 	if _, err := rand.Read(b); err != nil {
 		return 0, err
 	}
-
 	return executable.RandAddr(executable.MinTextAddr, executable.MaxTextAddr, b), nil
 }

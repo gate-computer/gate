@@ -123,36 +123,38 @@ func (pmem persistMem) Instances() ([]string, error) {
 	return pmem.fs.Instances()
 }
 
-func (pmem persistMem) LoadInstance(name string) (inst *Instance, err error) {
-	inst, err = pmem.fs.LoadInstance(name)
+func (pmem persistMem) LoadInstance(name string) (*Instance, error) {
+	var ok bool
+
+	inst, err := pmem.fs.LoadInstance(name)
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			inst.Close()
 		}
 	}()
 
 	f, err := Memory.newInstanceFile()
 	if err != nil {
-		return
+		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if !ok {
 			f.Close()
 		}
 	}()
 
-	err = copyInstance(f, inst.file, inst.man)
-	if err != nil {
-		return
+	if err := copyInstance(f, inst.file, inst.man); err != nil {
+		return nil, err
 	}
 
 	fsFile := inst.file
 	inst.file = f
 	fsFile.Close()
-	return
+	ok = true
+	return inst, nil
 }
 
 func copyInstance(dest, src *file.File, man *pb.InstanceManifest) error {
@@ -169,7 +171,6 @@ func copyInstance(dest, src *file.File, man *pb.InstanceManifest) error {
 	if _, err := io.Copy(&offsetWriter{dest, o}, io.NewSectionReader(src, o, l)); err != nil {
 		return err
 	}
-
 	return nil
 }
 

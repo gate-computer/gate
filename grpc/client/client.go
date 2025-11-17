@@ -247,7 +247,6 @@ func (inst *instance) Ready(ctx Context) error {
 	if err != nil {
 		return err
 	}
-
 	inst.stream = stream
 	return nil
 }
@@ -313,7 +312,6 @@ func (inst *instance) Shutdown(ctx Context, suspend bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return r.Value, nil
 }
 

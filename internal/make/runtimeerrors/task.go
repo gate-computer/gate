@@ -68,11 +68,9 @@ func Task(GOFMT string) m.Task {
 			if err := os.WriteFile(cTarget, c.Bytes(), 0o666); err != nil {
 				return err
 			}
-
 			if err := os.WriteFile(gTarget, gFmt, 0o666); err != nil {
 				return err
 			}
-
 			return nil
 		}),
 	)
