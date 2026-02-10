@@ -48,7 +48,7 @@ func acceptsText(r *http.Request) bool {
 	}
 
 	for _, header := range headers {
-		for _, field := range strings.Split(header, ",") {
+		for field := range strings.SplitSeq(header, ",") {
 			tokens := strings.SplitN(field, ";", 2)
 			mediaType := strings.TrimSpace(tokens[0])
 
@@ -69,7 +69,7 @@ func acceptsJSON(r *http.Request) bool {
 	}
 
 	for _, header := range headers {
-		for _, field := range strings.Split(header, ",") {
+		for field := range strings.SplitSeq(header, ",") {
 			tokens := strings.SplitN(field, ";", 2)
 			mediaType := strings.TrimSpace(tokens[0])
 
@@ -85,7 +85,7 @@ func acceptsJSON(r *http.Request) bool {
 
 func acceptsTrailers(r *http.Request) bool {
 	for _, header := range r.Header[web.HeaderTE] {
-		for _, field := range strings.Split(strings.ToLower(header), ",") {
+		for field := range strings.SplitSeq(strings.ToLower(header), ",") {
 			if strings.TrimSpace(field) == web.TETrailers {
 				return true
 			}
@@ -97,7 +97,7 @@ func acceptsTrailers(r *http.Request) bool {
 
 func mustBeAllowedOrigin(w http.ResponseWriter, r *http.Request, s *webserver, header string) {
 origins:
-	for _, origin := range strings.Fields(header) {
+	for origin := range strings.FieldsSeq(header) {
 		for _, allow := range s.Origins {
 			if allow == origin {
 				continue origins
@@ -125,7 +125,7 @@ func mustAcceptApplication(w http.ResponseWriter, r *http.Request, s *webserver,
 	}
 
 	for _, header := range headers {
-		for _, field := range strings.Split(header, ",") {
+		for field := range strings.SplitSeq(header, ",") {
 			tokens := strings.SplitN(field, ";", 2)
 			mediaType := strings.TrimSpace(tokens[0])
 

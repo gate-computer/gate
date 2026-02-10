@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -129,11 +130,5 @@ func ContextContains(ctx context.Context, scope string) bool {
 		return false
 	}
 
-	for _, s := range x.([]string) {
-		if s == scope {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(x.([]string), scope)
 }

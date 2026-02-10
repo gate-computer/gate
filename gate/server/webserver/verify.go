@@ -6,6 +6,7 @@ package webserver
 
 import (
 	"crypto/ed25519"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,10 +43,8 @@ func mustVerifyAudience(ctx Context, ew errorWriter, s *webserver, audience []st
 		return
 	}
 
-	for _, a := range audience {
-		if a == s.identity {
-			return
-		}
+	if slices.Contains(audience, s.identity) {
+		return
 	}
 
 	respondUnauthorizedError(ctx, ew, s, "invalid_token")

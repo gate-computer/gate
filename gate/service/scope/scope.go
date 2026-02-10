@@ -127,7 +127,7 @@ func parseScope(b []byte) ([]string, error) {
 
 	scope := make([]string, count)
 
-	for i := 0; i < count; i++ {
+	for i := range count {
 		if len(b) < 1 {
 			return nil, errParseShort
 		}

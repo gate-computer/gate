@@ -81,7 +81,7 @@ func (inst *instance) restore(input []byte) error {
 
 	// Length of the input buffer puts a practical limit on stream count.
 	// Restored streams consume few resources (they share a single goroutine).
-	for i := int32(0); i < numStreams; i++ {
+	for range numStreams {
 		var id int32
 
 		id, input, err = varint.Scan(input)

@@ -99,7 +99,7 @@ func Link(output, ld, objdump, gosrc, gopkg string, objects ...string) error {
 
 	buf := bytes.NewBuffer(nil)
 
-	for _, line := range strings.Split(string(dump), "\n") {
+	for line := range strings.SplitSeq(string(dump), "\n") {
 		switch {
 		case expFunc.MatchString(line):
 			buf.Reset()

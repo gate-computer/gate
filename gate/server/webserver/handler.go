@@ -228,7 +228,7 @@ func initHandleAPI(mux *http.ServeMux, pattern string, s *webserver, features *a
 			Iss:  s.identity,
 			UUID: id,
 		})))
-		signee := []byte(fmt.Sprintf("%s.%s", header, claims))
+		signee := fmt.Appendf(nil, "%s.%s", header, claims)
 		sig := base64.RawURLEncoding.EncodeToString(ed25519.Sign(*s.identityKey, signee))
 		token = fmt.Sprintf("%s.%s", signee, sig)
 	}

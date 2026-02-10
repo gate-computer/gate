@@ -75,9 +75,6 @@ func (e rateError) GRPCCode() int            { return grpc.Unavailable }
 func (e rateError) FailType() event.FailType { return event.FailRateLimit }
 
 func (e rateError) RetryAfter() time.Duration {
-	d := time.Until(e.retryAfter)
-	if d < 1 {
-		d = 1
-	}
+	d := max(time.Until(e.retryAfter), 1)
 	return d
 }

@@ -176,10 +176,7 @@ func (b Buf) Content() []byte {
 // prefixLen parameter.  If the buffer is too short for the second part,
 // the length of the second buffer will be zero.
 func (b Buf) Cut(headerSize, prefixLen int) (prefix, unused Buf) {
-	prefixCap := Align(prefixLen)
-	if prefixCap > len(b) {
-		prefixCap = len(b)
-	}
+	prefixCap := min(Align(prefixLen), len(b))
 
 	prefix = b[:prefixLen:prefixCap]
 	unused = b[prefixCap:]
